@@ -2,6 +2,7 @@
 *.pkl
 *.pt
 .idea/
+linkefl.egg-info/
 
 ### macOS ###
 # General
