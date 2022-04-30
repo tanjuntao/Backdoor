@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 
-class CryptoSystem:
+class CryptoSystem(ABC):
     """Base class of cryptosystem"""
     def __init__(self, key_size=1024):
         """Initialize a cryptosystem.
@@ -18,7 +18,7 @@ class CryptoSystem:
         self.key_size = key_size
 
     @abstractmethod
-    def __gen_key(self):
+    def __gen_key(self, key_size):
         """Generate public key and private key."""
         pass
 

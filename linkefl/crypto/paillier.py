@@ -10,6 +10,7 @@ import torch
 
 from .base import CryptoSystem
 from .plain import Plain
+from linkefl.config import BaseConfig
 
 
 class Paillier(CryptoSystem):
@@ -25,18 +26,22 @@ class Paillier(CryptoSystem):
     but notations to represent addition and multiplication operations on
     encrypted data.
     """
-    def __init__(self, config, key_size=None):
-        if key_size is None:
-            key_size = config.DEFAULT_KEY_SIZE
+    def __init__(self, key_size=1024):
         super(Paillier, self).__init__(key_size)
-        self.config = config
-        self.pub_key, self.priv_key = self.__gen_key()
+        self.pub_key, self.priv_key = self.__gen_key(key_size)
 
-    def __gen_key(self):
-        pub_key, priv_key = paillier.generate_paillier_keypair(n_length=self.key_size)
+    @classmethod
+    def from_config(cls, config):
+        assert isinstance(config, BaseConfig), 'config object should be an ' \
+                                               'instance of BaseConfig class.'
+        return cls(key_size=config.KEY_SIZE)
+
+    def __gen_key(self, key_size):
+        pub_key, priv_key = paillier.generate_paillier_keypair(n_length=key_size)
         return pub_key, priv_key
 
     def encrypt(self, plaintext):
+        # TODO: add support for PyTorch tensor data type
         if type(plaintext) in (np.int8, np.int16, np.int32, np.int64):
             plaintext = int(plaintext)
         return self.pub_key.encrypt(plaintext)
@@ -74,7 +79,7 @@ class FastPaillier(CryptoSystem):
     """
     Faster paillier encryption using pre-computed encrypted zeros.
     """
-    def __init__(self, config, key_size=None, num_enc_zeros=None, gen_from_set=None):
+    def __init__(self, key_size=1024, num_enc_zeros=10000, gen_from_set=False):
         """
         Initialize a FastPaillier instance
 
@@ -87,45 +92,48 @@ class FastPaillier(CryptoSystem):
         Returns:
             None
         """
-        if key_size is None:
-            key_size = config.DEFAULT_KEY_SIZE
-        if num_enc_zeros is None:
-            num_enc_zeros = config.NUM_ENC_ZEROS
-        if gen_from_set is None:
-            gen_from_set = config.GEN_FROM_SET
-
-        self.config = config
+        # TODO: move the process of generating encrypted zeros to offline phase
         super(FastPaillier, self).__init__(key_size)
-        self.pub_key, self.priv_key = self.__gen_key()
-        self.n_squared = self.pub_key.n ** 2
+        self.num_enc_zeros = num_enc_zeros
         self.gen_from_set = gen_from_set
+
+        self.pub_key, self.priv_key = self.__gen_key(key_size)
+        self.n_squared = self.pub_key.n ** 2
 
         print('Generating encrypted zeros...')
         self._enc_zeros = self.cal_enc_zeros(self.pub_key, num_enc_zeros, gen_from_set)
         print('Done!')
 
-    def __gen_key(self):
-        pub_key, priv_key = paillier.generate_paillier_keypair(n_length=self.key_size)
+    @classmethod
+    def from_config(cls, config):
+        assert isinstance(config, BaseConfig), 'config object should be an ' \
+                                               'instance of BaseConfig class.'
+        return cls(key_size=config.KEY_SIZE,
+                   num_enc_zeros=config.NUM_ENC_ZEROS,
+                   gen_from_set=config.GEN_FROM_SET)
+
+    def __gen_key(self, key_size):
+        pub_key, priv_key = paillier.generate_paillier_keypair(n_length=key_size)
         return pub_key, priv_key
 
     def cal_enc_zeros(self, public_key, num_enc_zeros, gen_from_set):
         """Calculate pre-computed encrypted zeros for later encryption."""
-        def _subset(Base_set, Public_key, N_squared):
-            _backtrack(0, [], Base_set, Public_key, N_squared)
+        def _subset(_base_set, _public_key, _n_squared):
+            _backtrack(0, [], _base_set, _public_key, _n_squared)
 
-        def _backtrack(start_idx, path, Base_set, Public_key, N_squared):
+        def _backtrack(start_idx, path, _base_set, _public_key, _n_squared):
             # save current state
             if path:
                 ciphertext = gmpy2.mpz(1)
                 for val in path:
-                    ciphertext = gmpy2.mul(ciphertext, val) % N_squared
-                enc_zero = EncryptedNumber(Public_key, int(ciphertext), 0)
+                    ciphertext = gmpy2.mul(ciphertext, val) % _n_squared
+                enc_zero = EncryptedNumber(_public_key, int(ciphertext), 0)
                 enc_zeros.append(enc_zero)
 
             # dfs
-            for i in range(start_idx, len(Base_set)):
-                path.append(Base_set[i])
-                _backtrack(i + 1, path, Base_set, Public_key, N_squared)
+            for i in range(start_idx, len(_base_set)):
+                path.append(_base_set[i])
+                _backtrack(i + 1, path, _base_set, _public_key, _n_squared)
                 path.pop()
 
         # Main function
@@ -133,7 +141,7 @@ class FastPaillier(CryptoSystem):
         if not gen_from_set:
             enc_zeros = [public_key.encrypt(0) for _ in range(num_enc_zeros)]
         else:
-            num_entries = int(math.log(num_enc_zeros, 2))
+            num_entries = math.ceil(math.log(num_enc_zeros, 2))
             base_set = []
             for _ in range(num_entries):
                 r = random.SystemRandom().randrange(1, public_key.n)
@@ -148,6 +156,7 @@ class FastPaillier(CryptoSystem):
         # TODO: load encrypted zeros from pickled file
         if type(plaintext) in (np.int8, np.int16, np.int32, np.int64):
             plaintext = int(plaintext)
+        # TODO: improve security by random choice without replacement
         enc_zero = random.choice(self._enc_zeros)
         return enc_zero + plaintext
 
@@ -180,24 +189,12 @@ class FastPaillier(CryptoSystem):
             return self.func_mp(self.decrypt, cipher_vector, n_processes)
 
 
-class PartialPlain(Plain):
-    def __init__(self, pub_key, key_size=0):
-        super(PartialPlain, self).__init__(key_size=key_size)
-        self.pub_key = pub_key # overwritten
-
-    def decrypt(self, ciphertext):
-        raise Exception('Trying to do decryption in a cryptosystem without '
-                        'private key.')
-
-    def decrypt_vector(self, cipher_vector, using_mp=False, n_processes=None):
-        raise Exception('Trying to do decryption in a cryptosystem without '
-                        'private key.')
-
-
 class PartialPaillier(Paillier):
-    def __init__(self, config, pub_key, key_size=None):
-        super(PartialPaillier, self).__init__(config, key_size=key_size)
-        self.pub_key = pub_key # overwritten
+    def __init__(self, pub_key):
+        # it is just OK not calling super() constructor function in python subclass
+        # if we don't need to initilize the self variables
+        # and the methods in superclass are inherited automatically
+        self.pub_key = pub_key
 
     def decrypt(self, ciphertext):
         raise Exception('Trying to do decryption in a cryptosystem without '
@@ -209,20 +206,9 @@ class PartialPaillier(Paillier):
 
 
 class PartialFastPaillier(FastPaillier):
-    def __init__(self,
-                 config,
-                 pub_key,
-                 key_size=None,
-                 num_enc_zeros=None,
-                 gen_from_set=None):
-        super(PartialFastPaillier, self).__init__(config,
-                                                  key_size=key_size,
-                                                  num_enc_zeros=num_enc_zeros,
-                                                  gen_from_set=gen_from_set)
-        # overwritten
+    def __init__(self, pub_key, num_enc_zeros=10000, gen_from_set=False):
         self.pub_key = pub_key
-        # overwritten
-        self._enc_zeros = self.cal_enc_zeros(self.pub_key, num_enc_zeros, gen_from_set)
+        self._enc_zeros = self.cal_enc_zeros(pub_key, num_enc_zeros, gen_from_set)
 
     def decrypt(self, ciphertext):
         raise Exception('Trying to do decryption in a cryptosystem without '

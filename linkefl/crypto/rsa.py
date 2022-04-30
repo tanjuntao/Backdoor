@@ -7,6 +7,8 @@ import threading
 from Crypto.PublicKey import RSA
 import gmpy2
 
+from linkefl.config import BaseConfig
+
 
 def _target_mp_manager(X, _start, _end, d, n):
     for i in range(_start, _end):
@@ -18,11 +20,13 @@ def _target_mp_pool(x, d, n):
 
 
 class RSACrypto:
-    def __init__(self, config, private_key=None, key_size=1024, e=0x10001):
-        self.config = config
+    SECRET_CODE = 'linkefl'
+    PRIV_KEY_NAME = '.rsa_key.bin'
+
+    def __init__(self, key_size=1024, e=0x10001, private_key=None):
         if private_key is None:
             self.priv_key = RSA.generate(key_size, e=e)
-            self._save_priv_key()
+            self._save_key(self.priv_key)
         else:
             self.priv_key = private_key
 
@@ -31,18 +35,24 @@ class RSACrypto:
         self.n = self.priv_key.n
         self.e = self.priv_key.e
 
-    def _save_priv_key(self):
-        encrypted_key = self.priv_key.export_key(passphrase=self.config.SECRET_CODE,
-                                                 pkcs=8,
-                                                 protection='scryptAndAES128-CBC')
+    def _save_key(self, key):
+        encrypted_key = key.export_key(passphrase=RSACrypto.SECRET_CODE,
+                                       pkcs=8,
+                                       protection='scryptAndAES128-CBC')
         home_path = str(Path.home())
-        with open(home_path + '/' + self.config.PRIV_KEY_NAME, 'wb') as f:
+        with open(home_path + '/' + RSACrypto.PRIV_KEY_NAME, 'wb') as f:
             f.write(encrypted_key)
 
     @classmethod
-    def from_private(cls, config):
+    def from_config(cls, config):
+        assert isinstance(config, BaseConfig), 'config object should be an ' \
+                                               'instance of BaseConfig class.'
+        return cls(key_size=config.KEY_SIZE, e=config.PUB_E)
+
+    @classmethod
+    def from_private(cls):
         home_path = str(Path.home())
-        full_path = home_path + '/' + config.PRIV_KEY_NAME
+        full_path = home_path + '/' + cls.PRIV_KEY_NAME
 
         # check if the private key exists
         if not os.path.exists(full_path):
@@ -51,12 +61,12 @@ class RSACrypto:
 
         # load the private key
         encoded_key = open(full_path, 'rb').read()
-        private_key = RSA.import_key(encoded_key, passphrase=config.SECRET_CODE)
+        private_key = RSA.import_key(encoded_key, passphrase=cls.SECRET_CODE)
 
         # delete the private key
         os.remove(full_path)
 
-        return cls(config=config, private_key=private_key)
+        return cls(private_key=private_key)
 
     def encrypt(self, plaintext):
         return gmpy2.powmod(plaintext, self.e, self.n)
@@ -204,6 +214,7 @@ class RSACrypto:
 
 
 class PartialRSACrypto:
+    # TODO: inherited from RSACrypto
     def __init__(self, pub_key):
         self.pub_key = pub_key
         self.e = self.pub_key.e
@@ -255,7 +266,6 @@ class PartialRSACrypto:
 
 
 if __name__ == '__main__':
-    # TODO: fix this
     crypto = RSACrypto()
     import time
 
