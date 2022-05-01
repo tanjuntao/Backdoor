@@ -9,6 +9,8 @@ import time
 
 from Crypto.PublicKey import RSA
 import gmpy2
+from termcolor import colored
+
 from linkefl.common.const import Const
 from linkefl.crypto import PartialRSACrypto
 from linkefl.dataio import gen_dummy_ids
@@ -23,14 +25,17 @@ def _target_mp_pool(r, e, n):
 
 
 class RSAPSIPassive:
-    def __init__(self, ids, messenger):
+    def __init__(self, ids, messenger, num_workers=-1):
         self.ids = ids
         self.messenger = messenger
+        if num_workers == -1:
+            num_workers = os.cpu_count()
+        self.num_workers = num_workers
         self.RANDOMS_FILENAME = '.randoms.pkl'
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
-    def get_pub_key(self):
+    def _get_pub_key(self):
         print('[PASSIVE] Requesting public key...')
         self.messenger.send(Const.START_SIGNAL)
         n, e = self.messenger.recv()
@@ -38,36 +43,37 @@ class RSAPSIPassive:
         self.cryptosystem = PartialRSACrypto(pub_key=pub_key)
         print('[PASSIVE] Receive public key successfully.')
 
-    def random_factors(self, randoms):
-        _random_factors = []
+    def _random_factors(self, randoms):
+        random_factors = []
         for r in randoms:
             r_inv = self.cryptosystem.inverse(r)
             r_encrypted = self.cryptosystem.encrypt(r)
-            _random_factors.append((r_inv, r_encrypted))
+            random_factors.append((r_inv, r_encrypted))
 
-        return _random_factors
+        return random_factors
 
-    def random_factors_mp_pool(self, randoms, n_processes=None):
-        if n_processes is None:
+    def _random_factors_mp_pool(self, randoms, n_processes=-1):
+        if n_processes == -1:
             n_processes = os.cpu_count()
 
         e = self.cryptosystem.pub_key.e
         n = self.cryptosystem.pub_key.n
 
         with multiprocessing.Pool(n_processes) as p:
-            res = p.map(functools.partial(_target_mp_pool, e=e, n=n), randoms)
+            random_factors = p.map(functools.partial(_target_mp_pool, e=e, n=n), randoms)
 
-        return res
+        return random_factors
 
-    def random_factors_thread(self, randoms, n_threads=None):
-        if n_threads is None:
+    def _random_factors_thread(self, randoms, n_threads=-1):
+        if n_threads == -1:
             n_threads = os.cpu_count()
 
         n = self.cryptosystem.pub_key.n
         r_invs = [gmpy2.invert(r, n) for r in randoms]
         r_encs = self.cryptosystem.encrypt_set_thread(randoms, n_threads=n_threads)
+        random_factors = list(zip(r_invs, r_encs))
 
-        return list(zip(r_invs, r_encs))
+        return random_factors
 
     def _blind(self, x, rf, n):
         assert  0 <= x < n, f"x should be in range [0, {n})"
@@ -79,7 +85,7 @@ class RSAPSIPassive:
         rf_inv = rf[0]
         return self.cryptosystem.mulmod(x, rf_inv, n)
 
-    def blind_set(self, X, random_factors):
+    def _blind_set(self, X, random_factors):
         blinded_set = []
         n = gmpy2.mpz(self.cryptosystem.pub_key.n)
         for x, rf in zip(X, random_factors):
@@ -90,7 +96,7 @@ class RSAPSIPassive:
 
         return blinded_set
 
-    def unblind_set(self, X, random_factors):
+    def _unblind_set(self, X, random_factors):
         unblinded_set = []
         n = gmpy2.mpz(self.cryptosystem.pub_key.n)
         for x, rf in zip(X, random_factors):
@@ -102,7 +108,7 @@ class RSAPSIPassive:
 
         return unblinded_set
 
-    def hash_set(self, signed_set):
+    def _hash_set(self, signed_set):
         return [hashlib.sha256(str(item).encode()).hexdigest()
                 for item in signed_set]
 
@@ -118,30 +124,30 @@ class RSAPSIPassive:
 
     def run_online(self):
         start_time = time.time()
-        self.get_pub_key()
+        self._get_pub_key()
 
         # generate random factors and blind ids
         begin = time.time()
         with open('{}/{}'.format(self.HERE, self.RANDOMS_FILENAME), 'rb') as f:
             randoms = pickle.load(f)
-        random_factors = self.random_factors_mp_pool(randoms)
+        random_factors = self._random_factors_mp_pool(randoms,
+                                                      n_processes=self.num_workers)
         print('Only random factors time: {:.5f}'.format(time.time() - begin))
         begin = time.time()
-        blinded_ids = self.blind_set(self.ids, random_factors)
+        blinded_ids = self._blind_set(self.ids, random_factors)
         print('Only blind set time: {:.5f}'.format(time.time() - begin))
         self.messenger.send(blinded_ids)
 
         blinded_signed_ids = self.messenger.recv()
         begin = time.time()
-        signed_ids = self.unblind_set(blinded_signed_ids, random_factors)
-        hashed_ids = self.hash_set(signed_ids)
-        print('Unblind set and hash set time: {:.5f}'
-              .format(time.time() - begin))
+        signed_ids = self._unblind_set(blinded_signed_ids, random_factors)
+        hashed_ids = self._hash_set(signed_ids)
+        print('Unblind set and hash set time: {:.5f}'.format(time.time() - begin))
         self.messenger.send(hashed_ids)
 
         os.remove('{}/{}'.format(self.HERE, self.RANDOMS_FILENAME))
         intersection = self.messenger.recv()
-        print('Size of intersection: {}'.format(len(intersection)))
+        print(colored('Size of intersection: {}'.format(len(intersection)), 'red'))
         print('Total time: {}'.format(time.time() - start_time))
 
         return intersection

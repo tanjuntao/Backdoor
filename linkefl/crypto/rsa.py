@@ -20,6 +20,7 @@ def _target_mp_pool(x, d, n):
 
 
 class RSACrypto:
+    # TODO: inherited from base crypto class
     SECRET_CODE = 'linkefl'
     PRIV_KEY_NAME = '.rsa_key.bin'
 
@@ -95,8 +96,8 @@ class RSACrypto:
             n = gmpy2.mpz(n)
         return gmpy2.mod(gmpy2.mul(x, y), n)
 
-    def sign_set_mp_manager(self, X, n_processes=None):
-        if n_processes is None:
+    def sign_set_mp_manager(self, X, n_processes=-1):
+        if n_processes == -1:
             n_processes = os.cpu_count()
 
         manager = multiprocessing.Manager()
@@ -131,8 +132,8 @@ class RSACrypto:
         # actual values behind this proxy object.
         return [item for item in shared_data]
 
-    def sign_set_mp_pool(self, X, n_processes=None):
-        if n_processes is None:
+    def sign_set_mp_pool(self, X, n_processes=-1):
+        if n_processes == -1:
             n_processes = os.cpu_count()
 
         manager = multiprocessing.Manager()
@@ -149,8 +150,8 @@ class RSACrypto:
 
         return res
 
-    def sign_set_thread(self, X, n_threads=None):
-        if n_threads is None:
+    def sign_set_thread(self, X, n_threads=-1):
+        if n_threads == -1:
             n_threads = os.cpu_count()
 
         release_gil = True
@@ -176,8 +177,8 @@ class RSACrypto:
 
         return X
 
-    def encrypt_set_thread(self, X, n_threads=None):
-        if n_threads is None:
+    def encrypt_set_thread(self, X, n_threads=-1):
+        if n_threads == -1:
             n_threads = os.cpu_count()
 
         release_gil = True
@@ -240,8 +241,8 @@ class PartialRSACrypto:
         sub_list = X[start:end]
         X[start:end] = gmpy2.powmod_list(sub_list, e, n)
 
-    def encrypt_set_thread(self, X, n_threads=None):
-        if n_threads is None:
+    def encrypt_set_thread(self, X, n_threads=-1):
+        if n_threads == -1:
             n_threads = os.cpu_count()
 
         release_gil = True
