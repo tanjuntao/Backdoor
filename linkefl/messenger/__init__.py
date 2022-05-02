@@ -1,1 +1,1 @@
-from .socket import SocketMessenger, FastSocketMessenger
+from .socket import Socket, FastSocket

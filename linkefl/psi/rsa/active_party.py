@@ -9,7 +9,7 @@ from termcolor import colored
 from linkefl.common.const import Const
 from linkefl.crypto import RSACrypto
 from linkefl.dataio import gen_dummy_ids
-from linkefl.messenger import FastSocketMessenger
+from linkefl.messenger import FastSocket
 
 
 class RSAPSIActive:
@@ -93,11 +93,11 @@ if __name__ == '__main__':
     _ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
 
     # 2. Initialize messenger
-    _messenger = FastSocketMessenger(role=Const.ACTIVE_NAME,
-                                     active_ip='127.0.0.1',
-                                     active_port=20000,
-                                     passive_ip='127.0.0.1',
-                                     passive_port=30000)
+    _messenger = FastSocket(role=Const.ACTIVE_NAME,
+                            active_ip='127.0.0.1',
+                            active_port=20000,
+                            passive_ip='127.0.0.1',
+                            passive_port=30000)
 
     # 3. Start the RSA-Blind-Signature protocol
     if args.phase == 'offline':

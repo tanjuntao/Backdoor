@@ -32,12 +32,12 @@ class Messenger(ABC):
         pass
 
 
-class FastSocketMessenger(Messenger):
+class FastSocket(Messenger):
     """Implement messenger using python socket
 
     RSAPSIPassive and RSAPSIActive will only need to maintain two pair sockets, one for RSAPSIPassive
     sending and bob receiving, the other for RSAPSIPassive receiving and RSAPSIActive sending.
-    It is much more efficient than `SocketMessenger`.
+    It is much more efficient than `Socket`.
     """
     def __init__(self,
                  role,
@@ -51,7 +51,7 @@ class FastSocketMessenger(Messenger):
         After Initialzation, a daemon socket will run in backend at both RSAPSIPassive
         and RSAPSIActive's side.
         """
-        super(FastSocketMessenger, self).__init__()
+        super(FastSocket, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
         self.active_ip = active_ip
@@ -193,7 +193,7 @@ class FastSocketMessenger(Messenger):
         return raw_data
 
 
-class SocketMessenger(Messenger):
+class Socket(Messenger):
     """Using python socket to implement messenger."""
     def __init__(self,
                  role,
@@ -217,7 +217,7 @@ class SocketMessenger(Messenger):
                 because it's been run out. Default 800.
             verbose: Whether to print communication status, default False.
         """
-        super(SocketMessenger, self).__init__()
+        super(Socket, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
         self.active_ip = active_ip

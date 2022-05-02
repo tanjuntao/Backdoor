@@ -1,45 +1,70 @@
-from linkefl.config import LinearConfig
+from linkefl.common.const import Const
 from linkefl.crypto import Plain, Paillier, FastPaillier
 from linkefl.crypto import PartialPlain, PartialPaillier, PartialFastPaillier
-from linkefl.messenger import SocketMessenger, FastSocketMessenger
+from linkefl.messenger import Socket, FastSocket
 
 
-def crypto_factory():
-    if LinearConfig.CRYPTO_TYPE == 'plain':
-        crypto = Plain(key_size=None)
-    elif LinearConfig.CRYPTO_TYPE == 'paillier':
-        crypto = Paillier(LinearConfig, key_size=LinearConfig.DEFAULT_KEY_SIZE)
-    elif LinearConfig.CRYPTO_TYPE == 'fast_paillier':
-        crypto = FastPaillier(LinearConfig,
-                              key_size=LinearConfig.DEFAULT_KEY_SIZE,
-                              num_enc_zeros=LinearConfig.NUM_ENC_ZEROS,
-                              gen_from_set=LinearConfig.GEN_FROM_SET)
+def crypto_factory(crypto_type,
+                   *,
+                   key_size=1024,
+                   num_enc_zeros=10000,
+                   gen_from_set=False):
+    if crypto_type == Const.PLAIN:
+        crypto = Plain(key_size=key_size)
+    elif crypto_type == Const.PAILLIER:
+        crypto = Paillier(key_size=key_size)
+    elif crypto_type == Const.FAST_PAILLIER:
+        crypto = FastPaillier(key_size=key_size,
+                              num_enc_zeros=num_enc_zeros,
+                              gen_from_set=gen_from_set)
     else:
         raise ValueError('Unrecoginized crypto type.')
 
     return crypto
 
 
-def partial_crypto_factory(public_key):
-    if LinearConfig.CRYPTO_TYPE == 'plain':
+def partial_crypto_factory(crypto_type,
+                           *,
+                           public_key,
+                           num_enc_zeros=10000,
+                           gen_from_set=False
+    ):
+    if crypto_type == Const.PLAIN:
         partial_crypto = PartialPlain(pub_key=public_key)
-    elif LinearConfig.CRYPTO_TYPE == 'paillier':
+    elif crypto_type == Const.PAILLIER:
         partial_crypto = PartialPaillier(pub_key=public_key)
-    elif LinearConfig.CRYPTO_TYPE == 'fast_paillier':
+    elif crypto_type == Const.FAST_PAILLIER:
         partial_crypto = PartialFastPaillier(pub_key=public_key,
-                                             num_enc_zeros=LinearConfig.NUM_ENC_ZEROS,
-                                             gen_from_set=LinearConfig.GEN_FROM_SET)
+                                             num_enc_zeros=num_enc_zeros,
+                                             gen_from_set=gen_from_set)
     else:
         raise ValueError('Unrecoginized crypto type.')
 
     return partial_crypto
 
 
-def messenger_factory(role):
-    if LinearConfig.MESSENGER_TYPE == 'socket':
-        messenger = SocketMessenger(role=role)
-    elif LinearConfig.MESSENGER_TYPE == 'fast_socket':
-        messenger = FastSocketMessenger(role=role)
+def messenger_factory(messenger_type,
+                      *,
+                      role,
+                      active_ip,
+                      active_port,
+                      passive_ip,
+                      passive_port,
+                      verbose=False):
+    if messenger_type == Const.SOCKET:
+        messenger = Socket(role=role,
+                           active_ip=active_ip,
+                           active_port=active_port,
+                           passive_ip=passive_ip,
+                           passive_port=passive_port,
+                           verbose=verbose)
+    elif messenger_type == Const.FAST_SOCKET:
+        messenger = FastSocket(role=role,
+                               active_ip=active_ip,
+                               active_port=active_port,
+                               passive_ip=passive_ip,
+                               passive_port=passive_port,
+                               verbose=verbose)
     else:
         raise ValueError('Unrecoginized messenger type.')
 
