@@ -8,12 +8,12 @@ from sklearn.model_selection import train_test_split
 
 
 def _get_dataset(name):
-    """Load dataset by name.
+    """Load np_dataset by name.
 
-    The returned dataset will all be type np.ndarray.
+    The returned np_dataset will all be type np.ndarray.
 
     Args:
-        name[str]: Name of dataset.
+        name[str]: Name of np_dataset.
 
     Returns:
         x_train[np.ndarray]: Training set of X.
@@ -90,10 +90,10 @@ def _get_dataset(name):
 
 
 def feature_ranking(dataset_name, measurement='xgboost'):
-    """Calculate feature importances of each dataset and rank it in desending order.
+    """Calculate feature importances of each np_dataset and rank it in desending order.
 
     Args:
-        dataset_name: Name of the dataset.
+        dataset_name: Name of the np_dataset.
         measurement: What method will be used to calculate feature importance.
             Only "xgboost" and "shap" are valid options. If "xgboost" is used,
             we will use `feature_importance_` attribute of xgboost model to
@@ -359,6 +359,6 @@ def permutation(dataset_name, measurement='xgboost'):
             pass
 
     else:
-        raise ValueError(f"dataset '{dataset_name}'' not supported.")
+        raise ValueError(f"np_dataset '{dataset_name}'' not supported.")
 
     return _permutation
