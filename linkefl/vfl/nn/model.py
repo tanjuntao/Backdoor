@@ -8,7 +8,7 @@ class BottomModel(nn.Module):
         """Initialize model.
 
         Args:
-            num_nodes[List]: number of neurons of each layer of Alice's MLP model.
+            num_nodes[List]: number of neurons of each layer of RSAPSIPassive's MLP model.
         """
         super(BottomModel, self).__init__()
 
@@ -24,7 +24,7 @@ class BottomModel(nn.Module):
 
 
 class AliceBottomModel(BottomModel):
-    """Alice bottom model arthitecture."""
+    """RSAPSIPassive bottom model arthitecture."""
     def __init__(self, num_nodes: list):
         super(AliceBottomModel, self).__init__(num_nodes)
 
@@ -34,7 +34,7 @@ class AliceBottomModel(BottomModel):
 
 
 class BobBottomModel(BottomModel):
-    """Bob bottom model architecture."""
+    """RSAPSIActive bottom model architecture."""
     def __init__(self, num_nodes: list):
         super(BobBottomModel, self).__init__(num_nodes)
 
@@ -50,8 +50,8 @@ class IntersectionModel(nn.Module):
 
         Args:
             num_nodes[List]:
-                First item: input from Alice;
-                Second item: input from Bob;
+                First item: input from RSAPSIPassive;
+                Second item: input from RSAPSIActive;
                 Third item: output of intersection layer
         """
         super(IntersectionModel, self).__init__()
@@ -82,7 +82,7 @@ class TopModel(nn.Module):
 
 
 class SubstituteModel(TopModel):
-    """Alice's local substitute model architecture."""
+    """RSAPSIPassive's local substitute model architecture."""
     def __init__(self, num_nodes, alice_bottom_model, fine_tuning=False):
         super(SubstituteModel, self).__init__(num_nodes)
         self.alice_bottom_model = alice_bottom_model

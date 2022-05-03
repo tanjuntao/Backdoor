@@ -1,0 +1,2 @@
+from .active import ActiveLogisticRegression
+from .passive import PassiveLogisticRegression

@@ -10,14 +10,14 @@ from sklearn.metrics import roc_auc_score
 import numpy as np
 
 from linkefl.dataio import get_tensor_dataset as get_dataset
-from linkefl.messenger import SocketMessenger, FastSocketMessenger
+from linkefl.messenger import Socket, FastSocket
 from linkefl.config import NNConfig as Config
 from linkefl.util import save_model, save_data
 from .model import BobBottomModel, IntersectionModel, TopModel
 
 
 #############################
-# Load dataset
+# Load np_dataset
 #############################
 
 training_data = get_dataset(dataset_name=Config.DATASET_NAME,
@@ -74,12 +74,12 @@ optimizers = [torch.optim.SGD(model.parameters(), lr=Config.LEARNING_RATE)
               for model in models]
 
 def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
-    alice_reprs = None # Alice bottom model representations
+    alice_reprs = None # RSAPSIPassive bottom model representations
     start_idx = 0
 
     if Config.TRAINING_VERBOSE:
         print('Epoch: {}'.format(epoch))
-    size = len(dataloader.dataset)
+    size = len(dataloader.np_dataset)
     for model in models:
         model.train()
     for batch, (X, y) in enumerate(dataloader):
@@ -127,9 +127,9 @@ def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
                 print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
     training_reprs = {}
-    n_classes = len(torch.unique(dataloader.dataset.targets))
+    n_classes = len(torch.unique(dataloader.np_dataset.targets))
     for label in range(n_classes):
-        idxes = dataloader.dataset.targets == label
+        idxes = dataloader.np_dataset.targets == label
         reprs = alice_reprs[idxes]
         training_reprs[label] = reprs
 
@@ -137,7 +137,7 @@ def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
 
 
 def test(dataloader, models, loss_fn, messenger):
-    size = len(dataloader.dataset)
+    size = len(dataloader.np_dataset)
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
     for model in models:
@@ -147,7 +147,7 @@ def test(dataloader, models, loss_fn, messenger):
     with torch.no_grad():
         for batch, (X, y) in enumerate(dataloader):
             X, y = X.to(Config.BOB_DEVICE), y.to(Config.BOB_DEVICE)
-            # if feature representation of alice bottom model is on GPU, then
+            # if feature representation of passive_party bottom model is on GPU, then
             # tensor through pickle.loads() is still on GPU, we DON'T need to
             # transfer it to GPU manully.
             alice_data = messenger.recv()
@@ -186,7 +186,7 @@ args = parser.parse_args()
 if not args.retrain:
     exit(0)
 
-messenger = FastSocketMessenger(role='bob', config=Config)
+messenger = FastSocket(role='bob', config=Config)
 print('Listening...')
 
 start = time.time()

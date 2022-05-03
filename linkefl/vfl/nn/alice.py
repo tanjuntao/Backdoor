@@ -6,23 +6,23 @@ from torchvision.transforms import ToTensor
 from termcolor import colored
 
 from linkefl.dataio import get_tensor_dataset as get_dataset
-from linkefl.messenger import SocketMessenger, FastSocketMessenger
+from linkefl.messenger import Socket, FastSocket
 from linkefl.config import NNConfig as Config
 from linkefl.util import save_model
 from .model import AliceBottomModel
 
 
 #############################
-# Load dataset
+# Load np_dataset
 #############################
 training_data = get_dataset(dataset_name=Config.DATASET_NAME,
-                            role='alice',
+                            role='passive_party',
                             train=True,
                             attacker_features_frac=Config.ATTACKER_FEATURES_FRAC,
                             permutation=Config.PERMUTATION,
                             transform=ToTensor())
 testing_data = get_dataset(dataset_name=Config.DATASET_NAME,
-                           role='alice',
+                           role='passive_party',
                            train=False,
                            attacker_features_frac=Config.ATTACKER_FEATURES_FRAC,
                            permutation=Config.PERMUTATION,
@@ -77,7 +77,7 @@ args = parser.parse_args()
 if not args.retrain:
     exit(0)
 
-messenger = FastSocketMessenger(role='alice', config=Config)
+messenger = FastSocket(role='passive_party', config=Config)
 optimizer = torch.optim.SGD(bottom_model.parameters(), lr=Config.LEARNING_RATE)
 for t in range(Config.EPOCHS):
     train(train_dataloader, bottom_model, optimizer, messenger)
