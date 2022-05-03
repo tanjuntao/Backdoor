@@ -46,7 +46,7 @@ setup(
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
-
+    package_data={'linkefl': ['data/tabular/*.csv']},
     packages=find_packages(include=['linkefl', 'linkefl.*']),
     python_requires=PYTHON_REQUIRES,
     install_requires=REQUIRED
