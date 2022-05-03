@@ -73,8 +73,8 @@ def get_ndarray_dataset(name,
     x_train_perm, x_test_perm = x_train[:, permutation], x_test[:, permutation]
     num_alice_features = int(x_train.shape[1] * alice_features_frac)
 
-    assert role in ('alice', 'bob'), "role could only take 'alice' and 'bob'"
-    if role == 'alice':
+    assert role in ('passive_party', 'bob'), "role could only take 'passive_party' and 'bob'"
+    if role == 'passive_party':
         return x_train_perm[:, :num_alice_features], x_test_perm[:,
                                                      :num_alice_features]
     else:
@@ -97,7 +97,7 @@ def _dataset_stats(name, x_train, x_test, y_train, y_test):
 
 
 if __name__ == '__main__':
-    # X_train, X_test = get_dataset('digits', 'alice', 0.9, np.random.permutation(64))
+    # X_train, X_test = get_dataset('digits', 'passive_party', 0.9, np.random.permutation(64))
     # print(X_train.shape, X_test.shape)
     #
     # X_train, X_test, Y_train, Y_test = get_dataset('digits', 'bob', 0.9, np.random.permutation(64))

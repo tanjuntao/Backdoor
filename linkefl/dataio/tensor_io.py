@@ -7,13 +7,13 @@ from torchvision.transforms import ToTensor
 from sklearn.datasets import load_breast_cancer, load_digits
 from sklearn.model_selection import train_test_split
 
-from config import Config
+from linkefl.config.vfl_nn_config import NNConfig as Config
 
 
 class SklearnDataset(Dataset):
     def __init__(self,
                  dataset_name='breast_cancer',
-                 role='alice',
+                 role='passive_party',
                  train=True,
                  attacker_features_frac=0.5,
                  permutation=None,
@@ -23,7 +23,7 @@ class SklearnDataset(Dataset):
         self.dataset_name = dataset_name
         self.train = train
         self.role = role
-        assert self.role in ('alice', 'bob'), "role can only take value of 'alice or 'bob'"
+        assert self.role in ('passive_party', 'bob'), "role can only take value of 'passive_party or 'bob'"
         self.attacker_features_frac = attacker_features_frac
         self.permutation = permutation
         self.transform = transform
@@ -34,7 +34,7 @@ class SklearnDataset(Dataset):
         elif self.dataset_name == 'digits':
             dataset_obj = load_digits()
         else:
-            raise ValueError('{} dataset can not be supported right now'.format(dataset_name))
+            raise ValueError('{} np_dataset can not be supported right now'.format(dataset_name))
 
         x_train, x_test, y_train, y_test = train_test_split(
             dataset_obj.data,
@@ -65,7 +65,7 @@ class SklearnDataset(Dataset):
         if self.target_transform:
             label = self.target_transform(label)
 
-        if self.role == 'alice':
+        if self.role == 'passive_party':
             x_final = feature[:num_alice_features]
             return x_final
         else:
@@ -76,7 +76,7 @@ class SklearnDataset(Dataset):
 class TorchDataset(Dataset):
     def __init__(self,
                  dataset_name='fashion_mnist',
-                 role='alice',
+                 role='passive_party',
                  train=True,
                  attacker_features_frac=0.5,
                  permutation=None,
@@ -125,7 +125,7 @@ class TorchDataset(Dataset):
                                                   target_transform=target_transform)
 
         elif dataset_name == 'svhn':
-            split = 'train' if train else 'test'
+            split = 'train' if train else 'validate'
             self.torch_dataset = datasets.SVHN(root='raw_data/data',
                                                split=split,
                                                download=True,
@@ -151,7 +151,7 @@ class TorchDataset(Dataset):
         image_flat = image_flat[self.permutation] # permute features
 
         num_alice_features = int(self.attacker_features_frac * len(image_flat))
-        if self.role == 'alice':
+        if self.role == 'passive_party':
             x_final = image_flat[:num_alice_features]
             return x_final
         else:
@@ -159,13 +159,13 @@ class TorchDataset(Dataset):
             return x_final, label
 
         # AVOID USING THIS
-        # return x_final if self.role == 'alice' else x_final, label
+        # return x_final if self.role == 'passive_party' else x_final, label
 
 
 class CSVDataset(Dataset):
     def __init__(self,
                  file_path,
-                 role='alice',
+                 role='passive_party',
                  train=True,
                  attacker_features_frac=0.5,
                  permutation=None,
@@ -177,7 +177,7 @@ class CSVDataset(Dataset):
         self.x_dataset, self.y_dataset = dataset[:, 2:], dataset[:, 1]
 
         self.role = role
-        assert role in ('alice', 'bob'), "role can only take value of 'alice or 'bob'"
+        assert role in ('passive_party', 'bob'), "role can only take value of 'passive_party or 'bob'"
         self.train = train
         self.attacker_features_frac = attacker_features_frac
         self.permutation = permutation
@@ -204,7 +204,7 @@ class CSVDataset(Dataset):
         if self.target_transform:
             label = self.target_transform(label)
 
-        if self.role == 'alice':
+        if self.role == 'passive_party':
             return feature[:num_alice_features]
         else:
             return feature[num_alice_features:], label
@@ -213,7 +213,7 @@ class CSVDataset(Dataset):
 class CNNFeaturesDataset(Dataset):
     def __init__(self,
                  dataset_name='cifar_vgg13',
-                 role='alice',
+                 role='passive_party',
                  train=True,
                  attacker_features_frac=0.5,
                  permutation=None,
@@ -246,7 +246,7 @@ class CNNFeaturesDataset(Dataset):
 
         if self.target_transform:
             label = self.target_transform(label)
-        if self.role == 'alice':
+        if self.role == 'passive_party':
             return feature[:num_alice_features]
         else:
             return feature[num_alice_features:], label
@@ -264,20 +264,20 @@ class AccumulatedDataset(Dataset):
 
 
 def get_tensor_dataset(dataset_name='fashion_mnist',
-                       role='alice',
+                       role='passive_party',
                        train=True,
                        attacker_features_frac=0.5,
                        permutation=None,
                        transform=None,
                        target_transform=None):
-    """Load training dataset or testing dataset.
+    """Load training np_dataset or testing np_dataset.
 
     Args:
-        dataset_name: str. Name of the dataset.
-        role: str. Alice or bob.
+        dataset_name: str. Name of the np_dataset.
+        role: str. RSAPSIPassive or bob.
         train: bool. Training or testing.
         attacker_features_frac: float. How much fraction of total features
-          does Alice have.
+          does RSAPSIPassive have.
         permutation: torch.randperm. Permutation vector.
         transform: torchvision.transform. How we transfrom features.
         target_transform: torchvision.transorm. How we transform label.
@@ -286,9 +286,9 @@ def get_tensor_dataset(dataset_name='fashion_mnist',
         Dataset for training or testing.
 
     Raises:
-        VauleError: An error will occured if the dataset name is not supported.
+        VauleError: An error will occured if the np_dataset name is not supported.
     """
-    print('Loading dataset...')
+    print('Loading np_dataset...')
     if dataset_name in ('fashion_mnist', 'mnist', 'cifar', 'svhn'):
         dataset_ = TorchDataset(dataset_name=dataset_name,
                                 role=role,
@@ -334,7 +334,7 @@ def get_tensor_dataset(dataset_name='fashion_mnist',
                                        target_transform=target_transform)
 
     else:
-        raise ValueError('Unsupported dataset: {}'.format(dataset_name))
+        raise ValueError('Unsupported np_dataset: {}'.format(dataset_name))
 
     print('Done!')
     return dataset_
@@ -344,7 +344,7 @@ if __name__ == '__main__':
     pass
 
     # TODO: import the config object here
-    # dataset = get_dataset(dataset_name='mnist',
+    # np_dataset = get_dataset(dataset_name='mnist',
     #                       permutation=Config.PERMUTATION,
     #                       transform=ToTensor())
-    # print(dataset[0])
+    # print(np_dataset[0])
