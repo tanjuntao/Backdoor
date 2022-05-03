@@ -20,8 +20,8 @@ class PSIRSAConfig:
     PRIV_KEY_NAME = '.rsa_key.bin'
 
     ### Role names ###
-    ROLE_ALICE = 'alice'
-    ROLE_BOB = 'bob'
+    ROLE_ALICE = 'passive_party'
+    ROLE_BOB = 'active_party'
 
     ### ID set size ###
     ALICE_SIZE = 100_0000

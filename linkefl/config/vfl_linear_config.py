@@ -11,7 +11,7 @@ class LinearConfig:
     BOB_HOST = '127.0.0.1'
     BOB_PORT = 22223
     MESSENGER_TYPE = 'fast_socket' # 'socket', 'fast_socket'
-    SOCK_WAIT_INTERVAL = 1000 # used when messenger type is SocketMessenger
+    SOCK_WAIT_INTERVAL = 1000 # used when messenger type is Socket
 
     ### Cryptosystem configs ###
     CRYPTO_TYPE = 'fast_paillier' # 'plain', 'paillier', 'fast_paillier'
@@ -32,10 +32,10 @@ class LinearConfig:
     ### Dataset configs ####
     ACC_DATASETS = ['breast_cancer', 'digits', 'epsilon', 'census_income']
     AUC_DATASETS = ['give_me_some_credit']
-    # choose dataset name from
+    # choose np_dataset name from
     # 'breast_cancer', 'digits', 'census_income', 'give_me_some_credit', 'epsilon'
     DATASET_NAME = 'give_me_some_credit'
-    # the proportion of the number of features Alice has, which in range [0.0, 1.0]
+    # the proportion of the number of features RSAPSIPassive has, which in range [0.0, 1.0]
     ATTACKER_FEATURES_FRAC = 0.5
     FEAT_SELECT_METHOD = 'sequential' # 'sequential', 'random', 'importance'
 
