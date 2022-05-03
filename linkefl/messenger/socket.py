@@ -210,7 +210,7 @@ class Socket(Messenger):
         new connections.
 
         Args:
-            role: federated learning role, only "alice" and "bob" are valid.
+            role: federated learning role, only "passive_party" and "active_party" are valid.
             interval: Wnen #interval sockets are created, the OS will sleep
                 for one second, which is to wait for old sockets to be released.
                 Otherwise, there will be no available ports to create new socket
