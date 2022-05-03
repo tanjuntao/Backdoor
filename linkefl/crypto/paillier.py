@@ -9,7 +9,6 @@ from phe import EncryptedNumber
 import torch
 
 from .base import CryptoSystem
-from .plain import Plain
 from linkefl.config import BaseConfig
 
 
@@ -28,7 +27,7 @@ class Paillier(CryptoSystem):
     """
     def __init__(self, key_size=1024):
         super(Paillier, self).__init__(key_size)
-        self.pub_key, self.priv_key = self.__gen_key(key_size)
+        self.pub_key, self.priv_key = self._gen_key(key_size)
 
     @classmethod
     def from_config(cls, config):
@@ -36,7 +35,7 @@ class Paillier(CryptoSystem):
                                                'instance of BaseConfig class.'
         return cls(key_size=config.KEY_SIZE)
 
-    def __gen_key(self, key_size):
+    def _gen_key(self, key_size):
         pub_key, priv_key = paillier.generate_paillier_keypair(n_length=key_size)
         return pub_key, priv_key
 
@@ -97,7 +96,7 @@ class FastPaillier(CryptoSystem):
         self.num_enc_zeros = num_enc_zeros
         self.gen_from_set = gen_from_set
 
-        self.pub_key, self.priv_key = self.__gen_key(key_size)
+        self.pub_key, self.priv_key = self._gen_key(key_size)
         self.n_squared = self.pub_key.n ** 2
 
         print('Generating encrypted zeros...')
@@ -112,7 +111,7 @@ class FastPaillier(CryptoSystem):
                    num_enc_zeros=config.NUM_ENC_ZEROS,
                    gen_from_set=config.GEN_FROM_SET)
 
-    def __gen_key(self, key_size):
+    def _gen_key(self, key_size):
         pub_key, priv_key = paillier.generate_paillier_keypair(n_length=key_size)
         return pub_key, priv_key
 

@@ -8,9 +8,9 @@ class Plain(CryptoSystem):
     """Pseudo cryptosystem."""
     def __init__(self, key_size=0):
         super(Plain, self).__init__(key_size)
-        self.pub_key, self.priv_key = self.__gen_key(key_size)
+        self.pub_key, self.priv_key = self._gen_key(key_size)
 
-    def __gen_key(self, key_size):
+    def _gen_key(self, key_size):
         return None, None
 
     def encrypt(self, plaintext):

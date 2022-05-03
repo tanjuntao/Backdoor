@@ -18,7 +18,7 @@ class CryptoSystem(ABC):
         self.key_size = key_size
 
     @abstractmethod
-    def __gen_key(self, key_size):
+    def _gen_key(self, key_size):
         """Generate public key and private key."""
         pass
 
