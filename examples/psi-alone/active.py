@@ -14,7 +14,7 @@ parser.add_argument('--phase', type=str)
 args = parser.parse_args()
 
 # 1. get sample IDs
-_ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
+_ids = gen_dummy_ids(size=100000, option=Const.SEQUENCE)
 
 # 2. Initialize messenger
 _messenger = FastSocket(role=Const.ACTIVE_NAME,
