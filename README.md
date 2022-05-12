@@ -32,7 +32,7 @@ git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install -e
 WIP...
 
 ## Contribution
-Please first read the [developer guide]() before making any pull request. 
+Please first read the [developer guide](./docs/dev_guide.md) before making any pull request. 
 
 ## Contact 
 If you have any questions, feel free to contact the following core developers:
