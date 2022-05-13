@@ -2,34 +2,10 @@ import pickle
 import socket
 import struct
 import time
-from abc import ABC, abstractmethod
 
+from .base import Messenger
 from linkefl.config import BaseConfig
 from linkefl.common.const import Const
-
-
-class Messenger(ABC):
-    """Base class of messenger.
-
-    Messenger provides sending and receiving APIs for communication.
-    """
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    def send(self, msg):
-        """Send message."""
-        pass
-
-    @abstractmethod
-    def recv(self):
-        """Receive message."""
-        pass
-
-    @abstractmethod
-    def close(self):
-        """Close connection."""
-        pass
 
 
 class FastSocket(Messenger):
