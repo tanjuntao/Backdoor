@@ -1,4 +1,3 @@
-import torch
 from torch import nn
 
 
@@ -23,24 +22,24 @@ class BottomModel(nn.Module):
         return outputs
 
 
-class AliceBottomModel(BottomModel):
+class PassiveBottomModel(BottomModel):
     """RSAPSIPassive bottom model arthitecture."""
     def __init__(self, num_nodes: list):
-        super(AliceBottomModel, self).__init__(num_nodes)
+        super(PassiveBottomModel, self).__init__(num_nodes)
 
     def forward(self, x):
         # x_flat = self.flatten(x)[:, :int(28*28/2)]
-        return super(AliceBottomModel, self).forward(x)
+        return super(PassiveBottomModel, self).forward(x)
 
 
-class BobBottomModel(BottomModel):
+class ActiveBottomModel(BottomModel):
     """RSAPSIActive bottom model architecture."""
     def __init__(self, num_nodes: list):
-        super(BobBottomModel, self).__init__(num_nodes)
+        super(ActiveBottomModel, self).__init__(num_nodes)
 
     def forward(self, x):
         # x_flat = self.flatten(x)[:, int(28*28/2):]
-        return super(BobBottomModel, self).forward(x)
+        return super(ActiveBottomModel, self).forward(x)
 
 
 class IntersectionModel(nn.Module):

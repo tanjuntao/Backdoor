@@ -1,5 +1,7 @@
 # Project related
 *.pkl
+*.gz
+*-ubyte
 *.pt
 .idea/
 linkefl.egg-info/

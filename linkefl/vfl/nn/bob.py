@@ -1,33 +1,35 @@
 import argparse
 import time
 
+import numpy as np
+from sklearn.metrics import roc_auc_score
+from termcolor import colored
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
-from termcolor import colored
-from sklearn.metrics import roc_auc_score
-import numpy as np
 
-from linkefl.dataio import get_tensor_dataset as get_dataset
-from linkefl.messenger import Socket, FastSocket
+from linkefl.common.const import Const
 from linkefl.config import NNConfig as Config
+from linkefl.dataio import get_tensor_dataset as get_dataset
+from linkefl.messenger import FastSocket
+from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
 from linkefl.util import save_model, save_data
-from .model import BobBottomModel, IntersectionModel, TopModel
+
 
 
 #############################
-# Load np_dataset
+# Load dataset
 #############################
 
 training_data = get_dataset(dataset_name=Config.DATASET_NAME,
-                            role='bob',
+                            role=Const.ACTIVE_NAME,
                             train=True,
                             attacker_features_frac=Config.ATTACKER_FEATURES_FRAC,
                             permutation=Config.PERMUTATION,
                             transform=ToTensor())
 testing_data = get_dataset(dataset_name=Config.DATASET_NAME,
-                           role='bob',
+                           role=Const.ACTIVE_NAME,
                            train=False,
                            attacker_features_frac=Config.ATTACKER_FEATURES_FRAC,
                            permutation=Config.PERMUTATION,
@@ -43,22 +45,22 @@ test_dataloader = DataLoader(testing_data,
 # Create model
 #############################
 # MNIST and FashioMNIST
-bottom_model = BobBottomModel(Config.BOB_BOTTOM_NODES).to(Config.BOB_DEVICE)
+bottom_model = ActiveBottomModel(Config.BOB_BOTTOM_NODES).to(Config.BOB_DEVICE)
 intersection_model = IntersectionModel(Config.INTERSECTION_NODES).to(Config.BOB_DEVICE)
 top_model = TopModel(Config.TOP_NODES).to(Config.BOB_DEVICE)
 
 # Census Income
-# bottom_model = BobBottomModel([41, 20, 10])
+# bottom_model = ActiveBottomModel([41, 20, 10])
 # intersection_model = IntersectionModel(10, 10, 10)
 # top_model = TopModel([10, 2])
 
 # Give me some credit
-# bottom_model = BobBottomModel([5, 3])
+# bottom_model = ActiveBottomModel([5, 3])
 # intersection_model = IntersectionModel(3, 3, 6)
 # top_model = TopModel([6, 3, 2])
 
 # Sklearn digits
-# bottom_model = BobBottomModel([32, 20, 16])
+# bottom_model = ActiveBottomModel([32, 20, 16])
 # intersection_model = IntersectionModel(16, 16, 16)
 # top_model = TopModel([16, 10])
 models = [bottom_model, intersection_model, top_model]
@@ -79,7 +81,7 @@ def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
 
     if Config.TRAINING_VERBOSE:
         print('Epoch: {}'.format(epoch))
-    size = len(dataloader.np_dataset)
+    size = len(dataloader.dataset)
     for model in models:
         model.train()
     for batch, (X, y) in enumerate(dataloader):
@@ -127,9 +129,9 @@ def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
                 print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
     training_reprs = {}
-    n_classes = len(torch.unique(dataloader.np_dataset.targets))
+    n_classes = len(torch.unique(dataloader.dataset.targets))
     for label in range(n_classes):
-        idxes = dataloader.np_dataset.targets == label
+        idxes = dataloader.dataset.targets == label
         reprs = alice_reprs[idxes]
         training_reprs[label] = reprs
 
@@ -137,7 +139,7 @@ def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
 
 
 def test(dataloader, models, loss_fn, messenger):
-    size = len(dataloader.np_dataset)
+    size = len(dataloader.dataset)
     num_batches = len(dataloader)
     test_loss, correct = 0, 0
     for model in models:
@@ -186,7 +188,17 @@ args = parser.parse_args()
 if not args.retrain:
     exit(0)
 
-messenger = FastSocket(role='bob', config=Config)
+
+active_ip = 'localhost'
+active_port = 20000
+passive_ip = 'localhost'
+passive_port = 30000
+
+messenger = FastSocket(role=Const.ACTIVE_NAME,
+                       active_ip=active_ip,
+                       active_port=active_port,
+                       passive_ip=passive_ip,
+                       passive_port=passive_port)
 print('Listening...')
 
 start = time.time()
@@ -200,9 +212,9 @@ for t in range(Config.EPOCHS):
         best_test_acc = test_acc
         if Config.TRAINING_VERBOSE:
             print(colored('Best model saved.\n', 'red'))
-        for model, optimizer, name in zip(models, optimizers, model_names):
-            save_model(model, optimizer, t, name)
-        save_data(data=training_reprs, name='training_reprs')
+        # for model, optimizer, name in zip(models, optimizers, model_names):
+            # save_model(model, optimizer, t, name)
+        # save_data(data=training_reprs, name='training_reprs')
         is_best = True
     if test_auc > best_test_auc:
         best_test_auc = test_auc

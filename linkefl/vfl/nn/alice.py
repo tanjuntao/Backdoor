@@ -5,24 +5,25 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import ToTensor
 from termcolor import colored
 
-from linkefl.dataio import get_tensor_dataset as get_dataset
-from linkefl.messenger import Socket, FastSocket
+from linkefl.common.const import Const
 from linkefl.config import NNConfig as Config
+from linkefl.dataio import get_tensor_dataset as get_dataset
+from linkefl.messenger import FastSocket
+from linkefl.vfl.nn.model import PassiveBottomModel
 from linkefl.util import save_model
-from .model import AliceBottomModel
 
 
 #############################
 # Load np_dataset
 #############################
 training_data = get_dataset(dataset_name=Config.DATASET_NAME,
-                            role='passive_party',
+                            role=Const.PASSIVE_NAME,
                             train=True,
                             attacker_features_frac=Config.ATTACKER_FEATURES_FRAC,
                             permutation=Config.PERMUTATION,
                             transform=ToTensor())
 testing_data = get_dataset(dataset_name=Config.DATASET_NAME,
-                           role='passive_party',
+                           role=Const.PASSIVE_NAME,
                            train=False,
                            attacker_features_frac=Config.ATTACKER_FEATURES_FRAC,
                            permutation=Config.PERMUTATION,
@@ -41,7 +42,7 @@ test_dataloader = DataLoader(testing_data,
 # NUM_NODES = [40, 20, 10] # Census Income
 # NUM_NODES = [32, 20, 16] # Sklearn digits
 # NUM_NODES = [5, 3] # Give me some credit
-bottom_model = AliceBottomModel(Config.ALICE_BOTTOM_NODES).to(Config.ALICE_DEVICE)
+bottom_model = PassiveBottomModel(Config.ALICE_BOTTOM_NODES).to(Config.ALICE_DEVICE)
 print(bottom_model)
 
 def train(dataloader, model, optimizer, messenger):
@@ -77,7 +78,18 @@ args = parser.parse_args()
 if not args.retrain:
     exit(0)
 
-messenger = FastSocket(role='passive_party', config=Config)
+
+active_ip = 'localhost'
+active_port = 20000
+passive_ip = 'localhost'
+passive_port = 30000
+
+
+messenger = FastSocket(role=Const.PASSIVE_NAME,
+                       active_ip=active_ip,
+                       active_port=active_port,
+                       passive_ip=passive_ip,
+                       passive_port=passive_port)
 optimizer = torch.optim.SGD(bottom_model.parameters(), lr=Config.LEARNING_RATE)
 for t in range(Config.EPOCHS):
     train(train_dataloader, bottom_model, optimizer, messenger)
@@ -85,7 +97,7 @@ for t in range(Config.EPOCHS):
 
     is_best = messenger.recv()
     if is_best:
-        save_model(bottom_model, optimizer, t, 'alice_bottom_model')
+        # save_model(bottom_model, optimizer, t, 'alice_bottom_model')
         print(colored('Best model saved.', 'red'))
     print('Epoch {} finished.\n'.format(t+1))
 
