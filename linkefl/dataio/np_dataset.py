@@ -8,9 +8,9 @@ from .base import BaseDataset
 from linkefl.common.const import Const
 
 
-class NDArrayDataset(BaseDataset):
+class NumpyDataset(BaseDataset):
     def __init__(self, role, abs_path=None, existing_dataset=None):
-        super(NDArrayDataset, self).__init__()
+        super(NumpyDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
 
@@ -84,7 +84,7 @@ class NDArrayDataset(BaseDataset):
         self.np_dataset = new_np_dataset
 
 
-class BuildInNDArrayDataset(NDArrayDataset):
+class BuildinNumpyDataset(NumpyDataset):
     def __init__(self, dataset_name, train, role, passive_feat_frac, feat_perm_option, seed=1314):
         assert dataset_name in Const.BUILDIN_DATASET, f"{dataset_name} is not a" \
                                                       f"build-in dataset"

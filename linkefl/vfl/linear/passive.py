@@ -11,7 +11,7 @@ from termcolor import colored
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, partial_crypto_factory
 from linkefl.config import BaseConfig
-from linkefl.dataio import BuildInNDArrayDataset
+from linkefl.dataio import BuildinNumpyDataset
 from linkefl.feature import scale
 from linkefl.util import save_params
 
@@ -276,16 +276,16 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
 
     # 1. Load datasets
-    passive_trainset = BuildInNDArrayDataset(dataset_name=dataset_name,
-                                             train=True,
-                                             role=Const.PASSIVE_NAME,
-                                             passive_feat_frac=passive_feat_frac,
-                                             feat_perm_option=feat_perm_option)
-    passive_testset = BuildInNDArrayDataset(dataset_name=dataset_name,
-                                            train=False,
-                                            role=Const.PASSIVE_NAME,
-                                            passive_feat_frac=passive_feat_frac,
-                                            feat_perm_option=feat_perm_option)
+    passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
+                                           train=True,
+                                           role=Const.PASSIVE_NAME,
+                                           passive_feat_frac=passive_feat_frac,
+                                           feat_perm_option=feat_perm_option)
+    passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
+                                          train=False,
+                                          role=Const.PASSIVE_NAME,
+                                          passive_feat_frac=passive_feat_frac,
+                                          feat_perm_option=feat_perm_option)
 
     # 2. Dataset preprocessing
     passive_trainset = scale(passive_trainset)

@@ -1,6 +1,6 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
-from linkefl.dataio import NDArrayDataset
+from linkefl.dataio import NumpyDataset
 from linkefl.feature import scale, add_intercept
 
 
@@ -25,8 +25,8 @@ _key_size = 1024
 
 
 # Load dataset
-active_trainset = NDArrayDataset(role=Const.ACTIVE_NAME, abs_path=trainset_path)
-active_testset = NDArrayDataset(role=Const.ACTIVE_NAME, abs_path=testset_path)
+active_trainset = NumpyDataset(role=Const.ACTIVE_NAME, abs_path=trainset_path)
+active_testset = NumpyDataset(role=Const.ACTIVE_NAME, abs_path=testset_path)
 
 
 # Initialize messenger
