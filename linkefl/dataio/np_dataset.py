@@ -41,7 +41,8 @@ class NumpyDataset(BaseDataset):
     @property
     def ids(self):
         np_ids = self.np_dataset[:, 0].astype(np.int32)
-        return np_ids
+        list_ids = np_ids.tolist()
+        return list_ids
 
     @property
     def features(self):
