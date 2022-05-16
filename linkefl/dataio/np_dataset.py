@@ -213,7 +213,7 @@ class BuildinNumpyDataset(NumpyDataset):
             _feats = _feats
         elif perm_option == Const.RANDOM:
             np.random.seed(seed)
-            _feats = _feats[np.random.permutation(_feats.shape[1])]
+            _feats = _feats[:, np.random.permutation(_feats.shape[1])]
         elif perm_option == Const.IMPORTANCE:
             raise NotImplementedError('To be implemented...')
         else:
