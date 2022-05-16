@@ -22,6 +22,8 @@ class NumpyDataset(BaseDataset):
         else:
             self.np_dataset = existing_dataset
 
+        self.has_label = True if role == Const.ACTIVE_NAME else False
+
     @classmethod
     def train_test_split(cls, role, whole_dataset, test_size, seed=1314):
         """Split the whole np_dataset into trainset and testset according to specific seed"""

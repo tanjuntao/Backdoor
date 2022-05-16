@@ -1,75 +1,89 @@
 import numpy as np
 from sklearn import preprocessing
+import torch
 
 from linkefl.common.const import Const
-from linkefl.dataio import BaseDataset
+from linkefl.dataio import BaseDataset, NumpyDataset, TorchDataset
 
 
-def scale(ndarray_dataset):
-    assert isinstance(ndarray_dataset, BaseDataset), \
-        'dataset type must be an instance of BaseDataset'
-
-    scaled_feats = preprocessing.scale(ndarray_dataset.features)
-    ids = ndarray_dataset.ids
-    try:
-        labels = ndarray_dataset.labels
-    except AttributeError:
-        labels = None
-
-    if labels is None:
-        new_dataset = np.concatenate((ids[:, np.newaxis], scaled_feats), axis=1)
+def scale(dataset):
+    if isinstance(dataset, NumpyDataset):
+        scaled_feats = preprocessing.scale(dataset.features)
+        if dataset.has_label:
+            dataset.np_dataset[:, 2:] = scaled_feats
+        else:
+            dataset.np_dataset[:, 1:] = scaled_feats
+    elif isinstance(dataset, TorchDataset):
+        scaled_feats = preprocessing.scale(dataset.features.numpy())
+        if dataset.has_label:
+            dataset.torch_dataset[:, 2:] = torch.from_numpy(scaled_feats)
+        else:
+            dataset.torch_dataset[:, 1:] = torch.from_numpy(scaled_feats)
     else:
-        new_dataset = np.concatenate((ids[:, np.newaxis],
-                                      labels[:, np.newaxis],
-                                      scaled_feats), axis=1)
+        raise TypeError('dataset should be an instance of'
+                        'NumpyDataset or TorchDataset')
 
-    ndarray_dataset.set_dataset(new_dataset)
-    return ndarray_dataset
+    return dataset
 
 
-def normalize(ndarray_dataset, norm=Const.L2):
-    assert isinstance(ndarray_dataset, BaseDataset), \
-        'dataset type must be an instance of BaseDataset'
-    assert norm in (Const.L1, Const.L2), 'norm not supported at the moment'
-
-    normalized_feats = preprocessing.normalize(ndarray_dataset.features, norm=norm)
-    ids = ndarray_dataset.ids
-    try:
-        labels = ndarray_dataset.labels
-    except AttributeError:
-        labels = None
-
-    if labels is None:
-        new_dataset = np.concatenate((ids[:, np.newaxis], normalized_feats), axis=1)
+def normalize(dataset, norm=Const.L2):
+    if isinstance(dataset, NumpyDataset):
+        normalized_feats = preprocessing.normalize(dataset.features, norm=norm)
+        if dataset.has_label:
+            dataset.np_dataset[:, 2:] = normalized_feats
+        else:
+            dataset.np_dataset[:, 1:] = normalized_feats
+    elif isinstance(dataset, TorchDataset):
+        normalized_feats = preprocessing.normalize(dataset.features.numpy(), norm=norm)
+        if dataset.has_label:
+            dataset.torch_dataset[:, 2:] = torch.from_numpy(normalized_feats)
+        else:
+            dataset.torch_dataset[:, 1:] = torch.from_numpy(normalized_feats)
     else:
-        new_dataset = np.concatenate((ids[:, np.newaxis],
-                                      labels[:, np.newaxis],
-                                      normalized_feats), axis=1)
+        raise TypeError('dataset should be an instance of'
+                        'NumpyDataset or TorchDataset')
 
-    ndarray_dataset.set_dataset(new_dataset)
-    return ndarray_dataset
+    return dataset
 
 
-def add_intercept(ndarray_dataset):
-    assert isinstance(ndarray_dataset, BaseDataset), \
-        'dataset type must be an instance of BaseDataset'
-
-    n_samples = ndarray_dataset.n_samples
-    new_feats = np.c_[ndarray_dataset.features, np.zeros(n_samples)]
-    ids = ndarray_dataset.ids
-    try:
-        labels = ndarray_dataset.labels
-    except AttributeError:
-        labels = None
-
-    if labels is None:
-        new_dataset = np.concatenate((ids[:, np.newaxis], new_feats,), axis=1)
+def parse_label(dataset):
+    if isinstance(dataset, NumpyDataset):
+        if dataset.has_label:
+            labels = dataset.labels
+            labels[labels == -1] = 0
+            dataset.np_dataset[:, 1] = labels
+        else:
+            pass # no need to parse label for passive pary
+    elif isinstance(dataset, TorchDataset):
+        if dataset.has_label:
+            labels = dataset.labels
+            labels[labels == -1] = 0
+            dataset.torch_dataset[:, 1] = labels
+        else:
+            pass
     else:
-        # convert negative label from -1 to 0
-        labels[labels == -1] = 0
-        new_dataset = np.concatenate((ids[:, np.newaxis],
-                                      labels[:, np.newaxis],
-                                      new_feats), axis=1)
+        raise TypeError('dataset should be an instance of'
+                        'NumpyDataset or TorchDataset')
 
-    ndarray_dataset.set_dataset(new_dataset)
-    return ndarray_dataset
+
+def add_intercept(dataset):
+    if isinstance(dataset, NumpyDataset):
+        if dataset.has_label:
+            n_samples = dataset.n_samples
+            new_np_dataset = np.c_[dataset.np_dataset, np.zeros(n_samples)]
+            dataset.set_dataset(new_np_dataset)
+        else:
+            pass # no need to append an intercept column for passive party
+    elif isinstance(dataset, TorchDataset):
+        if dataset.has_label:
+            n_samples = dataset.n_samples
+            new_torch_dataset = torch.cat((dataset.torch_dataset, torch.zeros(n_samples)),
+                                          dim=1)
+            dataset.set_dataset(new_torch_dataset)
+        else:
+            pass
+    else:
+        raise TypeError('dataset should be an instance of'
+                        'NumpyDataset or TorchDataset')
+
+    return dataset
