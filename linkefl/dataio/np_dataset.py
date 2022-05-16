@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.datasets import load_breast_cancer, load_digits
 from termcolor import colored
 
-from .base import BaseDataset
+from linkefl.dataio.base import BaseDataset
 from linkefl.common.const import Const
 
 
@@ -77,9 +77,26 @@ class NumpyDataset(BaseDataset):
                           .format(n_positive, n_negative), 'red'))
 
     def filter(self, intersect_ids):
-        if type(intersect_ids) == list:
-            intersect_ids = np.array(intersect_ids)
-        self.np_dataset = self.np_dataset[intersect_ids]
+        # Solution 1: this works only when dataset ids start from zero
+        # if type(intersect_ids) == list:
+        #     intersect_ids = np.array(intersect_ids)
+        # self.np_dataset = self.np_dataset[intersect_ids]
+
+        # Solution 2: this works only when dataset ids are sorted and ascending
+        # reference: https://stackoverflow.com/a/12122989/8418540
+        # if type(intersect_ids) == list:
+        #     intersect_ids = np.array(intersect_ids)
+        # all_ids = np.array(self.ids)
+        # idxes = np.searchsorted(all_ids, intersect_ids)
+        # self.np_dataset = self.np_dataset[idxes]
+
+        # Solution 3: more robust, but slower
+        idxes = []
+        all_ids = np.array(self.ids)
+        for _id in intersect_ids:
+            idx = np.where(all_ids == _id)[0][0]
+            idxes.append(idx)
+        self.np_dataset = self.np_dataset[idxes]
 
     def set_dataset(self, new_np_dataset):
         self.np_dataset = new_np_dataset
