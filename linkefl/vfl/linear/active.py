@@ -7,7 +7,7 @@ from termcolor import colored
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.config import BaseConfig
-from linkefl.dataio import BuildinNumpyDataset
+from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
 from linkefl.feature import add_intercept, scale
 from linkefl.util import sigmoid, save_params
 
@@ -138,15 +138,19 @@ class ActiveLogisticRegression:
     def _gradient_descent(self, grad):
         self.params = self.params - self.learning_rate * grad
 
-    def train(self, x_train, x_val, y_train, y_val):
-        self.x_train = x_train
-        self.x_val = x_val
-        self.y_train = y_train
-        self.y_val = y_val
-        n_samples = x_train.shape[0]
+    def train(self, trainset, testset):
+        assert isinstance(trainset, NumpyDataset), 'trainset should be an instance ' \
+                                                   'of NumpyDataset'
+        assert isinstance(testset, NumpyDataset), 'testset should be an instance' \
+                                                  'of NumpyDataset'
+        self.x_train = trainset.features
+        self.x_val = testset.features
+        self.y_train = trainset.labels
+        self.y_val = testset.labels
+        n_samples = trainset.n_samples
 
         # initialize model parameters
-        self.params = self._init_weights(x_train.shape[1])
+        self.params = self._init_weights(trainset.n_features)
 
         # trainfer public key to passive party
         self._transfer_pubkey()
@@ -199,7 +203,7 @@ class ActiveLogisticRegression:
 
             print(f"\nEpoch: {epoch}, Loss: {np.array(batch_losses).mean()}")
 
-            scores = self.validate(self.x_val, self.y_val)
+            scores = self.validate(testset)
             if scores['acc'] > best_acc:
                 best_acc = scores['acc']
                 is_best = True
@@ -221,16 +225,16 @@ class ActiveLogisticRegression:
         print(colored('Computation time: {:.5f}'.format(compu_time), 'red'))
         print(colored('Elapsed time: {:.5f}s'.format(time.time() - start_time), 'red'))
 
-    def validate(self, x_val, y_val):
-        active_ws = np.matmul(x_val, self.params)
+    def validate(self, valset):
+        active_ws = np.matmul(valset.features, self.params)
         passive_wx = self.messenger.recv()
 
         probs = sigmoid(active_ws + passive_wx)
         preds = (probs > self.POSITIVE_THRESH).astype(np.int32)
 
-        accuracy = accuracy_score(y_val, preds)
-        f1 = f1_score(y_val, preds)
-        auc = roc_auc_score(y_val, probs)
+        accuracy = accuracy_score(valset.labels, preds)
+        f1 = f1_score(valset.labels, preds)
+        auc = roc_auc_score(valset.labels, probs)
 
         return {
             'acc': accuracy,
@@ -298,10 +302,7 @@ if __name__ == '__main__':
                                             reg_lambda=_reg_lambda,
                                             random_state=_random_state)
 
-    active_party.train(x_train=active_trainset.features,
-                       x_val=active_testset.features,
-                       y_train=active_trainset.labels,
-                       y_val=active_testset.labels)
+    active_party.train(active_trainset, active_testset)
 
     # 6. Close messenger, finish training.
     _messenger.close()

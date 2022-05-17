@@ -11,7 +11,7 @@ from termcolor import colored
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, partial_crypto_factory
 from linkefl.config import BaseConfig
-from linkefl.dataio import BuildinNumpyDataset
+from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
 from linkefl.feature import scale
 from linkefl.util import save_params
 
@@ -177,13 +177,17 @@ class PassiveLogisticRegression:
 
         return np.array(x_encode)
 
-    def train(self, x_train, x_val):
-        self.x_train = x_train
-        self.x_val = x_val
-        n_samples = x_train.shape[0]
+    def train(self, trainset, testset):
+        assert isinstance(trainset, NumpyDataset), 'trainset should be an instance ' \
+                                                   'of NumpyDataset'
+        assert isinstance(testset, NumpyDataset), 'testset should be an instance' \
+                                                  'of NumpyDataset'
+        self.x_train = trainset.features
+        self.x_val = testset.features
+        n_samples = trainset.n_samples
 
         # init model parameters
-        self.params = self._init_weights(x_train.shape[1])
+        self.params = self._init_weights(trainset.n_features)
 
         # setattr(self, 'x_train', x_train)
         # setattr(self, 'x_val', x_val)
@@ -240,7 +244,7 @@ class PassiveLogisticRegression:
                 self._gradient_descent(true_grad)
 
             # validate the performance of the current model
-            is_best = self.validate(self.x_val)
+            is_best = self.validate(testset)
             if is_best:
                 # save_params(self.params, role=Const.PASSIVE_NAME)
                 print(colored('Best model updates.', 'red'))
@@ -250,8 +254,10 @@ class PassiveLogisticRegression:
               'substract the computation time which is printed in the console'
               'of active party.'.format(commu_plus_compu_time))
 
-    def validate(self, val_data):
-        wx = np.matmul(val_data, self.params)
+    def validate(self, valset):
+        assert isinstance(valset, NumpyDataset), 'valset should be an instance ' \
+                                                 'of NumpyDataset'
+        wx = np.matmul(valset.features, self.params)
         self.messenger.send(wx)
         is_best = self.messenger.recv()
 
@@ -309,7 +315,7 @@ if __name__ == '__main__':
                                               reg_lambda=_reg_lambda,
                                               random_state=_random_state)
 
-    passive_party.train(passive_trainset.features, passive_testset.features)
+    passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training
     _messenger.close()
