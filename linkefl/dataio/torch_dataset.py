@@ -30,6 +30,8 @@ class TorchDataset(BaseDataset, Dataset):
 
     @classmethod
     def train_test_split(cls, role, whole_dataset, test_size, seed=1314):
+        assert isinstance(whole_dataset, TorchDataset), 'whole_dataset should be' \
+                                                        'an instance of TorchDataset'
         assert 0 < test_size < 1, 'test size should be in range (0, 1)'
 
         n_train_samples = int(whole_dataset.n_samples * (1 - test_size))
@@ -46,8 +48,7 @@ class TorchDataset(BaseDataset, Dataset):
     @property
     def ids(self):
         torch_ids = self.torch_dataset[:, 0].type(torch.int32)
-        list_ids = torch_ids.tolist()
-        return list_ids
+        return torch_ids
 
     @property
     def features(self):
@@ -77,13 +78,21 @@ class TorchDataset(BaseDataset, Dataset):
         print(colored(f"Number of features: {self.n_features}", 'red'))
         if self.role == Const.ACTIVE_NAME:
             n_positive = (self.labels == 1).type(torch.int32).sum().item()
-            n_negative = (self.labels == 0).type(torch.int32).sum().item()
+            n_negative = self.n_samples - n_positive
             print(colored(f"Positive samples: Negative samples = "
                           f"{n_positive}:{n_negative}", 'red'))
 
     def filter(self, intersect_ids):
+        # convert intersection ids to Python list
+        if type(intersect_ids) == torch.Tensor:
+            intersect_ids = intersect_ids.tolist()
+        if type(intersect_ids) == np.ndarray:
+            intersect_ids = intersect_ids.tolist()
+        if type(intersect_ids) == list:
+            pass
+
         idxes = []
-        all_ids = self.torch_dataset[:, 0].type(torch.int32)
+        all_ids = self.ids
         for _id in intersect_ids:
             idx = torch.where(all_ids == _id)[0].item()
             idxes.append(idx)
@@ -134,6 +143,7 @@ class BuildinTorchDataset(TorchDataset):
     def _load_dataset(self, name, role, train, frac, perm_option, seed):
         curr_path = os.path.abspath(os.path.dirname(__file__))
 
+        # 1. load whole dataset and split it into trainset and testset
         if name == 'cancer':
             raise NotImplementedError('future work')
 
@@ -222,6 +232,7 @@ class BuildinTorchDataset(TorchDataset):
         else:
             raise ValueError('Invalid dataset name.')
 
+        # 2. Apply feature permutation to the train features or validate features
         if perm_option == Const.SEQUENCE:
             _feats = _feats
         elif perm_option == Const.RANDOM:
@@ -231,6 +242,7 @@ class BuildinTorchDataset(TorchDataset):
         elif perm_option == Const.IMPORTANCE:
             raise NotImplementedError('future work')
 
+        # 3. Split the features into active party and passive party
         num_passive_feats = int(frac * _feats.shape[1])
         if role == Const.PASSIVE_NAME:
             _feats = _feats[:, :num_passive_feats]

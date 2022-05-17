@@ -27,6 +27,8 @@ class NumpyDataset(BaseDataset):
     @classmethod
     def train_test_split(cls, role, whole_dataset, test_size, seed=1314):
         """Split the whole np_dataset into trainset and testset according to specific seed"""
+        assert isinstance(whole_dataset, NumpyDataset), 'whole_dataset should be' \
+                                                        'an instance of NumpyDataset'
         assert 0 < test_size < 1, 'validate size should be in range (0, 1)'
 
         n_train_samples = int(whole_dataset.n_samples * (1 - test_size))
@@ -43,8 +45,7 @@ class NumpyDataset(BaseDataset):
     @property
     def ids(self):
         np_ids = self.np_dataset[:, 0].astype(np.int32)
-        list_ids = np_ids.tolist()
-        return list_ids
+        return np_ids
 
     @property
     def features(self):
@@ -93,8 +94,13 @@ class NumpyDataset(BaseDataset):
         # self.np_dataset = self.np_dataset[idxes]
 
         # Solution 3: more robust, but slower
+        if type(intersect_ids) == np.ndarray:
+            intersect_ids = intersect_ids.tolist()
+        if type(intersect_ids) == list:
+            pass
+
         idxes = []
-        all_ids = np.array(self.ids)
+        all_ids = self.ids
         for _id in intersect_ids:
             idx = np.where(all_ids == _id)[0][0]
             idxes.append(idx)
@@ -140,12 +146,12 @@ class BuildinNumpyDataset(NumpyDataset):
             _n_train_samples = int(_n_samples * (1 - test_size))
             if train:
                 _ids = _whole_ids[shuffle[:_n_train_samples]]
-                _feats = _whole_feats[:_n_train_samples, :]
-                _labels = _whole_labels[:_n_train_samples]
+                _feats = _whole_feats[shuffle[:_n_train_samples], :]
+                _labels = _whole_labels[shuffle[:_n_train_samples]]
             else:
                 _ids = _whole_ids[shuffle[_n_train_samples:]]
-                _feats = _whole_feats[_n_train_samples:, :]
-                _labels = _whole_labels[_n_train_samples:]
+                _feats = _whole_feats[shuffle[_n_train_samples:], :]
+                _labels = _whole_labels[shuffle[_n_train_samples:]]
 
         elif name == 'digits':
             _whole_feats, _whole_labels = load_digits(return_X_y=True)
@@ -161,12 +167,12 @@ class BuildinNumpyDataset(NumpyDataset):
             _n_train_samples = int(_n_samples * (1 - test_size))
             if train:
                 _ids = _whole_ids[shuffle[:_n_train_samples]]
-                _feats = _whole_feats[:_n_train_samples, :]
-                _labels = _whole_labels[:_n_train_samples]
+                _feats = _whole_feats[shuffle[:_n_train_samples], :]
+                _labels = _whole_labels[shuffle[:_n_train_samples]]
             else:
                 _ids = _whole_ids[shuffle[_n_train_samples:]]
-                _feats = _whole_feats[_n_train_samples:, :]
-                _labels = _whole_labels[_n_train_samples:]
+                _feats = _whole_feats[shuffle[_n_train_samples:], :]
+                _labels = _whole_labels[shuffle[_n_train_samples:]]
 
         elif name == 'epsilon':
             if train:
