@@ -11,7 +11,15 @@ class Const:
 
     START_SIGNAL = 'start'
 
-    BUILDIN_DATASET = ['cancer', 'digits', 'epsilon', 'census', 'credit']
+    BUILDIN_DATASET = ['cancer',
+                       'digits',
+                       'epsilon',
+                       'census',
+                       'credit',
+                       'mnist',
+                       'fashion_mnist',
+                       'cifar',
+                       'svhn']
 
     PLAIN = 'plain'
     PAILLIER = 'paillier'
