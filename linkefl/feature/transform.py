@@ -65,6 +65,8 @@ def parse_label(dataset):
         raise TypeError('dataset should be an instance of'
                         'NumpyDataset or TorchDataset')
 
+    return dataset
+
 
 def add_intercept(dataset):
     if isinstance(dataset, NumpyDataset):
