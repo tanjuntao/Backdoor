@@ -8,7 +8,7 @@ from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.config import BaseConfig
 from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
-from linkefl.feature import add_intercept, scale
+from linkefl.feature import add_intercept, scale, parse_label
 from linkefl.util import sigmoid, save_params
 
 
@@ -274,8 +274,8 @@ if __name__ == '__main__':
                                          feat_perm_option=feat_perm_option)
 
     # 2. Dataset preprocessing
-    active_trainset = scale(add_intercept(active_trainset))
-    active_testset = scale(add_intercept(active_testset))
+    active_trainset = scale(add_intercept(parse_label(active_trainset)))
+    active_testset = scale(add_intercept(parse_label(active_testset)))
 
     # 3. Initialize cryptosystem
     _crypto = crypto_factory(crypto_type=_crypto_type,
