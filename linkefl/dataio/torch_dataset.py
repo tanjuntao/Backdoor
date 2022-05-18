@@ -6,7 +6,7 @@ from termcolor import colored
 import torch
 from torch.utils.data import Dataset
 from torchvision import datasets
-from torchvision.transforms import ToTensor
+import torchvision.transforms as transforms
 
 from linkefl.common.const import Const
 from linkefl.dataio.base import BaseDataset
@@ -60,7 +60,9 @@ class TorchDataset(BaseDataset, Dataset):
     @property
     def labels(self):
         if self.role == Const.ACTIVE_NAME:
-            _labels = self.torch_dataset[:, 1].type(torch.int32)
+            # the type of labels should be torch.long, otherwise,
+            # the RuntimeError: expected scalar type Long but found Int will be raised
+            _labels = self.torch_dataset[:, 1].type(torch.long)
             return _labels
         else:
             raise AttributeError('Passive party has no labels')
@@ -199,35 +201,84 @@ class BuildinTorchDataset(TorchDataset):
             _feats = torch_csv[:, 2:]
 
         elif name == 'mnist':
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                # transforms.Normalize((0.1307,), (0.3081,))
+            ])
             buildin_dataset = datasets.MNIST(root='data',
                                              train=train,
                                              download=True,
-                                             transform=ToTensor())
-            n_samples = buildin_dataset.data.shape[0]
+                                             transform=transform)
+            n_samples = len(buildin_dataset)
+            n_features = 28 * 28
             _ids = torch.arange(n_samples)
             _labels = buildin_dataset.targets
-            _feats = buildin_dataset.view(n_samples, -1)  # shape: n_samples, 28*28
+            # A notation about the __getitem__() method of PyTorch Datasets:
+            # The raw images are normalized within the __getitem__ method rather
+            # than the __init__ method, which means that if we call
+            # buildin_dataset.data[i] we will get the
+            # i-th PILImage with pixel range of [0, 255], but if we call
+            # buildin_dataset[i] we will get a tuple of (Tensor, label) where Tensor
+            # is a PyTorch tensor with normalized pixel in the range (0, 1).
+            # So here we first normalized the raw PILImage and then store it in
+            # the _feats attribute.
+
+            # The execution time of the following two solutions is almost same,
+            # but solution 1 is a bit faster which is used as default solution.
+
+            # solution 1: use torch.cat()
+            imgs = []
+            for i in range(n_samples):
+                # this will trigger the __getitem__ method and the images will be
+                # normalized. The return type is a tuple composed of (PILImage, label)
+                image, _ = buildin_dataset[i] # image shape: [1, 28, 28]
+                img = image.view(1, -1)
+                imgs.append(img)
+            _feats = torch.Tensor(n_samples, n_features)
+            torch.cat(imgs, out=_feats)
+
+            # solution 2: use tensor.index_copy_()
+            # _feats = torch.zeros(n_samples, n_features)
+            # for i in range(n_samples):
+            #     image, _ = buildin_dataset[i]
+            #     img = image.view(1, -1)
+            #     _feats.index_copy_(0, torch.tensor([i], dtype=torch.long), img)
 
         elif name == 'fashion_mnist':
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))
+            ])
             buildin_dataset = datasets.FashionMNIST(root='data',
                                                     train=train,
                                                     download=True,
-                                                    transform=ToTensor())
+                                                    transform=transform)
             n_samples = buildin_dataset.data.shape[0]
+            n_features = 28 * 28
             _ids = torch.arange(n_samples)
             _labels = buildin_dataset.targets
-            _feats = buildin_dataset.view(n_samples, -1)  # shape: n_samples, 28*28
+
+            imgs = []
+            for i in range(n_samples):
+                # this will trigger the __getitem__ method
+                # the return type is a tuple composed of (PILImage, label)
+                image, _ = buildin_dataset[i]  # image shape: [1, 28, 28]
+                img = image.view(1, -1)
+                imgs.append(img)
+            _feats = torch.Tensor(n_samples, n_features)
+            torch.cat(imgs, out=_feats)
 
         elif name == 'svhn':
-            split = 'train' if train else 'validate'
+            # TODO: add SVHN specific transforms here
+            split = 'train' if train else 'test'
             buildin_dataset = datasets.SVHN(root='data',
                                             split=split,
                                             download=True,
-                                            transform=ToTensor())
+                                            transform=transforms.ToTensor())
             n_samples = buildin_dataset.data.shape[0]
             _ids = torch.arange(n_samples)
             _labels = buildin_dataset.labels
-            _feats = buildin_dataset.view(n_samples, -1)
+            _feats = buildin_dataset.data.view(n_samples, -1)
 
         else:
             raise ValueError('Invalid dataset name.')
