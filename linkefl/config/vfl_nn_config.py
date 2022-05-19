@@ -22,7 +22,7 @@ class NNConfig:
     SOCK_WAIT_INTERVAL = 800
     Q = 2000
     ATTACKER_FEATURES_FRAC = 0.5
-    FEAT_SELECT_METHOD = 'random'
+    FEAT_SELECT_METHOD = 'sequential'
     if FEAT_SELECT_METHOD == 'random':
         SEED = 0
         torch.manual_seed(SEED) # reproducibility
