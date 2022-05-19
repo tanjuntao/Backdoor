@@ -20,11 +20,11 @@ class TorchDataset(BaseDataset, Dataset):
 
         if existing_dataset is None:
             if abs_path is not None:
-                self.torch_dataset = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
+                self._torch_dataset = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
             else:
                 raise Exception('data file path is not provided.')
         else:
-            self.torch_dataset = existing_dataset
+            self.set_dataset(existing_dataset)
 
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
@@ -37,8 +37,8 @@ class TorchDataset(BaseDataset, Dataset):
         n_train_samples = int(whole_dataset.n_samples * (1 - test_size))
         torch.random.manual_seed(seed)
         perm = torch.randperm(whole_dataset.n_samples)
-        torch_trainset = whole_dataset.torch_dataset[perm[:n_train_samples], :]
-        torch_testset = whole_dataset.torch_dataset[perm[n_train_samples:], :]
+        torch_trainset = whole_dataset.get_dataset()[perm[:n_train_samples], :]
+        torch_testset = whole_dataset.get_dataset()[perm[n_train_samples:], :]
 
         trainset = cls(role=role, existing_dataset=torch_trainset)
         testset = cls(role=role, existing_dataset=torch_testset)
@@ -46,33 +46,39 @@ class TorchDataset(BaseDataset, Dataset):
         return trainset, testset
 
     @property
-    def ids(self):
-        torch_ids = self.torch_dataset[:, 0].type(torch.int32)
-        return torch_ids
+    def ids(self): # read only
+        # avoid re-computing on each function call
+        if not hasattr(self, '_ids'):
+            torch_ids = self._torch_dataset[:, 0].type(torch.int32)
+            self._ids = torch_ids
+        return self._ids
 
     @property
-    def features(self):
-        if self.role == Const.ACTIVE_NAME:
-            return self.torch_dataset[:, 2:]
-        else:
-            return self.torch_dataset[:, 1:]
+    def features(self): # read only
+        if not hasattr(self, '_features'):
+            if self.role == Const.ACTIVE_NAME:
+                self._features = self._torch_dataset[:, 2:]
+            else:
+                self._features = self._torch_dataset[:, 1:]
+        return self._features
 
     @property
-    def labels(self):
-        if self.role == Const.ACTIVE_NAME:
+    def labels(self): # read only
+        if self.role == Const.PASSIVE_NAME:
+            raise AttributeError('Passive party has no labels.')
+
+        if not hasattr(self, '_labels'):
             # the type of labels should be torch.long, otherwise,
             # the RuntimeError: expected scalar type Long but found Int will be raised
-            _labels = self.torch_dataset[:, 1].type(torch.long)
-            return _labels
-        else:
-            raise AttributeError('Passive party has no labels')
+            self._labels = self._torch_dataset[:, 1].type(torch.long)
+        return self._labels
 
     @property
-    def n_features(self):
+    def n_features(self): # read only
         return self.features.shape[1]
 
     @property
-    def n_samples(self):
+    def n_samples(self): # read only
         return self.features.shape[0]
 
     def describe(self):
@@ -98,10 +104,15 @@ class TorchDataset(BaseDataset, Dataset):
         for _id in intersect_ids:
             idx = torch.where(all_ids == _id)[0].item()
             idxes.append(idx)
-        self.torch_dataset = self.torch_dataset[idxes]
+        self._torch_dataset = self._torch_dataset[idxes]
+
+    def get_dataset(self):
+        return self._torch_dataset
 
     def set_dataset(self, new_torch_dataset):
-        self.torch_dataset = new_torch_dataset
+        assert isinstance(new_torch_dataset, torch.Tensor),\
+            "new_torch_dataset should be an instance of torch.Tensor"
+        self._torch_dataset = new_torch_dataset
 
     def __len__(self):
         return self.n_samples
@@ -135,7 +146,7 @@ class BuildinTorchDataset(TorchDataset):
         self.feat_perm_option = feat_perm_option
         self.seed = seed
 
-        self.torch_dataset = self._load_dataset(name=dataset_name,
+        self._torch_dataset = self._load_dataset(name=dataset_name,
                                                 role=role,
                                                 train=train,
                                                 frac=passive_feat_frac,
@@ -222,6 +233,7 @@ class BuildinTorchDataset(TorchDataset):
             # is a PyTorch tensor with normalized pixel in the range (0, 1).
             # So here we first normalized the raw PILImage and then store it in
             # the _feats attribute.
+            # ref:https://stackoverflow.com/questions/66821250/pytorch-totensor-scaling-to-0-1-discrepancy
 
             # The execution time of the following two solutions is almost same,
             # but solution 1 is a bit faster which is used as default solution.
