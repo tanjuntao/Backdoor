@@ -158,3 +158,8 @@ def num_input_nodes(dataset_name, role, passive_feat_frac):
         num_nodes = total_feats[dataset_name] - int(total_feats[dataset_name] * passive_feat_frac)
 
     return num_nodes
+
+
+def count_params(model):
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    return total_params
