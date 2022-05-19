@@ -1,4 +1,4 @@
-from linkefl.common.const import Const
+import os
 
 import numpy as np
 from sklearn.datasets import load_breast_cancer, load_digits
@@ -7,6 +7,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import datasets
 import torchvision.transforms as transforms
+
+from linkefl.common.const import Const
 
 
 class SklearnDataset(Dataset):
@@ -297,7 +299,7 @@ def get_tensor_dataset(dataset_name,
                                 transform=transform,
                                 target_transform=target_transform)
 
-    elif dataset_name in ('cancer', 'digits'):
+    elif dataset_name in ('breast_cancer', 'digits'):
         dataset_ =  SklearnDataset(dataset_name=dataset_name,
                                    role=role,
                                    train=train,
@@ -305,15 +307,29 @@ def get_tensor_dataset(dataset_name,
                                    transform=transform,
                                    target_transform=target_transform)
 
-    elif dataset_name in ('credit', 'census'):
-        if dataset_name == 'credit' and train:
-            file_path = '../../data/tabular/give_me_some_credit_train.csv'
-        elif dataset_name == 'credit' and not train:
-            file_path = '../../data/tabular/give_me_some_credit_test.csv'
-        elif dataset_name == 'census' and train:
-            file_path =  '../../data/tabular/census_income_train.csv'
+    elif dataset_name in ('give_me_some_credit', 'census_income'):
+        cur_path = os.path.abspath(os.path.dirname(__file__))
+
+        if dataset_name == 'give_me_some_credit' and train:
+            file_path = os.path.join(
+                cur_path,
+                '../data/tabular/give_me_some_credit_train.csv'
+            )
+        elif dataset_name == 'give_me_some_credit' and not train:
+            file_path = os.path.join(
+                cur_path,
+                '../data/tabular/give_me_some_credit_test.csv'
+            )
+        elif dataset_name == 'census_income' and train:
+            file_path = os.path.join(
+                cur_path,
+                '../data/tabular/census_income_train.csv'
+            )
         else:
-            file_path = '../../data/tabular/census_income_test.csv'
+            file_path = os.path.join(
+                cur_path,
+                '../data/tabular/census_income_testc.csv'
+            )
 
         dataset_ =  CSVDataset(file_path=file_path,
                                role=role,
