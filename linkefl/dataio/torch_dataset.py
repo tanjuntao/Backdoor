@@ -214,7 +214,7 @@ class BuildinTorchDataset(TorchDataset):
         elif name == 'mnist':
             transform = transforms.Compose([
                 transforms.ToTensor(),
-                # transforms.Normalize((0.1307,), (0.3081,))
+                transforms.Normalize((0.1307,), (0.3081,))
             ])
             buildin_dataset = datasets.MNIST(root='data',
                                              train=train,
