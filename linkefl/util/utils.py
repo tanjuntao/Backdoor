@@ -4,10 +4,11 @@ import pathlib
 import numpy as np
 import torch
 
+from linkefl.common.const import Const
 from linkefl.config import LinearConfig
 from linkefl.config import NNConfig
 from linkefl.vfl.nn.model import (
-    AliceBottomModel, BobBottomModel,
+    PassiveBottomModel, ActiveBottomModel,
     IntersectionModel, TopModel
 )
 
@@ -75,10 +76,10 @@ def load_model(model_name):
         PyTorch model.
     """
     if model_name == 'alice_bottom_model':
-        model = AliceBottomModel(NNConfig.ALICE_BOTTOM_NODES)
+        model = PassiveBottomModel(NNConfig.ALICE_BOTTOM_NODES)
 
     elif model_name == 'bob_bottom_model':
-        model = BobBottomModel(NNConfig.BOB_BOTTOM_NODES)
+        model = ActiveBottomModel(NNConfig.BOB_BOTTOM_NODES)
 
     elif model_name == 'intersection_model':
         model = IntersectionModel(NNConfig.INTERSECTION_NODES)
@@ -87,7 +88,7 @@ def load_model(model_name):
         model = TopModel(NNConfig.TOP_NODES)
 
     elif model_name == 'local_bottom':
-        model = AliceBottomModel(NNConfig.ALICE_BOTTOM_NODES)
+        model = PassiveBottomModel(NNConfig.ALICE_BOTTOM_NODES)
 
     elif model_name == 'local_append':
         model = TopModel(NNConfig.APPEND_NODES)
@@ -133,3 +134,27 @@ def load_data(name):
                                                  name)
 
     return torch.load(path)
+
+
+def num_input_nodes(dataset_name, role, passive_feat_frac):
+    assert dataset_name in Const.BUILDIN_DATASET, 'dataset_name should be one of' \
+                                                  'the build-in datasets'
+    assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
+    assert 0 < passive_feat_frac < 1, 'passive_feat_frac should be in range (0,1)'
+
+    total_feats = {
+        'cancer': 30,
+        'digits': 64,
+        'epsilon': 100,
+        'census': 81,
+        'credit': 10,
+        'mnist': 28 * 28,
+        'fashion_mnist': 28 * 28,
+    }
+
+    if role == Const.PASSIVE_NAME:
+        num_nodes = int(total_feats[dataset_name] * passive_feat_frac)
+    else:
+        num_nodes = int(total_feats[dataset_name] * (1 - passive_feat_frac))
+
+    return num_nodes
