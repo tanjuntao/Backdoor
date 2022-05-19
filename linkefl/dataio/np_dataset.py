@@ -16,11 +16,11 @@ class NumpyDataset(BaseDataset):
 
         if existing_dataset is None:
             if abs_path is not None:
-                self.np_dataset = np.genfromtxt(abs_path, delimiter=',')
+                self._np_dataset = np.genfromtxt(abs_path, delimiter=',')
             else:
                 raise Exception('abs_path should not be None')
         else:
-            self.np_dataset = existing_dataset
+            self.set_dataset(existing_dataset)
 
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
@@ -34,8 +34,8 @@ class NumpyDataset(BaseDataset):
         n_train_samples = int(whole_dataset.n_samples * (1 - test_size))
         np.random.seed(seed)
         perm = np.random.permutation(whole_dataset.n_samples)
-        np_trainset = whole_dataset.np_dataset[perm[:n_train_samples], :]
-        np_testset = whole_dataset.np_dataset[perm[n_train_samples:], :]
+        np_trainset = whole_dataset.get_dataset()[perm[:n_train_samples], :]
+        np_testset = whole_dataset.get_dataset()[perm[n_train_samples:], :]
 
         trainset = cls(role=role, existing_dataset=np_trainset)
         testset = cls(role=role, existing_dataset=np_testset)
@@ -43,31 +43,37 @@ class NumpyDataset(BaseDataset):
         return trainset, testset
 
     @property
-    def ids(self):
-        np_ids = self.np_dataset[:, 0].astype(np.int32)
-        return np_ids
+    def ids(self): # read only
+        # avoid re-computing on each function call
+        if not hasattr(self, '_ids'):
+            np_ids = self.np_dataset[:, 0].astype(np.int32)
+            self._ids = np_ids
+        return self._ids
 
     @property
-    def features(self):
-        if self.role == Const.ACTIVE_NAME:
-            return self.np_dataset[:, 2:]
-        else:
-            return self.np_dataset[:, 1:]
+    def features(self): # read only
+        if not hasattr(self, '_features'):
+            if self.role == Const.ACTIVE_NAME:
+                self._features = self._np_dataset[:, 2:]
+            else:
+                self._features = self._np_dataset[:, 1:]
+        return self._features
 
     @property
-    def labels(self):
-        if self.role == Const.ACTIVE_NAME:
-            _labels = self.np_dataset[:, 1].astype(np.int32)
-            return _labels
-        else:
+    def labels(self): # read only
+        if self.role == Const.PASSIVE_NAME:
             raise AttributeError('Passive party has no labels.')
 
+        if not hasattr(self, '_labels'):
+            self._labels = self.np_dataset[:, 1].astype(np.int32)
+        return self._labels
+
     @property
-    def n_features(self):
+    def n_features(self): # read only
         return self.features.shape[1]
 
     @property
-    def n_samples(self):
+    def n_samples(self): # read only
         return self.features.shape[0]
 
     def describe(self):
@@ -104,10 +110,15 @@ class NumpyDataset(BaseDataset):
         for _id in intersect_ids:
             idx = np.where(all_ids == _id)[0][0]
             idxes.append(idx)
-        self.np_dataset = self.np_dataset[idxes]
+        self._np_dataset = self._np_dataset[idxes]
+
+    def get_dataset(self):
+        return self._np_dataset
 
     def set_dataset(self, new_np_dataset):
-        self.np_dataset = new_np_dataset
+        assert isinstance(new_np_dataset, np.ndarray),\
+            "new_np_dataset should be an instance of np.ndarray"
+        self._np_dataset = new_np_dataset
 
 
 class BuildinNumpyDataset(NumpyDataset):
@@ -127,7 +138,7 @@ class BuildinNumpyDataset(NumpyDataset):
         self.feat_perm_option = feat_perm_option
         self.seed = seed
 
-        self.np_dataset = self._load_dataset(dataset_name, train, role,
+        self._np_dataset = self._load_dataset(dataset_name, train, role,
                                              passive_feat_frac, feat_perm_option, seed)
 
     def _load_dataset(self, name, train, role, frac, perm_option, seed):
