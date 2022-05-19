@@ -174,7 +174,7 @@ class BuildinTorchDataset(TorchDataset):
                     curr_path,
                     '../data/tabular/epsilon_test.csv'
                 )
-            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
+            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
             _ids = torch_csv[:, 0].type(torch.int32)
             _labels = torch_csv[:, 1].type(torch.int32)
             _feats = torch_csv[:, 2:]
@@ -190,7 +190,9 @@ class BuildinTorchDataset(TorchDataset):
                     curr_path,
                     '../data/tabular/census_income_test.csv'
                 )
-            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
+            # PyTorch forward() function expects tensor type of Float rather Double
+            # so the dtype should be specified to np.float32
+            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
             _ids = torch_csv[:, 0].type(torch.int32)
             _labels = torch_csv[:, 1].type(torch.int32)
             _feats = torch_csv[:, 2:]
@@ -206,7 +208,7 @@ class BuildinTorchDataset(TorchDataset):
                     curr_path,
                     '../data/tabular/give_me_some_credit_test.csv'
                 )
-            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
+            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
             _ids = torch_csv[:, 0].type(torch.int32)
             _labels = torch_csv[:, 1].type(torch.int32)
             _feats = torch_csv[:, 2:]
