@@ -155,6 +155,6 @@ def num_input_nodes(dataset_name, role, passive_feat_frac):
     if role == Const.PASSIVE_NAME:
         num_nodes = int(total_feats[dataset_name] * passive_feat_frac)
     else:
-        num_nodes = int(total_feats[dataset_name] * (1 - passive_feat_frac))
+        num_nodes = total_feats[dataset_name] - int(total_feats[dataset_name] * passive_feat_frac)
 
     return num_nodes
