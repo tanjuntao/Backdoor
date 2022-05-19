@@ -88,11 +88,11 @@ def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
         X, y = X.to(Config.BOB_DEVICE), y.to(Config.BOB_DEVICE)
         alice_data = messenger.recv() # shape: torch.Size([batch_size, output_size])
 
-        if alice_reprs is None:
-            alice_reprs = torch.zeros(size, alice_data.size(1))
-        index = torch.arange(start_idx, start_idx + X.size(0))
-        alice_reprs.index_copy_(0, index, alice_data)
-        start_idx = start_idx + X.size(0)
+        # if alice_reprs is None:
+        #     alice_reprs = torch.zeros(size, alice_data.size(1))
+        # index = torch.arange(start_idx, start_idx + X.size(0))
+        # alice_reprs.index_copy_(0, index, alice_data)
+        # start_idx = start_idx + X.size(0)
 
         # Avoid using torch.cat which is really time-consuming
         # start = time.time()
@@ -129,11 +129,11 @@ def train(epoch, dataloader, models, optimizers, loss_fn, messenger):
                 print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
 
     training_reprs = {}
-    n_classes = len(torch.unique(dataloader.dataset.targets))
-    for label in range(n_classes):
-        idxes = dataloader.dataset.targets == label
-        reprs = alice_reprs[idxes]
-        training_reprs[label] = reprs
+    # n_classes = len(torch.unique(dataloader.dataset.targets))
+    # for label in range(n_classes):
+    #     idxes = dataloader.dataset.targets == label
+    #     reprs = alice_reprs[idxes]
+    #     training_reprs[label] = reprs
 
     return training_reprs
 
