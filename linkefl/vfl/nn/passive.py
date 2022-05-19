@@ -90,7 +90,7 @@ if __name__ == '__main__':
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 1
+    _epochs = 80
     _batch_size = 64
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN

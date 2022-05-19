@@ -52,12 +52,14 @@ class ActiveNeuralNetwork:
 
         for model in self.models:
             model.train()
-        start_time = time.time()
+        start_time = None
         best_acc, best_auc = 0, 0
         for epoch in range(self.epochs):
             print('Epoch: {}'.format(epoch + 1))
             for batch_idx, (X, y) in enumerate(train_dataloader):
                 passive_data = self.messenger.recv()
+                if start_time is None:
+                    start_time = time.time()
                 _, passive_size = passive_data.shape
                 active_bottom = self.models[0](X)
                 concat = torch.cat((passive_data, active_bottom.data), dim=1)
@@ -145,7 +147,7 @@ if __name__ == '__main__':
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 1
+    _epochs = 80
     _batch_size = 64
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN
