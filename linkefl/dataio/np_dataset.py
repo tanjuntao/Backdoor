@@ -46,7 +46,7 @@ class NumpyDataset(BaseDataset):
     def ids(self): # read only
         # avoid re-computing on each function call
         if not hasattr(self, '_ids'):
-            np_ids = self.np_dataset[:, 0].astype(np.int32)
+            np_ids = self._np_dataset[:, 0].astype(np.int32)
             self._ids = np_ids
         return self._ids
 
@@ -65,7 +65,7 @@ class NumpyDataset(BaseDataset):
             raise AttributeError('Passive party has no labels.')
 
         if not hasattr(self, '_labels'):
-            self._labels = self.np_dataset[:, 1].astype(np.int32)
+            self._labels = self._np_dataset[:, 1].astype(np.int32)
         return self._labels
 
     @property
@@ -140,6 +140,7 @@ class BuildinNumpyDataset(NumpyDataset):
 
         self._np_dataset = self._load_dataset(dataset_name, train, role,
                                              passive_feat_frac, feat_perm_option, seed)
+        self.has_label = True if role == Const.ACTIVE_NAME else False
 
     def _load_dataset(self, name, train, role, frac, perm_option, seed):
         curr_path = os.path.abspath(os.path.dirname(__file__))
