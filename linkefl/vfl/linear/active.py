@@ -143,14 +143,15 @@ class ActiveLogisticRegression:
                                                    'of NumpyDataset'
         assert isinstance(testset, NumpyDataset), 'testset should be an instance' \
                                                   'of NumpyDataset'
-        self.x_train = trainset.features
-        self.x_val = testset.features
-        self.y_train = trainset.labels
-        self.y_val = testset.labels
+        setattr(self, 'x_train', trainset.features)
+        setattr(self, 'x_val', testset.features)
+        setattr(self, 'y_train', trainset.labels)
+        setattr(self, 'y_val', testset.labels)
         n_samples = trainset.n_samples
 
         # initialize model parameters
-        self.params = self._init_weights(trainset.n_features)
+        params = self._init_weights(trainset.n_features)
+        setattr(self, 'params', params)
 
         # trainfer public key to passive party
         self._transfer_pubkey()
@@ -262,6 +263,7 @@ if __name__ == '__main__':
     _key_size = 1024
 
     # 1. Load datasets
+    print('Loading dataset...')
     active_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
                                           train=True,
                                           role=Const.ACTIVE_NAME,
@@ -272,10 +274,11 @@ if __name__ == '__main__':
                                          role=Const.ACTIVE_NAME,
                                          passive_feat_frac=passive_feat_frac,
                                          feat_perm_option=feat_perm_option)
+    print('Done.')
 
     # 2. Dataset preprocessing
-    active_trainset = scale(add_intercept(parse_label(active_trainset)))
-    active_testset = scale(add_intercept(parse_label(active_testset)))
+    active_trainset = add_intercept(scale(parse_label(active_trainset)))
+    active_testset = add_intercept(scale(parse_label(active_testset)))
 
     # 3. Initialize cryptosystem
     _crypto = crypto_factory(crypto_type=_crypto_type,

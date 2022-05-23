@@ -152,6 +152,7 @@ class BuildinTorchDataset(TorchDataset):
                                                 frac=passive_feat_frac,
                                                 perm_option=feat_perm_option,
                                                 seed=seed)
+        self.has_label = True if role == Const.ACTIVE_NAME else False
 
     def _load_dataset(self, name, role, train, frac, perm_option, seed):
         curr_path = os.path.abspath(os.path.dirname(__file__))

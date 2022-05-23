@@ -182,12 +182,13 @@ class PassiveLogisticRegression:
                                                    'of NumpyDataset'
         assert isinstance(testset, NumpyDataset), 'testset should be an instance' \
                                                   'of NumpyDataset'
-        self.x_train = trainset.features
-        self.x_val = testset.features
+        setattr(self, 'x_train', trainset.features)
+        setattr(self, 'x_val', testset.features)
         n_samples = trainset.n_samples
 
         # init model parameters
-        self.params = self._init_weights(trainset.n_features)
+        params = self._init_weights(trainset.n_features)
+        setattr(self, 'params', params)
 
         # setattr(self, 'x_train', x_train)
         # setattr(self, 'x_val', x_val)
@@ -196,14 +197,16 @@ class PassiveLogisticRegression:
 
         # obtain public key from active party and init cryptosystem
         public_key = self._obtain_pubkey()
-        self.cryptosystem = partial_crypto_factory(crypto_type=self.crypto_type,
-                                                   public_key=public_key,
-                                                   num_enc_zeros=10000,
-                                                   gen_from_set=False)
+        cryptosystem = partial_crypto_factory(crypto_type=self.crypto_type,
+                                              public_key=public_key,
+                                              num_enc_zeros=10000,
+                                              gen_from_set=False)
+        setattr(self, 'cryptosystem', cryptosystem)
 
         # encode the training dataset if the crypto type belongs to Paillier family
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            self.x_encode = self._encode(self.x_train, public_key, self.precision)
+            x_encode = self._encode(self.x_train, public_key, self.precision)
+            setattr(self, 'x_encode', x_encode)
 
         bs = self.batch_size
         if n_samples % bs == 0:
@@ -282,6 +285,7 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
 
     # 1. Load datasets
+    print('Loading dataset...')
     passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
                                            train=True,
                                            role=Const.PASSIVE_NAME,
@@ -292,6 +296,7 @@ if __name__ == '__main__':
                                           role=Const.PASSIVE_NAME,
                                           passive_feat_frac=passive_feat_frac,
                                           feat_perm_option=feat_perm_option)
+    print('Done.')
 
     # 2. Dataset preprocessing
     passive_trainset = scale(passive_trainset)
