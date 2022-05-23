@@ -50,17 +50,17 @@ class TorchDataset(BaseDataset, Dataset):
         # avoid re-computing on each function call
         if not hasattr(self, '_ids'):
             torch_ids = self._torch_dataset[:, 0].type(torch.int32)
-            self._ids = torch_ids
-        return self._ids
+            setattr(self, '_ids', torch_ids)
+        return getattr(self, '_ids')
 
     @property
     def features(self): # read only
         if not hasattr(self, '_features'):
             if self.role == Const.ACTIVE_NAME:
-                self._features = self._torch_dataset[:, 2:]
+                setattr(self, '_features', self._torch_dataset[:, 2:])
             else:
-                self._features = self._torch_dataset[:, 1:]
-        return self._features
+                setattr(self, '_features', self._torch_dataset[:, 1:])
+        return getattr(self, '_features')
 
     @property
     def labels(self): # read only
@@ -70,8 +70,8 @@ class TorchDataset(BaseDataset, Dataset):
         if not hasattr(self, '_labels'):
             # the type of labels should be torch.long, otherwise,
             # the RuntimeError: expected scalar type Long but found Int will be raised
-            self._labels = self._torch_dataset[:, 1].type(torch.long)
-        return self._labels
+            setattr(self, '_labels', self._torch_dataset[:, 1].type(torch.long))
+        return getattr(self, '_labels')
 
     @property
     def n_features(self): # read only

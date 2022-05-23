@@ -47,17 +47,17 @@ class NumpyDataset(BaseDataset):
         # avoid re-computing on each function call
         if not hasattr(self, '_ids'):
             np_ids = self._np_dataset[:, 0].astype(np.int32)
-            self._ids = np_ids
-        return self._ids
+            setattr(self, '_ids', np_ids)
+        return getattr(self, '_ids')
 
     @property
     def features(self): # read only
         if not hasattr(self, '_features'):
             if self.role == Const.ACTIVE_NAME:
-                self._features = self._np_dataset[:, 2:]
+                setattr(self, '_features', self._np_dataset[:, 2:])
             else:
-                self._features = self._np_dataset[:, 1:]
-        return self._features
+                setattr(self, '_features', self._np_dataset[:, 1:])
+        return getattr(self, '_features')
 
     @property
     def labels(self): # read only
@@ -65,8 +65,8 @@ class NumpyDataset(BaseDataset):
             raise AttributeError('Passive party has no labels.')
 
         if not hasattr(self, '_labels'):
-            self._labels = self._np_dataset[:, 1].astype(np.int32)
-        return self._labels
+            setattr(self, '_labels', self._np_dataset[:, 1].astype(np.int32))
+        return getattr(self, '_labels')
 
     @property
     def n_features(self): # read only
