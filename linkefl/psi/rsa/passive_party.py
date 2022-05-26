@@ -3,6 +3,7 @@ import functools
 import hashlib
 import multiprocessing
 import os
+from pathlib import Path
 import pickle
 from secrets import randbelow
 import time
@@ -31,7 +32,7 @@ class RSAPSIPassive:
         if num_workers == -1:
             num_workers = os.cpu_count()
         self.num_workers = num_workers
-        self.RANDOMS_FILENAME = '.randoms.pkl'
+        self.RANDOMS_FILENAME = 'randoms.pkl'
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
@@ -118,7 +119,11 @@ class RSAPSIPassive:
         begin = time.time()
         randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(n_elements)]
         print('Generating random numbers time: {:.5f}'.format(time.time() - begin))
-        with open('{}/{}'.format(self.HERE, self.RANDOMS_FILENAME), 'wb') as f:
+        target_dir = os.path.join(Path.home(), '.linkefl')
+        if not os.path.exists(target_dir):
+            os.mkdir(target_dir)
+        full_path = os.path.join(target_dir, self.RANDOMS_FILENAME)
+        with open(full_path, 'wb') as f:
             pickle.dump(randoms, f)
         print('[PASSIVE] Finish the offline protocol.')
 
@@ -128,7 +133,8 @@ class RSAPSIPassive:
 
         # generate random factors and blind ids
         begin = time.time()
-        with open('{}/{}'.format(self.HERE, self.RANDOMS_FILENAME), 'rb') as f:
+        full_path = os.path.join(Path.home(), '.linkefl', self.RANDOMS_FILENAME)
+        with open(full_path, 'rb') as f:
             randoms = pickle.load(f)
         random_factors = self._random_factors_mp_pool(randoms,
                                                       n_processes=self.num_workers)
@@ -145,7 +151,7 @@ class RSAPSIPassive:
         print('Unblind set and hash set time: {:.5f}'.format(time.time() - begin))
         self.messenger.send(hashed_ids)
 
-        os.remove('{}/{}'.format(self.HERE, self.RANDOMS_FILENAME))
+        os.remove(full_path)
         intersection = self.messenger.recv()
         print(colored('Size of intersection: {}'.format(len(intersection)), 'red'))
         print('Total time: {}'.format(time.time() - start_time))

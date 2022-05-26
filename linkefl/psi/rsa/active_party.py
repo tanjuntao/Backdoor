@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import os
+from pathlib import Path
 import pickle
 import time
 
@@ -20,7 +21,7 @@ class RSAPSIActive:
         if num_workers == -1:
             num_workers = os.cpu_count()
         self.num_workers = num_workers
-        self.HASHED_IDS_FILENAME = '.hashed_ids.pkl'
+        self.HASHED_IDS_FILENAME = 'hashed_ids.pkl'
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
     def _send_pub_key(self):
@@ -52,7 +53,12 @@ class RSAPSIActive:
         signed_ids = self.cryptosystem.sign_set_thread(self.ids, n_threads=self.num_workers)
         print('Signing self id set time: {:.5f}'.format(time.time() - begin))
         hashed_ids = self._hash_set(signed_ids)
-        with open('{}/{}'.format(self.HERE, self.HASHED_IDS_FILENAME), 'wb') as f:
+
+        target_dir = os.path.join(Path.home(), '.linkefl')
+        if not os.path.exists(target_dir):
+            os.mkdir(target_dir)
+        full_path = os.path.join(target_dir, self.HASHED_IDS_FILENAME)
+        with open(full_path, 'wb') as f:
             pickle.dump(hashed_ids, f)
         print('[ACTIVE] Finish the offline protocol.')
 
@@ -68,7 +74,8 @@ class RSAPSIActive:
         self.messenger.send(blinded_signed_ids)
 
         passive_hashed_ids = self.messenger.recv()
-        with open('{}/{}'.format(self.HERE, self.HASHED_IDS_FILENAME), 'rb') as f:
+        full_path = os.path.join(Path.home(), '.linkefl', self.HASHED_IDS_FILENAME)
+        with open(full_path, 'rb') as f:
             active_hashed_ids = pickle.load(f)
 
         begin = time.time()
@@ -77,7 +84,7 @@ class RSAPSIActive:
         print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
         self.messenger.send(intersections)
 
-        os.remove('{}/{}'.format(self.HERE, self.HASHED_IDS_FILENAME))
+        os.remove(full_path)
         print('[ACTIVE] Finish the online protocol.')
 
         return intersections

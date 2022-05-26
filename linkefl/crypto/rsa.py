@@ -22,7 +22,8 @@ def _target_mp_pool(x, d, n):
 class RSACrypto:
     # TODO: inherited from base crypto class
     SECRET_CODE = 'linkefl'
-    PRIV_KEY_NAME = '.rsa_key.bin'
+    PRIV_KEY_NAME = 'rsa_priv_key.bin'
+    PROJECT_DIR = '.linkefl'
 
     def __init__(self, key_size=1024, e=0x10001, private_key=None):
         if private_key is None:
@@ -40,8 +41,11 @@ class RSACrypto:
         encrypted_key = key.export_key(passphrase=RSACrypto.SECRET_CODE,
                                        pkcs=8,
                                        protection='scryptAndAES128-CBC')
-        home_path = str(Path.home())
-        with open(home_path + '/' + RSACrypto.PRIV_KEY_NAME, 'wb') as f:
+        target_dir = os.path.join(Path.home(), RSACrypto.PROJECT_DIR)
+        if not os.path.exists(target_dir):
+            os.mkdir(target_dir)
+        full_path = os.path.join(target_dir, RSACrypto.PRIV_KEY_NAME)
+        with open(full_path, 'wb') as f:
             f.write(encrypted_key)
 
     @classmethod
@@ -52,13 +56,12 @@ class RSACrypto:
 
     @classmethod
     def from_private(cls):
-        home_path = str(Path.home())
-        full_path = home_path + '/' + cls.PRIV_KEY_NAME
+        full_path = os.path.join(Path.home(), cls.PROJECT_DIR, cls.PRIV_KEY_NAME)
 
         # check if the private key exists
         if not os.path.exists(full_path):
-            raise Exception(
-                'There is no RSA private key in the home directory.')
+            raise FileNotFoundError('There is no RSA private key within the'
+                                    '~/.linkefl/ directory.')
 
         # load the private key
         encoded_key = open(full_path, 'rb').read()
