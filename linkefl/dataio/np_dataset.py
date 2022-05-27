@@ -1,7 +1,7 @@
 import os
 
 import numpy as np
-from sklearn.datasets import load_breast_cancer, load_digits
+from sklearn.datasets import load_breast_cancer, load_digits, load_diabetes
 from termcolor import colored
 
 from linkefl.dataio.base import BaseDataset
@@ -65,7 +65,11 @@ class NumpyDataset(BaseDataset):
             raise AttributeError('Passive party has no labels.')
 
         if not hasattr(self, '_labels'):
-            setattr(self, '_labels', self._np_dataset[:, 1].astype(np.int32))
+            labels = self._np_dataset[:, 1]
+            if len(np.unique(labels)) > 2: # regression dataset
+                setattr(self, '_labels', labels)
+            else: # classification dataset
+                setattr(self, '_labels', labels.astype(np.int32))
         return getattr(self, '_labels')
 
     @property
@@ -79,7 +83,7 @@ class NumpyDataset(BaseDataset):
     def describe(self):
         print(colored('Number of samples: {}'.format(self.n_samples), 'red'))
         print(colored('Number of features: {}'.format(self.n_features), 'red'))
-        if self.role == Const.ACTIVE_NAME:
+        if self.role == Const.ACTIVE_NAME and len(np.unique(self.labels)) == 2:
             n_positive = (self.labels == 1).astype(np.int32).sum()
             n_negative = self.n_samples - n_positive
             print(colored('Positive samples: Negative samples = {}:{}'
@@ -146,7 +150,7 @@ class BuildinNumpyDataset(NumpyDataset):
         curr_path = os.path.abspath(os.path.dirname(__file__))
 
         # 1. load whole dataset and split it into trainset and testset
-        if name == 'cancer':
+        if name == 'cancer': # classification
             cancer = load_breast_cancer()
             _whole_feats = cancer.data
             _whole_labels = cancer.target
@@ -165,7 +169,7 @@ class BuildinNumpyDataset(NumpyDataset):
                 _feats = _whole_feats[shuffle[_n_train_samples:], :]
                 _labels = _whole_labels[shuffle[_n_train_samples:]]
 
-        elif name == 'digits':
+        elif name == 'digits': # classification
             _whole_feats, _whole_labels = load_digits(return_X_y=True)
             _n_samples = len(_whole_labels)
             odd_idxes = np.where(_whole_labels % 2 == 1)[0]
@@ -186,7 +190,25 @@ class BuildinNumpyDataset(NumpyDataset):
                 _feats = _whole_feats[shuffle[_n_train_samples:], :]
                 _labels = _whole_labels[shuffle[_n_train_samples:]]
 
-        elif name == 'epsilon':
+        elif name == 'diabetes': # regression
+            # do not scale the raw features
+            _whole_feats, _whole_labels = load_diabetes(return_X_y=True, scaled=False)
+            _n_samples = len(_whole_labels)
+            _whole_ids = np.arange(_n_samples)
+            np.random.seed(seed)
+            shuffle = np.random.permutation(_n_samples)
+            test_size = 0.2
+            _n_train_samples = int(_n_samples * (1 - test_size))
+            if train:
+                _ids = _whole_ids[shuffle[:_n_train_samples]]
+                _feats = _whole_feats[shuffle[:_n_train_samples], :]
+                _labels = _whole_labels[shuffle[:_n_train_samples]]
+            else:
+                _ids = _whole_ids[shuffle[_n_train_samples:]]
+                _feats = _whole_feats[shuffle[_n_train_samples:], :]
+                _labels = _whole_labels[shuffle[_n_train_samples:]]
+
+        elif name == 'epsilon': # classification
             if train:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path, '../data/tabular/epsilon_train.csv'),
@@ -199,7 +221,7 @@ class BuildinNumpyDataset(NumpyDataset):
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
 
-        elif name == 'census':
+        elif name == 'census': # classification
             if train:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path, '../data/tabular/census_income_train.csv'),
@@ -212,7 +234,7 @@ class BuildinNumpyDataset(NumpyDataset):
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
 
-        elif name == 'credit':
+        elif name == 'credit': # classification
             if train:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path, '../data/tabular/give_me_some_credit_train.csv'),
