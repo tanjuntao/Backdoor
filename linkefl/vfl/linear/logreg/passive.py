@@ -14,9 +14,10 @@ from linkefl.config import BaseConfig
 from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
 from linkefl.feature import scale
 from linkefl.util import save_params
+from linkefl.vfl.linear import BaseLinear
 
 
-class PassiveLogisticRegression:
+class PassiveLogReg(BaseLinear):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -30,6 +31,7 @@ class PassiveLogisticRegression:
                  random_state=None,
                  is_multi_thread=False,
     ):
+        super(PassiveLogReg, self).__init__(learning_rate, random_state)
         self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -66,15 +68,7 @@ class PassiveLogisticRegression:
                    random_state=config.RANDOM_STATE,
                    is_multi_thread=config.IS_MULTI_THREAD)
 
-    def _init_weights(self, size):
-        if self.random_state is not None:
-            np.random.seed(self.random_state)
-        else:
-            np.random.seed(None)
-        params = np.random.normal(0, 1.0, size)
-        return params
-
-    def _obtain_pubkey(self):
+    def _sync_pubkey(self):
         print('[PASSIVE] Requesting publie key...')
         signal = Const.START_SIGNAL
         self.messenger.send(signal)
@@ -86,11 +80,11 @@ class PassiveLogisticRegression:
         if self.crypto_type == Const.PLAIN:
             # using x_train if crypto type is PLAIN
             enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
-                                   self.x_train[batch_idxes]).mean(axis=0)
+                                   getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
         else:
             # using x_encode if crypto type is Paillier or FastPaillier
             enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
-                                   self.x_encode[batch_idxes]).mean(axis=0)
+                                   getattr(self, 'x_encode')[batch_idxes]).mean(axis=0)
 
         return enc_train_grad
 
@@ -124,7 +118,7 @@ class PassiveLogisticRegression:
 
     def _target_func_grad(self, batches, residues, shared_q):
         gmpy2.get_context().allow_release_gil = True
-        enc_grad = -1 * (residues[:, np.newaxis] * self.x_train[batches]).sum(axis=0)
+        enc_grad = -1 * (residues[:, np.newaxis] * getattr(self, 'x_train')[batches]).sum(axis=0)
         shared_q.put(enc_grad)
 
     def _grad(self, enc_residue, batch_idxes):
@@ -139,42 +133,36 @@ class PassiveLogisticRegression:
         # print(colored('Gradient time: {}'.format(time.time() - start), 'red'))
 
         # compute gradient of regularization term
+        params = getattr(self, 'params')
         if self.penalty == Const.NONE:
-            reg_grad = np.zeros(len(self.params))
+            reg_grad = np.zeros(len(params))
         elif self.penalty == Const.L1:
-            reg_grad = self.reg_lambda * np.sign(self.params)
+            reg_grad = self.reg_lambda * np.sign(params)
         elif self.penalty == Const.L2:
-            reg_grad = self.reg_lambda * self.params
+            reg_grad = self.reg_lambda * params
         else:
             raise ValueError('Regularization method not supported now.')
-        enc_reg_grad = np.array(self.cryptosystem.encrypt_vector(reg_grad))
+        enc_reg_grad = np.array(getattr(self, 'cryptosystem').encrypt_vector(reg_grad))
 
         return enc_train_grad + enc_reg_grad
 
     def _mask_grad(self, enc_grad):
         perm = np.random.permutation(enc_grad.shape[0])
-
         return enc_grad[perm], perm
 
     def _unmask_grad(self, masked_grad, perm):
         perm_inverse = np.empty_like(perm)
         perm_inverse[perm] = np.arange(perm.size)
         true_grad = masked_grad[perm_inverse]
-
         return true_grad
-
-    def _gradient_descent(self, grad):
-        self.params = self.params - self.learning_rate * grad
 
     def _encode(self, x_train, pub_key, precision):
         x_encode = []
         n_samples = x_train.shape[0]
-
         for i in range(n_samples):
             row = [EncodedNumber.encode(pub_key, val, precision=precision)
                    for val in x_train[i]]
             x_encode.append(row)
-
         return np.array(x_encode)
 
     def train(self, trainset, testset):
@@ -184,19 +172,12 @@ class PassiveLogisticRegression:
                                                   'of NumpyDataset'
         setattr(self, 'x_train', trainset.features)
         setattr(self, 'x_val', testset.features)
-        n_samples = trainset.n_samples
-
         # init model parameters
         params = self._init_weights(trainset.n_features)
         setattr(self, 'params', params)
 
-        # setattr(self, 'x_train', x_train)
-        # setattr(self, 'x_val', x_val)
-        # setattr(self, 'params', self._init_weights(x_train.shape[1]))
-        # setattr(self, 'n_samples', x_train.shape[0])
-
         # obtain public key from active party and init cryptosystem
-        public_key = self._obtain_pubkey()
+        public_key = self._sync_pubkey()
         cryptosystem = partial_crypto_factory(crypto_type=self.crypto_type,
                                               public_key=public_key,
                                               num_enc_zeros=10000,
@@ -205,17 +186,17 @@ class PassiveLogisticRegression:
 
         # encode the training dataset if the crypto type belongs to Paillier family
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            x_encode = self._encode(self.x_train, public_key, self.precision)
+            x_encode = self._encode(getattr(self, 'x_train'), public_key, self.precision)
             setattr(self, 'x_encode', x_encode)
 
         bs = self.batch_size
+        n_samples = trainset.n_samples
         if n_samples % bs == 0:
             n_batches = n_samples // bs
         else:
             n_batches = n_samples // bs + 1
 
         commu_plus_compu_time = 0
-
         # Main Training Loop Here
         for epoch in range(self.epochs):
             print('\nEpoch: {}'.format(epoch))
@@ -228,7 +209,7 @@ class PassiveLogisticRegression:
                 batch_idxes = all_idxes[start:end]
 
                 # Calculate wx and send it to active party
-                wx = np.matmul(self.x_train[batch_idxes], self.params)
+                wx = np.matmul(getattr(self, 'x_train')[batch_idxes], getattr(self, 'params'))
                 _begin = time.time()
                 self.messenger.send(wx)
 
@@ -244,10 +225,11 @@ class PassiveLogisticRegression:
                 mask_grad = self.messenger.recv()
                 true_grad = self._unmask_grad(mask_grad, perm)
                 commu_plus_compu_time += time.time() - _begin
-                self._gradient_descent(true_grad)
+                self._gradient_descent(getattr(self, 'params'), true_grad)
 
             # validate the performance of the current model
-            is_best = self.validate(testset)
+            self.validate(testset)
+            is_best = self.messenger.recv()
             if is_best:
                 # save_params(self.params, role=Const.PASSIVE_NAME)
                 print(colored('Best model updates.', 'red'))
@@ -260,11 +242,11 @@ class PassiveLogisticRegression:
     def validate(self, valset):
         assert isinstance(valset, NumpyDataset), 'valset should be an instance ' \
                                                  'of NumpyDataset'
-        wx = np.matmul(valset.features, self.params)
+        wx = np.matmul(valset.features, getattr(self, 'params'))
         self.messenger.send(wx)
-        is_best = self.messenger.recv()
 
-        return is_best
+    def predict(self, testset):
+        self.validate(testset)
 
 
 if __name__ == '__main__':
@@ -311,14 +293,14 @@ if __name__ == '__main__':
                                   passive_port=passive_port)
 
     # 4. Initialize model and start training
-    passive_party = PassiveLogisticRegression(epochs=_epochs,
-                                              batch_size=_batch_size,
-                                              learning_rate=_learning_rate,
-                                              messenger=_messenger,
-                                              crypto_type=_crypto_type,
-                                              penalty=_penalty,
-                                              reg_lambda=_reg_lambda,
-                                              random_state=_random_state)
+    passive_party = PassiveLogReg(epochs=_epochs,
+                                  batch_size=_batch_size,
+                                  learning_rate=_learning_rate,
+                                  messenger=_messenger,
+                                  crypto_type=_crypto_type,
+                                  penalty=_penalty,
+                                  reg_lambda=_reg_lambda,
+                                  random_state=_random_state)
 
     passive_party.train(passive_trainset, passive_testset)
 

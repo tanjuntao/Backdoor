@@ -1,2 +1,2 @@
-from .active import ActiveLogisticRegression
-from .passive import PassiveLogisticRegression
+from .base import BaseLinear
+from .logreg import ActiveLogReg, PassiveLogReg

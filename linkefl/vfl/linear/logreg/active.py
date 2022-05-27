@@ -10,9 +10,10 @@ from linkefl.config import BaseConfig
 from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
 from linkefl.feature import add_intercept, scale, parse_label
 from linkefl.util import sigmoid, save_params
+from linkefl.vfl.linear import BaseLinear
 
 
-class ActiveLogisticRegression:
+class ActiveLogReg(BaseLinear):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -28,6 +29,7 @@ class ActiveLogisticRegression:
                  is_multi_thread=False,
                  positive_thresh=0.5
     ):
+        super(ActiveLogReg, self).__init__(learning_rate, random_state)
         self.epochs = epochs
         self.batch_size = batch_size
         self.learning_rate = learning_rate
@@ -72,15 +74,7 @@ class ActiveLogisticRegression:
                    random_state=config.RANDOM_STATE,
                    is_multi_thread=config.IS_MULTI_THREAD)
 
-    def _init_weights(self, size):
-        if self.random_state is not None:
-            np.random.seed(self.random_state)
-        else:
-            np.random.seed(None)
-        params = np.random.normal(0, 1.0, size)
-        return params
-
-    def _transfer_pubkey(self):
+    def _sync_pubkey(self):
         signal = self.messenger.recv()
         if signal == Const.START_SIGNAL:
             print('Training protocol started.')
@@ -105,12 +99,13 @@ class ActiveLogisticRegression:
     def _loss(self, y_true, y_hat):
         train_loss = self._loss_fn(y_true, y_hat)
 
+        params = getattr(self, 'params')
         if self.penalty == Const.NONE:
             reg_loss = 0.0
         elif self.penalty == Const.L1:
-            reg_loss = self.reg_lambda * abs(self.params).sum()
+            reg_loss = self.reg_lambda * abs(params).sum()
         elif self.penalty == Const.L2:
-            reg_loss = 1. / 2 * self.reg_lambda * (self.params ** 2).sum()
+            reg_loss = 1. / 2 * self.reg_lambda * (params ** 2).sum()
         else:
             raise ValueError('Regularization method not supported now.')
 
@@ -122,21 +117,19 @@ class ActiveLogisticRegression:
         return y_true - y_hat
 
     def _grad(self, residue, batch_idxes):
-        train_grad = -1 * (residue[:, np.newaxis] * self.x_train[batch_idxes]).mean(axis=0)
+        train_grad = -1 * (residue[:, np.newaxis] * getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
 
+        params = getattr(self, 'params')
         if self.penalty == Const.PLAIN:
-            reg_grad = np.zeros(len(self.params))
+            reg_grad = np.zeros(len(params))
         elif self.penalty == Const.L1:
-            reg_grad = self.reg_lambda * np.sign(self.params)
+            reg_grad = self.reg_lambda * np.sign(params)
         elif self.penalty == Const.L2:
-            reg_grad = self.reg_lambda * self.params
+            reg_grad = self.reg_lambda * params
         else:
             raise ValueError('Regularization method not supported now.')
 
         return train_grad + reg_grad
-
-    def _gradient_descent(self, grad):
-        self.params = self.params - self.learning_rate * grad
 
     def train(self, trainset, testset):
         assert isinstance(trainset, NumpyDataset), 'trainset should be an instance ' \
@@ -147,16 +140,16 @@ class ActiveLogisticRegression:
         setattr(self, 'x_val', testset.features)
         setattr(self, 'y_train', trainset.labels)
         setattr(self, 'y_val', testset.labels)
-        n_samples = trainset.n_samples
 
         # initialize model parameters
         params = self._init_weights(trainset.n_features)
         setattr(self, 'params', params)
 
         # trainfer public key to passive party
-        self._transfer_pubkey()
+        self._sync_pubkey()
 
         bs = self.batch_size
+        n_samples = trainset.n_samples
         if n_samples % bs == 0:
             n_batches = n_samples // bs
         else:
@@ -165,7 +158,6 @@ class ActiveLogisticRegression:
         best_acc, best_auc = 0.0, 0.0
         start_time = None
         compu_time = 0
-
         # Main Training Loop Here
         for epoch in range(self.epochs):
             is_best = False
@@ -178,14 +170,14 @@ class ActiveLogisticRegression:
                 batch_idxes = all_idxes[start:end]
 
                 # Active party calculates loss and residue
-                active_wx = np.matmul(self.x_train[batch_idxes], self.params)
+                active_wx = np.matmul(getattr(self, 'x_train')[batch_idxes], getattr(self, 'params'))
                 passive_wx = self.messenger.recv()
                 _begin = time.time()
                 if start_time is None:
                     start_time = time.time()
                 y_hat = sigmoid(active_wx + passive_wx)
-                loss = self._loss(self.y_train[batch_idxes], y_hat)
-                residue = self._residue(self.y_train[batch_idxes], y_hat)
+                loss = self._loss(getattr(self, 'y_train')[batch_idxes], y_hat)
+                residue = self._residue(getattr(self, 'y_train')[batch_idxes], y_hat)
 
                 # Active party helps passive party to calcalate gradient
                 enc_residue = np.array(self.cryptosystem.encrypt_vector(residue))
@@ -199,7 +191,7 @@ class ActiveLogisticRegression:
 
                 # Active party calculates its gradient and update model
                 active_grad = self._grad(residue, batch_idxes)
-                self._gradient_descent(active_grad)
+                self._gradient_descent(getattr(self, 'params'), active_grad)
                 batch_losses.append(loss)
 
             print(f"\nEpoch: {epoch}, Loss: {np.array(batch_losses).mean()}")
@@ -227,7 +219,9 @@ class ActiveLogisticRegression:
         print(colored('Elapsed time: {:.5f}s'.format(time.time() - start_time), 'red'))
 
     def validate(self, valset):
-        active_ws = np.matmul(valset.features, self.params)
+        assert isinstance(valset, NumpyDataset), 'valset should be an instance ' \
+                                                 'of NumpyDataset'
+        active_ws = np.matmul(valset.features, getattr(self, 'params'))
         passive_wx = self.messenger.recv()
 
         probs = sigmoid(active_ws + passive_wx)
@@ -242,6 +236,9 @@ class ActiveLogisticRegression:
             'f1': f1,
             'auc': auc
         }
+
+    def predict(self, testset):
+        return self.validate(testset)
 
 
 if __name__ == '__main__':
@@ -296,14 +293,14 @@ if __name__ == '__main__':
     print('ACTIVE PARTY started, listening...')
 
     # 5. Initialize model and start training
-    active_party = ActiveLogisticRegression(epochs=_epochs,
-                                            batch_size=_batch_size,
-                                            learning_rate=_learning_rate,
-                                            messenger=_messenger,
-                                            cryptosystem=_crypto,
-                                            penalty=_penalty,
-                                            reg_lambda=_reg_lambda,
-                                            random_state=_random_state)
+    active_party = ActiveLogReg(epochs=_epochs,
+                                batch_size=_batch_size,
+                                learning_rate=_learning_rate,
+                                messenger=_messenger,
+                                cryptosystem=_crypto,
+                                penalty=_penalty,
+                                reg_lambda=_reg_lambda,
+                                random_state=_random_state)
 
     active_party.train(active_trainset, active_testset)
 
