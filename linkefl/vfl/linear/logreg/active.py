@@ -6,14 +6,13 @@ from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
-from linkefl.config import BaseConfig
 from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
 from linkefl.feature import add_intercept, scale, parse_label
 from linkefl.util import sigmoid, save_params
-from linkefl.vfl.linear import BaseLinear
+from linkefl.vfl.linear import BaseLinearActive
 
 
-class ActiveLogReg(BaseLinear):
+class ActiveLogReg(BaseLinearActive):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -29,62 +28,22 @@ class ActiveLogReg(BaseLinear):
                  is_multi_thread=False,
                  positive_thresh=0.5
     ):
-        super(ActiveLogReg, self).__init__(learning_rate, random_state)
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.learning_rate = learning_rate
-        self.messenger = messenger
-        self.cryptosystem = cryptosystem
-
-        self.penalty = penalty
-        self.reg_lambda = reg_lambda
-        self.crypto_type = crypto_type
-        self.precision = precision
-        self.random_state = random_state
-        self.is_multi_thread = is_multi_thread
+        super(ActiveLogReg, self).__init__(
+            epochs=epochs,
+            batch_size=batch_size,
+            learning_rate=learning_rate,
+            messenger=messenger,
+            cryptosystem=cryptosystem,
+            penalty=penalty,
+            reg_lambda=reg_lambda,
+            crypto_type=crypto_type,
+            precision=precision,
+            random_state=random_state,
+            is_multi_thread=is_multi_thread
+        )
         self.POSITIVE_THRESH = positive_thresh
 
-    @classmethod
-    def from_config(cls, config):
-        assert isinstance(config, BaseConfig), 'config object should be an ' \
-                                               'instance of BaseConfig class.'
-        # initialize messenger
-        messenger = messenger_factory(messenger_type=config.MESSENGER_TYPE,
-                                      role=config.ROLE,
-                                      active_ip=config.ACTIVE_IP,
-                                      active_port=config.ACTIVE_PORT,
-                                      passive_ip=config.PASSIVE_IP,
-                                      passive_port=config.PASSIVE_PORT,
-                                      verbose=config.VERBOSE)
-        # initialize cryptosystem
-        crypto = crypto_factory(crypto_type=config.CRYPTO_TYPE,
-                                key_size=config.KEY_SIZE,
-                                num_enc_zeros=config.NUM_ENC_ZEROS,
-                                gen_from_set=config.GEN_FROM_SET)
-
-        return cls(epochs=config.EPOCHS,
-                   batch_size=config.BATCH_SIZE,
-                   learning_rate=config.LEARNING_RATE,
-                   messenger=messenger,
-                   cryptosystem=crypto,
-                   penalty=config.PENALTY,
-                   reg_lambda=config.REG_LAMBDA,
-                   crypto_type=config.CRYPTO_TYPE,
-                   precision=config.PRECISION,
-                   random_state=config.RANDOM_STATE,
-                   is_multi_thread=config.IS_MULTI_THREAD)
-
-    def _sync_pubkey(self):
-        signal = self.messenger.recv()
-        if signal == Const.START_SIGNAL:
-            print('Training protocol started.')
-            print('[ACTIVE] Sending public key to passive party...')
-            self.messenger.send(self.cryptosystem.pub_key)
-            print('[ACTIVE] Done!')
-        else:
-            raise ValueError('Invalid signal, exit.')
-
-    def _loss_fn(self, y_true, y_hat):
+    def _logloss(self, y_true, y_hat):
         origin_size = len(y_true)
         if len(np.unique(y_true)) == 1:
             if y_true[0] == 0:
@@ -97,7 +56,8 @@ class ActiveLogReg(BaseLinear):
         return log_loss(y_true=y_true, y_pred=y_hat, normalize=False) / origin_size
 
     def _loss(self, y_true, y_hat):
-        train_loss = self._loss_fn(y_true, y_hat)
+        # Logistic regression uses log-loss as loss function
+        train_loss = self._logloss(y_true, y_hat)
 
         params = getattr(self, 'params')
         if self.penalty == Const.NONE:
@@ -108,28 +68,9 @@ class ActiveLogReg(BaseLinear):
             reg_loss = 1. / 2 * self.reg_lambda * (params ** 2).sum()
         else:
             raise ValueError('Regularization method not supported now.')
-
         total_loss = train_loss + reg_loss
 
         return total_loss
-
-    def _residue(self, y_true, y_hat):
-        return y_true - y_hat
-
-    def _grad(self, residue, batch_idxes):
-        train_grad = -1 * (residue[:, np.newaxis] * getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
-
-        params = getattr(self, 'params')
-        if self.penalty == Const.PLAIN:
-            reg_grad = np.zeros(len(params))
-        elif self.penalty == Const.L1:
-            reg_grad = self.reg_lambda * np.sign(params)
-        elif self.penalty == Const.L2:
-            reg_grad = self.reg_lambda * params
-        else:
-            raise ValueError('Regularization method not supported now.')
-
-        return train_grad + reg_grad
 
     def train(self, trainset, testset):
         assert isinstance(trainset, NumpyDataset), 'trainset should be an instance ' \
@@ -175,7 +116,7 @@ class ActiveLogReg(BaseLinear):
                 _begin = time.time()
                 if start_time is None:
                     start_time = time.time()
-                y_hat = sigmoid(active_wx + passive_wx)
+                y_hat = sigmoid(active_wx + passive_wx) # use sigmoid as activation function
                 loss = self._loss(getattr(self, 'y_train')[batch_idxes], y_hat)
                 residue = self._residue(getattr(self, 'y_train')[batch_idxes], y_hat)
 
@@ -221,10 +162,10 @@ class ActiveLogReg(BaseLinear):
     def validate(self, valset):
         assert isinstance(valset, NumpyDataset), 'valset should be an instance ' \
                                                  'of NumpyDataset'
-        active_ws = np.matmul(valset.features, getattr(self, 'params'))
+        active_wx = np.matmul(valset.features, getattr(self, 'params'))
         passive_wx = self.messenger.recv()
 
-        probs = sigmoid(active_ws + passive_wx)
+        probs = sigmoid(active_wx + passive_wx)
         preds = (probs > self.POSITIVE_THRESH).astype(np.int32)
 
         accuracy = accuracy_score(valset.labels, preds)
@@ -243,7 +184,7 @@ class ActiveLogReg(BaseLinear):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'digits'
+    dataset_name = 'cancer'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
