@@ -233,7 +233,7 @@ class BaseLinearPassive(BaseLinear):
             x_encode = self._encode(getattr(self, 'x_train'), public_key, self.precision)
             setattr(self, 'x_encode', x_encode)
 
-        bs = self.batch_size
+        bs = self.batch_size if self.batch_size != -1 else trainset.n_samples
         n_samples = trainset.n_samples
         if n_samples % bs == 0:
             n_batches = n_samples // bs
@@ -373,7 +373,7 @@ class BaseLinearActive(BaseLinear):
 
         train_grad = -1 * (residue[:, np.newaxis] * getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
         params = getattr(self, 'params')
-        if self.penalty == Const.PLAIN:
+        if self.penalty == Const.NONE:
             reg_grad = np.zeros(len(params))
         elif self.penalty == Const.L1:
             reg_grad = self.reg_lambda * np.sign(params)

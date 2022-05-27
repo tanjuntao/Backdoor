@@ -89,7 +89,7 @@ class ActiveLogReg(BaseLinearActive):
         # trainfer public key to passive party
         self._sync_pubkey()
 
-        bs = self.batch_size
+        bs = self.batch_size if self.batch_size != -1 else trainset.n_samples
         n_samples = trainset.n_samples
         if n_samples % bs == 0:
             n_batches = n_samples // bs
