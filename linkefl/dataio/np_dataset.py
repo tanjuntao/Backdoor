@@ -207,18 +207,15 @@ class BuildinNumpyDataset(NumpyDataset):
             _whole_feats, _whole_labels = load_diabetes(return_X_y=True, scaled=True)
             _n_samples = len(_whole_labels)
             _whole_ids = np.arange(_n_samples)
-            np.random.seed(seed)
-            shuffle = np.random.permutation(_n_samples)
-            test_size = 0.1
-            _n_train_samples = int(_n_samples * (1 - test_size))
+            test_size = 40
             if train:
-                _ids = _whole_ids[shuffle[:_n_train_samples]]
-                _feats = _whole_feats[shuffle[:_n_train_samples], :]
-                _labels = _whole_labels[shuffle[:_n_train_samples]]
+                _ids = _whole_ids[:-test_size]
+                _feats = _whole_feats[:-test_size]
+                _labels = _whole_labels[:-test_size]
             else:
-                _ids = _whole_ids[shuffle[_n_train_samples:]]
-                _feats = _whole_feats[shuffle[_n_train_samples:], :]
-                _labels = _whole_labels[shuffle[_n_train_samples:]]
+                _ids = _whole_ids[-test_size:]
+                _feats = _whole_feats[-test_size:]
+                _labels = _whole_labels[-test_size:]
 
         elif name == 'epsilon': # classification
             if train:
