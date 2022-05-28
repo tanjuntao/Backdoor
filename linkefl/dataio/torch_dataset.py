@@ -104,7 +104,8 @@ class TorchDataset(BaseDataset, Dataset):
         for _id in intersect_ids:
             idx = torch.where(all_ids == _id)[0].item()
             idxes.append(idx)
-        self._torch_dataset = self._torch_dataset[idxes]
+        new_torch_dataset = self._torch_dataset[idxes]
+        self.set_dataset(new_torch_dataset)
 
     def get_dataset(self):
         return self._torch_dataset
@@ -112,6 +113,17 @@ class TorchDataset(BaseDataset, Dataset):
     def set_dataset(self, new_torch_dataset):
         assert isinstance(new_torch_dataset, torch.Tensor),\
             "new_torch_dataset should be an instance of torch.Tensor"
+
+        # mush delete old properties to save memory
+        del self._torch_dataset
+        if hasattr(self, '_ids'):
+            del self._ids
+        if hasattr(self, '_features'):
+            del self._features
+        if hasattr(self, '_labels'):
+            del self._labels
+
+        # update new property
         self._torch_dataset = new_torch_dataset
 
     def __len__(self):

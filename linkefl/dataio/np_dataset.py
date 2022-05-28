@@ -114,7 +114,8 @@ class NumpyDataset(BaseDataset):
         for _id in intersect_ids:
             idx = np.where(all_ids == _id)[0][0]
             idxes.append(idx)
-        self._np_dataset = self._np_dataset[idxes]
+        new_np_dataset = self._np_dataset[idxes] # return a new numpy object
+        self.set_dataset(new_np_dataset)
 
     def get_dataset(self):
         return self._np_dataset
@@ -122,6 +123,17 @@ class NumpyDataset(BaseDataset):
     def set_dataset(self, new_np_dataset):
         assert isinstance(new_np_dataset, np.ndarray),\
             "new_np_dataset should be an instance of np.ndarray"
+
+        # must delete old properties to save memory
+        del self._np_dataset
+        if hasattr(self, '_ids'):
+            del self._ids
+        if hasattr(self, '_features'):
+            del self._features
+        if hasattr(self, '_labels'):
+            del self._labels
+
+        # update new property
         self._np_dataset = new_np_dataset
 
 
@@ -192,12 +204,12 @@ class BuildinNumpyDataset(NumpyDataset):
 
         elif name == 'diabetes': # regression
             # do not scale the raw features
-            _whole_feats, _whole_labels = load_diabetes(return_X_y=True, scaled=False)
+            _whole_feats, _whole_labels = load_diabetes(return_X_y=True, scaled=True)
             _n_samples = len(_whole_labels)
             _whole_ids = np.arange(_n_samples)
             np.random.seed(seed)
             shuffle = np.random.permutation(_n_samples)
-            test_size = 0.2
+            test_size = 0.1
             _n_train_samples = int(_n_samples * (1 - test_size))
             if train:
                 _ids = _whole_ids[shuffle[:_n_train_samples]]
