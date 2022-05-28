@@ -26,6 +26,7 @@ class ActiveLogReg(BaseLinearActive):
                  precision=0.001,
                  random_state=None,
                  is_multi_thread=False,
+                 val_freq=1,
                  positive_thresh=0.5
     ):
         super(ActiveLogReg, self).__init__(
@@ -39,7 +40,8 @@ class ActiveLogReg(BaseLinearActive):
             crypto_type=crypto_type,
             precision=precision,
             random_state=random_state,
-            is_multi_thread=is_multi_thread
+            is_multi_thread=is_multi_thread,
+            val_freq=val_freq
         )
         self.POSITIVE_THRESH = positive_thresh
 
@@ -135,24 +137,26 @@ class ActiveLogReg(BaseLinearActive):
                 self._gradient_descent(getattr(self, 'params'), active_grad)
                 batch_losses.append(loss)
 
-            print(f"\nEpoch: {epoch}, Loss: {np.array(batch_losses).mean()}")
+            # validate model performance
+            if epoch % self.val_freq == 0:
+                print(f"\nEpoch: {epoch}, Loss: {np.array(batch_losses).mean()}")
 
-            scores = self.validate(testset)
-            if scores['acc'] > best_acc:
-                best_acc = scores['acc']
-                is_best = True
-            if scores['auc'] > best_auc:
-                best_auc = scores['auc']
-                is_best = True
-            print('Acc: {:.5f}, Auc: {:.5f}, f1-score: {:.5f}'.format(
-                scores['acc'],
-                scores['auc'],
-                scores['f1']
-            ))
-            if is_best:
-                # save_params(self.params, role='bob')
-                print(colored('Best model updates.', 'red'))
-            self.messenger.send(is_best)
+                scores = self.validate(testset)
+                if scores['acc'] > best_acc:
+                    best_acc = scores['acc']
+                    is_best = True
+                if scores['auc'] > best_auc:
+                    best_auc = scores['auc']
+                    is_best = True
+                print('Acc: {:.5f}, Auc: {:.5f}, f1-score: {:.5f}'.format(
+                    scores['acc'],
+                    scores['auc'],
+                    scores['f1']
+                ))
+                if is_best:
+                    # save_params(self.params, role='bob')
+                    print(colored('Best model updates.', 'red'))
+                self.messenger.send(is_best)
 
         print(colored('Best history acc: {:.5f}'.format(best_acc), 'red'))
         print(colored('Best history auc: {:.5f}'.format(best_auc), 'red'))

@@ -74,6 +74,7 @@ class BaseLinearPassive(BaseLinear):
                  precision=0.001,
                  random_state=None,
                  is_multi_thread=False,
+                 val_freq=1
     ):
         super(BaseLinearPassive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -87,6 +88,7 @@ class BaseLinearPassive(BaseLinear):
         self.precision = precision
         self.random_state = random_state
         self.is_multi_thread = is_multi_thread
+        self.val_freq = val_freq
 
     @classmethod
     def from_config(cls, config):
@@ -272,11 +274,12 @@ class BaseLinearPassive(BaseLinear):
                 self._gradient_descent(getattr(self, 'params'), true_grad)
 
             # validate the performance of the current model
-            self.validate(testset)
-            is_best = self.messenger.recv()
-            if is_best:
-                # save_params(self.params, role=Const.PASSIVE_NAME)
-                print(colored('Best model updates.', 'red'))
+            if epoch % self.val_freq == 0:
+                self.validate(testset)
+                is_best = self.messenger.recv()
+                if is_best:
+                    # save_params(self.params, role=Const.PASSIVE_NAME)
+                    print(colored('Best model updates.', 'red'))
 
         print('The summation of communication time and computation time is '
               '{:.4f}s. In order to obtain the communication time only, you should'
@@ -307,6 +310,7 @@ class BaseLinearActive(BaseLinear):
                  precision=0.001,
                  random_state=None,
                  is_multi_thread=False,
+                 val_freq=1
     ):
         super(BaseLinearActive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -321,6 +325,7 @@ class BaseLinearActive(BaseLinear):
         self.precision = precision
         self.random_state = random_state
         self.is_multi_thread = is_multi_thread
+        self.val_freq = val_freq
 
     @classmethod
     def from_config(cls, config):

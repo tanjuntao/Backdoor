@@ -18,6 +18,7 @@ class PassiveLogReg(BaseLinearPassive):
                  precision=0.001,
                  random_state=None,
                  is_multi_thread=False,
+                 val_freq=1
     ):
         super(PassiveLogReg, self).__init__(
             epochs=epochs,
@@ -29,7 +30,8 @@ class PassiveLogReg(BaseLinearPassive):
             reg_lambda=reg_lambda,
             precision=precision,
             random_state=random_state,
-            is_multi_thread=is_multi_thread
+            is_multi_thread=is_multi_thread,
+            val_freq=val_freq
         )
 
 
