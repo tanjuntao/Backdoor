@@ -9,7 +9,7 @@ from linkefl.common.const import Const
 
 
 class NumpyDataset(BaseDataset):
-    def __init__(self, role, abs_path=None, existing_dataset=None):
+    def __init__(self, role, abs_path=None, transfrom=None, existing_dataset=None):
         super(NumpyDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
@@ -22,6 +22,8 @@ class NumpyDataset(BaseDataset):
         else:
             self.set_dataset(existing_dataset)
 
+        if transfrom is not None:
+            self._np_dataset = transfrom(self._np_dataset)
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     @classmethod
@@ -125,7 +127,8 @@ class NumpyDataset(BaseDataset):
             "new_np_dataset should be an instance of np.ndarray"
 
         # must delete old properties to save memory
-        del self._np_dataset
+        if hasattr(self, '_np_dataset'):
+            del self._np_dataset
         if hasattr(self, '_ids'):
             del self._ids
         if hasattr(self, '_features'):
@@ -138,7 +141,14 @@ class NumpyDataset(BaseDataset):
 
 
 class BuildinNumpyDataset(NumpyDataset):
-    def __init__(self, dataset_name, train, role, passive_feat_frac, feat_perm_option, seed=1314):
+    def __init__(self,
+                 dataset_name,
+                 train, role,
+                 passive_feat_frac,
+                 feat_perm_option,
+                 transform=None,
+                 seed=1314
+    ):
         assert dataset_name in Const.BUILDIN_DATASET, f"{dataset_name} is not a" \
                                                       f"build-in dataset"
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
@@ -156,6 +166,8 @@ class BuildinNumpyDataset(NumpyDataset):
 
         self._np_dataset = self._load_dataset(dataset_name, train, role,
                                              passive_feat_frac, feat_perm_option, seed)
+        if transform is not None:
+            self._np_dataset = transform(self._np_dataset)
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     def _load_dataset(self, name, train, role, frac, perm_option, seed):

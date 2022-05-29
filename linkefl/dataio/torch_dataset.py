@@ -13,7 +13,7 @@ from linkefl.dataio.base import BaseDataset
 
 
 class TorchDataset(BaseDataset, Dataset):
-    def __init__(self, role, abs_path=None, existing_dataset=None):
+    def __init__(self, role, abs_path=None, transform=None, existing_dataset=None):
         super(TorchDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
@@ -26,6 +26,8 @@ class TorchDataset(BaseDataset, Dataset):
         else:
             self.set_dataset(existing_dataset)
 
+        if transform is not None:
+            self._torch_dataset = transform(self._torch_dataset)
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     @classmethod
@@ -115,7 +117,8 @@ class TorchDataset(BaseDataset, Dataset):
             "new_torch_dataset should be an instance of torch.Tensor"
 
         # mush delete old properties to save memory
-        del self._torch_dataset
+        if hasattr(self, '_torch_dataset'):
+            del self._torch_dataset
         if hasattr(self, '_ids'):
             del self._ids
         if hasattr(self, '_features'):
@@ -143,7 +146,9 @@ class BuildinTorchDataset(TorchDataset):
                  train,
                  passive_feat_frac,
                  feat_perm_option,
-                 seed=1314):
+                 transform=None,
+                 seed=1314
+        ):
         assert dataset_name in Const.BUILDIN_DATASET, f"{dataset_name} is not a buildin dataset"
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         assert 0 < passive_feat_frac < 1, 'the feature fraction of passive party' \
@@ -164,6 +169,8 @@ class BuildinTorchDataset(TorchDataset):
                                                 frac=passive_feat_frac,
                                                 perm_option=feat_perm_option,
                                                 seed=seed)
+        if transform is not None:
+            self._torch_dataset = transform(self._torch_dataset)
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     def _load_dataset(self, name, role, train, frac, perm_option, seed):
