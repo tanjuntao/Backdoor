@@ -9,15 +9,16 @@ from linkefl.dataio import BaseDataset, NumpyDataset, TorchDataset
 
 
 def scale(dataset):
+    # maximum three copies of the original dataset
     if isinstance(dataset, NumpyDataset):
-        scaled_feats = preprocessing.scale(dataset.features)
+        scaled_feats = preprocessing.scale(dataset.features, copy=False)
         new_dataset = copy.deepcopy(dataset.get_dataset())
         if dataset.has_label:
             new_dataset[:, 2:] = scaled_feats
         else:
             new_dataset[:, 1:] = scaled_feats
     elif isinstance(dataset, TorchDataset):
-        scaled_feats = preprocessing.scale(dataset.features.numpy())
+        scaled_feats = preprocessing.scale(dataset.features.numpy(), copy=False)
         new_dataset = copy.deepcopy(dataset.get_dataset())
         if dataset.has_label:
             new_dataset[:, 2:] = torch.from_numpy(scaled_feats)
@@ -34,15 +35,20 @@ def scale(dataset):
 
 
 def normalize(dataset, norm=Const.L2):
+    # maximum three copies of the original dataset
     if isinstance(dataset, NumpyDataset):
-        normalized_feats = preprocessing.normalize(dataset.features, norm=norm)
+        normalized_feats = preprocessing.normalize(dataset.features,
+                                                   norm=norm,
+                                                   copy=False)
         new_dataset = copy.deepcopy(dataset.get_dataset())
         if dataset.has_label:
             new_dataset[:, 2:] = normalized_feats
         else:
             new_dataset[:, 1:] = normalized_feats
     elif isinstance(dataset, TorchDataset):
-        normalized_feats = preprocessing.normalize(dataset.features.numpy(), norm=norm)
+        normalized_feats = preprocessing.normalize(dataset.features.numpy(),
+                                                   norm=norm,
+                                                   copy=False)
         new_dataset = copy.deepcopy(dataset.get_dataset())
         if dataset.has_label:
             new_dataset[:, 2:] = torch.from_numpy(normalized_feats)
@@ -59,6 +65,7 @@ def normalize(dataset, norm=Const.L2):
 
 
 def parse_label(dataset, neg_label=0):
+    # maximum two copies of the original dataset
     if isinstance(dataset, NumpyDataset):
         if dataset.has_label:
             labels = dataset.labels
@@ -85,6 +92,7 @@ def parse_label(dataset, neg_label=0):
 
 
 def add_intercept(dataset):
+    # maximum two copies of the original dataset
     if isinstance(dataset, NumpyDataset):
         if dataset.has_label:
             n_samples = dataset.n_samples
