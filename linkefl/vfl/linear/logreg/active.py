@@ -8,6 +8,7 @@ from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
 from linkefl.feature import add_intercept, scale, parse_label
+from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.util import sigmoid, save_params
 from linkefl.vfl.linear import BaseLinearActive
 
@@ -204,7 +205,8 @@ if __name__ == '__main__':
     _random_state = None
     _key_size = 1024
 
-    # 1. Load datasets
+    # 1. Loading datasets and preprocessing
+    # Option 1: Scikit-Learn style
     print('Loading dataset...')
     active_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
                                           train=True,
@@ -216,11 +218,28 @@ if __name__ == '__main__':
                                          role=Const.ACTIVE_NAME,
                                          passive_feat_frac=passive_feat_frac,
                                          feat_perm_option=feat_perm_option)
-    print('Done.')
-
-    # 2. Dataset preprocessing
     active_trainset = add_intercept(scale(parse_label(active_trainset)))
     active_testset = add_intercept(scale(parse_label(active_testset)))
+    print('Done.')
+
+    # Option 2: PyTorch style
+    # print('Loading dataset...')
+    # transform = Compose([ParseLabel(role=Const.ACTIVE_NAME),
+    #                      Scale(role=Const.ACTIVE_NAME),
+    #                      AddIntercept(role=Const.ACTIVE_NAME)])
+    # active_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                       train=True,
+    #                                       role=Const.ACTIVE_NAME,
+    #                                       passive_feat_frac=passive_feat_frac,
+    #                                       feat_perm_option=feat_perm_option,
+    #                                       transform=transform)
+    # active_testset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                      train=False,
+    #                                      role=Const.ACTIVE_NAME,
+    #                                      passive_feat_frac=passive_feat_frac,
+    #                                      feat_perm_option=feat_perm_option,
+    #                                      transform=transform)
+    # print('Done.')
 
     # 3. Initialize cryptosystem
     _crypto = crypto_factory(crypto_type=_crypto_type,

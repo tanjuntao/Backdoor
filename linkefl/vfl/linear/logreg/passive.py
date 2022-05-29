@@ -1,7 +1,7 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory
 from linkefl.dataio import BuildinNumpyDataset
-from linkefl.feature import scale
+from linkefl.feature import scale, Scale
 from linkefl.vfl.linear import BaseLinearPassive
 
 
@@ -52,7 +52,8 @@ if __name__ == '__main__':
     _random_state = None
     _crypto_type = Const.PLAIN
 
-    # 1. Load datasets
+    # 1. Loading datasets and preprocessing
+    # Option 1: Scikit-Learn style
     print('Loading dataset...')
     passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
                                            train=True,
@@ -64,11 +65,26 @@ if __name__ == '__main__':
                                           role=Const.PASSIVE_NAME,
                                           passive_feat_frac=passive_feat_frac,
                                           feat_perm_option=feat_perm_option)
-    print('Done.')
-
-    # 2. Dataset preprocessing
     passive_trainset = scale(passive_trainset)
     passive_testset = scale(passive_testset)
+    print('Done.')
+
+    # Option 2: PyTorch style
+    # print('Loading dataset...')
+    # transform = Scale(role=Const.PASSIVE_NAME)
+    # passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                        train=True,
+    #                                        role=Const.PASSIVE_NAME,
+    #                                        passive_feat_frac=passive_feat_frac,
+    #                                        feat_perm_option=feat_perm_option,
+    #                                        transform=transform)
+    # passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                       train=False,
+    #                                       role=Const.PASSIVE_NAME,
+    #                                       passive_feat_frac=passive_feat_frac,
+    #                                       feat_perm_option=feat_perm_option,
+    #                                       transform=transform)
+    # print('Done.')
 
     # 3. Initialize messenger
     _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
