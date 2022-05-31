@@ -160,7 +160,7 @@ class BaseLinearPassive(BaseLinear):
         res = shared_q.get()
         while not shared_q.empty():
             res += shared_q.get()
-        return res
+        return res / bs # average gradients
 
     def _target_func_grad(self, batches, residues, shared_q):
         gmpy2.get_context().allow_release_gil = True
@@ -173,9 +173,7 @@ class BaseLinearPassive(BaseLinear):
             enc_train_grad = self._grad_single_thread(enc_residue, batch_idxes)
         else:
             # TODO: multi threading to accelerate this operation
-            print('start...')
             enc_train_grad = self._grad_multi_thread(enc_residue, batch_idxes)
-            print('end \n')
         # print(colored('Gradient time: {}'.format(time.time() - start), 'red'))
 
         # compute gradient of regularization term
