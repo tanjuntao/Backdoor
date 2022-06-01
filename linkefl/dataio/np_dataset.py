@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 from sklearn.datasets import load_breast_cancer, load_digits, load_diabetes
+from sklearn.model_selection import train_test_split
 from termcolor import colored
 
 from linkefl.dataio.base import BaseDataset
@@ -176,43 +177,72 @@ class BuildinNumpyDataset(NumpyDataset):
         # 1. load whole dataset and split it into trainset and testset
         if name == 'cancer': # classification
             cancer = load_breast_cancer()
-            _whole_feats = cancer.data
-            _whole_labels = cancer.target
-            _n_samples = len(_whole_labels)
-            _whole_ids = np.arange(_n_samples)
-            np.random.seed(seed)
-            shuffle = np.random.permutation(_n_samples)
-            test_size = 0.2
-            _n_train_samples = int(_n_samples * (1 - test_size))
+            x_train, x_test, y_train, y_test = train_test_split(cancer.data,
+                                                                cancer.target,
+                                                                test_size=0.2,
+                                                                random_state=0)
             if train:
-                _ids = _whole_ids[shuffle[:_n_train_samples]]
-                _feats = _whole_feats[shuffle[:_n_train_samples], :]
-                _labels = _whole_labels[shuffle[:_n_train_samples]]
+                _ids = np.arange(x_train.shape[0])
+                _feats = x_train
+                _labels = y_train
             else:
-                _ids = _whole_ids[shuffle[_n_train_samples:]]
-                _feats = _whole_feats[shuffle[_n_train_samples:], :]
-                _labels = _whole_labels[shuffle[_n_train_samples:]]
+                _ids = np.arange(x_train.shape[0], x_train.shape[0] + x_test.shape[0])
+                _feats = x_test
+                _labels = y_test
+
+            # cancer = load_breast_cancer()
+            # _whole_feats = cancer.data
+            # _whole_labels = cancer.target
+            # _n_samples = len(_whole_labels)
+            # _whole_ids = np.arange(_n_samples)
+            # np.random.seed(seed)
+            # shuffle = np.random.permutation(_n_samples)
+            # test_size = 0.2
+            # _n_train_samples = int(_n_samples * (1 - test_size))
+            # if train:
+            #     _ids = _whole_ids[shuffle[:_n_train_samples]]
+            #     _feats = _whole_feats[shuffle[:_n_train_samples], :]
+            #     _labels = _whole_labels[shuffle[:_n_train_samples]]
+            # else:
+            #     _ids = _whole_ids[shuffle[_n_train_samples:]]
+            #     _feats = _whole_feats[shuffle[_n_train_samples:], :]
+            #     _labels = _whole_labels[shuffle[_n_train_samples:]]
 
         elif name == 'digits': # classification
-            _whole_feats, _whole_labels = load_digits(return_X_y=True)
-            _n_samples = len(_whole_labels)
-            odd_idxes = np.where(_whole_labels % 2 == 1)[0]
-            even_idxes = np.where(_whole_labels % 2 == 0)[0]
-            _whole_labels[odd_idxes] = 1
-            _whole_labels[even_idxes] = 0
-            _whole_ids = np.arange(len(_whole_labels))
-            np.random.seed(seed)
-            shuffle = np.random.permutation(_n_samples)
-            test_size = 0.2
-            _n_train_samples = int(_n_samples * (1 - test_size))
+            X, Y = load_digits(return_X_y=True)
+            odd_idxes = np.where(Y % 2 == 1)[0]
+            even_idxes = np.where(Y % 2 == 0)[0]
+            Y[odd_idxes] = 1
+            Y[even_idxes] = 0
+            x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=0)
             if train:
-                _ids = _whole_ids[shuffle[:_n_train_samples]]
-                _feats = _whole_feats[shuffle[:_n_train_samples], :]
-                _labels = _whole_labels[shuffle[:_n_train_samples]]
+                _ids = np.arange(x_train.shape[0])
+                _feats = x_train
+                _labels = y_train
             else:
-                _ids = _whole_ids[shuffle[_n_train_samples:]]
-                _feats = _whole_feats[shuffle[_n_train_samples:], :]
-                _labels = _whole_labels[shuffle[_n_train_samples:]]
+                _ids = np.arange(x_train.shape[0], x_train.shape[0] + x_test.shape[0])
+                _feats = x_test
+                _labels = y_test
+
+            # _whole_feats, _whole_labels = load_digits(return_X_y=True)
+            # _n_samples = len(_whole_labels)
+            # odd_idxes = np.where(_whole_labels % 2 == 1)[0]
+            # even_idxes = np.where(_whole_labels % 2 == 0)[0]
+            # _whole_labels[odd_idxes] = 1
+            # _whole_labels[even_idxes] = 0
+            # _whole_ids = np.arange(len(_whole_labels))
+            # np.random.seed(seed)
+            # shuffle = np.random.permutation(_n_samples)
+            # test_size = 0.2
+            # _n_train_samples = int(_n_samples * (1 - test_size))
+            # if train:
+            #     _ids = _whole_ids[shuffle[:_n_train_samples]]
+            #     _feats = _whole_feats[shuffle[:_n_train_samples], :]
+            #     _labels = _whole_labels[shuffle[:_n_train_samples]]
+            # else:
+            #     _ids = _whole_ids[shuffle[_n_train_samples:]]
+            #     _feats = _whole_feats[shuffle[_n_train_samples:], :]
+            #     _labels = _whole_labels[shuffle[_n_train_samples:]]
 
         elif name == 'diabetes': # regression
             # do not scale the raw features
