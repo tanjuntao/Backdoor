@@ -218,6 +218,8 @@ if __name__ == '__main__':
                                          role=Const.ACTIVE_NAME,
                                          passive_feat_frac=passive_feat_frac,
                                          feat_perm_option=feat_perm_option)
+    # if using credit dataset, remember to apply scale after add_intercept,
+    # otherwise the model cannot converge
     active_trainset = add_intercept(scale(parse_label(active_trainset)))
     active_testset = add_intercept(scale(parse_label(active_testset)))
     print('Done.')
