@@ -17,7 +17,8 @@ class PassiveLogReg(BaseLinearPassive):
                  reg_lambda=0.01,
                  precision=0.001,
                  random_state=None,
-                 is_multi_thread=False,
+                 using_pool=False,
+                 num_workers=-1,
                  val_freq=1
     ):
         super(PassiveLogReg, self).__init__(
@@ -30,7 +31,8 @@ class PassiveLogReg(BaseLinearPassive):
             reg_lambda=reg_lambda,
             precision=precision,
             random_state=random_state,
-            is_multi_thread=is_multi_thread,
+            using_pool=using_pool,
+            num_workers=num_workers,
             val_freq=val_freq
         )
 
@@ -67,7 +69,6 @@ if __name__ == '__main__':
                                           feat_perm_option=feat_perm_option)
     passive_trainset = scale(passive_trainset)
     passive_testset = scale(passive_testset)
-    print('Done.')
 
     # Option 2: PyTorch style
     # print('Loading dataset...')
@@ -102,7 +103,8 @@ if __name__ == '__main__':
                                   crypto_type=_crypto_type,
                                   penalty=_penalty,
                                   reg_lambda=_reg_lambda,
-                                  random_state=_random_state)
+                                  random_state=_random_state,
+                                  using_pool=False)
 
     passive_party.train(passive_trainset, passive_testset)
 

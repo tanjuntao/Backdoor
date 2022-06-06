@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import multiprocessing
 import os
 from queue import Queue
 import threading
@@ -6,7 +7,7 @@ import time
 
 import gmpy2
 import numpy as np
-from phe import EncodedNumber
+from phe import EncodedNumber, EncryptedNumber
 from termcolor import colored
 
 from linkefl.common.const import Const
@@ -18,6 +19,10 @@ from linkefl.common.factory import (
 from linkefl.config import BaseConfig
 from linkefl.dataio import NumpyDataset
 from linkefl.util import save_params
+
+
+def _target_grad(*args):
+    return sum(args)
 
 
 class BaseLinear(ABC):
@@ -73,7 +78,8 @@ class BaseLinearPassive(BaseLinear):
                  reg_lambda=0.01,
                  precision=0.001,
                  random_state=None,
-                 is_multi_thread=False,
+                 using_pool=False,
+                 num_workers=-1,
                  val_freq=1
     ):
         super(BaseLinearPassive, self).__init__(learning_rate, random_state)
@@ -87,7 +93,13 @@ class BaseLinearPassive(BaseLinear):
         self.reg_lambda = reg_lambda
         self.precision = precision
         self.random_state = random_state
-        self.is_multi_thread = is_multi_thread
+        self.using_pool = using_pool
+        if using_pool:
+            if num_workers == -1:
+                num_workers = os.cpu_count()
+            self.pool = multiprocessing.Pool(num_workers)
+        else:
+            self.pool = None
         self.val_freq = val_freq
 
     @classmethod
@@ -112,7 +124,9 @@ class BaseLinearPassive(BaseLinear):
                    reg_lambda=config.REG_LAMBDA,
                    precision=config.PRECISION,
                    random_state=config.RANDOM_STATE,
-                   is_multi_thread=config.IS_MULTI_THREAD)
+                   using_pool=config.USING_POOL,
+                   num_workers=config.NUM_WORKERS,
+                   val_freq=config.VAL_FREQ)
 
     def _sync_pubkey(self):
         print('[PASSIVE] Requesting publie key...')
@@ -122,7 +136,7 @@ class BaseLinearPassive(BaseLinear):
         print('[PASSIVE] Done!')
         return public_key
 
-    def _grad_single_thread(self, enc_residue, batch_idxes):
+    def _grad(self, enc_residue, batch_idxes):
         if self.crypto_type == Const.PLAIN:
             # using x_train if crypto type is PLAIN
             enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
@@ -133,6 +147,41 @@ class BaseLinearPassive(BaseLinear):
                                    getattr(self, 'x_encode')[batch_idxes]).mean(axis=0)
 
         return enc_train_grad
+
+    def _grad_mp_pool(self, enc_residue, batch_idxes, worker_pool):
+        """compute encrypted gradients manully"""
+        n_samples, n_features = len(batch_idxes), getattr(self, 'params').size
+        pub_key = getattr(self, 'cryptosystem').pub_key
+        n = pub_key.n
+        n_squared = pub_key.n ** 2
+        max_int = pub_key.max_int
+        r_ciphers = [enc_r.ciphertext(False) for enc_r in enc_residue]
+        r_ciphers_neg = [gmpy2.invert(r_cipher, n_squared) for r_cipher in r_ciphers]
+
+        # collect encrypted gradient items
+        enc_train_grads = [[] for _ in range(n_features)]
+        for i in range(n_samples):
+            for j in range(n_features):
+                row = getattr(self, 'x_encode')[batch_idxes[i]]
+                encoding = row[j].encoding
+                exponent = row[j].exponent + enc_residue[i].exponent
+                if n - max_int < encoding:
+                    ciphertext = gmpy2.powmod(r_ciphers_neg[i], n - encoding, n_squared)
+                else:
+                    ciphertext = gmpy2.powmod(r_ciphers[i], encoding, n_squared)
+                enc_j = EncryptedNumber(pub_key, ciphertext, exponent)
+                enc_train_grads[j].append(enc_j)
+
+        # using pool to add encrypted gradients in parallel
+        avg_grads = worker_pool.starmap(_target_grad, enc_train_grads)
+
+        # average gradients
+        for j in range(n_features):
+            avg_grads[j] = avg_grads[j] * (-1. / len(batch_idxes))
+
+        # convert grads from python list to numpy.ndarray
+        avg_grads = np.array(avg_grads)
+        return avg_grads
 
     def _grad_multi_thread(self, enc_residue, batch_idxes, n_threads=-1):
         if n_threads == -1:
@@ -167,14 +216,12 @@ class BaseLinearPassive(BaseLinear):
         enc_grad = -1 * (residues[:, np.newaxis] * getattr(self, 'x_train')[batches]).sum(axis=0)
         shared_q.put(enc_grad)
 
-    def _grad(self, enc_residue, batch_idxes):
+    def _gradient(self, enc_residue, batch_idxes, worker_pool):
         # compute gradient of empirical loss term
-        if not self.is_multi_thread:
-            enc_train_grad = self._grad_single_thread(enc_residue, batch_idxes)
+        if worker_pool is None:
+            enc_train_grad = self._grad(enc_residue, batch_idxes)
         else:
-            # TODO: multi threading to accelerate this operation
-            enc_train_grad = self._grad_multi_thread(enc_residue, batch_idxes)
-        # print(colored('Gradient time: {}'.format(time.time() - start), 'red'))
+            enc_train_grad = self._grad_mp_pool(enc_residue, batch_idxes, worker_pool)
 
         # compute gradient of regularization term
         params = getattr(self, 'params')
@@ -260,7 +307,7 @@ class BaseLinearPassive(BaseLinear):
                 # Receive encrypted residue and calculate masked encrypted gradients
                 enc_residue = self.messenger.recv()
                 commu_plus_compu_time += time.time() - _begin
-                enc_grad = self._grad(enc_residue, batch_idxes)
+                enc_grad, add_time, _powmod_time = self._gradient(enc_residue, batch_idxes, self.pool)
                 enc_mask_grad, perm = self._mask_grad(enc_grad)
                 _begin = time.time()
                 self.messenger.send(enc_mask_grad)
@@ -278,6 +325,11 @@ class BaseLinearPassive(BaseLinear):
                 if is_best:
                     # save_params(self.params, role=Const.PASSIVE_NAME)
                     print(colored('Best model updates.', 'red'))
+
+        # after training release the multiprocessing pool
+        if self.pool is not None:
+            self.pool.close()
+            self.pool.join()
 
         print('The summation of communication time and computation time is '
               '{:.4f}s. In order to obtain the communication time only, you should'
@@ -307,7 +359,8 @@ class BaseLinearActive(BaseLinear):
                  crypto_type=Const.PAILLIER,
                  precision=0.001,
                  random_state=None,
-                 is_multi_thread=False,
+                 using_pool=False,
+                 num_workers=-1,
                  val_freq=1
     ):
         super(BaseLinearActive, self).__init__(learning_rate, random_state)
@@ -322,7 +375,8 @@ class BaseLinearActive(BaseLinear):
         self.crypto_type = crypto_type
         self.precision = precision
         self.random_state = random_state
-        self.is_multi_thread = is_multi_thread
+        self.using_pool = using_pool
+        self.num_workers = num_workers
         self.val_freq = val_freq
 
     @classmethod

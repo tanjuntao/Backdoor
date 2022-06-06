@@ -16,7 +16,8 @@ class PassiveLinReg(BaseLinearPassive):
                  reg_lambda=0.01,
                  precision=0.001,
                  random_state=None,
-                 is_multi_thread=False,
+                 using_pool=False,
+                 num_workers=-1,
                  val_freq=1
     ):
         super(PassiveLinReg, self).__init__(
@@ -29,7 +30,8 @@ class PassiveLinReg(BaseLinearPassive):
             reg_lambda=reg_lambda,
             precision=precision,
             random_state=random_state,
-            is_multi_thread=is_multi_thread,
+            using_pool=using_pool,
+            num_workers=num_workers,
             val_freq=val_freq
         )
 

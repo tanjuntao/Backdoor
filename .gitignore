@@ -3,6 +3,7 @@
 *.gz
 *-ubyte
 *.pt
+*.lprof
 .idea/
 linkefl.egg-info/
 

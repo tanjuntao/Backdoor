@@ -26,7 +26,8 @@ class ActiveLogReg(BaseLinearActive):
                  crypto_type=Const.PAILLIER,
                  precision=0.001,
                  random_state=None,
-                 is_multi_thread=False,
+                 using_pool=False,
+                 num_workers=-1,
                  val_freq=1,
                  positive_thresh=0.5
     ):
@@ -41,7 +42,8 @@ class ActiveLogReg(BaseLinearActive):
             crypto_type=crypto_type,
             precision=precision,
             random_state=random_state,
-            is_multi_thread=is_multi_thread,
+            using_pool=using_pool,
+            num_workers=num_workers,
             val_freq=val_freq
         )
         self.POSITIVE_THRESH = positive_thresh
