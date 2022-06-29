@@ -307,7 +307,7 @@ class BaseLinearPassive(BaseLinear):
                 # Receive encrypted residue and calculate masked encrypted gradients
                 enc_residue = self.messenger.recv()
                 commu_plus_compu_time += time.time() - _begin
-                enc_grad, add_time, _powmod_time = self._gradient(enc_residue, batch_idxes, self.pool)
+                enc_grad = self._gradient(enc_residue, batch_idxes, self.pool)
                 enc_mask_grad, perm = self._mask_grad(enc_grad)
                 _begin = time.time()
                 self.messenger.send(enc_mask_grad)
