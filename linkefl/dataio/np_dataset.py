@@ -1,6 +1,3 @@
-import os
-from tkinter import N
-
 import numpy as np
 import pandas as pd
 from sklearn.datasets import load_breast_cancer, load_digits, load_diabetes
