@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, crypto_factory
 from linkefl.dataio import TorchDataset, BuildinTorchDataset
+from linkefl.feature.transform import parse_label, scale
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
 
@@ -91,10 +92,10 @@ class ActiveNeuralNetwork:
                 best_auc = curr_auc
             self.messenger.send(is_best)
 
-        print(colored('Total training and validation time: {:.2f}'
+        print(colored('Total training and validation time: {:.4f}'
                       .format(time.time() - start_time), 'red'))
-        print(colored('Best testing accuracy: {}'.format(best_acc), 'red'))
-        print(colored('Best testing auc: {}'.format(best_auc), 'red'))
+        print(colored('Best testing accuracy: {:.5f}'.format(best_acc), 'red'))
+        print(colored('Best testing auc: {:.5f}'.format(best_auc), 'red'))
 
     def validate(self, testset, existing_loader=None):
         assert isinstance(testset, TorchDataset), 'testset should be an instance ' \
@@ -166,14 +167,39 @@ if __name__ == '__main__':
                                          passive_feat_frac=passive_feat_frac,
                                          feat_perm_option=feat_perm_option)
     print('Done.')
+    # for epsilon dataset, scale() must be applied.
+    # active_trainset = scale(active_trainset)
+    # active_testset = scale(active_testset)
 
     # 2. Created PyTorch models and associated optimizers
     input_nodes = num_input_nodes(dataset_name=dataset_name,
                                   role=Const.ACTIVE_NAME,
                                   passive_feat_frac=passive_feat_frac)
+    # mnist & fashion_mnist
     bottom_nodes = [input_nodes, 256, 128]
     intersect_nodes = [128, 128, 10]
     top_nodes = [10, 10]
+
+    # census
+    # bottom_nodes = [input_nodes, 20, 10]
+    # intersect_nodes = [10, 10, 10]
+    # top_nodes = [10, 2]
+
+    # credit
+    # bottom_nodes = [input_nodes, 3, 3]
+    # intersect_nodes = [3, 3, 3]
+    # top_nodes = [3, 2]
+
+    # default_credit
+    # bottom_nodes = [input_nodes, 8, 5]
+    # intersect_nodes = [5, 5, 5]
+    # top_nodes = [5, 2]
+
+    # epsilon
+    # bottom_nodes = [input_nodes, 25, 10]
+    # intersect_nodes = [10, 10, 10]
+    # top_nodes = [10, 2]
+
     bottom_model = ActiveBottomModel(bottom_nodes)
     intersect_model = IntersectionModel(intersect_nodes)
     top_model = TopModel(top_nodes)

@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, crypto_factory
 from linkefl.dataio import TorchDataset, BuildinTorchDataset
+from linkefl.feature.transform import scale
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.model import PassiveBottomModel
 
@@ -108,12 +109,19 @@ if __name__ == '__main__':
                                           passive_feat_frac=passive_feat_frac,
                                           feat_perm_option=feat_perm_option)
     print('Done.')
+    # for epsilon dataset, scale() must be applied.
+    # passive_trainset = scale(passive_trainset)
+    # passive_testset = scale(passive_testset)
 
     # 2. Create PyTorch model and optimizer
     input_nodes = num_input_nodes(dataset_name=dataset_name,
                                   role=Const.PASSIVE_NAME,
                                   passive_feat_frac=passive_feat_frac)
-    all_nodes = [input_nodes, 256, 128]
+    all_nodes = [input_nodes, 256, 128] # mnist & fashion_mnist
+    # all_nodes = [input_nodes, 20, 10] # census
+    # all_nodes = [input_nodes, 3, 3] # credit
+    # all_nodes = [input_nodes, 8, 5] # default_credit
+    # all_nodes = [input_nodes, 25, 10] # epsilon
     passive_bottom_model = PassiveBottomModel(all_nodes)
     _optimizer = torch.optim.SGD(passive_bottom_model.parameters(), lr=_learning_rate)
 

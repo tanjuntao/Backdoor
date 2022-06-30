@@ -233,6 +233,22 @@ class BuildinTorchDataset(TorchDataset):
             _labels = torch_csv[:, 1].type(torch.int32)
             _feats = torch_csv[:, 2:]
 
+        elif name == 'default_credit':
+            if train:
+                abs_path = os.path.join(
+                    curr_path,
+                    '../data/tabular/default_credit_train.csv'
+                )
+            else:
+                abs_path = os.path.join(
+                    curr_path,
+                    '../data/tabular/default_credit_test.csv'
+                )
+            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
+            _ids = torch_csv[:, 0].type(torch.int32)
+            _labels = torch_csv[:, 1].type(torch.int32)
+            _feats = torch_csv[:, 2:]
+
         elif name == 'mnist':
             transform = transforms.Compose([
                 transforms.ToTensor(),

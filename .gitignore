@@ -4,6 +4,7 @@
 *-ubyte
 *.pt
 *.lprof
+*.mat
 .idea/
 linkefl.egg-info/
 

@@ -148,6 +148,7 @@ def num_input_nodes(dataset_name, role, passive_feat_frac):
         'epsilon': 100,
         'census': 81,
         'credit': 10,
+        'default_credit': 23,
         'mnist': 28 * 28,
         'fashion_mnist': 28 * 28,
     }
