@@ -298,6 +298,19 @@ class BuildinNumpyDataset(NumpyDataset):
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
 
+        elif name == 'default_credit': # classification
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path, '../data/tabular/default_credit_train.csv'),
+                    delimiter=',')
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path, '../data/tabular/default_credit_test.csv'),
+                    delimiter=',')
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
         else:
             raise ValueError('Invalid dataset name.')
 
