@@ -14,7 +14,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str)
     args = parser.parse_args()
 
-    epochs = 200
+    epochs = 100
 
     if args.dataset == 'cancer':
         _penalty = 'l2'
@@ -35,6 +35,10 @@ if __name__ == '__main__':
     elif args.dataset == 'credit':
         _penalty = 'l2'
         _lambda = 0.001
+
+    elif args.dataset == 'default_credit':
+        _penalty = 'l2'
+        _lambda = 0.01
 
     else:
         raise ValueError('dataset is not supported.')

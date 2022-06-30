@@ -19,7 +19,7 @@ def scale(dataset):
         else:
             new_dataset[:, 1:] = scaled_feats
     elif isinstance(dataset, TorchDataset):
-        scaled_feats = preprocessing.scale(dataset.features.numpy(), copy=False)
+        scaled_feats = preprocessing.scale(dataset.features.numpy().astype(np.float64), copy=False)
         new_dataset = copy.deepcopy(dataset.get_dataset())
         if dataset.has_label:
             new_dataset[:, 2:] = torch.from_numpy(scaled_feats)

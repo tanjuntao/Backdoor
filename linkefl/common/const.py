@@ -16,6 +16,7 @@ class Const:
                        'epsilon',
                        'census',
                        'credit',
+                       'default_credit',
                        'diabetes',
                        'mnist',
                        'fashion_mnist',

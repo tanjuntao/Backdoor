@@ -268,7 +268,8 @@ if __name__ == '__main__':
                                 cryptosystem=_crypto,
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
-                                random_state=_random_state)
+                                random_state=_random_state,
+                                using_pool=False)
 
     active_party.train(active_trainset, active_testset)
 
