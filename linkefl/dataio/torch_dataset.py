@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import pandas as pd
 from sklearn.datasets import load_breast_cancer, load_digits
 from termcolor import colored
 import torch
@@ -20,7 +21,8 @@ class TorchDataset(BaseDataset, Dataset):
 
         if existing_dataset is None:
             if abs_path is not None:
-                self._torch_dataset = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
+                # self._torch_dataset = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
+                self._torch_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
             else:
                 raise Exception('data file path is not provided.')
         else:

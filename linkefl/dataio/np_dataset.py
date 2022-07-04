@@ -1,6 +1,5 @@
-import os
-
 import numpy as np
+import pandas as pd
 from sklearn.datasets import load_breast_cancer, load_digits, load_diabetes
 from sklearn.model_selection import train_test_split
 from termcolor import colored
@@ -10,21 +9,22 @@ from linkefl.common.const import Const
 
 
 class NumpyDataset(BaseDataset):
-    def __init__(self, role, abs_path=None, transfrom=None, existing_dataset=None):
+    def __init__(self, role, abs_path=None, transform=None, existing_dataset=None):
         super(NumpyDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
 
         if existing_dataset is None:
             if abs_path is not None:
-                self._np_dataset = np.genfromtxt(abs_path, delimiter=',')
+                # self._np_dataset = np.genfromtxt(abs_path, delimiter=',')
+                self._np_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
             else:
                 raise Exception('abs_path should not be None')
         else:
             self.set_dataset(existing_dataset)
 
-        if transfrom is not None:
-            self._np_dataset = transfrom(self._np_dataset)
+        if transform is not None:
+            self._np_dataset = transform(self._np_dataset)
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     @classmethod
@@ -181,6 +181,7 @@ class BuildinNumpyDataset(NumpyDataset):
                                                                 cancer.target,
                                                                 test_size=0.2,
                                                                 random_state=0)
+
             if train:
                 _ids = np.arange(x_train.shape[0])
                 _feats = x_train

@@ -1,6 +1,7 @@
 import copy
 
 import numpy as np
+import pandas as pd
 from sklearn import preprocessing
 import torch
 
@@ -113,3 +114,69 @@ def add_intercept(dataset):
                         'NumpyDataset or TorchDataset')
 
     return dataset
+
+
+def one_hot(dataset, index=[]):
+    """One-hot coding of discrete data in the data.
+
+    Parameters
+    ----------
+    dataset : NumpyDataset
+        Original complete data set.
+        dataset._np_dataset: DataFrame
+
+    index: list
+        The position of the column to be one-hot encoded, not the label of the column.
+
+    Returns
+    -------
+    dataset: NumpyDataset
+        The complete data set after one-hot coding, the number of columns may be increased.
+        dataset._np_dataset: Numpy.ndarray
+    
+    """
+    if isinstance(dataset, NumpyDataset):
+        n_features = dataset.n_features
+        for i in range(n_features):
+            if i in index:
+                # Require to do One-hot coding
+                data = pd.DataFrame(dataset.get_dataset().iloc[:, i:i+1])
+                new_np_data = np.array(pd.get_dummies(data))
+                if i == 0:
+                    new_np_dataset = new_np_data
+                else:
+                    new_np_dataset = np.c_[new_np_dataset, new_np_data]
+            else:
+                # No require to do One-hot coding
+                new_np_data  = np.array(pd.DataFrame(dataset.get_dataset().iloc[:, i:i+1]))
+                if i == 0:
+                    new_np_dataset = new_np_data
+                else:
+                    new_np_dataset = np.c_[new_np_dataset, new_np_data]
+        dataset.set_dataset(new_np_dataset)
+    elif isinstance(dataset, TorchDataset):
+        n_features = dataset.n_features
+        for i in range(n_features):
+            if i in index:
+                # Require to do One-hot coding
+                data = pd.DataFrame(dataset.get_dataset().iloc[:, i:i+1])
+                new_torch_data = torch.from_numpy(np.array(pd.get_dummies(data))) 
+                if i == 0:
+                    new_torch_dataset = new_torch_data
+                else:
+                    new_torch_dataset = torch.cat((new_torch_data, new_torch_data), dim=1)
+            else:
+                # No require to do One-hot coding
+                new_torch_data  = torch.from_numpy(np.array(pd.DataFrame(dataset.get_dataset().iloc[:, i:i+1])))
+                if i == 0:
+                    new_torch_dataset = new_torch_data
+                else:
+                    new_torch_dataset = torch.cat((new_torch_data, new_torch_data), dim=1)
+        dataset.set_dataset(new_torch_dataset)
+    else:
+        raise TypeError('dataset should be an instance of'
+                        'NumpyDataset or TorchDataset')
+    
+    
+    return dataset
+

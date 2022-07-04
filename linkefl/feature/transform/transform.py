@@ -1,9 +1,11 @@
 import numpy as np
+import pandas as pd
 from sklearn import preprocessing
 import torch
 
 from .base import BaseTransform
 from linkefl.common.const import Const
+
 
 
 class Scale(BaseTransform):
@@ -99,6 +101,77 @@ class AddIntercept(BaseTransform):
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
 
         return dataset
+
+
+class OneHot(BaseTransform):
+    """
+    An example of how to use this class:
+        data = pd.DataFrame(data=[[1, 'fe', 'y'],[2, 'ma', 'n'],[3, 'ma', 'n']] )
+        data.to_csv(r"D:/project/LinkeFL/linkefl/data/test1.csv", sep=',', header=False, index=False)
+
+        abs_path = r"D:/project/LinkeFL/linkefl/data/test1.csv"
+        transform = Compose([OneHot(target_datatype='numpy.ndarray', index=[1, 2])])
+        
+        dataset = NumpyDataset(role=Const.ACTIVE_NAME,
+                    abs_path=abs_path,
+                    transform=transform)
+
+    existing_dataset:
+        0   1   2
+    0   1   fe  y
+    1   2   ma  n
+    2   3   ma  n
+    dataset:
+    tensor([[1, 1, 0, 0, 1],
+             2, 0, 1, 1, 0],
+             3, 0, 1, 1, 0]])
+    """
+    def __init__(self, target_datatype, index=[]):
+        super(OneHot, self).__init__()
+        self.index = index
+        self.target_datatype = target_datatype
+
+    def __call__(self, dataset):
+        if self.target_datatype == 'numpy.ndarray':
+            n_features = dataset.shape[1]
+            for i in range(n_features):
+                if i in self.index:
+                    # Require to do One-hot coding
+                    data = pd.DataFrame(dataset.iloc[:, i:i+1])
+                    new_data = np.array(pd.get_dummies(data))
+                    if i == 0:
+                        new_dataset = new_data
+                    else:
+                        new_dataset = np.c_[new_dataset, new_data]
+                else:
+                    # No require to do One-hot coding
+                    new_data  = np.array(pd.DataFrame(dataset.iloc[:, i:i+1]))
+                    if i == 0:
+                        new_dataset = new_data
+                    else:
+                        new_dataset = np.c_[new_dataset, new_data]
+        elif self.target_datatype == 'torch.Tensor':
+            n_features = dataset.shape[1]
+            for i in range(n_features):
+                if i in self.index:
+                    # Require to do One-hot coding
+                    data = pd.DataFrame(dataset.iloc[:, i:i+1])
+                    new_data = torch.from_numpy(np.array(pd.get_dummies(data)))
+                    if i == 0:
+                        new_dataset = new_data
+                    else:
+                        new_dataset = torch.cat((new_dataset, new_data), dim=1)
+                else:
+                    # No require to do One-hot coding
+                    new_data  = torch.from_numpy(np.array(pd.DataFrame(dataset.iloc[:, i:i+1])))
+                    if i == 0:
+                        new_dataset = new_data
+                    else:
+                        new_dataset = torch.cat((new_dataset, new_data), dim=1)
+        else:
+            raise TypeError('The target type of the dataset should be numpy.ndarray or torch.Tensor')
+        
+        return new_dataset
 
 
 class Compose(BaseTransform):
