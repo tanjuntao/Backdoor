@@ -1,7 +1,23 @@
-from .base import CryptoSystem
+from .base import CryptoSystem, PartialCryptoSystem
 
 import numpy as np
 import torch
+
+
+class PartialPlain(PartialCryptoSystem):
+    def __init__(self, pub_key=None):
+        super(PartialPlain, self).__init__(pub_key)
+
+    def encrypt(self, plaintext):
+        return plaintext
+
+    def encrypt_vector(self, plain_vector, using_mp=False, n_processes=None):
+        if type(plain_vector) == np.ndarray:
+            return list(plain_vector)
+        elif type(plain_vector) == torch.Tensor:
+            return list(plain_vector.numpy())
+        else:
+            return plain_vector.copy() # Python list
 
 
 class Plain(CryptoSystem):
@@ -21,24 +37,11 @@ class Plain(CryptoSystem):
 
     def encrypt_vector(self, plain_vector, using_mp=False, n_processes=None):
         if type(plain_vector) == np.ndarray:
-            plain_vector = list(plain_vector)
-        if type(plain_vector) == torch.Tensor:
-            plain_vector = list(plain_vector.numpy())
-
-        return [val for val in plain_vector]
+            return list(plain_vector)
+        elif type(plain_vector) == torch.Tensor:
+            return list(plain_vector.numpy())
+        else:
+            return plain_vector.copy() # Python list
 
     def decrypt_vector(self, cipher_vector, using_mp=False, n_processes=None):
         return [val for val in cipher_vector]
-
-
-class PartialPlain(Plain):
-    def __init__(self, pub_key=None):
-        self.pub_key = pub_key
-
-    def decrypt(self, ciphertext):
-        raise Exception('Trying to do decryption in a cryptosystem without '
-                        'private key.')
-
-    def decrypt_vector(self, cipher_vector, using_mp=False, n_processes=None):
-        raise Exception('Trying to do decryption in a cryptosystem without '
-                        'private key.')
