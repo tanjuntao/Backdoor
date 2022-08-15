@@ -151,7 +151,7 @@ class BuildinTorchDataset(TorchDataset):
                  transform=None,
                  seed=1314
         ):
-        assert dataset_name in Const.BUILDIN_DATASET, f"{dataset_name} is not a buildin dataset"
+        assert dataset_name in Const.BUILDIN_DATASETS, f"{dataset_name} is not a buildin dataset"
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         assert 0 < passive_feat_frac < 1, 'the feature fraction of passive party' \
                                           'should be in range (0, 1)'

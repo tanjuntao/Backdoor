@@ -6,7 +6,7 @@ from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
-from linkefl.dataio import BuildinNumpyDataset, NumpyDataset
+from linkefl.dataio import NumpyDataset
 from linkefl.feature import add_intercept, AddIntercept
 from linkefl.vfl.linear import BaseLinearActive
 
@@ -180,16 +180,26 @@ if __name__ == '__main__':
     # 1. Loading dataset and preprocessing
     # Option 1: Scikit-learn style
     print('Loading dataset...')
-    active_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
-                                          train=True,
-                                          role=Const.ACTIVE_NAME,
-                                          passive_feat_frac=passive_feat_frac,
-                                          feat_perm_option=feat_perm_option)
-    active_testset = BuildinNumpyDataset(dataset_name=dataset_name,
-                                         train=False,
-                                         role=Const.ACTIVE_NAME,
-                                         passive_feat_frac=passive_feat_frac,
-                                         feat_perm_option=feat_perm_option)
+    active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+                                                   dataset_name=dataset_name,
+                                                   train=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option)
+    active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+                                                   dataset_name=dataset_name,
+                                                   train=False,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option)
+    # active_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                       train=True,
+    #                                       role=Const.ACTIVE_NAME,
+    #                                       passive_feat_frac=passive_feat_frac,
+    #                                       feat_perm_option=feat_perm_option)
+    # active_testset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                      train=False,
+    #                                      role=Const.ACTIVE_NAME,
+    #                                      passive_feat_frac=passive_feat_frac,
+    #                                      feat_perm_option=feat_perm_option)
     active_trainset = add_intercept(active_trainset)
     active_testset = add_intercept(active_testset)
     print('Done.')
