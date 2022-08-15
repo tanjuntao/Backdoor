@@ -11,7 +11,7 @@ class Const:
 
     START_SIGNAL = 'start'
 
-    BUILDIN_DATASET = ['cancer',
+    BUILDIN_DATASETS = ['cancer',
                        'digits',
                        'epsilon',
                        'census',
