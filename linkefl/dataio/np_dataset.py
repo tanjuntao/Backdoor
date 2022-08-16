@@ -2,7 +2,13 @@ import os
 
 import numpy as np
 import pandas as pd
-from sklearn.datasets import load_breast_cancer, load_digits, load_diabetes
+from sklearn.datasets import (
+    load_breast_cancer,
+    load_digits,
+    load_diabetes,
+    load_iris,
+    load_wine,
+)
 from sklearn.model_selection import train_test_split
 from termcolor import colored
 
@@ -190,6 +196,35 @@ class NumpyDataset(BaseDataset):
                 _feats = _whole_feats[-test_size:]
                 _labels = _whole_labels[-test_size:]
 
+        elif name == 'iris':
+            X, Y = load_iris(return_X_y=True)
+            x_train, x_test, y_train, y_test = train_test_split(X, Y,
+                                                                test_size=0.2,
+                                                                random_state=0)
+            if train:
+                _ids = np.arange(x_train.shape[0])
+                _feats = x_train
+                _labels = y_train
+            else:
+                _ids = np.arange(x_train.shape[0], x_train.shape[0] + x_test.shape[0])
+                _feats = x_test
+                _labels = y_test
+
+        elif name == 'wine':
+            X, Y = load_iris(return_X_y=True)
+            x_train, x_test, y_train, y_test = train_test_split(X, Y,
+                                                                test_size=0.2,
+                                                                random_state=0)
+            if train:
+                _ids = np.arange(x_train.shape[0])
+                _feats = x_train
+                _labels = y_train
+            else:
+                _ids = np.arange(x_train.shape[0],
+                                 x_train.shape[0] + x_test.shape[0])
+                _feats = x_test
+                _labels = y_test
+
         elif name == 'epsilon':  # classification
             if train:
                 np_csv = np.genfromtxt(
@@ -302,9 +337,13 @@ class NumpyDataset(BaseDataset):
 
         if not hasattr(self, '_labels'):
             labels = self._np_dataset[:, 1]
-            if len(np.unique(labels)) > 2: # regression dataset
+            # simply treat dataset where the label column contains more than
+            # 100 unique values as regression dataset
+            if len(np.unique(labels)) > 100: # regression dataset
                 setattr(self, '_labels', labels)
             else: # classification dataset
+                # convert potential floating-point label values, e.g., 4.0, to
+                # int data type
                 setattr(self, '_labels', labels.astype(np.int32))
         return getattr(self, '_labels')
 

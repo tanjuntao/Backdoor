@@ -18,10 +18,13 @@ class Const:
                        'credit',
                        'default_credit',
                        'diabetes',
+                        'iris',
+                        'wine',
                        'mnist',
                        'fashion_mnist',
                        'cifar',
                        'svhn']
+    REGRESSION_DATASETS = ['diabetes']
 
     PLAIN = 'plain'
     PAILLIER = 'paillier'
