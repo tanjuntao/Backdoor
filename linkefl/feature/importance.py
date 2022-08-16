@@ -6,6 +6,9 @@ from xgboost import XGBClassifier, plot_importance
 from sklearn.datasets import load_breast_cancer, load_digits
 from sklearn.model_selection import train_test_split
 
+from linkefl.common.const import Const
+from linkefl.dataio import NumpyDataset
+
 
 def _get_dataset(name):
     """Load np_dataset by name.
@@ -104,22 +107,35 @@ def feature_ranking(dataset_name, measurement='xgboost'):
         ranking: An index vector indicating the feature importance in a
             desending order.
     """
-    if dataset_name in ('mnist',
+    if dataset_name in ('cancer',
+                        'digits',
+                        'epsilon',
+                        'census',
+                        'credit',
+                        'default_credit',
+                        'diabetes',
+                        'mnist',
                         'fashion_mnist',
-                        'census_income',
                         'give_me_some_credit',
                         ):
         ranking = permutation(dataset_name, measurement)
         return ranking
 
-    x_train, x_test, y_train, y_test = _get_dataset(dataset_name)
-    if len(np.unique(y_test)) == 2:
+    # x_train, x_test, y_train, y_test = _get_dataset(dataset_name)
+    passive_feat_frac = 0
+    feat_perm_option = Const.SEQUENCE
+    active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+                                                   dataset_name=dataset_name,
+                                                   train=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option)
+    if len(np.unique(active_trainset.labels)) == 2:
         # binary case: silent warnings of XGB Constructor
         model = XGBClassifier(use_label_encoder=False)
-        model.fit(x_train, y_train, eval_metric='logloss')
+        model.fit(active_trainset.features, active_trainset.labels, eval_metric='logloss')
     else:
         model = XGBClassifier()
-        model.fit(x_train, y_train)
+        model.fit(active_trainset.features, active_trainset.labels)
 
     if measurement == 'shap':
         explainer = shap.Explainer(model)
@@ -147,7 +163,72 @@ def feature_ranking(dataset_name, measurement='xgboost'):
 
 def permutation(dataset_name, measurement='xgboost'):
     """Buffer pre-computed feature importance rankings directly in code."""
-    if dataset_name == 'mnist':
+    if dataset_name == 'cancer':
+        if measurement == 'xgboost':
+            _permutation = np.array(
+                [27, 7, 22, 0, 23, 3, 26, 10, 21, 8, 20, 1, 13, 4, 14, 24, 19, 6,
+                 15, 18, 5, 11, 29, 25, 28, 17, 9, 12, 16, 2])
+        else:
+            pass
+
+    elif dataset_name == 'digits':
+        if measurement == 'xgboost':
+            _permutation = np.array(
+                [42, 54, 53, 20, 6, 60, 43, 30, 51, 12, 27, 33, 46, 10, 22, 5, 4,
+                 29, 28, 35, 62, 19, 50, 18, 59, 44, 63, 25, 2, 14, 17, 38, 3, 26,
+                 13, 11, 37, 58, 36, 45, 61, 41, 52, 34, 21, 9, 49, 1, 8, 7, 31, 15,
+                 16, 23, 24, 32, 39, 40, 47, 48, 55, 56, 57, 0])
+        else:
+            pass
+
+    elif dataset_name == 'epsilon':
+        if measurement == 'xgboost':
+            _permutation = np.array(
+                [40, 35, 0, 13, 80, 91, 47, 90, 63, 25, 24, 1, 78, 99, 30, 82, 27,
+                 53, 89, 22, 48, 36, 21, 9, 44, 2, 28, 59, 75, 67, 74, 70, 88, 68,
+                 62, 96, 51, 81, 15, 57, 84, 73, 3, 34, 76, 95, 71, 72, 77, 97, 45,
+                 20, 8, 94, 10, 6, 98, 43, 86, 58, 14, 5, 61, 64, 37, 92, 60, 7, 32,
+                 23, 11, 38, 83, 56, 39, 33, 19, 87, 42, 31, 49, 29, 50, 17, 65, 18,
+                 66, 54, 93, 46, 41, 16, 52, 79, 69, 55, 12, 26, 85, 4])
+        else:
+            pass
+
+    elif dataset_name == 'census':
+        if measurement == 'xgboost':
+            _permutation = np.array(
+                [12, 13, 2, 32, 22, 14, 34, 1, 33, 40, 3, 19, 31, 35, 26, 25, 9,
+                 27, 0, 16, 23, 4, 5, 41, 7, 6, 8, 38, 28, 15, 48, 21, 44, 36,
+                 24, 51, 20, 43, 52, 39, 45, 42, 37, 58, 17, 53, 29, 18, 50, 49,
+                 59,
+                 64, 54, 72, 73, 55, 47, 65, 69, 75, 76, 56, 67, 63, 66, 46, 74,
+                 57,
+                 61, 78, 77, 30, 10, 11, 71, 70, 68, 60, 62, 79, 80])
+        else:
+            pass
+
+    elif dataset_name == 'credit':
+        if measurement == 'xgboost':
+            _permutation = np.array(
+                [1, 7, 5, 3, 2, 0, 6, 8, 9, 4])
+        else:
+            pass
+
+    elif dataset_name == 'default_credit':
+        if measurement == 'xgboost':
+            _permutation = np.array(
+                [18, 19, 20, 21, 22, 0, 13, 9, 1, 14, 8, 10, 15, 2, 7, 6, 12, 3,
+                 11, 5, 4, 17, 16])
+        else:
+            pass
+
+    elif dataset_name == 'diabetes':
+        if measurement == 'xgboost':
+            _permutation = np.array(
+                [6, 0, 8, 9, 1, 2, 3, 7, 4, 5])
+        else:
+            pass
+
+    elif dataset_name == 'mnist':
         if measurement == 'xgboost':
             _permutation = np.array(
                 [67, 70, 101, 740, 220, 583, 743, 709, 358, 100, 96, 104, 720,
@@ -339,19 +420,6 @@ def permutation(dataset_name, measurement='xgboost'):
         else:
             pass
 
-    elif dataset_name == 'census_income':
-        if measurement == 'xgboost':
-            _permutation = np.array(
-                [12, 13, 2, 32, 22, 14, 34, 1, 33, 40, 3, 19, 31, 35, 26, 25, 9,
-                 27, 0, 16, 23, 4, 5, 41, 7, 6, 8, 38, 28, 15, 48, 21, 44, 36,
-                 24, 51, 20, 43, 52, 39, 45, 42, 37, 58, 17, 53, 29, 18, 50, 49,
-                 59,
-                 64, 54, 72, 73, 55, 47, 65, 69, 75, 76, 56, 67, 63, 66, 46, 74,
-                 57,
-                 61, 78, 77, 30, 10, 11, 71, 70, 68, 60, 62, 79, 80])
-        else:
-            pass
-
     elif dataset_name == 'give_me_some_credit':
         if measurement == 'xgboost':
             _permutation = np.array([1, 7, 5, 3, 2, 0, 6, 8, 9, 4])
@@ -362,3 +430,7 @@ def permutation(dataset_name, measurement='xgboost'):
         raise ValueError(f"np_dataset '{dataset_name}'' not supported.")
 
     return _permutation
+
+
+if __name__ == "__main__":
+    print(list(feature_ranking(dataset_name='diabetes', measurement='xgboost')))

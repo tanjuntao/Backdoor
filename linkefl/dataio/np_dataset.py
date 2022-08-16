@@ -65,7 +65,7 @@ class NumpyDataset(BaseDataset):
         def _check_params():
             assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
             assert dataset_name in Const.BUILDIN_DATASETS, "not supported dataset right now"
-            assert 0 < passive_feat_frac < 1, "passive_feat_frac should be in range (0, 1)"
+            assert 0 <= passive_feat_frac < 1, "passive_feat_frac should be in range (0, 1)"
             assert feat_perm_option in (Const.RANDOM,
                                         Const.SEQUENCE,
                                         Const.IMPORTANCE), \
