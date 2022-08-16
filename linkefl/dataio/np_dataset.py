@@ -211,7 +211,7 @@ class NumpyDataset(BaseDataset):
                 _labels = y_test
 
         elif name == 'wine':
-            X, Y = load_iris(return_X_y=True)
+            X, Y = load_wine(return_X_y=True)
             x_train, x_test, y_train, y_test = train_test_split(X, Y,
                                                                 test_size=0.2,
                                                                 random_state=0)
