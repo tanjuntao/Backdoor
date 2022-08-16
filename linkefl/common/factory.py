@@ -8,7 +8,7 @@ def crypto_factory(crypto_type,
                    *,
                    key_size=1024,
                    num_enc_zeros=10000,
-                   gen_from_set=False):
+                   gen_from_set=True):
     if crypto_type == Const.PLAIN:
         crypto = Plain(key_size=key_size)
     elif crypto_type == Const.PAILLIER:
@@ -27,8 +27,7 @@ def partial_crypto_factory(crypto_type,
                            *,
                            public_key,
                            num_enc_zeros=10000,
-                           gen_from_set=False
-    ):
+                           gen_from_set=True):
     if crypto_type == Const.PLAIN:
         partial_crypto = PartialPlain(pub_key=public_key)
     elif crypto_type == Const.PAILLIER:

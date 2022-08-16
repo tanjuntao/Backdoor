@@ -1,6 +1,6 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory
-from linkefl.dataio import BuildinNumpyDataset
+from linkefl.dataio import NumpyDataset
 from linkefl.feature import scale, Scale
 from linkefl.vfl.linear import BaseLinearPassive
 
@@ -43,9 +43,9 @@ if __name__ == '__main__':
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
-    active_port = 20000
+    active_port = 20001
     passive_ip = 'localhost'
-    passive_port = 30000
+    passive_port = 30001
     _epochs = 200
     _batch_size = 32
     _learning_rate = 0.01
@@ -57,16 +57,26 @@ if __name__ == '__main__':
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
     print('Loading dataset...')
-    passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
-                                           train=True,
-                                           role=Const.PASSIVE_NAME,
-                                           passive_feat_frac=passive_feat_frac,
-                                           feat_perm_option=feat_perm_option)
-    passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
-                                          train=False,
-                                          role=Const.PASSIVE_NAME,
-                                          passive_feat_frac=passive_feat_frac,
-                                          feat_perm_option=feat_perm_option)
+    passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+                                                    dataset_name=dataset_name,
+                                                    train=True,
+                                                    passive_feat_frac=passive_feat_frac,
+                                                    feat_perm_option=feat_perm_option)
+    passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+                                                    dataset_name=dataset_name,
+                                                    train=False,
+                                                    passive_feat_frac=passive_feat_frac,
+                                                    feat_perm_option=feat_perm_option)
+    # passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                        train=True,
+    #                                        role=Const.PASSIVE_NAME,
+    #                                        passive_feat_frac=passive_feat_frac,
+    #                                        feat_perm_option=feat_perm_option)
+    # passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                       train=False,
+    #                                       role=Const.PASSIVE_NAME,
+    #                                       passive_feat_frac=passive_feat_frac,
+    #                                       feat_perm_option=feat_perm_option)
     passive_trainset = scale(passive_trainset)
     passive_testset = scale(passive_testset)
 

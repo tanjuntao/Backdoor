@@ -137,7 +137,7 @@ def load_data(name):
 
 
 def num_input_nodes(dataset_name, role, passive_feat_frac):
-    assert dataset_name in Const.BUILDIN_DATASET, 'dataset_name should be one of' \
+    assert dataset_name in Const.BUILDIN_DATASETS, 'dataset_name should be one of' \
                                                   'the build-in datasets'
     assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
     assert 0 < passive_feat_frac < 1, 'passive_feat_frac should be in range (0,1)'

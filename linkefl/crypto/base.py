@@ -6,6 +6,20 @@ import warnings
 import numpy as np
 import torch
 
+# TODO: refactor the encrypt_vector interface to support multi-threading
+
+class PartialCryptoSystem(ABC):
+    def __init__(self, pub_key):
+        self.pub_key = pub_key
+
+    @abstractmethod
+    def encrypt(self, plaintext):
+        pass
+
+    @abstractmethod
+    def encrypt_vector(self, plain_vector, using_mp=False, n_processes=None):
+        pass
+
 
 class CryptoSystem(ABC):
     """Base class of cryptosystem"""

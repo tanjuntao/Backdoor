@@ -1,6 +1,6 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory
-from linkefl.dataio import BuildinNumpyDataset
+from linkefl.dataio import NumpyDataset
 from linkefl.vfl.linear import BaseLinearPassive
 
 
@@ -56,16 +56,26 @@ if __name__ == '__main__':
 
     # 1. Load datasets
     print('Loading dataset...')
-    passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
-                                           train=True,
-                                           role=Const.PASSIVE_NAME,
-                                           passive_feat_frac=passive_feat_frac,
-                                           feat_perm_option=feat_perm_option)
-    passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
-                                          train=False,
-                                          role=Const.PASSIVE_NAME,
-                                          passive_feat_frac=passive_feat_frac,
-                                          feat_perm_option=feat_perm_option)
+    passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+                                                    dataset_name=dataset_name,
+                                                    train=True,
+                                                    passive_feat_frac=passive_feat_frac,
+                                                    feat_perm_option=feat_perm_option)
+    passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+                                                    dataset_name=dataset_name,
+                                                    train=False,
+                                                    passive_feat_frac=passive_feat_frac,
+                                                    feat_perm_option=feat_perm_option)
+    # passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                        train=True,
+    #                                        role=Const.PASSIVE_NAME,
+    #                                        passive_feat_frac=passive_feat_frac,
+    #                                        feat_perm_option=feat_perm_option)
+    # passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
+    #                                       train=False,
+    #                                       role=Const.PASSIVE_NAME,
+    #                                       passive_feat_frac=passive_feat_frac,
+    #                                       feat_perm_option=feat_perm_option)
     print('Done.')
 
     # 2. Dataset preprocessing
