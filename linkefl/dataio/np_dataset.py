@@ -46,7 +46,7 @@ class NumpyDataset(BaseDataset):
         """Split the whole np_dataset into trainset and testset according to specific seed"""
         assert isinstance(whole_dataset, NumpyDataset), 'whole_dataset should be' \
                                                         'an instance of NumpyDataset'
-        assert 0 < test_size < 1, 'validate size should be in range (0, 1)'
+        assert 0 <= test_size < 1, 'validate size should be in range (0, 1)'
 
         n_train_samples = int(whole_dataset.n_samples * (1 - test_size))
         np.random.seed(seed)

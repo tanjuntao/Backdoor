@@ -1,95 +1,91 @@
 import numpy as np
 import shap
-from torchvision import datasets
-from torchvision.transforms import ToTensor
-from xgboost import XGBClassifier, plot_importance
-from sklearn.datasets import load_breast_cancer, load_digits
-from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier, XGBRegressor, plot_importance
 
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 
 
-def _get_dataset(name):
-    """Load np_dataset by name.
-
-    The returned np_dataset will all be type np.ndarray.
-
-    Args:
-        name[str]: Name of np_dataset.
-
-    Returns:
-        x_train[np.ndarray]: Training set of X.
-        x_test[np.ndarray]: Testing set of X.
-        y_train[np.ndarray]: Training set of Y.
-        y_test[np.ndarray]: Testing set of Y.
-    """
-    if name == 'breast_cancer':
-        cancer = load_breast_cancer()
-        x_train, x_test, y_train, y_test = train_test_split(cancer.data,
-                                                            cancer.target,
-                                                            test_size=0.2,
-                                                            random_state=0)
-
-    elif name == 'digits':
-        X, Y = load_digits(return_X_y=True)
-        odd_idxes, even_idxes = np.where(Y % 2 == 1)[0], np.where(Y % 2 == 0)[0]
-        Y[odd_idxes] = 1
-        Y[even_idxes] = 0
-        x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2,
-                                                            random_state=0)
-
-    elif name == 'census_income':
-        train_set = np.genfromtxt('./raw_data/census_income_train.csv',
-                                  delimiter=',')
-        test_set = np.genfromtxt('./raw_data/census_income_test.csv',
-                                 delimiter=',')
-        x_train, y_train = train_set[:, 2:], train_set[:, 1]
-        x_test, y_test = test_set[:, 2:], test_set[:, 1]
-        y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
-
-
-    elif name == 'give_me_some_credit':
-        train_set = np.genfromtxt('./raw_data/give_me_some_credit_train.csv',
-                                  delimiter=',')
-        test_set = np.genfromtxt('./raw_data/give_me_some_credit_test.csv',
-                                 delimiter=',')
-        x_train, y_train = train_set[:, 2:], train_set[:, 1]
-        x_test, y_test = test_set[:, 2:], test_set[:, 1]
-        y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
-        print(train_set.shape[0] + test_set.shape[0], train_set.shape[1])
-
-    elif name in ('mnist', 'fashion_mnist'):
-        def __dataset(train):
-            if name == 'mnist':
-                torch_dataset = datasets.MNIST(root='raw_data/data',
-                                               train=train,
-                                               download=True,
-                                               transform=ToTensor())
-            else:
-                torch_dataset = datasets.FashionMNIST(root='raw_data/data',
-                                                      train=train,
-                                                      download=True,
-                                                      transform=ToTensor())
-
-            X, Y = [], []
-            for image, label in torch_dataset:
-                image_flat = image.view(-1)
-                image_numpy = image_flat.numpy()
-                X.append(image_numpy)
-                Y.append(label)
-
-            X, Y = np.array(X), np.array(Y)
-
-            return X, Y
-
-        x_train, y_train = __dataset(train=True)
-        x_test, y_test = __dataset(train=False)
-
-    else:
-        raise NotImplementedError('{} Dataset not supported now.'.format(name))
-
-    return x_train, x_test, y_train, y_test
+# def _get_dataset(name):
+#     """Load np_dataset by name.
+#
+#     The returned np_dataset will all be type np.ndarray.
+#
+#     Args:
+#         name[str]: Name of np_dataset.
+#
+#     Returns:
+#         x_train[np.ndarray]: Training set of X.
+#         x_test[np.ndarray]: Testing set of X.
+#         y_train[np.ndarray]: Training set of Y.
+#         y_test[np.ndarray]: Testing set of Y.
+#     """
+#     if name == 'breast_cancer':
+#         cancer = load_breast_cancer()
+#         x_train, x_test, y_train, y_test = train_test_split(cancer.data,
+#                                                             cancer.target,
+#                                                             test_size=0.2,
+#                                                             random_state=0)
+#
+#     elif name == 'digits':
+#         X, Y = load_digits(return_X_y=True)
+#         odd_idxes, even_idxes = np.where(Y % 2 == 1)[0], np.where(Y % 2 == 0)[0]
+#         Y[odd_idxes] = 1
+#         Y[even_idxes] = 0
+#         x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2,
+#                                                             random_state=0)
+#
+#     elif name == 'census_income':
+#         train_set = np.genfromtxt('./raw_data/census_income_train.csv',
+#                                   delimiter=',')
+#         test_set = np.genfromtxt('./raw_data/census_income_test.csv',
+#                                  delimiter=',')
+#         x_train, y_train = train_set[:, 2:], train_set[:, 1]
+#         x_test, y_test = test_set[:, 2:], test_set[:, 1]
+#         y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
+#
+#
+#     elif name == 'give_me_some_credit':
+#         train_set = np.genfromtxt('./raw_data/give_me_some_credit_train.csv',
+#                                   delimiter=',')
+#         test_set = np.genfromtxt('./raw_data/give_me_some_credit_test.csv',
+#                                  delimiter=',')
+#         x_train, y_train = train_set[:, 2:], train_set[:, 1]
+#         x_test, y_test = test_set[:, 2:], test_set[:, 1]
+#         y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
+#         print(train_set.shape[0] + test_set.shape[0], train_set.shape[1])
+#
+#     elif name in ('mnist', 'fashion_mnist'):
+#         def __dataset(train):
+#             if name == 'mnist':
+#                 torch_dataset = datasets.MNIST(root='raw_data/data',
+#                                                train=train,
+#                                                download=True,
+#                                                transform=ToTensor())
+#             else:
+#                 torch_dataset = datasets.FashionMNIST(root='raw_data/data',
+#                                                       train=train,
+#                                                       download=True,
+#                                                       transform=ToTensor())
+#
+#             X, Y = [], []
+#             for image, label in torch_dataset:
+#                 image_flat = image.view(-1)
+#                 image_numpy = image_flat.numpy()
+#                 X.append(image_numpy)
+#                 Y.append(label)
+#
+#             X, Y = np.array(X), np.array(Y)
+#
+#             return X, Y
+#
+#         x_train, y_train = __dataset(train=True)
+#         x_test, y_test = __dataset(train=False)
+#
+#     else:
+#         raise NotImplementedError('{} Dataset not supported now.'.format(name))
+#
+#     return x_train, x_test, y_train, y_test
 
 
 def feature_ranking(dataset_name, measurement='xgboost'):
@@ -116,7 +112,6 @@ def feature_ranking(dataset_name, measurement='xgboost'):
                         'diabetes',
                         'mnist',
                         'fashion_mnist',
-                        'give_me_some_credit',
                         ):
         ranking = permutation(dataset_name, measurement)
         return ranking
@@ -129,13 +124,19 @@ def feature_ranking(dataset_name, measurement='xgboost'):
                                                    train=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
-    if len(np.unique(active_trainset.labels)) == 2:
-        # binary case: silent warnings of XGB Constructor
-        model = XGBClassifier(use_label_encoder=False)
-        model.fit(active_trainset.features, active_trainset.labels, eval_metric='logloss')
-    else:
-        model = XGBClassifier()
+    # simply treat dataset where the label column contains more than
+    # 100 unique values as regression dataset
+    if len(np.unique(active_trainset.labels)) > 100:
+        model = XGBRegressor()
         model.fit(active_trainset.features, active_trainset.labels)
+    else: # classification dataset
+        if len(np.unique(active_trainset.labels)) == 2:
+            # binary case: silent warnings of XGB Constructor
+            model = XGBClassifier(use_label_encoder=False)
+            model.fit(active_trainset.features, active_trainset.labels, eval_metric='logloss')
+        else:
+            model = XGBClassifier()
+            model.fit(active_trainset.features, active_trainset.labels)
 
     if measurement == 'shap':
         explainer = shap.Explainer(model)
@@ -224,7 +225,7 @@ def permutation(dataset_name, measurement='xgboost'):
     elif dataset_name == 'diabetes':
         if measurement == 'xgboost':
             _permutation = np.array(
-                [6, 0, 8, 9, 1, 2, 3, 7, 4, 5])
+                [8, 2, 3, 7, 9, 1, 6, 5, 4, 0])
         else:
             pass
 
@@ -408,29 +409,7 @@ def permutation(dataset_name, measurement='xgboost'):
         else:
             pass
 
-    elif dataset_name == 'breast_cancer':
-        if measurement == 'xgboost':
-            _permutation = np.array([])
-        else:
-            pass
-
-    elif dataset_name == 'digits':
-        if measurement == 'xgboost':
-            pass
-        else:
-            pass
-
-    elif dataset_name == 'give_me_some_credit':
-        if measurement == 'xgboost':
-            _permutation = np.array([1, 7, 5, 3, 2, 0, 6, 8, 9, 4])
-        else:
-            pass
-
     else:
         raise ValueError(f"np_dataset '{dataset_name}'' not supported.")
 
     return _permutation
-
-
-if __name__ == "__main__":
-    print(list(feature_ranking(dataset_name='diabetes', measurement='xgboost')))
