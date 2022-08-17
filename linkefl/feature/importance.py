@@ -113,7 +113,7 @@ def feature_ranking(dataset_name, measurement='xgboost'):
                         'mnist',
                         'fashion_mnist',
                         ):
-        ranking = permutation(dataset_name, measurement)
+        ranking = cached_permutation(dataset_name, measurement)
         return ranking
 
     # x_train, x_test, y_train, y_test = _get_dataset(dataset_name)
@@ -126,7 +126,7 @@ def feature_ranking(dataset_name, measurement='xgboost'):
                                                    feat_perm_option=feat_perm_option)
     # simply treat dataset where the label column contains more than
     # 100 unique values as regression dataset
-    if len(np.unique(active_trainset.labels)) > 100:
+    if len(np.unique(active_trainset.labels)) > 100: # regression dataset
         model = XGBRegressor()
         model.fit(active_trainset.features, active_trainset.labels)
     else: # classification dataset
@@ -146,14 +146,12 @@ def feature_ranking(dataset_name, measurement='xgboost'):
         importances = np.mean(np.abs(shap_values.values),
                               axis=0)  # vertical axis
         ranking = np.argsort(importances)[::-1]
-
     elif measurement == 'xgboost':
         # XGBClassifier uses gain to measure feature importance as default
         # already normalized
         importances = model.feature_importances_
         # descending order with resepect to feature index
         ranking = np.argsort(importances)[::-1]
-
     else:
         raise ValueError(
             f"measurement can only take 'shap' or 'xgboost', "
@@ -162,7 +160,7 @@ def feature_ranking(dataset_name, measurement='xgboost'):
     return ranking
 
 
-def permutation(dataset_name, measurement='xgboost'):
+def cached_permutation(dataset_name, measurement='xgboost'):
     """Buffer pre-computed feature importance rankings directly in code."""
     if dataset_name == 'cancer':
         if measurement == 'xgboost':
