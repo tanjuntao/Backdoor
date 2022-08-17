@@ -112,7 +112,10 @@ class Paillier(CryptoSystem):
         return self.pub_key.encrypt(plaintext)
 
     def decrypt(self, ciphertext):
-        return self.priv_key.decrypt(ciphertext)
+        if isinstance(ciphertext, EncryptedNumber):
+            return self.priv_key.decrypt(ciphertext)
+        else:
+            return ciphertext
 
     def encrypt_vector(self, plain_vector, using_mp=False, n_processes=None):
         if n_processes is None:
