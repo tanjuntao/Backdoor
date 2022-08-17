@@ -66,16 +66,6 @@ if __name__ == '__main__':
                                                     train=False,
                                                     passive_feat_frac=passive_feat_frac,
                                                     feat_perm_option=feat_perm_option)
-    # passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                        train=True,
-    #                                        role=Const.PASSIVE_NAME,
-    #                                        passive_feat_frac=passive_feat_frac,
-    #                                        feat_perm_option=feat_perm_option)
-    # passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                       train=False,
-    #                                       role=Const.PASSIVE_NAME,
-    #                                       passive_feat_frac=passive_feat_frac,
-    #                                       feat_perm_option=feat_perm_option)
     print('Done.')
 
     # 2. Dataset preprocessing

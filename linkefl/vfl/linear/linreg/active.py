@@ -190,36 +190,25 @@ if __name__ == '__main__':
                                                    train=False,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
-    # active_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                       train=True,
-    #                                       role=Const.ACTIVE_NAME,
-    #                                       passive_feat_frac=passive_feat_frac,
-    #                                       feat_perm_option=feat_perm_option)
-    # active_testset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                      train=False,
-    #                                      role=Const.ACTIVE_NAME,
-    #                                      passive_feat_frac=passive_feat_frac,
-    #                                      feat_perm_option=feat_perm_option)
     active_trainset = add_intercept(active_trainset)
     active_testset = add_intercept(active_testset)
     print('Done.')
 
     # Option 2: PyTorch style
-    # print('Loading dataset...')
-    # transform = AddIntercept(role=Const.ACTIVE_NAME)
-    # active_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                       train=True,
-    #                                       role=Const.ACTIVE_NAME,
-    #                                       passive_feat_frac=passive_feat_frac,
-    #                                       feat_perm_option=feat_perm_option,
-    #                                       transform=transform)
-    # active_testset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                      train=False,
-    #                                      role=Const.ACTIVE_NAME,
-    #                                      passive_feat_frac=passive_feat_frac,
-    #                                      feat_perm_option=feat_perm_option,
-    #                                      transform=transform)
-    #
+    print('Loading dataset...')
+    # transform = AddIntercept()
+    # active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+    #                                                dataset_name=dataset_name,
+    #                                                train=True,
+    #                                                passive_feat_frac=passive_feat_frac,
+    #                                                feat_perm_option=feat_perm_option,
+    #                                                transform=transform)
+    # active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+    #                                               dataset_name=dataset_name,
+    #                                               train=False,
+    #                                               passive_feat_frac=passive_feat_frac,
+    #                                               feat_perm_option=feat_perm_option,
+    #                                               transform=transform)
     # print('Done.')
 
     # 3. Initialize cryptosystem

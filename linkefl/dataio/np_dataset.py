@@ -38,7 +38,7 @@ class NumpyDataset(BaseDataset):
         self.set_dataset(np_data)
 
         if transform is not None:
-            self._np_dataset = transform(self._np_dataset)
+            self._np_dataset = transform(self._np_dataset, role=role)
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     @classmethod

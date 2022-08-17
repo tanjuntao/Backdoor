@@ -82,19 +82,19 @@ if __name__ == '__main__':
 
     # Option 2: PyTorch style
     # print('Loading dataset...')
-    # transform = Scale(role=Const.PASSIVE_NAME)
-    # passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                        train=True,
-    #                                        role=Const.PASSIVE_NAME,
-    #                                        passive_feat_frac=passive_feat_frac,
-    #                                        feat_perm_option=feat_perm_option,
-    #                                        transform=transform)
-    # passive_testset = BuildinNumpyDataset(dataset_name=dataset_name,
-    #                                       train=False,
-    #                                       role=Const.PASSIVE_NAME,
-    #                                       passive_feat_frac=passive_feat_frac,
-    #                                       feat_perm_option=feat_perm_option,
-    #                                       transform=transform)
+    # transform = Scale()
+    # passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+    #                                                 dataset_name=dataset_name,
+    #                                                 train=True,
+    #                                                 passive_feat_frac=passive_feat_frac,
+    #                                                 feat_perm_option=feat_perm_option,
+    #                                                 transform=transform)
+    # passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+    #                                                dataset_name=dataset_name,
+    #                                                train=False,
+    #                                                passive_feat_frac=passive_feat_frac,
+    #                                                feat_perm_option=feat_perm_option,
+    #                                                transform=transform)
     # print('Done.')
 
     # 3. Initialize messenger
