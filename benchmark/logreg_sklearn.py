@@ -5,7 +5,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
 from linkefl.common.const import Const
-from linkefl.dataio import BuildinNumpyDataset
+from linkefl.dataio import NumpyDataset
 from linkefl.feature import add_intercept, scale, parse_label
 
 
@@ -15,6 +15,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     epochs = 100
+    passive_feat_frac = 0.0
 
     if args.dataset == 'cancer':
         _penalty = 'l2'
@@ -45,32 +46,20 @@ if __name__ == '__main__':
 
 
     # load dataset
-    active_trainset = BuildinNumpyDataset(dataset_name=args.dataset,
-                                           train=True,
-                                           role=Const.ACTIVE_NAME,
-                                           passive_feat_frac=0.5,
-                                           feat_perm_option=Const.SEQUENCE)
-    active_testset = BuildinNumpyDataset(dataset_name=args.dataset,
-                                         train=False,
-                                         role=Const.ACTIVE_NAME,
-                                         passive_feat_frac=0.5,
-                                         feat_perm_option=Const.SEQUENCE)
-    passive_trainset = BuildinNumpyDataset(dataset_name=args.dataset,
-                                           train=True,
-                                           role=Const.PASSIVE_NAME,
-                                           passive_feat_frac=0.5,
-                                           feat_perm_option=Const.SEQUENCE)
-    passive_testset = BuildinNumpyDataset(dataset_name=args.dataset,
-                                         train=False,
-                                         role=Const.PASSIVE_NAME,
-                                         passive_feat_frac=0.5,
-                                         feat_perm_option=Const.SEQUENCE)
+    active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+                                                   dataset_name=args.dataset,
+                                                   train=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=Const.SEQUENCE)
+    active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+                                                  dataset_name=args.dataset,
+                                                  train=False,
+                                                  passive_feat_frac=passive_feat_frac,
+                                                  feat_perm_option=Const.SEQUENCE)
     active_trainset = add_intercept(scale(parse_label(active_trainset)))
     active_testset = add_intercept(scale(parse_label(active_testset)))
-    passive_trainset = scale(passive_trainset)
-    passive_testset = scale(passive_testset)
-    x_train = np.concatenate((active_trainset.features, passive_trainset.features), axis=1)
-    x_test = np.concatenate((active_testset.features, passive_testset.features), axis=1)
+    x_train = active_trainset.features
+    x_test = active_testset.features
     y_train = active_trainset.labels
     y_test = active_testset.labels
 
