@@ -286,6 +286,66 @@ class NumpyDataset(BaseDataset):
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
 
+        elif name == 'covertype':  # classification
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/covertype_train.csv'),
+                    delimiter=',')
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/covertype_test.csv'), 
+                    delimiter=',')
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
+        elif name == 'higgs':  # classification
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/higgs_train.csv'),
+                    delimiter=',')
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/higgs_test.csv'), 
+                    delimiter=',')
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
+        elif name == 'year':  # regression
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/year_train.csv'),
+                    delimiter=',')
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/year_test.csv'), 
+                    delimiter=',')
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
+        elif name == 'nyc-taxi':  # regression
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/nyc-taxi_train.csv'),
+                    delimiter=',')
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/nyc-taxi_test.csv'), 
+                    delimiter=',')
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
         else:
             raise ValueError('Invalid dataset name.')
 
