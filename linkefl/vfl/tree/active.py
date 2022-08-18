@@ -54,7 +54,7 @@ class ActiveTreeParty:
             min_split_gain: minimum gain required to split
             fix_point_precision: bit length to preserve when converting float to int
             sampling_method: uniform
-            n_processes: not supported yet
+            n_processes: number of processes in multiprocessing
         """
 
         self._check_parameters(task, n_labels, compress, sampling_method)

@@ -54,7 +54,7 @@ class DecisionTree:
             min_split_gain: minimum gain required to split
             fix_point_precision: bit length to preserve when converting float to int
             sampling_method: uniform
-            pool: not supported yet
+            pool: multiprocessing pool
         """
 
         self.task = task
@@ -106,8 +106,7 @@ class DecisionTree:
             if self.crypto_type == Const.PLAIN:
                 gh_send = gh_int
             elif self.crypto_type == Const.PAILLIER:
-                gh_send = self.crypto_system.encrypt_vector(gh_int)
-                gh_send = np.array(gh_send)
+                gh_send = self.crypto_system.encrypt_data(gh_int, self.pool)
             else:
                 raise NotImplementedError
 
@@ -121,9 +120,7 @@ class DecisionTree:
             self.capacity = self.crypto_system.key_size // self.gh_length
 
             if self.crypto_type == Const.PAILLIER:
-                shape = gh_compress.shape
-                gh_send = self.crypto_system.encrypt_vector(gh_compress.flatten())
-                gh_send = np.reshape(gh_send, shape)
+                gh_send = self.crypto_system.encrypt_data(gh_compress, self.pool)
             else:
                 raise NotImplementedError
 
@@ -279,6 +276,7 @@ class DecisionTree:
                     gh_length=self.gh_length,
                     r=self.fix_point_precision,
                     crypto_system=self.crypto_system,
+                    pool=self.pool,
                 )
 
             else:
@@ -307,6 +305,7 @@ class DecisionTree:
                         gh_length=self.gh_length,
                         r=self.fix_point_precision,
                         crypto_system=self.crypto_system,
+                        pool=self.pool,
                     )
                 else:
                     bin_gh_enc = data["content"]
@@ -317,6 +316,7 @@ class DecisionTree:
                         h_length=self.h_length,
                         r=self.fix_point_precision,
                         crypto_system=self.crypto_system,
+                        pool=self.pool,
                     )
 
             else:

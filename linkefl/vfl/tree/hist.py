@@ -35,25 +35,22 @@ class ActiveHist:
         return cls(task, n_labels, bin_gh)
 
     @classmethod
-    def decrypt_hist(cls, task, n_labels, bin_gh_enc, h_length, r, crypto_system: CryptoSystem):
+    def decrypt_hist(cls, task, n_labels, bin_gh_enc, h_length, r, crypto_system: CryptoSystem, pool):
         """decrypt hist received from passive party, binary only"""
 
-        shape = bin_gh_enc.shape
-        bin_gh_int = crypto_system.decrypt_vector(bin_gh_enc.flatten())
-        bin_gh_int = np.reshape(bin_gh_int, shape)
+        bin_gh_int = crypto_system.decrypt_data(bin_gh_enc, pool)
 
         return cls.splitgh_hist(task, n_labels, bin_gh_int, h_length, r)
 
     @classmethod
-    def decompress_hist(cls, task, n_labels, capacity, bin_gh_compress, h_length, gh_length, r, crypto_system):
+    def decompress_hist(cls, task, n_labels, capacity, bin_gh_compress, h_length, gh_length, r, crypto_system, pool):
         """decompress and decrypt hist received from passive party, binary only"""
 
         shape = bin_gh_compress["shape"]
         target = bin_gh_compress["target"]
         bin_nonzero_compress = bin_gh_compress["data"]
 
-        bin_nonzero_compress = crypto_system.decrypt_vector(bin_nonzero_compress)
-        bin_nonzero_compress = np.array(bin_nonzero_compress)
+        bin_nonzero_compress = crypto_system.decrypt_data(bin_nonzero_compress, pool)
         bin_nonzero = np.empty((capacity, len(bin_nonzero_compress)), dtype=np.object)
 
         for i in range(capacity):
@@ -70,12 +67,10 @@ class ActiveHist:
 
     @classmethod
     def decompress_multi_hist(
-        cls, task, n_labels, capacity, bin_gh_compress_multi, h_length, gh_length, r, crypto_system
+        cls, task, n_labels, capacity, bin_gh_compress_multi, h_length, gh_length, r, crypto_system, pool
     ):
         """decrypt and decompress hist received from passive party, multi only"""
-        shape = bin_gh_compress_multi.shape
-        bin_gh_compress_multi = crypto_system.decrypt_vector(bin_gh_compress_multi.flatten())
-        bin_gh_compress_multi = np.reshape(bin_gh_compress_multi, shape)
+        bin_gh_compress_multi = crypto_system.decrypt_data(bin_gh_compress_multi, pool)
 
         bin_gh_int = np.zeros(
             (bin_gh_compress_multi.shape[0], bin_gh_compress_multi.shape[1], n_labels), dtype=np.object
