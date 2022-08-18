@@ -109,7 +109,8 @@ class RSAPSIPassive:
 
         return unblinded_set
 
-    def _hash_set(self, signed_set):
+    @staticmethod
+    def _hash_set(signed_set):
         return [hashlib.sha256(str(item).encode()).hexdigest()
                 for item in signed_set]
 
@@ -144,12 +145,12 @@ class RSAPSIPassive:
         print('Only blind set time: {:.5f}'.format(time.time() - begin))
         self.messenger.send(blinded_ids)
 
-        blinded_signed_ids = self.messenger.recv()
+        signed_blined_ids = self.messenger.recv()
         begin = time.time()
-        signed_ids = self._unblind_set(blinded_signed_ids, random_factors)
-        hashed_ids = self._hash_set(signed_ids)
+        signed_ids = self._unblind_set(signed_blined_ids, random_factors)
+        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
         print('Unblind set and hash set time: {:.5f}'.format(time.time() - begin))
-        self.messenger.send(hashed_ids)
+        self.messenger.send(hashed_signed_ids)
 
         os.remove(full_path)
         intersection = self.messenger.recv()
@@ -158,8 +159,41 @@ class RSAPSIPassive:
 
         return intersection
 
+    def run(self):
+        # sync RSA public key
+        print('requesting RSA public key...')
+        self._get_pub_key()
+        print('Done.')
+        start = time.time()
+
+        # 1. generate random factors
+        randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(len(self.ids))]
+        random_factors = self._random_factors_mp_pool(randoms,
+                                                      n_processes=self.num_workers)
+        print('Passive party finished genrating random factors.')
+
+        # 2. blind ids
+        blinded_ids = self._blind_set(self.ids, random_factors)
+        self.messenger.send(blinded_ids)
+        print('Passive party finished sending blinded ids to active party.')
+
+        # 3. unblind then hash signed ids
+        signed_blined_ids = self.messenger.recv()
+        signed_ids = self._unblind_set(signed_blined_ids, random_factors)
+        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
+        self.messenger.send(hashed_signed_ids)
+        print('Passive party finished sending hashed signed ids to active party')
+
+        # 4. receive intersection
+        intersections = self.messenger.recv()
+        print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
+
+        print('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        return intersections
+
 
 if __name__ == '__main__':
+    ######   Option 1: split the protocol   ######
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--phase', type=str)
@@ -189,4 +223,23 @@ if __name__ == '__main__':
     # 4. close messenger
     _messenger.close()
 
+    '''
+    ######   Option 2: run the whole protocol   ######
+    # 1. Get sample IDs
+    _ids = gen_dummy_ids(size=100000, option=Const.SEQUENCE)
+
+    # 2. Initialize messenger
+    _messenger = FastSocket(role=Const.PASSIVE_NAME,
+                            active_ip='127.0.0.1',
+                            active_port=20000,
+                            passive_ip='127.0.0.1',
+                            passive_port=30000)
+
+    # 3. Start the RSA-Blind-Signature protocol
+    passive_party = RSAPSIPassive(_ids, _messenger)
+    passive_party.run()
+
+    # 4. Close messenger
+    _messenger.close()
+    '''
 

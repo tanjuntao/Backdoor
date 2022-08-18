@@ -21,7 +21,7 @@ class RSAPSIActive:
         if num_workers == -1:
             num_workers = os.cpu_count()
         self.num_workers = num_workers
-        self.HASHED_IDS_FILENAME = 'hashed_ids.pkl'
+        self.HASHED_IDS_FILENAME = 'hashed_signed_ids.pkl'
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
     def _send_pub_key(self):
@@ -34,7 +34,8 @@ class RSAPSIActive:
         else:
             raise ValueError('Invalid start signal.')
 
-    def _hash_set(self, signed_set):
+    @staticmethod
+    def _hash_set(signed_set):
         return [hashlib.sha256(str(item).encode()).hexdigest()
                 for item in signed_set]
 
@@ -52,14 +53,14 @@ class RSAPSIActive:
         begin = time.time()
         signed_ids = self.cryptosystem.sign_set_thread(self.ids, n_threads=self.num_workers)
         print('Signing self id set time: {:.5f}'.format(time.time() - begin))
-        hashed_ids = self._hash_set(signed_ids)
+        hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
 
         target_dir = os.path.join(Path.home(), '.linkefl')
         if not os.path.exists(target_dir):
             os.mkdir(target_dir)
         full_path = os.path.join(target_dir, self.HASHED_IDS_FILENAME)
         with open(full_path, 'wb') as f:
-            pickle.dump(hashed_ids, f)
+            pickle.dump(hashed_signed_ids, f)
         print('[ACTIVE] Finish the offline protocol.')
 
     def run_online(self):
@@ -68,18 +69,18 @@ class RSAPSIActive:
 
         blinded_ids = self.messenger.recv()
         begin = time.time()
-        blinded_signed_ids = self.cryptosystem.sign_set_thread(blinded_ids,
-                                                               n_threads=self.num_workers)
+        signed_blined_ids = self.cryptosystem.sign_set_thread(blinded_ids,
+                                                              n_threads=self.num_workers)
         print('Signing passive id set time: {:.5f}'.format(time.time() - begin))
-        self.messenger.send(blinded_signed_ids)
+        self.messenger.send(signed_blined_ids)
 
-        passive_hashed_ids = self.messenger.recv()
+        passive_hashed_signed_ids = self.messenger.recv()
         full_path = os.path.join(Path.home(), '.linkefl', self.HASHED_IDS_FILENAME)
         with open(full_path, 'rb') as f:
-            active_hashed_ids = pickle.load(f)
+            active_hashed_signed_ids = pickle.load(f)
 
         begin = time.time()
-        intersections = self._intersect(active_hashed_ids, passive_hashed_ids)
+        intersections = self._intersect(active_hashed_signed_ids, passive_hashed_signed_ids)
         print('Intersection time: {}'.format(time.time() - begin))
         print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
         self.messenger.send(intersections)
@@ -89,8 +90,39 @@ class RSAPSIActive:
 
         return intersections
 
+    def run(self):
+        # 1. sync RSA public key
+        print('Active party starts PSI, listening...')
+        self._send_pub_key()
+        start = time.time()
+
+        # 2. signing blinded ids of passive party
+        blinded_ids = self.messenger.recv()
+        signed_blinded_ids = self.cryptosystem.sign_set_thread(blinded_ids,
+                                                               n_threads=self.num_workers)
+        self.messenger.send(signed_blinded_ids)
+        print('Active party sends signed blinded ids back to passive party.')
+
+        # 3. signing and hashing its own ids
+        signed_ids = self.cryptosystem.sign_set_thread(self.ids,
+                                                       n_threads=self.num_workers)
+        active_hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
+        print('Active party finished signing and hashing its own ids.')
+
+        # 4. receiving hashed signed ids from passive party
+        passive_hashed_signed_ids = self.messenger.recv()
+
+        # 5. find the intersection
+        intersections = self._intersect(active_hashed_signed_ids, passive_hashed_signed_ids)
+        print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
+        self.messenger.send(intersections)
+
+        print('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        return intersections
+
 
 if __name__ == '__main__':
+    ######   Option 1: split the protocol   ######
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()
     parser.add_argument('--phase', type=str)
@@ -124,3 +156,25 @@ if __name__ == '__main__':
 
     # 4. close messenger
     _messenger.close()
+
+    '''
+    ######   Option 2: run the whole protocol   ######
+    # 1. get sample IDs
+    _ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
+
+    # 2. Initialize messenger
+    _messenger = FastSocket(role=Const.ACTIVE_NAME,
+                            active_ip='127.0.0.1',
+                            active_port=20000,
+                            passive_ip='127.0.0.1',
+                            passive_port=30000)
+    # 3. Initialize cryptosystem
+    _crypto = RSACrypto()
+
+    # 4. Start the RSA-Blind-Signature protocol
+    active_party = RSAPSIActive(_ids, _messenger, _crypto)
+    active_party.run()
+
+    # 5. Close messenger
+    _messenger.close()
+    '''
