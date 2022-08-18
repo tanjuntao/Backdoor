@@ -41,6 +41,14 @@ if __name__ == '__main__':
         _penalty = 'l2'
         _lambda = 0.01
 
+    elif args.dataset == 'covertype':
+        _penalty = 'l2'
+        _lambda = 0.01
+
+    elif args.dataset == 'higgs':
+        _penalty = 'l2'
+        _lambda = 0.01
+
     else:
         raise ValueError('dataset is not supported.')
 
