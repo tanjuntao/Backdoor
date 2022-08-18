@@ -1,3 +1,5 @@
+import argparse
+
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import r2_score, mean_squared_error
@@ -8,7 +10,16 @@ from linkefl.feature import add_intercept
 
 
 if __name__ == '__main__':
-    dataset_name = 'diabetes'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset', type=str, required=True)
+    args = parser.parse_args()
+
+    if args.dataset in {'diabetes', 'year', 'nyc-taxi'}:
+        dataset_name = args.dataset
+
+    else:
+        raise ValueError('dataset is not supported.')
+
     passive_feat_frac = 0.0
 
     # load dataset
