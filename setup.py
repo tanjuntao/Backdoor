@@ -11,10 +11,10 @@ from linkefl import __version__
 
 # Package meta-data.
 NAME = 'linkefl'
-DESCRIPTION = 'LinkeFL is a federated learning framework developed by USTC LINKE Lab'
-AUTHOR_EMAIL = 'iamtanjuntao@qq.com, zhanglan@ustc.edu.cn'
+DESCRIPTION = 'LinkeFL is a versatile federated learning framework developed by USTC LINKE Lab'
+AUTHOR_EMAIL = 'tjt@mail.ustc.edu.cn, zhanglan@ustc.edu.cn'
 AUTHOR = 'Juntao Tan, Haoran Cheng, Yihang Cheng, Junhao Wang, Ju Huang, ' \
-          'Xinben Gao, Anran Li, Lan Zhang'
+          'Xinben Gao, Jiahui Huang, Anran Li, Lan Zhang'
 PYTHON_REQUIRES = '>=3.6.0'
 
 

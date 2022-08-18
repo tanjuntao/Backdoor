@@ -1,10 +1,12 @@
 gmpy2
 grpcio-tools
+matplotlib
 numpy
 pandas
 phe==1.5.0
 pycryptodome
 scikit-learn>=1.1.0
+seaborn
 shap
 termcolor
 torch
