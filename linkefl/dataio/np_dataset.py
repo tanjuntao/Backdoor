@@ -14,8 +14,9 @@ from termcolor import colored
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from linkefl.dataio.base import BaseDataset
 from linkefl.common.const import Const
+from linkefl.dataio.base import BaseDataset
+from linkefl.feature import cal_importance_ranking
 
 
 class NumpyDataset(BaseDataset):
@@ -38,7 +39,7 @@ class NumpyDataset(BaseDataset):
         self.set_dataset(np_data)
 
         if transform is not None:
-            self._np_dataset = transform(self._np_dataset)
+            self._np_dataset = transform(self._np_dataset, role=role)
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     @classmethod
@@ -198,7 +199,7 @@ class NumpyDataset(BaseDataset):
                 _feats = _whole_feats[-test_size:]
                 _labels = _whole_labels[-test_size:]
 
-        elif name == 'iris':
+        elif name == 'iris': # classification, 3 classes
             X, Y = load_iris(return_X_y=True)
             x_train, x_test, y_train, y_test = train_test_split(X, Y,
                                                                 test_size=0.2,
@@ -212,7 +213,7 @@ class NumpyDataset(BaseDataset):
                 _feats = x_test
                 _labels = y_test
 
-        elif name == 'wine':
+        elif name == 'wine': # classification, 3 classes
             X, Y = load_wine(return_X_y=True)
             x_train, x_test, y_train, y_test = train_test_split(X, Y,
                                                                 test_size=0.2,
@@ -357,7 +358,9 @@ class NumpyDataset(BaseDataset):
             permuted_feats = _feats[:, np.random.permutation(_feats.shape[1])]
             del _feats  # save memory
         elif perm_option == Const.IMPORTANCE:
-            raise NotImplementedError('To be implemented...')
+            rankings = cal_importance_ranking(name, _feats, _labels)
+            permuted_feats = _feats[:, rankings]
+            pass
         else:
             raise ValueError('Invalid permutation option.')
 

@@ -10,8 +10,9 @@ from linkefl.dataio import BaseDataset, NumpyDataset, TorchDataset
 
 
 def scale(dataset):
-    # maximum three copies of the original dataset
+    # maximum memory usage is three copies of the original dataset
     if isinstance(dataset, NumpyDataset):
+        # assign copy=False to save memory usage
         scaled_feats = preprocessing.scale(dataset.features, copy=False)
         new_dataset = copy.deepcopy(dataset.get_dataset())
         if dataset.has_label:
@@ -36,7 +37,7 @@ def scale(dataset):
 
 
 def normalize(dataset, norm=Const.L2):
-    # maximum three copies of the original dataset
+    # maximum memory usage is three copies of the original dataset
     if isinstance(dataset, NumpyDataset):
         normalized_feats = preprocessing.normalize(dataset.features,
                                                    norm=norm,
@@ -66,7 +67,7 @@ def normalize(dataset, norm=Const.L2):
 
 
 def parse_label(dataset, neg_label=0):
-    # maximum two copies of the original dataset
+    # maximum memory usage is two copies of the original dataset
     if isinstance(dataset, NumpyDataset):
         if dataset.has_label:
             labels = dataset.labels
@@ -93,7 +94,7 @@ def parse_label(dataset, neg_label=0):
 
 
 def add_intercept(dataset):
-    # maximum two copies of the original dataset
+    # maximum memory usage is two copies of the original dataset
     if isinstance(dataset, NumpyDataset):
         if dataset.has_label:
             n_samples = dataset.n_samples

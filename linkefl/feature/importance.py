@@ -88,21 +88,7 @@ from linkefl.dataio import NumpyDataset
 #     return x_train, x_test, y_train, y_test
 
 
-def feature_ranking(dataset_name, measurement='xgboost'):
-    """Calculate feature importances of each np_dataset and rank it in desending order.
-
-    Args:
-        dataset_name: Name of the np_dataset.
-        measurement: What method will be used to calculate feature importance.
-            Only "xgboost" and "shap" are valid options. If "xgboost" is used,
-            we will use `feature_importance_` attribute of xgboost model to
-            compute feature importance. If "shap" is used, we will use third-party
-            tool Shap[https://github.com/slundberg/shap] to do it.
-
-    Returns:
-        ranking: An index vector indicating the feature importance in a
-            desending order.
-    """
+def cal_importance_ranking(dataset_name, feats, labels, measurement='xgboost'):
     if dataset_name in ('cancer',
                         'digits',
                         'epsilon',
@@ -113,47 +99,37 @@ def feature_ranking(dataset_name, measurement='xgboost'):
                         'mnist',
                         'fashion_mnist',
                         ):
-        ranking = permutation(dataset_name, measurement)
+        ranking = cached_permutation(dataset_name, measurement)
         return ranking
 
-    # x_train, x_test, y_train, y_test = _get_dataset(dataset_name)
-    passive_feat_frac = 0
-    feat_perm_option = Const.SEQUENCE
-    active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                   dataset_name=dataset_name,
-                                                   train=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
     # simply treat dataset where the label column contains more than
     # 100 unique values as regression dataset
-    if len(np.unique(active_trainset.labels)) > 100:
+    if len(np.unique(labels)) > 100: # regression dataset
         model = XGBRegressor()
-        model.fit(active_trainset.features, active_trainset.labels)
+        model.fit(feats, labels)
     else: # classification dataset
-        if len(np.unique(active_trainset.labels)) == 2:
+        if len(np.unique(labels)) == 2:
             # binary case: silent warnings of XGB Constructor
             model = XGBClassifier(use_label_encoder=False)
-            model.fit(active_trainset.features, active_trainset.labels, eval_metric='logloss')
+            model.fit(feats, labels, eval_metric='logloss')
         else:
             model = XGBClassifier()
-            model.fit(active_trainset.features, active_trainset.labels)
+            model.fit(feats, labels)
 
     if measurement == 'shap':
         explainer = shap.Explainer(model)
         # type(shap_values) = <class 'shap._explanation.Explanation'>
         # each row corresponds to a sample, each column correspons to a feature
-        shap_values = explainer(x_train)
+        shap_values = explainer(feats)
         importances = np.mean(np.abs(shap_values.values),
                               axis=0)  # vertical axis
         ranking = np.argsort(importances)[::-1]
-
     elif measurement == 'xgboost':
         # XGBClassifier uses gain to measure feature importance as default
         # already normalized
         importances = model.feature_importances_
         # descending order with resepect to feature index
         ranking = np.argsort(importances)[::-1]
-
     else:
         raise ValueError(
             f"measurement can only take 'shap' or 'xgboost', "
@@ -162,7 +138,79 @@ def feature_ranking(dataset_name, measurement='xgboost'):
     return ranking
 
 
-def permutation(dataset_name, measurement='xgboost'):
+# def feature_ranking(dataset_name, measurement='xgboost'):
+#     """Calculate feature importances of each np_dataset and rank it in desending order.
+#
+#     Args:
+#         dataset_name: Name of the np_dataset.
+#         measurement: What method will be used to calculate feature importance.
+#             Only "xgboost" and "shap" are valid options. If "xgboost" is used,
+#             we will use `feature_importance_` attribute of xgboost model to
+#             compute feature importance. If "shap" is used, we will use third-party
+#             tool Shap[https://github.com/slundberg/shap] to do it.
+#
+#     Returns:
+#         ranking: An index vector indicating the feature importance in a
+#             desending order.
+#     """
+#     if dataset_name in ('cancer',
+#                         'digits',
+#                         'epsilon',
+#                         'census',
+#                         'credit',
+#                         'default_credit',
+#                         'diabetes',
+#                         'mnist',
+#                         'fashion_mnist',
+#                         ):
+#         ranking = cached_permutation(dataset_name, measurement)
+#         return ranking
+#
+#     # x_train, x_test, y_train, y_test = _get_dataset(dataset_name)
+#     passive_feat_frac = 0
+#     feat_perm_option = Const.SEQUENCE
+#     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
+#                                                    dataset_name=dataset_name,
+#                                                    train=True,
+#                                                    passive_feat_frac=passive_feat_frac,
+#                                                    feat_perm_option=feat_perm_option)
+#     # simply treat dataset where the label column contains more than
+#     # 100 unique values as regression dataset
+#     if len(np.unique(active_trainset.labels)) > 100: # regression dataset
+#         model = XGBRegressor()
+#         model.fit(active_trainset.features, active_trainset.labels)
+#     else: # classification dataset
+#         if len(np.unique(active_trainset.labels)) == 2:
+#             # binary case: silent warnings of XGB Constructor
+#             model = XGBClassifier(use_label_encoder=False)
+#             model.fit(active_trainset.features, active_trainset.labels, eval_metric='logloss')
+#         else:
+#             model = XGBClassifier()
+#             model.fit(active_trainset.features, active_trainset.labels)
+#
+#     if measurement == 'shap':
+#         explainer = shap.Explainer(model)
+#         # type(shap_values) = <class 'shap._explanation.Explanation'>
+#         # each row corresponds to a sample, each column correspons to a feature
+#         shap_values = explainer(x_train)
+#         importances = np.mean(np.abs(shap_values.values),
+#                               axis=0)  # vertical axis
+#         ranking = np.argsort(importances)[::-1]
+#     elif measurement == 'xgboost':
+#         # XGBClassifier uses gain to measure feature importance as default
+#         # already normalized
+#         importances = model.feature_importances_
+#         # descending order with resepect to feature index
+#         ranking = np.argsort(importances)[::-1]
+#     else:
+#         raise ValueError(
+#             f"measurement can only take 'shap' or 'xgboost', "
+#             f"got {measurement} instead.")
+#
+#     return ranking
+
+
+def cached_permutation(dataset_name, measurement='xgboost'):
     """Buffer pre-computed feature importance rankings directly in code."""
     if dataset_name == 'cancer':
         if measurement == 'xgboost':
