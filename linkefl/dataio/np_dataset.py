@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from linkefl.common.const import Const
 from linkefl.dataio.base import BaseDataset
-from linkefl.feature import cal_importance_ranking
+# from linkefl.feature import cal_importance_ranking
 
 
 class NumpyDataset(BaseDataset):
@@ -94,8 +94,8 @@ class NumpyDataset(BaseDataset):
         if existing_dataset is None:
             if path is not None:
                 # TODO: support one-hot encoding here
-                # self._np_dataset = np.genfromtxt(abs_path, delimiter=',')
-                np_dataset = pd.read_csv(path, delimiter=',', header=None)
+                np_dataset = np.genfromtxt(path, delimiter=',')
+                # np_dataset = pd.read_csv(path, delimiter=',', header=None)
             else:
                 raise Exception('CSV file path is not provided')
         else:
@@ -358,8 +358,8 @@ class NumpyDataset(BaseDataset):
             permuted_feats = _feats[:, np.random.permutation(_feats.shape[1])]
             del _feats  # save memory
         elif perm_option == Const.IMPORTANCE:
-            rankings = cal_importance_ranking(name, _feats, _labels)
-            permuted_feats = _feats[:, rankings]
+            # rankings = cal_importance_ranking(name, _feats, _labels)
+            # permuted_feats = _feats[:, rankings]
             pass
         else:
             raise ValueError('Invalid permutation option.')
@@ -383,7 +383,9 @@ class NumpyDataset(BaseDataset):
         # avoid re-computing on each function call
         if not hasattr(self, '_ids'):
             np_ids = self._np_dataset[:, 0].astype(np.int32)
-            setattr(self, '_ids', np_ids)
+            # data type of ids must be python build-in integer, not numpy integer
+            py_ids = [_id.item() for _id in np_ids]
+            setattr(self, '_ids', py_ids)
         return getattr(self, '_ids')
 
     @property
@@ -492,7 +494,7 @@ class NumpyDataset(BaseDataset):
             pass
 
         idxes = []
-        all_ids = self.ids
+        all_ids = np.array(self.ids)
         for _id in intersect_ids:
             idx = np.where(all_ids == _id)[0][0]
             idxes.append(idx)
