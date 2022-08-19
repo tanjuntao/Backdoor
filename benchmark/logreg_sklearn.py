@@ -1,6 +1,8 @@
 import argparse
 
 import numpy as np
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
@@ -76,12 +78,19 @@ if __name__ == '__main__':
                              C=1./_lambda,
                              solver='liblinear',
                              max_iter=epochs)
-    # start model training
-    clf.fit(x_train, y_train)
 
-    # evaluate model performance
-    y_pred = clf.predict(x_test)
-    y_score = clf.predict_proba(x_test)[:, 1]
+    pipe = make_pipeline(StandardScaler(), clf)
+
+    pipe.fit(x_train, y_train)
+    y_pred = pipe.predict(x_test)
+    y_score = pipe.predict_proba(x_test)[:, 1]
+
+    # # start model training
+    # clf.fit(x_train, y_train)
+
+    # # evaluate model performance
+    # y_pred = clf.predict(x_test)
+    # y_score = clf.predict_proba(x_test)[:, 1]
     acc = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred)
     auc = roc_auc_score(y_test, y_score)
