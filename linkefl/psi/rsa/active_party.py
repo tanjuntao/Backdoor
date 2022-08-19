@@ -69,10 +69,10 @@ class RSAPSIActive:
 
         blinded_ids = self.messenger.recv()
         begin = time.time()
-        signed_blined_ids = self.cryptosystem.sign_set_thread(blinded_ids,
-                                                              n_threads=self.num_workers)
+        signed_blinded_ids = self.cryptosystem.sign_set_thread(blinded_ids,
+                                                               n_threads=self.num_workers)
         print('Signing passive id set time: {:.5f}'.format(time.time() - begin))
-        self.messenger.send(signed_blined_ids)
+        self.messenger.send(signed_blinded_ids)
 
         passive_hashed_signed_ids = self.messenger.recv()
         full_path = os.path.join(Path.home(), '.linkefl', self.HASHED_IDS_FILENAME)
@@ -173,7 +173,7 @@ if __name__ == '__main__':
 
     # 4. Start the RSA-Blind-Signature protocol
     active_party = RSAPSIActive(_ids, _messenger, _crypto)
-    active_party.run()
+    intersections = active_party.run()
 
     # 5. Close messenger
     _messenger.close()
