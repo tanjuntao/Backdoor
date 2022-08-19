@@ -2,9 +2,6 @@ import numpy as np
 import shap
 from xgboost import XGBClassifier, XGBRegressor, plot_importance
 
-from linkefl.common.const import Const
-from linkefl.dataio import NumpyDataset
-
 
 # def _get_dataset(name):
 #     """Load np_dataset by name.

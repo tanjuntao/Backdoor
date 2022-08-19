@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from linkefl.common.const import Const
 from linkefl.dataio.base import BaseDataset
-# from linkefl.feature import cal_importance_ranking
+from linkefl.feature import cal_importance_ranking
 
 
 class NumpyDataset(BaseDataset):
@@ -358,9 +358,8 @@ class NumpyDataset(BaseDataset):
             permuted_feats = _feats[:, np.random.permutation(_feats.shape[1])]
             del _feats  # save memory
         elif perm_option == Const.IMPORTANCE:
-            # rankings = cal_importance_ranking(name, _feats, _labels)
-            # permuted_feats = _feats[:, rankings]
-            pass
+            rankings = cal_importance_ranking(name, _feats, _labels)
+            permuted_feats = _feats[:, rankings]
         else:
             raise ValueError('Invalid permutation option.')
 
