@@ -437,39 +437,40 @@ class NumpyDataset(BaseDataset):
         if self.role == Const.ACTIVE_NAME:
             dataset.rename(columns={0:'id', 1:'lable'}, inplace=True)
             for i in range(self.n_features):
-                dataset.rename(columns={i+2: 'fea'+str(i+1)}, inplace=True)
+                dataset.rename(columns={i+2: 'x' + str(i+1)}, inplace=True)
         elif self.role == Const.PASSIVE_NAME:
             dataset.rename(columns={0: 'id'}, inplace=True)
             for i in range(self.n_features):
-                dataset.rename(columns={i+1: 'fea'+str(i+1)}, inplace=True)
-        data_cols = dataset.columns.values.tolist()
+                dataset.rename(columns={i+1: 'x' + str(i+1)}, inplace=True)
         data_cols = dataset.columns.values.tolist()
 
         print(colored('The first 5 rows and the last 5 rows of the dataset are as follows:', 'red'))
         print(pd.concat([dataset.head(), dataset.tail()]))
         print()
 
-        print(colored(
-            'The information about the dataset including the index dtype and columns, non-null values and memory usage are as follows:',
-            'red'))
+        print(colored('The information about the dataset including the index '
+                      'dtype and columns, non-null values and memory usage '
+                      'are as follows:', 'red'))
         dataset.info()
         print()
 
-        print(colored(
-            'The descriptive statistics include those that summarize the central tendency, dispersion and shape of the dataset’s distribution, excluding NaN values are as follows:',
-            'red'))
+        print(colored('The descriptive statistics include those that summarize '
+                      'the central tendency, dispersion and shape of the dataset’s '
+                      'distribution, excluding NaN values are as follows:', 'red'))
         num_unique_data = np.array(dataset[data_cols].nunique().values)
-        num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)), index=['unique'], columns=data_cols)
+        num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)),
+                                  index=['unique'],
+                                  columns=data_cols)
         print(pd.concat([dataset.describe(), num_unique]))
         print()
 
         # Output the distribution for the data label.
         if self.role == Const.ACTIVE_NAME:
-            dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)), columns=['label'])
-            # 图中虚线是核密度曲线（类似于概率密度）
+            dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
+                                     columns=['label'])
+            # histplot
             sns.histplot(dis_label, kde=True, linewidth=0)
             plt.show()
-
 
 
     def filter(self, intersect_ids):
