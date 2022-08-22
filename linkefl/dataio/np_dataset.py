@@ -27,7 +27,7 @@ class NumpyDataset(BaseDataset):
 
         # if existing_dataset is None:
         #     if abs_path is not None:
-        #         # self._np_dataset = np.genfromtxt(abs_path, delimiter=',')
+        #         # self._np_dataset = np.genfromtxt(abs_path, delimiter=',', encoding="utf-8")
         #         self._np_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
         #     else:
         #         raise Exception('abs_path should not be None')
@@ -94,7 +94,7 @@ class NumpyDataset(BaseDataset):
         if existing_dataset is None:
             if path is not None:
                 # TODO: support one-hot encoding here
-                np_dataset = np.genfromtxt(path, delimiter=',')
+                np_dataset = np.genfromtxt(path, delimiter=',', encoding="utf-8")
                 # np_dataset = pd.read_csv(path, delimiter=',', header=None)
             else:
                 raise Exception('CSV file path is not provided')
@@ -233,11 +233,11 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/epsilon_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path, '../data/tabular/epsilon_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -247,12 +247,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/census_income_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/census_income_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -262,12 +262,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/give_me_some_credit_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/give_me_some_credit_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -277,12 +277,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/default_credit_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/default_credit_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -292,12 +292,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/covertype_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/covertype_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -307,12 +307,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/higgs_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/higgs_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -322,12 +322,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/year_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/year_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -337,12 +337,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/nyc-taxi_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/nyc-taxi_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
