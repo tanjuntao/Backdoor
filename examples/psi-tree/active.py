@@ -7,7 +7,7 @@ from linkefl.dataio import NumpyDataset
 from linkefl.feature import parse_label
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIActive
-from linkefl.vfl.tree.active import ActiveTreeParty
+from linkefl.vfl.tree import ActiveTreeParty
 
 if __name__ == "__main__":
     # 0. Set parameters

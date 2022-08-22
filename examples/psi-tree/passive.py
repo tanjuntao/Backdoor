@@ -4,12 +4,12 @@ from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIPassive
-from linkefl.vfl.tree.passive import PassiveTreeParty
+from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == '__main__':
     # 0. Set parameters
-    trainset_path = r'C:\Users\suki11\Documents\Programs\Python\Lab\LinkeFL/linkefl/data/tabular/give_me_some_credit_passive_train.csv'
-    testset_path = r'C:\Users\suki11\Documents\Programs\Python\Lab\LinkeFL/linkefl/data/tabular/give_me_some_credit_passive_test.csv'
+    trainset_path = r'../../linkefl/data/tabular/give_me_some_credit_passive_train.csv'
+    testset_path = r'../../linkefl/data/tabular/give_me_some_credit_passive_test.csv'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
