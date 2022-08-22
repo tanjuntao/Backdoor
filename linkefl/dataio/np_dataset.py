@@ -539,6 +539,86 @@ class NumpyDataset(BaseDataset):
 
         # update new property
         self._np_dataset = new_np_dataset
+    # 与下面注释隔一行
+
+if __name__ == "__main__":
+    # cancer = load_breast_cancer()
+    # x_train, x_test, y_train, y_test = train_test_split(cancer.data,
+    #                                                     cancer.target,
+    #                                                     test_size=0.2,
+    #                                                     random_state=0)
+
+    # _whole_feats, _whole_labels = load_diabetes(return_X_y=True,
+    #                                             scaled=True)
+    # _n_samples = len(_whole_labels)
+    # _whole_ids = np.arange(_n_samples)
+    # test_size = 40  # fixed testing set size
+    #
+    # x_train = _whole_feats[:-test_size]
+    # y_train = _whole_labels[:-test_size]
+
+    # X, Y = load_digits(return_X_y=True)
+    # odd_idxes = np.where(Y % 2 == 1)[0]
+    # even_idxes = np.where(Y % 2 == 0)[0]
+    # Y[odd_idxes] = 1
+    # Y[even_idxes] = 0
+    # x_train, x_test, y_train, y_test = train_test_split(X, Y,
+    #                                                     test_size=0.2,
+    #                                                     random_state=0)
+
+    # _whole_feats, _whole_labels = load_diabetes(return_X_y=True,
+    #                                             scaled=True)
+    # x_train = _whole_feats[:-40]
+    # y_train = _whole_labels[:-40]
+
+    # X, Y = load_iris(return_X_y=True)
+    # x_train, x_test, y_train, y_test = train_test_split(X, Y,
+    #                                                     test_size=0.2,
+    #                                                     random_state=0)
+
+    # X, Y = load_wine(return_X_y=True)
+    # x_train, x_test, y_train, y_test = train_test_split(X, Y,
+    #                                                     test_size=0.2,
+    #                                                     random_state=0)
+
+    curr_path = os.path.abspath(os.path.dirname(__file__))
+    np_csv = np.genfromtxt(
+        os.path.join(curr_path,
+                     '../data/tabular/epsilon_train.csv'),
+        delimiter=',')
+    y_train = np_csv[:, 1].astype(np.int32)
+    x_train = np_csv[:, 2:]
+
+    # curr_path = os.path.abspath(os.path.dirname(__file__))
+    # np_csv = np.genfromtxt(
+    #     os.path.join(curr_path,
+    #                  '../data/tabular/default_credit_train.csv'),
+    #     delimiter=',')
+    # y_train = np_csv[:, 1].astype(np.int32)
+    # x_train = np_csv[:, 2:]
+
+    # curr_path = os.path.abspath(os.path.dirname(__file__))
+    # np_csv = np.genfromtxt(
+    #     os.path.join(curr_path,
+    #                  '../data/tabular/give_me_some_credit_train.csv'),
+    #     delimiter=',')
+    # _ids = np_csv[:, 0].astype(np.int32)
+    # y_train = np_csv[:, 1].astype(np.int32)
+    # x_train = np_csv[:, 2:]
+    #
+    # print(x_train.shape)
+    # print(y_train.shape)
+    #
+    pearson = np.empty([x_train.shape[1]])
+    # w = x_train[:, 0].shape
+    # z = y_train.shape
+    # x = np.corrcoef(x_train[:, 0], y_train)
+    for i in range(x_train.shape[1]):
+        temp = np.corrcoef(x_train[:, i], y_train, rowvar=False)
+        pearson[i] = temp[0][1]
+
+    print(pearson)
+    print("1")
 
 '''
 class BuildinNumpyDataset(NumpyDataset):
