@@ -401,47 +401,5 @@ class BuildinTorchDataset(TorchDataset):
 
         return torch_dataset
 
-if __name__ == "__main__":
-    # frac = 0.5
-    # curr_path = os.path.abspath(os.path.dirname(__file__))
-    # abs_path = os.path.join(
-    #     curr_path,
-    #     '../data/tabular/give_me_some_credit_train.csv'
-    # )
-    # torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
-    # _ids = torch_csv[:, 0].type(torch.int32)
-    # y_train = torch_csv[:, 1].type(torch.int32)
-    # x_train = torch_csv[:, 2:]
-    # num_passive_feats = int(frac * x_train.shape[1])
-    # x_train = x_train[:, :num_passive_feats]
-
-    curr_path = os.path.abspath(os.path.dirname(__file__))
-    abs_path = os.path.join(
-        curr_path,
-        '../data/tabular/census_income_train.csv'
-    )
-    torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
-    _ids = torch_csv[:, 0].type(torch.int32)
-    y_train = torch_csv[:, 1].type(torch.int32).type(torch.long)
-    x_train = torch_csv[:, 2:]
-    #
-    # meanx = torch.mean(x_train.float())
-    # stdx = torch.std(x_train.float())
-    # x_meanx = x_train - meanx
-    # print(x_train)
-    # print(meanx)
-    # print(stdx)
-    # print(x_meanx)
-
-
-    pearson = np.empty([x_train.shape[1]])
-    # w = x_train[:, 0].shape
-    # z = y_train.shape
-    # x = np.corrcoef(x_train[:, 0], y_train)
-    for i in range(x_train.shape[1]):
-        pearson[i] = np.corrcoef(x_train[:, i], y_train)[0][1]
-
-    print(pearson)
-
 
 

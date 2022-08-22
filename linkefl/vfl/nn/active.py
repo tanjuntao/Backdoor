@@ -17,9 +17,6 @@ from linkefl.feature.transform.transform import OneHot
 from linkefl.feature.transform import parse_label, scale
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
-# 空两行
-from linkefl.feature.pearson_vfl import ActivePearsonVfl
-
 
 
 class ActiveNeuralNetwork:
@@ -148,7 +145,7 @@ class ActiveNeuralNetwork:
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'census'
+    dataset_name = 'mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -158,7 +155,7 @@ if __name__ == '__main__':
     _epochs = 80
     _batch_size = 64
     _learning_rate = 0.01
-    _crypto_type = Const.PAILLIER
+    _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
 
     # 1. Load datasets
@@ -222,16 +219,6 @@ if __name__ == '__main__':
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
     print('Active party started, listening...')
-
-    _crypto = crypto_factory(crypto_type=_crypto_type,
-                             key_size=1024,
-                             num_enc_zeros=10000,
-                             gen_from_set=False)
-    pearson = ActivePearsonVfl(dataset=active_trainset, messenger=_messenger, cryptosystem=_crypto,
-                               crypto_type=_crypto_type)
-    print("start pearson...")
-    pearson.pearosn_vfl()
-    exit(0)
 
     # 4. Initialize NN protocol and start training
     active_party = ActiveNeuralNetwork(epochs=_epochs,

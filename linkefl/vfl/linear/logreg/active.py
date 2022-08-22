@@ -11,8 +11,6 @@ from linkefl.feature import add_intercept, scale, parse_label
 from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.util import sigmoid, save_params
 from linkefl.vfl.linear import BaseLinearActive
-# 与下面的类空两行
-from linkefl.feature.pearson_vfl import ActivePearsonVfl
 
 
 class ActiveLogReg(BaseLinearActive):
@@ -193,13 +191,13 @@ class ActiveLogReg(BaseLinearActive):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'epsilon'
+    dataset_name = 'credit'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
-    active_port = 20002
+    active_port = 20001
     passive_ip = 'localhost'
-    passive_port = 30002
+    passive_port = 30001
     _epochs = 200
     _batch_size = 32
     _learning_rate = 0.01
@@ -224,6 +222,9 @@ if __name__ == '__main__':
                                                    feat_perm_option=feat_perm_option)
     # if using credit dataset, remember to apply scale after add_intercept,
     # otherwise the model cannot converge
+    active_trainset = add_intercept(scale(parse_label(active_trainset)))
+    active_testset = add_intercept(scale(parse_label(active_testset)))
+    print('Done.')
     # Option 2: PyTorch style
     # print('Loading dataset...')
     # transform = Compose([ParseLabel(), Scale(), AddIntercept()])
@@ -255,11 +256,6 @@ if __name__ == '__main__':
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
     print('ACTIVE PARTY started, listening...')
-    # 与下面的注释空一行
-    pearson = ActivePearsonVfl(dataset=active_trainset, messenger=_messenger, cryptosystem=_crypto, crypto_type=_crypto_type)
-    print("start pearson...")
-    pearson.pearosn_vfl()
-    exit(0)
 
     # 5. Initialize model and start training
     active_party = ActiveLogReg(epochs=_epochs,
