@@ -433,35 +433,35 @@ class NumpyDataset(BaseDataset):
 
         # Output of statistical values of the data set.
         pd.set_option('display.max_columns', None)
-        dataset = pd.DataFrame(self._np_dataset)
+        df = pd.DataFrame(self._np_dataset)
         if self.role == Const.ACTIVE_NAME:
-            dataset.rename(columns={0:'id', 1:'lable'}, inplace=True)
+            df.rename(columns={0:'id', 1:'lable'}, inplace=True)
             for i in range(self.n_features):
-                dataset.rename(columns={i+2: 'x' + str(i+1)}, inplace=True)
+                df.rename(columns={i+2: 'x' + str(i+1)}, inplace=True)
         elif self.role == Const.PASSIVE_NAME:
-            dataset.rename(columns={0: 'id'}, inplace=True)
+            df.rename(columns={0: 'id'}, inplace=True)
             for i in range(self.n_features):
-                dataset.rename(columns={i+1: 'x' + str(i+1)}, inplace=True)
-        data_cols = dataset.columns.values.tolist()
+                df.rename(columns={i+1: 'x' + str(i+1)}, inplace=True)
 
         print(colored('The first 5 rows and the last 5 rows of the dataset are as follows:', 'red'))
-        print(pd.concat([dataset.head(), dataset.tail()]))
+        print(pd.concat([df.head(), df.tail()]))
         print()
 
         print(colored('The information about the dataset including the index '
                       'dtype and columns, non-null values and memory usage '
                       'are as follows:', 'red'))
-        dataset.info()
+        df.info()
         print()
 
         print(colored('The descriptive statistics include those that summarize '
                       'the central tendency, dispersion and shape of the dataset’s '
                       'distribution, excluding NaN values are as follows:', 'red'))
-        num_unique_data = np.array(dataset[data_cols].nunique().values)
+        col_names = df.columns.values.tolist()
+        num_unique_data = np.array(df[col_names].nunique().values)
         num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)),
                                   index=['unique'],
-                                  columns=data_cols)
-        print(pd.concat([dataset.describe(), num_unique]))
+                                  columns=col_names)
+        print(pd.concat([df.describe(), num_unique]))
         print()
 
         # Output the distribution for the data label.
@@ -469,7 +469,7 @@ class NumpyDataset(BaseDataset):
             dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
                                      columns=['label'])
             # histplot
-            sns.histplot(dis_label, kde=True, linewidth=0)
+            sns.histplot(dis_label, kde=False, linewidth=0)
             plt.show()
 
 
