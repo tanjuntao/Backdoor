@@ -103,7 +103,7 @@ def cal_importance_ranking(dataset_name, feats, labels, measurement='xgboost'):
     # 100 unique values as regression dataset
     if len(np.unique(labels)) > 100: # regression dataset
         model = XGBRegressor()
-        model.fit(feats, labels)
+        model.fit(active_trainset.features, active_trainset.labels)
     else: # classification dataset
         if len(np.unique(labels)) == 2:
             # binary case: silent warnings of XGB Constructor
@@ -215,7 +215,9 @@ def cached_permutation(dataset_name, measurement='xgboost'):
                 [27, 7, 22, 0, 23, 3, 26, 10, 21, 8, 20, 1, 13, 4, 14, 24, 19, 6,
                  15, 18, 5, 11, 29, 25, 28, 17, 9, 12, 16, 2])
         else:
-            pass
+            _permutation = np.array(
+                [27, 23, 7, 13, 21, 26, 22, 15, 1, 4, 28, 18, 24, 20, 6, 5, 19, 10,
+                 17, 11, 14, 29, 25, 0, 8, 3, 9, 12, 16, 2])
 
     elif dataset_name == 'digits':
         if measurement == 'xgboost':
@@ -225,7 +227,11 @@ def cached_permutation(dataset_name, measurement='xgboost'):
                  13, 11, 37, 58, 36, 45, 61, 41, 52, 34, 21, 9, 49, 1, 8, 7, 31, 15,
                  16, 23, 24, 32, 39, 40, 47, 48, 55, 56, 57, 0])
         else:
-            pass
+            _permutation = np.array(
+                [42, 43, 5, 28, 18, 50, 20, 27, 54, 60, 53, 12,
+                6, 33, 58, 38, 19, 3, 21, 51, 35, 37, 41, 22, 44, 11, 52, 2, 26, 4,
+                9, 34, 61, 59, 46, 29, 10, 30, 62, 13, 45, 63, 36, 14, 49, 25, 17, 8,
+                 7, 1, 31, 15, 16, 23, 24, 32, 39, 40, 47, 48, 55, 56, 57, 0])
 
     elif dataset_name == 'epsilon':
         if measurement == 'xgboost':
@@ -237,7 +243,13 @@ def cached_permutation(dataset_name, measurement='xgboost'):
                  23, 11, 38, 83, 56, 39, 33, 19, 87, 42, 31, 49, 29, 50, 17, 65, 18,
                  66, 54, 93, 46, 41, 16, 52, 79, 69, 55, 12, 26, 85, 4])
         else:
-            pass
+            _permutation = np.array(
+                [40, 35, 47, 13, 0, 25, 1, 99, 91, 82, 90, 80, 93, 28, 53, 97, 59,
+                 16, 7, 57, 45, 87, 21, 78, 17, 27, 92, 50, 95, 2, 79, 88, 81, 10,
+                 70, 62, 76, 67, 15, 23, 83, 38, 20, 12, 86, 8, 4, 36, 43, 64, 44,
+                 5, 75, 94, 6, 41, 42, 68, 51, 56, 72, 49, 34, 54, 22, 77, 3, 37, 11,
+                 58, 84, 63, 29, 98, 33, 89, 31, 55, 85, 46, 60, 39, 14, 48, 65, 73,
+                 18, 26, 74, 66, 24, 9, 19, 96, 69, 61, 32, 30, 52, 71])
 
     elif dataset_name == 'census':
         if measurement == 'xgboost':
@@ -250,14 +262,20 @@ def cached_permutation(dataset_name, measurement='xgboost'):
                  57,
                  61, 78, 77, 30, 10, 11, 71, 70, 68, 60, 62, 79, 80])
         else:
-            pass
+            _permutation = np.array(
+                [0, 12, 2, 1, 4, 40, 32, 13, 31, 3, 33, 34, 19, 22, 23, 26, 14,
+                 18, 20, 5, 36, 25, 35, 24, 9, 27, 6, 21, 16, 8, 41, 28, 7, 38,
+                 29, 15, 44, 39, 37, 59, 51, 58, 54, 50, 42, 53, 47, 45, 64, 49,
+                 43, 72, 17, 65, 48, 73, 55, 46, 69, 66, 76, 56, 52, 63, 57, 67,
+                 75, 74, 30, 11, 10, 79, 60, 61, 62, 68, 70, 71, 77, 78, 80])
 
     elif dataset_name == 'credit':
         if measurement == 'xgboost':
             _permutation = np.array(
                 [1, 7, 5, 3, 2, 0, 6, 8, 9, 4])
         else:
-            pass
+            _permutation = np.array(
+                [5, 7, 1, 6, 8, 0, 9, 3, 2, 4])
 
     elif dataset_name == 'default_credit':
         if measurement == 'xgboost':
@@ -265,14 +283,17 @@ def cached_permutation(dataset_name, measurement='xgboost'):
                 [18, 19, 20, 21, 22, 0, 13, 9, 1, 14, 8, 10, 15, 2, 7, 6, 12, 3,
                  11, 5, 4, 17, 16])
         else:
-            pass
+            _permutation = np.array(
+                [18, 13, 1, 7, 9, 8, 19, 2, 3, 10, 6, 5, 12, 16, 20, 4, 11, 0,
+                 17, 21, 15, 22, 14])
 
     elif dataset_name == 'diabetes':
         if measurement == 'xgboost':
             _permutation = np.array(
                 [8, 2, 3, 7, 9, 1, 6, 5, 4, 0])
         else:
-            pass
+            _permutation = np.array(
+                [8, 2, 3, 0, 6, 9, 5, 1, 4, 7])
 
     elif dataset_name == 'mnist':
         if measurement == 'xgboost':

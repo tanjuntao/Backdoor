@@ -10,6 +10,9 @@ from linkefl.dataio import TorchDataset, BuildinTorchDataset
 from linkefl.feature.transform import scale
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.model import PassiveBottomModel
+# 空两行
+from linkefl.feature.pearson_vfl import PassivePearsonVfl
+
 
 
 class PassiveNeuralNetwork:
@@ -84,7 +87,7 @@ class PassiveNeuralNetwork:
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'mnist'
+    dataset_name = 'census'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -94,7 +97,7 @@ if __name__ == '__main__':
     _epochs = 80
     _batch_size = 64
     _learning_rate = 0.01
-    _crypto_type = Const.PLAIN
+    _crypto_type = Const.PAILLIER
 
     # 1. Load datasets
     print('Loading dataset...')
@@ -132,7 +135,12 @@ if __name__ == '__main__':
                                    active_port=active_port,
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
-
+    # 与下面注释空一行
+    passive_pearson = PassivePearsonVfl(passive_trainset, messenger=_messenger)
+    print("start pearson...")
+    peason_xy = passive_pearson.pearosn_vfl()
+    print(peason_xy)
+    exit(0)
     # 4. Initilize NN protocol and start training
     passive_party = PassiveNeuralNetwork(epochs=_epochs,
                                          batch_size=_batch_size,

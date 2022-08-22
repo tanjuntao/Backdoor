@@ -3,6 +3,8 @@ from linkefl.common.factory import messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import scale, Scale
 from linkefl.vfl.linear import BaseLinearPassive
+#与下面代码空两行
+from linkefl.feature.pearson_vfl import PassivePearsonVfl
 
 
 class PassiveLogReg(BaseLinearPassive):
@@ -39,13 +41,13 @@ class PassiveLogReg(BaseLinearPassive):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'cancer'
+    dataset_name = 'epsilon'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
-    active_port = 20001
+    active_port = 20002
     passive_ip = 'localhost'
-    passive_port = 30001
+    passive_port = 30002
     _epochs = 200
     _batch_size = 32
     _learning_rate = 0.01
@@ -77,8 +79,8 @@ if __name__ == '__main__':
     #                                       role=Const.PASSIVE_NAME,
     #                                       passive_feat_frac=passive_feat_frac,
     #                                       feat_perm_option=feat_perm_option)
-    passive_trainset = scale(passive_trainset)
-    passive_testset = scale(passive_testset)
+    # passive_trainset = scale(passive_trainset)
+    # passive_testset = scale(passive_testset)
 
     # Option 2: PyTorch style
     # print('Loading dataset...')
@@ -104,6 +106,12 @@ if __name__ == '__main__':
                                   active_port=active_port,
                                   passive_ip=passive_ip,
                                   passive_port=passive_port)
+    # 与下面注释空一行
+    passive_pearson = PassivePearsonVfl(passive_trainset, messenger=_messenger)
+    print("start pearson...")
+    peason_xy = passive_pearson.pearosn_vfl()
+    print(peason_xy)
+    exit(0)
 
     # 4. Initialize model and start training
     passive_party = PassiveLogReg(epochs=_epochs,
