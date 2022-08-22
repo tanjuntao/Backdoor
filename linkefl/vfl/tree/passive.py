@@ -71,7 +71,7 @@ class PassiveTreeParty:
             else:
                 raise KeyError
 
-        self.validate(testset)
+        self._validate(testset)
         print(colored("Total training and validation time: {:.2f}".format(time.time() - start_time), "red"))
 
     def _save_record(self, feature_id, split_id, sample_tag):
@@ -97,7 +97,7 @@ class PassiveTreeParty:
         else:
             return hist.bin_gh_data
 
-    def validate(self, testset):
+    def _validate(self, testset):
         assert isinstance(testset, NumpyDataset), "testset should be an instance of NumpyDataset"
 
         features = testset.features
@@ -121,6 +121,9 @@ class PassiveTreeParty:
         result = True if feature[int(feature_id)] > threshold else False  # avoid numpy bool
 
         return result
+
+    def predict(self, testset):
+        self._validate(testset)
 
 
 if __name__ == "__main__":

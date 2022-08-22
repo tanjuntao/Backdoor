@@ -4,7 +4,7 @@ from multiprocessing import Pool
 
 import numpy as np
 from scipy.special import softmax
-from sklearn.metrics import classification_report, roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 from termcolor import colored
 
 from linkefl.common.const import Const
@@ -160,11 +160,12 @@ class ActiveTreeParty:
         if self.pool is not None:
             self.pool.close()
 
-        self.validate(testset)
+        scores = self._validate(testset)
+        print(scores)
 
         print(colored("Total training and validation time: {:.4f}".format(time.time() - start_time), "red"))
 
-    def validate(self, testset):
+    def _validate(self, testset):
         assert isinstance(testset, NumpyDataset), "testset should be an instance of NumpyDataset"
 
         features = testset.features
@@ -184,15 +185,22 @@ class ActiveTreeParty:
         else:
             raise ValueError("No such task label.")
 
-        report = classification_report(labels, targets)
-        print("SBT report: \n", report)
-
+        scores = dict()
+        acc = accuracy_score(labels, targets)
+        scores["acc"] = acc
         if self.task == "binary":
             auc = roc_auc_score(labels, outputs)
-            print("auc_score: \n", auc)
+            scores["auc"] = auc
+            f1 = f1_score(labels, targets, average="weighted")
+            scores["f1"] = f1
 
         print("validate finished")
         self.messenger.send(wrap_message("validate finished", content=True))
+
+        return scores
+
+    def predict(self, testset):
+        return self._validate(testset)
 
 
 if __name__ == "__main__":
