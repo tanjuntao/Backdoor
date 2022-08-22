@@ -466,10 +466,29 @@ class NumpyDataset(BaseDataset):
 
         # Output the distribution for the data label.
         if self.role == Const.ACTIVE_NAME:
-            dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
-                                     columns=['label'])
-            # histplot
-            sns.histplot(dis_label, kde=False, linewidth=0)
+            n_classes = len(np.unique(self.labels))
+            if n_classes > 100: # regression dataset
+                dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
+                                         columns=['label'])
+                # histplot
+                sns.histplot(dis_label, kde=True, linewidth=1)
+            else: # classification dataset
+                bars = [str(i) for i in range(n_classes)]
+                counts = [(self.labels == i).astype(np.int32).sum() for i in range(n_classes)]
+                x = np.arange(len(bars))
+                width = 0.5 / n_classes
+
+                # barplot
+                rec = plt.bar(x, counts, width=width)
+                # show corresponding value of the bar on top of itself
+                for bar in rec:
+                    h = bar.get_height()
+                    plt.text(bar.get_x() + bar.get_width() / 2, h, h,
+                             ha='center',
+                             va='bottom',
+                             size=14)
+                plt.xticks(x, bars, fontsize=14)
+
             plt.show()
 
 
