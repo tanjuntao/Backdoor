@@ -6,6 +6,7 @@ pandas
 phe==1.5.0
 pycryptodome
 scikit-learn>=1.1.0
+scipy
 seaborn
 shap
 termcolor
