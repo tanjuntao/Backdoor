@@ -191,7 +191,7 @@ class ActiveLogReg(BaseLinearActive):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'credit'
+    dataset_name = 'cancer'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
