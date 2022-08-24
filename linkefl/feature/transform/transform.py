@@ -170,6 +170,40 @@ class OneHot(BaseTransform):
         return new_dataset
 
 
+class Bin(BaseTransform):
+    def __init__(self, bin_features=[], bin_methods=[], para=[]):
+        super(Bin, self).__init__()
+        self.bin_features = bin_features
+        self.bin_methods = bin_methods
+        self.para = para
+
+    def __call__(self, dataset):
+        if isinstance(dataset, np.ndarray):
+            for i in range(len(self.bin_features)):
+                if self.bin_methods[i] == 'ed':
+                    dataset[:, self.bin_features[i]] = \
+                        pd.cut(dataset[:, self.bin_features[i]], self.para[i], labels=False)
+                elif self.bin_methods[i] == 'ef':
+                    dataset[:, self.bin_features[i]] = \
+                        pd.qcut(dataset[:, self.bin_features[i]], self.para[i], labels=False)
+                else:
+                    raise TypeError('Method %d should be ed or ef' % i)
+        elif isinstance(dataset, torch.Tensor):
+            for i in range(len(self.bin_features)):
+                if self.bin_methods[i] == 'ed':
+                    dataset[:, self.bin_features[i]] = torch.from_numpy(
+                        pd.cut(dataset[:, self.bin_features[i]].numpy(), self.para[i], labels=False))
+                elif self.bin_methods[i] == 'ef':
+                    dataset[:, self.bin_features[i]] = torch.from_numpy(
+                        pd.qcut(dataset[:, self.bin_features[i]].numpy(), self.para[i], labels=False))
+                else:
+                    raise TypeError('Method %d should be ed or ef' % i)
+        else:
+            raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
+
+        return dataset
+
+
 class Compose(BaseTransform):
     def __init__(self, transforms):
         super(Compose, self).__init__()
