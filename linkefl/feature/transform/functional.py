@@ -185,3 +185,53 @@ def one_hot(dataset, index=[]):
     
     return dataset
 
+
+def bin(dataset, bin_features, bin_methods, para):
+    """Feature binning on the given feature column.
+
+        Parameters
+        ----------
+        dataset : NumpyDataset / TorchDataset
+            Original complete data set.
+
+        bin_features: list
+            The position of the column to be binned.
+
+        bin_methods: list
+            The method corresponds to the column to be binned. (ed for equal distance / ef for equal frequency)
+
+        para: list
+            The number of the bins for the column to be binned.
+
+        Returns
+        -------
+        dataset: NumpyDataset / TorchDataset
+
+        """
+    if isinstance(dataset, linkefl.dataio.NumpyDataset):
+        new_dataset = copy.deepcopy(dataset.get_dataset())
+        for i in range(len(bin_features)):
+            if bin_methods[i] == 'ed':
+                new_dataset[:, bin_features[i]] = pd.cut(new_dataset[:, bin_features[i]], para[i], labels=False)
+            elif bin_methods[i] == 'ef':
+                new_dataset[:, bin_features[i]] = pd.qcut(new_dataset[:, bin_features[i]], para[i], labels=False)
+            else:
+                raise TypeError('Method %d should be ed or ef' % i)
+    elif isinstance(dataset, linkefl.dataio.TorchDataset):
+        new_dataset = copy.deepcopy(dataset.get_dataset())
+        for i in range(len(bin_features)):
+            if bin_methods[i] == 'ed':
+                new_dataset[:, bin_features[i]] = torch.from_numpy(pd.cut(new_dataset[:, bin_features[i]].numpy(), para[i], labels=False))
+            elif bin_methods[i] == 'ef':
+                new_dataset[:, bin_features[i]] = torch.from_numpy(pd.qcut(new_dataset[:, bin_features[i]].numpy(), para[i], labels=False))
+            else:
+                raise TypeError('Method %d should be ed or ef' % i)
+    else:
+        raise TypeError('dataset should be an instance of'
+                        'NumpyDataset or TorchDataset')
+
+    dataset.set_dataset(new_dataset) # update status of dataset object
+
+    return dataset
+
+
