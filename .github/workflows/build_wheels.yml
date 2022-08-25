@@ -20,6 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip wheel setuptools
+          python3 -m pip install Cython==3.0.0a11
           bash build.sh
       - name: Save artifacts
         uses: actions/upload-artifact@v3
