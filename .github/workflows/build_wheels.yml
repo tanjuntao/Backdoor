@@ -1,6 +1,9 @@
 name: Build Binary Wheels
 
-on: [push, pull_request]
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
 
 jobs:
   build_wheels:
