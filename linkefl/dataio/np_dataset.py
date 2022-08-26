@@ -1,7 +1,9 @@
 import os
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pymysql
 from sklearn.datasets import (
     load_breast_cancer,
     load_digits,
@@ -9,10 +11,9 @@ from sklearn.datasets import (
     load_iris,
     load_wine,
 )
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from termcolor import colored
-import seaborn as sns
-import matplotlib.pyplot as plt
 
 from linkefl.common.const import Const
 from linkefl.dataio.base import BaseDataset
@@ -88,6 +89,55 @@ class NumpyDataset(BaseDataset):
                                                         seed=seed)
 
         return cls(role=role, transform=transform, existing_dataset=np_dataset)
+
+    @classmethod
+    def load_database(cls,
+                      role,
+                      host, 
+                      user, 
+                      port, 
+                      password, 
+                      database, 
+                      table, 
+                      ids=None):
+        if ids is not None and len(ids) == 0:
+            raise ValueError('ids shoule not be an empty list')
+
+        connection = pymysql.connect(host=host,
+                                 user=user,
+                                 port=port,
+                                 password=password,
+                                 database=database,
+                                 cursorclass=pymysql.cursors.DictCursor)
+
+        with connection:
+            with connection.cursor() as cursor:
+                count = 0
+
+                if ids is None:
+                    sql = "SELECT * FROM `{}` ".format(table)
+                    cursor.execute(sql, ())
+                    result = cursor.fetchall()
+                    final_dataframe = pd.DataFrame.from_dict(result)
+
+                else:
+                    for id in ids:
+                        sql = "SELECT * FROM `{}` WHERE `id`=%s".format(table)
+                        cursor.execute(sql, (id,))
+                        item = cursor.fetchone()
+
+                        if item == None:
+                            raise ValueError("Wrong input id:{}".format(id))
+
+                        if count == 0:
+                            final_dataframe = pd.DataFrame.from_dict([item])
+                            count += 1
+                        else:
+                            item_dataframe = pd.DataFrame.from_dict([item])
+                            final_dataframe = final_dataframe.append(item_dataframe)
+
+        return cls(role=role, existing_dataset=final_dataframe)
+
 
     @staticmethod
     def _load_csv_dataset(path, existing_dataset=None):
