@@ -28,7 +28,7 @@ class NumpyDataset(BaseDataset):
 
         # if existing_dataset is None:
         #     if abs_path is not None:
-        #         # self._np_dataset = np.genfromtxt(abs_path, delimiter=',')
+        #         # self._np_dataset = np.genfromtxt(abs_path, delimiter=',', encoding="utf-8")
         #         self._np_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
         #     else:
         #         raise Exception('abs_path should not be None')
@@ -144,8 +144,8 @@ class NumpyDataset(BaseDataset):
         if existing_dataset is None:
             if path is not None:
                 # TODO: support one-hot encoding here
-                # self._np_dataset = np.genfromtxt(abs_path, delimiter=',')
-                np_dataset = pd.read_csv(path, delimiter=',', header=None)
+                np_dataset = np.genfromtxt(path, delimiter=',', encoding="utf-8")
+                # np_dataset = pd.read_csv(path, delimiter=',', header=None)
             else:
                 raise Exception('CSV file path is not provided')
         else:
@@ -283,11 +283,11 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/epsilon_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path, '../data/tabular/epsilon_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -297,12 +297,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/census_income_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/census_income_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -312,12 +312,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/give_me_some_credit_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/give_me_some_credit_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -327,12 +327,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/default_credit_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/default_credit_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -342,12 +342,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/covertype_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/covertype_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -357,12 +357,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/higgs_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/higgs_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -372,12 +372,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/year_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/year_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -387,12 +387,12 @@ class NumpyDataset(BaseDataset):
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/nyc-taxi_train.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
                                  '../data/tabular/nyc-taxi_test.csv'), 
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
@@ -410,7 +410,6 @@ class NumpyDataset(BaseDataset):
         elif perm_option == Const.IMPORTANCE:
             rankings = cal_importance_ranking(name, _feats, _labels)
             permuted_feats = _feats[:, rankings]
-            pass
         else:
             raise ValueError('Invalid permutation option.')
 
@@ -433,7 +432,9 @@ class NumpyDataset(BaseDataset):
         # avoid re-computing on each function call
         if not hasattr(self, '_ids'):
             np_ids = self._np_dataset[:, 0].astype(np.int32)
-            setattr(self, '_ids', np_ids)
+            # data type of ids must be python build-in integer, not numpy integer
+            py_ids = [_id.item() for _id in np_ids]
+            setattr(self, '_ids', py_ids)
         return getattr(self, '_ids')
 
     @property
@@ -482,43 +483,63 @@ class NumpyDataset(BaseDataset):
 
         # Output of statistical values of the data set.
         pd.set_option('display.max_columns', None)
-        dataset = pd.DataFrame(self._np_dataset)
+        df = pd.DataFrame(self._np_dataset)
         if self.role == Const.ACTIVE_NAME:
-            dataset.rename(columns={0:'id', 1:'lable'}, inplace=True)
+            df.rename(columns={0:'id', 1:'lable'}, inplace=True)
             for i in range(self.n_features):
-                dataset.rename(columns={i+2: 'fea'+str(i+1)}, inplace=True)
+                df.rename(columns={i+2: 'x' + str(i+1)}, inplace=True)
         elif self.role == Const.PASSIVE_NAME:
-            dataset.rename(columns={0: 'id'}, inplace=True)
+            df.rename(columns={0: 'id'}, inplace=True)
             for i in range(self.n_features):
-                dataset.rename(columns={i+1: 'fea'+str(i+1)}, inplace=True)
-        data_cols = dataset.columns.values.tolist()
-        data_cols = dataset.columns.values.tolist()
+                df.rename(columns={i+1: 'x' + str(i+1)}, inplace=True)
 
         print(colored('The first 5 rows and the last 5 rows of the dataset are as follows:', 'red'))
-        print(pd.concat([dataset.head(), dataset.tail()]))
+        print(pd.concat([df.head(), df.tail()]))
         print()
 
-        print(colored(
-            'The information about the dataset including the index dtype and columns, non-null values and memory usage are as follows:',
-            'red'))
-        dataset.info()
+        print(colored('The information about the dataset including the index '
+                      'dtype and columns, non-null values and memory usage '
+                      'are as follows:', 'red'))
+        df.info()
         print()
 
-        print(colored(
-            'The descriptive statistics include those that summarize the central tendency, dispersion and shape of the dataset’s distribution, excluding NaN values are as follows:',
-            'red'))
-        num_unique_data = np.array(dataset[data_cols].nunique().values)
-        num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)), index=['unique'], columns=data_cols)
-        print(pd.concat([dataset.describe(), num_unique]))
+        print(colored('The descriptive statistics include those that summarize '
+                      'the central tendency, dispersion and shape of the dataset’s '
+                      'distribution, excluding NaN values are as follows:', 'red'))
+        col_names = df.columns.values.tolist()
+        num_unique_data = np.array(df[col_names].nunique().values)
+        num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)),
+                                  index=['unique'],
+                                  columns=col_names)
+        print(pd.concat([df.describe(), num_unique]))
         print()
 
         # Output the distribution for the data label.
         if self.role == Const.ACTIVE_NAME:
-            dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)), columns=['label'])
-            # 图中虚线是核密度曲线（类似于概率密度）
-            sns.histplot(dis_label, kde=True, linewidth=0)
-            plt.show()
+            n_classes = len(np.unique(self.labels))
+            if n_classes > 100: # regression dataset
+                dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
+                                         columns=['label'])
+                # histplot
+                sns.histplot(dis_label, kde=True, linewidth=1)
+            else: # classification dataset
+                bars = [str(i) for i in range(n_classes)]
+                counts = [(self.labels == i).astype(np.int32).sum() for i in range(n_classes)]
+                x = np.arange(len(bars))
+                width = 0.5 / n_classes
 
+                # barplot
+                rec = plt.bar(x, counts, width=width)
+                # show corresponding value of the bar on top of itself
+                for bar in rec:
+                    h = bar.get_height()
+                    plt.text(bar.get_x() + bar.get_width() / 2, h, h,
+                             ha='center',
+                             va='bottom',
+                             size=14)
+                plt.xticks(x, bars, fontsize=14)
+
+            plt.show()
 
 
     def filter(self, intersect_ids):
@@ -542,7 +563,7 @@ class NumpyDataset(BaseDataset):
             pass
 
         idxes = []
-        all_ids = self.ids
+        all_ids = np.array(self.ids)
         for _id in intersect_ids:
             idx = np.where(all_ids == _id)[0][0]
             idxes.append(idx)

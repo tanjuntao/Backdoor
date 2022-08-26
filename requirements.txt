@@ -1,3 +1,4 @@
+Cython==3.0.0a11
 gmpy2
 grpcio-tools
 matplotlib
@@ -7,6 +8,7 @@ phe==1.5.0
 pycryptodome
 pymysql
 scikit-learn>=1.1.0
+scipy
 seaborn
 shap
 termcolor

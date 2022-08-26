@@ -1,3 +1,4 @@
+import copy
 import functools
 import multiprocessing
 import os
@@ -154,6 +155,7 @@ class RSACrypto:
         return res
 
     def sign_set_thread(self, X, n_threads=-1):
+        X = copy.deepcopy(X) # remember to copy the original input data before signing
         if n_threads == -1:
             n_threads = os.cpu_count()
 
@@ -181,6 +183,7 @@ class RSACrypto:
         return X
 
     def encrypt_set_thread(self, X, n_threads=-1):
+        X = copy.deepcopy(X)
         if n_threads == -1:
             n_threads = os.cpu_count()
 
@@ -245,6 +248,7 @@ class PartialRSACrypto:
         X[start:end] = gmpy2.powmod_list(sub_list, e, n)
 
     def encrypt_set_thread(self, X, n_threads=-1):
+        X = copy.deepcopy(X)
         if n_threads == -1:
             n_threads = os.cpu_count()
 

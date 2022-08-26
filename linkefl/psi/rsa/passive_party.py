@@ -237,7 +237,7 @@ if __name__ == '__main__':
 
     # 3. Start the RSA-Blind-Signature protocol
     passive_party = RSAPSIPassive(_ids, _messenger)
-    passive_party.run()
+    intersections = passive_party.run()
 
     # 4. Close messenger
     _messenger.close()

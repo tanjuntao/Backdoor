@@ -1,0 +1,32 @@
+name: Build Binary Wheels
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }} with python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip wheel setuptools
+          python3 -m pip install Cython==3.0.0a11
+          bash build.sh
+      - name: Save artifacts
+        uses: actions/upload-artifact@v2.2.4
+        with:
+          name: linkefl_wheels
+          path: ./dist

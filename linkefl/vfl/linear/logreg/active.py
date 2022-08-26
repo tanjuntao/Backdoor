@@ -225,7 +225,6 @@ if __name__ == '__main__':
     active_trainset = add_intercept(scale(parse_label(active_trainset)))
     active_testset = add_intercept(scale(parse_label(active_testset)))
     print('Done.')
-
     # Option 2: PyTorch style
     # print('Loading dataset...')
     # transform = Compose([ParseLabel(), Scale(), AddIntercept()])
