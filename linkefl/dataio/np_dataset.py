@@ -91,52 +91,54 @@ class NumpyDataset(BaseDataset):
         return cls(role=role, transform=transform, existing_dataset=np_dataset)
 
     @classmethod
-    def load_database(cls,
-                      role,
-                      host, 
-                      user, 
-                      port, 
-                      password, 
-                      database, 
-                      table, 
-                      ids=None):
-        if ids is not None and len(ids) == 0:
-            raise ValueError('ids shoule not be an empty list')
-
+    def database_dataset(cls,
+                         role,
+                         host,
+                         user,
+                         password,
+                         database,
+                         table,
+                         port=3306):
+        """Load dataset from MySQL database."""
         connection = pymysql.connect(host=host,
-                                 user=user,
-                                 port=port,
-                                 password=password,
-                                 database=database,
-                                 cursorclass=pymysql.cursors.DictCursor)
+                                     user=user,
+                                     port=port,
+                                     password=password,
+                                     database=database,
+                                     cursorclass=pymysql.cursors.DictCursor)
 
         with connection:
             with connection.cursor() as cursor:
-                count = 0
+                cursor.execute("select * from {}".format(table))
+                results = cursor.fetchall()
+                df_dataset = pd.DataFrame.from_dict(results)
 
-                if ids is None:
-                    sql = "SELECT * FROM `{}` ".format(table)
-                    cursor.execute(sql, ())
-                    result = cursor.fetchall()
-                    final_dataframe = pd.DataFrame.from_dict(result)
+        return cls(role=role, existing_dataset=df_dataset)
 
-                else:
-                    for id in ids:
-                        sql = "SELECT * FROM `{}` WHERE `id`=%s".format(table)
-                        cursor.execute(sql, (id,))
-                        item = cursor.fetchone()
-
-                        if item == None:
-                            raise ValueError("Wrong input id:{}".format(id))
-
-                        if count == 0:
-                            final_dataframe = pd.DataFrame.from_dict([item])
-                            count += 1
-                        else:
-                            item_dataframe = pd.DataFrame.from_dict([item])
-                            final_dataframe = final_dataframe.append(item_dataframe)
-
-        return cls(role=role, existing_dataset=final_dataframe)
+        #         count = 0
+        #         if ids is None:
+        #             sql = "SELECT * FROM `{}` ".format(table)
+        #             cursor.execute(sql, ())
+        #             result = cursor.fetchall()
+        #             final_dataframe = pd.DataFrame.from_dict(result)
+        #
+        #         else:
+        #             for id in ids:
+        #                 sql = "SELECT * FROM `{}` WHERE `id`=%s".format(table)
+        #                 cursor.execute(sql, (id,))
+        #                 item = cursor.fetchone()
+        #
+        #                 if item == None:
+        #                     raise ValueError("Wrong input id:{}".format(id))
+        #
+        #                 if count == 0:
+        #                     final_dataframe = pd.DataFrame.from_dict([item])
+        #                     count += 1
+        #                 else:
+        #                     item_dataframe = pd.DataFrame.from_dict([item])
+        #                     final_dataframe = final_dataframe.append(item_dataframe)
+        #
+        # return cls(role=role, existing_dataset=final_dataframe)
 
 
     @staticmethod
