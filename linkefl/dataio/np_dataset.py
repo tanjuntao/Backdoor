@@ -61,6 +61,37 @@ class NumpyDataset(BaseDataset):
 
         return trainset, testset
 
+
+    @classmethod
+    def feature_split(cls, whole_dataset, n_splits, option=Const.SEQUENCE, seed=1314):
+        if option == Const.SEQUENCE:
+            perm = np.arange(whole_dataset.n_features)
+        elif option == Const.RANDOM:
+            np.random.seed(seed)
+            perm = np.random.permutation(whole_dataset.n_features)
+        else:
+            raise ValueError('in feature_split method, the option of feature '
+                             'permutation can only take from SEQUENCE AND RANDOM.')
+
+        permed_features = whole_dataset.features[:, perm]
+        ids = np.array(whole_dataset.ids)
+        step = whole_dataset.n_features // n_splits
+
+        splitted_datasets = []
+        for i in range(n_splits):
+            begin_idx = i * step
+            if i != n_splits - 1:
+                end_idx = (i + 1) * step
+            else:
+                end_idx = whole_dataset.n_features
+            splitted_feats = permed_features[:, begin_idx:end_idx]
+            np_dataset = np.concatenate((ids[:, np.newaxis], splitted_feats), axis=1)
+            curr_dataset = cls(role=whole_dataset.role, existing_dataset=np_dataset)
+            splitted_datasets.append(curr_dataset)
+
+        return splitted_datasets
+
+
     @classmethod
     def buildin_dataset(cls,
                         role,
