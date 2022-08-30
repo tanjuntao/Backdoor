@@ -31,7 +31,7 @@ class DecisionTree:
         n_labels: int,
         crypto_type: str,
         crypto_system: CryptoSystem,
-        messenger: Messenger,
+        messengers: list[Messenger],
         *,
         compress: bool = False,
         max_depth: int = 4,
@@ -61,7 +61,7 @@ class DecisionTree:
         self.n_labels = n_labels
         self.crypto_type = crypto_type
         self.crypto_system = crypto_system
-        self.messenger = messenger
+        self.messengers = messengers
 
         self.compress = compress
         self.max_depth = max_depth
@@ -128,7 +128,8 @@ class DecisionTree:
             raise ValueError("No such task label.")
 
         print("gh packed")
-        self.messenger.send(wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length)))
+        for messenger in self.messengers:
+            messenger.send(wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length)))
 
         # start building tree
         self.root = self._build_tree(sample_tag, current_depth=0)
@@ -162,10 +163,10 @@ class DecisionTree:
 
                 else:
                     # ask corresponding passive party to split
-                    self.messenger.send(
-                        wrap_message("record", content=(party_id, feature_id, split_id, sample_tag))
+                    self.messengers[party_id - 1].send(
+                        wrap_message("record", content=(feature_id, split_id, sample_tag))
                     )
-                    data = self.messenger.recv()
+                    data = self.messengers[party_id - 1].recv()
                     assert data["name"] == "record"
 
                     record_id, sample_tag_left = data["content"]
@@ -232,8 +233,8 @@ class DecisionTree:
             branch_tag = True if x_sample[feature_id] > threshold else False  # avoid numpy bool
         else:
             # ask corresponding passive party to judge
-            self.messenger.send(wrap_message("judge", content=(tree_node.party_id, sample_id, tree_node.record_id)))
-            data = self.messenger.recv()
+            self.messengers[tree_node.party_id - 1].send(wrap_message("judge", content=(sample_id, tree_node.record_id)))
+            data = self.messengers[tree_node.party_id - 1].recv()
             assert data["name"] == "judge"
 
             branch_tag = data["content"]
@@ -246,24 +247,26 @@ class DecisionTree:
 
     def _get_hist_list(self, sample_tag):
         # 1. inform passive party to compute hist based on sample_tag
-        self.messenger.send(wrap_message("hist", content=sample_tag))
+        for messenger in self.messengers:
+            messenger.send(wrap_message("hist", content=sample_tag))
 
         # 2. active party computes hist
         active_hist = ActiveHist.compute_hist(
             task=self.task, n_labels=self.n_labels, sample_tag=sample_tag, bin_index=self.bin_index, gh=self.gh
         )
+        hist_list = [active_hist]
 
         # 3. get passive party hist
-        passive_hist = self._get_passive_hist()
+        for messenger in self.messengers:
+            data = messenger.recv()
+            assert data["name"] == "hist"
 
-        hist_list = [active_hist, passive_hist]
+            passive_hist = self._get_passive_hist(data)
+            hist_list.append(passive_hist)
 
         return hist_list
 
-    def _get_passive_hist(self):
-        data = self.messenger.recv()
-        assert data["name"] == "hist"
-
+    def _get_passive_hist(self, data):
         if self.task == "multi":
             if self.crypto_type == Const.PAILLIER:
                 bin_gh_compress_multi = data["content"]
