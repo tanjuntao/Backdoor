@@ -1,3 +1,5 @@
+import queue
+import threading
 from multiprocessing import Pool
 
 import numpy as np
@@ -147,13 +149,15 @@ class DecisionTree:
 
         return np.array(y_pred)
 
-    def _build_tree(self, sample_tag, current_depth, hist_list=None):
+    def _build_tree(self, sample_tag, current_depth, *, hist_list=None, party_id=None, feature_id=None, split_id=None, max_gain=None):
         # split only when conditions meet
         if current_depth < self.max_depth - 1 and sample_tag.sum() >= self.min_split_samples:
             if hist_list is None:
-                hist_list = self._get_hist_list(sample_tag)
-
-            party_id, feature_id, split_id, max_gain = find_split(hist_list, self.task, self.reg_lambda)
+                # happens in root
+                hist_list, party_id, feature_id, split_id, max_gain = self._get_hist_list(sample_tag)
+            if party_id is None:
+                # happens in sub hist
+                party_id, feature_id, split_id, max_gain = find_split(hist_list, self.task, self.reg_lambda)
 
             if max_gain > self.min_split_gain:
                 if party_id == 0:
@@ -175,14 +179,15 @@ class DecisionTree:
 
                 # choose the easy part to directly compute hist, other part can be computed by a simple subtract
                 if sample_tag_left.sum() <= sample_tag_right.sum():
-                    hist_list_left = self._get_hist_list(sample_tag_left)
+                    hist_list_left, party_id_left, feature_id_left, split_id_left, max_gain_left = self._get_hist_list(sample_tag_left)
                     hist_list_right = [current - left for current, left in zip(hist_list, hist_list_left)]
+                    left_node = self._build_tree(sample_tag_left, current_depth + 1, hist_list=hist_list_left, party_id=party_id_left, feature_id=feature_id_left, split_id=split_id_left, max_gain=max_gain_left)
+                    right_node = self._build_tree(sample_tag_right, current_depth + 1, hist_list=hist_list_right)
                 else:
-                    hist_list_right = self._get_hist_list(sample_tag_right)
+                    hist_list_right, party_id_right, feature_id_right, split_id_right, max_gain_right = self._get_hist_list(sample_tag_right)
                     hist_list_left = [current - right for current, right in zip(hist_list, hist_list_right)]
-
-                left_node = self._build_tree(sample_tag_left, current_depth + 1, hist_list_left)
-                right_node = self._build_tree(sample_tag_right, current_depth + 1, hist_list_right)
+                    left_node = self._build_tree(sample_tag_left, current_depth + 1, hist_list=hist_list_left)
+                    right_node = self._build_tree(sample_tag_right, current_depth + 1, hist_list=hist_list_right, party_id=party_id_right, feature_id=feature_id_right, split_id=split_id_right, max_gain=max_gain_right)
 
                 return _DecisionNode(
                     party_id=party_id, record_id=record_id, left_branch=left_node, right_branch=right_node
@@ -245,26 +250,45 @@ class DecisionTree:
         else:
             return self._predict_value(x_sample, sample_id, tree_node.left_branch)
 
+    def _process_passive_hist(self, messenger, i, q: queue.Queue):
+        data = messenger.recv()
+        assert data["name"] == "hist"
+
+        passive_hist = self._get_passive_hist(data)
+        _, feature_id, split_id, max_gain = find_split([passive_hist], self.task, self.reg_lambda)
+        q.put((i, passive_hist, feature_id, split_id, max_gain))
+
     def _get_hist_list(self, sample_tag):
+        q = queue.Queue()
+
         # 1. inform passive party to compute hist based on sample_tag
         for messenger in self.messengers:
             messenger.send(wrap_message("hist", content=sample_tag))
 
-        # 2. active party computes hist
+        # 2. get passive party hist
+        thread_list = []
+        for i, messenger in enumerate(self.messengers, 1):
+            t = threading.Thread(target=self._process_passive_hist, args=(messenger, i, q))
+            t.start()
+            thread_list.append(t)
+
+        # 3. active party computes hist
         active_hist = ActiveHist.compute_hist(
             task=self.task, n_labels=self.n_labels, sample_tag=sample_tag, bin_index=self.bin_index, gh=self.gh
         )
-        hist_list = [active_hist]
+        _, feature_id, split_id, max_gain = find_split([active_hist], self.task, self.reg_lambda)
+        q.put((0, active_hist, feature_id, split_id, max_gain))
 
-        # 3. get passive party hist
-        for messenger in self.messengers:
-            data = messenger.recv()
-            assert data["name"] == "hist"
+        # 4. get the best gain
+        best = [None] * 4
+        hist_list = [None] * (1 + len(self.messengers))
+        for i in range(1 + len(self.messengers)):
+            party_id, hist, feature_id, split_id, max_gain = q.get()
+            hist_list[party_id] = hist
+            if best[3] is None or best[3] < max_gain:
+                best = [party_id, feature_id, split_id, max_gain]
 
-            passive_hist = self._get_passive_hist(data)
-            hist_list.append(passive_hist)
-
-        return hist_list
+        return hist_list, best[0], best[1], best[2], best[3]
 
     def _get_passive_hist(self, data):
         if self.task == "multi":
