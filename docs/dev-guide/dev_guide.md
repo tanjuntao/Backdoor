@@ -63,9 +63,9 @@ A pull request is often used when you want to merge code from one branch into th
 The following two figures demonstrate the workflow of git and GitHub. 
 
 <p align="center">
-  <img alt="Light" src="git-flow.png" width="48%">
+  <img alt="Light" src="../imgs/git-flow.png" width="48%">
 &nbsp;
-  <img alt="Dark" src="github-flow.png" width="48%">
+  <img alt="Dark" src="../imgs/github-flow.png" width="48%">
 </p>
 
 
