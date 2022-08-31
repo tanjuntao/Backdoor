@@ -46,12 +46,12 @@ if __name__ == '__main__':
     y_test = active_testset.labels
 
     # initialize model
-    # regr = LinearRegression()
-    regr = RandomForestRegressor(max_features='1.0', 
-                                 criterion='absolute_error',
-                                 oob_score=True, 
-                                 random_state=99, 
-                                 n_jobs=-1)
+    regr = LinearRegression()
+    # regr = RandomForestRegressor(max_features='1.0', 
+    #                              criterion='absolute_error',
+    #                              oob_score=True, 
+    #                              random_state=99, 
+    #                              n_jobs=-1)
 
     # pipe = make_pipeline(StandardScaler(), regr)
 
