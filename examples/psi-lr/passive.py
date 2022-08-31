@@ -56,7 +56,8 @@ if __name__ == '__main__':
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
-                                using_pool=False)
+                                using_pool=False,
+                                saving_model=False)
     passive_vfl.train(passive_trainset, passive_testset)
     print(colored('4. Finish collaborative model training', 'red'))
 
