@@ -68,3 +68,11 @@ if __name__ == '__main__':
     # 6. Finish the whole pipeline
     messenger.close()
     print(colored('All Done.', 'red'))
+
+    # For online inference, you just need to substitute the model_name
+    # scores = PassiveLogReg.online_inference(
+    #     passive_testset,
+    #     model_name='20220831_185109-passive_party-vertical_logreg-455_samples.model',
+    #     messenger=messenger
+    # )
+    # print(scores)
