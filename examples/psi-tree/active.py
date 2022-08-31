@@ -70,7 +70,7 @@ if __name__ == "__main__":
         n_labels=_n_labels,
         crypto_type=_crypto_type,
         crypto_system=vfl_crypto,
-        messenger=messenger,
+        messengers=[messenger],
         learning_rate=_learning_rate,
         compress=_compress,
         max_bin=_max_bin,
