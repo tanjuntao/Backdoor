@@ -1,3 +1,4 @@
+import copy
 import time
 
 import numpy as np
@@ -8,6 +9,7 @@ from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import add_intercept, AddIntercept
+from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.linear import BaseLinearActive
 
 
@@ -26,7 +28,9 @@ class ActiveLinReg(BaseLinearActive):
                  random_state=None,
                  using_pool=False,
                  num_workers=-1,
-                 val_freq=1
+                 val_freq=1,
+                 saving_model=False,
+                 model_path='./models',
     ):
         super(ActiveLinReg, self).__init__(
             epochs=epochs,
@@ -41,7 +45,10 @@ class ActiveLinReg(BaseLinearActive):
             random_state=random_state,
             using_pool=using_pool,
             num_workers=num_workers,
-            val_freq=val_freq
+            val_freq=val_freq,
+            saving_model=saving_model,
+            model_path=model_path,
+            task='regression'
         )
 
     def _loss(self, y_true, y_hat):
@@ -138,6 +145,11 @@ class ActiveLinReg(BaseLinearActive):
                 if is_best:
                     # save_params(self.params, role='bob')
                     print(colored('Best model updates.', 'red'))
+                    if self.saving_model:
+                        model_params = copy.deepcopy(getattr(self, 'params'))
+                        model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                        NumpyModelIO.save(model_params, self.model_path, model_name)
+
                 self.messenger.send(is_best)
 
         print(colored('Best validation loss: {:.5f}'.format(best_loss), 'red'))
@@ -152,12 +164,35 @@ class ActiveLinReg(BaseLinearActive):
         passive_wx = self.messenger.recv()
         y_pred = active_wx + passive_wx
         loss = ((valset.labels - y_pred) ** 2).mean()
-        score = r2_score(valset.labels, y_pred)
+        r2 = r2_score(valset.labels, y_pred)
 
-        return loss, score
+        return {
+            "loss": loss,
+            "r2": r2
+        }
 
     def predict(self, testset):
         return self.validate(testset)
+
+    @staticmethod
+    def online_inference(dataset, model_name, messenger, model_path='./models'):
+        assert isinstance(dataset,
+                          NumpyDataset), 'inference dataset should be an ' \
+                                         'instance of NumpyDataset'
+        model_params = NumpyModelIO.load(model_path, model_name)
+        active_wx = np.matmul(dataset.features, model_params)
+        passive_wx = messenger.recv()
+        y_pred = active_wx + passive_wx
+        loss = ((dataset.labels - y_pred) ** 2).mean()
+        r2 = r2_score(dataset.labels, y_pred)
+        scores = {
+            "loss": loss,
+            "r2": r2
+        }
+        messenger.send(scores)
+
+        return scores
+
 
 
 if __name__ == '__main__':
@@ -237,9 +272,18 @@ if __name__ == '__main__':
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
-                                val_freq=_val_freq)
+                                val_freq=_val_freq,
+                                saving_model=False)
 
     active_party.train(active_trainset, active_testset)
 
     # 6. Close messenger, finish training.
     _messenger.close()
+
+    # # For online inference, you only need to substitue the model name
+    # scores = ActiveLinReg.online_inference(
+    #     active_testset,
+    #     model_name='20220831_190241-active_party-vertical_linreg-402_samples.model',
+    #     messenger=_messenger
+    # )
+    # print(scores)

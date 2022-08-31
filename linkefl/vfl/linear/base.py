@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+import copy
+import datetime
 import multiprocessing
 import os
 from queue import Queue
@@ -18,6 +20,7 @@ from linkefl.common.factory import (
 )
 from linkefl.config import BaseConfig
 from linkefl.dataio import NumpyDataset
+from linkefl.modelio import NumpyModelIO
 from linkefl.util import save_params
 
 
@@ -80,7 +83,10 @@ class BaseLinearPassive(BaseLinear):
                  random_state=None,
                  using_pool=False,
                  num_workers=-1,
-                 val_freq=1
+                 val_freq=1,
+                 saving_model=False,
+                 model_path='./models',
+                 task='classification',
     ):
         super(BaseLinearPassive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -101,7 +107,14 @@ class BaseLinearPassive(BaseLinear):
         else:
             self.pool = None
         self.val_freq = val_freq
-
+        self.saving_model = saving_model
+        self.model_path = model_path
+        model_type = Const.VERTICAL_LOGREG if task=='classification' else Const.VERTICAL_LINREG
+        self.model_name = "{time}-{role}-{model_type}".format(
+            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            role=Const.PASSIVE_NAME,
+            model_type=model_type
+        )
     @classmethod
     def from_config(cls, config):
         assert isinstance(config, BaseConfig), 'config object should be an ' \
@@ -325,6 +338,11 @@ class BaseLinearPassive(BaseLinear):
                 if is_best:
                     # save_params(self.params, role=Const.PASSIVE_NAME)
                     print(colored('Best model updates.', 'red'))
+                    if self.saving_model:
+                        # the use of deepcopy here is to avoid saving other self attrbiutes
+                        model_params = copy.deepcopy(getattr(self, 'params'))
+                        model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                        NumpyModelIO.save(model_params, self.model_path, model_name)
 
         # after training release the multiprocessing pool
         if self.pool is not None:
@@ -345,6 +363,16 @@ class BaseLinearPassive(BaseLinear):
     def predict(self, testset):
         self.validate(testset)
 
+    @staticmethod
+    def online_inference(dataset, model_name, messenger, model_path='./models'):
+        assert isinstance(dataset, NumpyDataset), 'inference dataset should be an' \
+                                                  'instance of NumpyDataset'
+        model_params = NumpyModelIO.load(model_path, model_name)
+        wx = np.matmul(dataset.features, model_params)
+        messenger.send(wx)
+        scores = messenger.recv()
+        return scores
+
 
 class BaseLinearActive(BaseLinear):
     def __init__(self,
@@ -361,7 +389,10 @@ class BaseLinearActive(BaseLinear):
                  random_state=None,
                  using_pool=False,
                  num_workers=-1,
-                 val_freq=1
+                 val_freq=1,
+                 saving_model=False,
+                 model_path='./models',
+                 task='classification',
     ):
         super(BaseLinearActive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -378,6 +409,14 @@ class BaseLinearActive(BaseLinear):
         self.using_pool = using_pool
         self.num_workers = num_workers
         self.val_freq = val_freq
+        self.saving_model = saving_model
+        self.model_path = model_path
+        model_type = Const.VERTICAL_LOGREG if task == 'classification' else Const.VERTICAL_LINREG
+        self.model_name = "{time}-{role}-{model_type}".format(
+            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            role=Const.ACTIVE_NAME,
+            model_type=model_type
+        )
 
     @classmethod
     def from_config(cls, config):

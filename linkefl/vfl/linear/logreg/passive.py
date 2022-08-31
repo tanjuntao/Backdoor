@@ -19,7 +19,9 @@ class PassiveLogReg(BaseLinearPassive):
                  random_state=None,
                  using_pool=False,
                  num_workers=-1,
-                 val_freq=1
+                 val_freq=1,
+                 saving_model=False,
+                 model_path='./models',
     ):
         super(PassiveLogReg, self).__init__(
             epochs=epochs,
@@ -33,7 +35,10 @@ class PassiveLogReg(BaseLinearPassive):
             random_state=random_state,
             using_pool=using_pool,
             num_workers=num_workers,
-            val_freq=val_freq
+            val_freq=val_freq,
+            saving_model=saving_model,
+            model_path=model_path,
+            task='classification'
         )
 
 
@@ -114,9 +119,18 @@ if __name__ == '__main__':
                                   penalty=_penalty,
                                   reg_lambda=_reg_lambda,
                                   random_state=_random_state,
-                                  using_pool=False)
+                                  using_pool=False,
+                                  saving_model=False)
 
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training
     _messenger.close()
+
+    # For online inference, you just need to substitute the model_name
+    # scores = PassiveLogReg.online_inference(
+    #     passive_testset,
+    #     model_name='20220831_185109-passive_party-vertical_logreg-455_samples.model',
+    #     messenger=_messenger
+    # )
+    # print(scores)

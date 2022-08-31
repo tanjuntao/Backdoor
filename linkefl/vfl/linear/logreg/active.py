@@ -1,3 +1,4 @@
+import copy
 import time
 
 import numpy as np
@@ -9,6 +10,7 @@ from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import add_intercept, scale, parse_label
 from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
+from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid, save_params
 from linkefl.vfl.linear import BaseLinearActive
 
@@ -29,6 +31,8 @@ class ActiveLogReg(BaseLinearActive):
                  using_pool=False,
                  num_workers=-1,
                  val_freq=1,
+                 saving_model=False,
+                 model_path='./models',
                  positive_thresh=0.5
     ):
         super(ActiveLogReg, self).__init__(
@@ -44,11 +48,15 @@ class ActiveLogReg(BaseLinearActive):
             random_state=random_state,
             using_pool=using_pool,
             num_workers=num_workers,
-            val_freq=val_freq
+            val_freq=val_freq,
+            saving_model=saving_model,
+            model_path=model_path,
+            task='classification'
         )
         self.POSITIVE_THRESH = positive_thresh
 
-    def _logloss(self, y_true, y_hat):
+    @staticmethod
+    def _logloss(y_true, y_hat):
         origin_size = len(y_true)
         if len(np.unique(y_true)) == 1:
             if y_true[0] == 0:
@@ -62,7 +70,7 @@ class ActiveLogReg(BaseLinearActive):
 
     def _loss(self, y_true, y_hat):
         # Logistic regression uses log-loss as loss function
-        train_loss = self._logloss(y_true, y_hat)
+        train_loss = ActiveLogReg._logloss(y_true, y_hat)
 
         params = getattr(self, 'params')
         if self.penalty == Const.NONE:
@@ -159,6 +167,10 @@ class ActiveLogReg(BaseLinearActive):
                 if is_best:
                     # save_params(self.params, role='bob')
                     print(colored('Best model updates.', 'red'))
+                    if self.saving_model:
+                        model_params = copy.deepcopy(getattr(self, 'params'))
+                        model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                        NumpyModelIO.save(model_params, self.model_path, model_name)
                 self.messenger.send(is_best)
 
         print(colored('Best history acc: {:.5f}'.format(best_acc), 'red'))
@@ -187,6 +199,28 @@ class ActiveLogReg(BaseLinearActive):
 
     def predict(self, testset):
         return self.validate(testset)
+
+    @staticmethod
+    def online_inference(dataset, model_name, messenger,
+                         model_path='./models', POSITIVE_THRESH=0.5):
+        assert isinstance(dataset, NumpyDataset), 'inference dataset should be an ' \
+                                                  'instance of NumpyDataset'
+        model_params = NumpyModelIO.load(model_path, model_name)
+        active_wx = np.matmul(dataset.features, model_params)
+        passive_wx = messenger.recv()
+        probs = sigmoid(active_wx + passive_wx)
+        preds = (probs > POSITIVE_THRESH).astype(np.int32)
+        accuracy = accuracy_score(dataset.labels, preds)
+        f1 = f1_score(dataset.labels, preds)
+        auc = roc_auc_score(dataset.labels, probs)
+
+        scores = {
+            "acc": accuracy,
+            "auc": auc,
+            "f1": f1
+        }
+        messenger.send(scores)
+        return scores
 
 
 if __name__ == '__main__':
@@ -266,12 +300,22 @@ if __name__ == '__main__':
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
-                                using_pool=False)
+                                using_pool=False,
+                                saving_model=False)
 
     active_party.train(active_trainset, active_testset)
 
     # 6. Close messenger, finish training.
     _messenger.close()
+
+    # For online inference, you just need to substitute the model_name
+    # scores = ActiveLogReg.online_inference(
+    #     active_testset,
+    #     model_name='20220831_185054-active_party-vertical_logreg-455_samples.model',
+    #     messenger=_messenger
+    # )
+    #
+    # print(scores)
 
 
 
