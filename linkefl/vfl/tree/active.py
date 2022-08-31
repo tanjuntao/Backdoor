@@ -27,7 +27,7 @@ class ActiveTreeParty:
         n_labels: int,
         crypto_type: str,
         crypto_system: CryptoSystem,
-        messenger: Messenger,
+        messengers: list[Messenger],
         *,
         learning_rate: float = 0.3,
         compress: bool = False,
@@ -61,7 +61,7 @@ class ActiveTreeParty:
 
         self.task = task
         self.n_labels = n_labels
-        self.messenger = messenger
+        self.messengers = messengers
 
         self.learning_rate = learning_rate
         self.max_bin = max_bin
@@ -85,7 +85,7 @@ class ActiveTreeParty:
                 n_labels=n_labels,
                 crypto_type=crypto_type,
                 crypto_system=crypto_system,
-                messenger=messenger,
+                messengers=messengers,
                 compress=compress,
                 max_depth=max_depth,
                 reg_lambda=reg_lambda,
@@ -155,7 +155,8 @@ class ActiveTreeParty:
                 outputs = softmax(raw_outputs, axis=1)
 
         print("train finished")
-        self.messenger.send(wrap_message("train finished", content=True))
+        for messenger in self.messengers:
+            messenger.send(wrap_message("train finished", content=True))
 
         if self.pool is not None:
             self.pool.close()
@@ -195,7 +196,8 @@ class ActiveTreeParty:
             scores["f1"] = f1
 
         print("validate finished")
-        self.messenger.send(wrap_message("validate finished", content=True))
+        for messenger in self.messengers:
+            messenger.send(wrap_message("validate finished", content=True))
 
         return scores
 
@@ -205,22 +207,22 @@ class ActiveTreeParty:
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "wine"
+    dataset_name = "credit"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
     n_trees = 5
-    task = "multi"
-    n_labels = 3
+    task = "binary"
+    n_labels = 2
     _crypto_type = Const.PAILLIER
     _key_size = 1024
 
     compress = True
 
-    active_ip = "localhost"
-    active_port = 20000
-    passive_ip = "localhost"
-    passive_port = 30000
+    active_ips = ["localhost", "localhost"]
+    active_ports = [20001, 20002]
+    passive_ips = ["localhost", "localhost"]
+    passive_ports = [30001, 30002]
 
     # 1. Load datasets
     print("Loading dataset...")
@@ -251,14 +253,14 @@ if __name__ == "__main__":
     )
 
     # 3. Initialize messenger
-    messenger = messenger_factory(
+    messengers = [messenger_factory(
         messenger_type=Const.FAST_SOCKET,
         role=Const.ACTIVE_NAME,
         active_ip=active_ip,
         active_port=active_port,
         passive_ip=passive_ip,
         passive_port=passive_port,
-    )
+    ) for active_ip, active_port, passive_ip, passive_port in zip(active_ips, active_ports, passive_ips, passive_ports)]
 
     # 4. Initialize active tree party and start training
     active_party = ActiveTreeParty(
@@ -267,10 +269,11 @@ if __name__ == "__main__":
         n_labels=n_labels,
         crypto_type=_crypto_type,
         crypto_system=crypto_system,
-        messenger=messenger,
+        messengers=messengers,
         compress=compress,
     )
     active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training
-    messenger.close()
+    for messenger in messengers:
+        messenger.close()
