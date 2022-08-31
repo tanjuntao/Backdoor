@@ -59,7 +59,7 @@ class PassiveTreeParty:
                 self.gh_recv, self.compress, self.capacity, self.padding = data["content"]
                 print("\nstart a new tree")
             elif data["name"] == "record":
-                _, feature_id, split_id, sample_tag = data["content"]
+                feature_id, split_id, sample_tag = data["content"]
                 record_id, sample_tag_left = self._save_record(feature_id, split_id, sample_tag)
                 print(f"threshold saved in record_id: {record_id}")
                 self.messenger.send(wrap_message("record", content=(record_id, sample_tag_left)))
@@ -109,7 +109,7 @@ class PassiveTreeParty:
                 print("validate finished")
                 break
             elif data["name"] == "judge":
-                _, sample_id, record_id = data["content"]
+                sample_id, record_id = data["content"]
                 result = self._judge(features[sample_id], record_id)
                 self.messenger.send(wrap_message("judge", content=result))
             else:
@@ -124,53 +124,3 @@ class PassiveTreeParty:
 
     def predict(self, testset):
         self._validate(testset)
-
-
-if __name__ == "__main__":
-    # 0. Set parameters
-    dataset_name = "wine"
-    passive_feat_frac = 0.5
-    feat_perm_option = Const.SEQUENCE
-
-    task = "multi"
-    _crypto_type = Const.PAILLIER
-
-    active_ip = "localhost"
-    active_port = 20000
-    passive_ip = "localhost"
-    passive_port = 30000
-
-    # 1. Load datasets
-    print("Loading dataset...")
-    passive_trainset = NumpyDataset.buildin_dataset(
-        role=Const.PASSIVE_NAME,
-        dataset_name=dataset_name,
-        train=True,
-        passive_feat_frac=passive_feat_frac,
-        feat_perm_option=feat_perm_option,
-    )
-    passive_testset = NumpyDataset.buildin_dataset(
-        role=Const.PASSIVE_NAME,
-        dataset_name=dataset_name,
-        train=False,
-        passive_feat_frac=passive_feat_frac,
-        feat_perm_option=feat_perm_option,
-    )
-    print("Done")
-
-    # 2. Initialize messenger
-    messenger = messenger_factory(
-        messenger_type=Const.FAST_SOCKET,
-        role=Const.PASSIVE_NAME,
-        active_ip=active_ip,
-        active_port=active_port,
-        passive_ip=passive_ip,
-        passive_port=passive_port,
-    )
-
-    # 3. Initialize passive tree party and start training
-    passive_party = PassiveTreeParty(task=task, crypto_type=_crypto_type, messenger=messenger)
-    passive_party.train(passive_trainset, passive_testset)
-
-    # 4. Close messenger, finish training
-    messenger.close()
