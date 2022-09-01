@@ -51,14 +51,19 @@ class TorchModelIO:
         if 'epoch' in checkpoint and 'optimizer' in checkpoint:
             epoch = checkpoint['epoch']
             if type(checkpoint['model']) == list:
-                for sub_model, sub_model_arch, sub_optim, sub_optim_arch in zip(
-                    checkpoint['model'], model_arch, checkpoint['optimizer'], optimizer_arch
-                ):
-                    sub_model_arch.load_state_dict(sub_model)
-                    sub_optim_arch.load_state_dict(sub_optim)
+                if optimizer_arch is None:
+                    for sub_model, sub_model_arch in zip(checkpoint['model'], model_arch):
+                        sub_model_arch.load_state_dict(sub_model)
+                else:
+                    for sub_model, sub_model_arch, sub_optim, sub_optim_arch in zip(
+                        checkpoint['model'], model_arch, checkpoint['optimizer'], optimizer_arch
+                    ):
+                        sub_model_arch.load_state_dict(sub_model)
+                        sub_optim_arch.load_state_dict(sub_optim)
             else:
                 model_arch.load_state_dict(checkpoint['model'])
-                optimizer_arch.load_state_dict(checkpoint['optimizer'])
+                if optimizer_arch is not None:
+                    optimizer_arch.load_state_dict(checkpoint['optimizer'])
         else:
             epoch = None
             if type(checkpoint['model']) == list:
