@@ -4,6 +4,7 @@
 *.gz
 *-ubyte
 *.pt
+*.model
 *.lprof
 *.mat
 .idea/
