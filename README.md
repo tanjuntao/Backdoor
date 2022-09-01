@@ -72,6 +72,6 @@ Please first read the [developer guide](./docs/dev_guide.md) before making any p
 If you have any questions, feel free to contact the following core developers:
 
 * Juntao Tan: tjt@mail.ustc.edu.cn
+* Haoran Cheng: chr990315@mail.ustc.edu.cn
+* Yihang Cheng: whcyh@mail.ustc.edu.cn
 * Junhao Wang: junhaow@mail.ustc.edu.cn
-* Haoran Cheng:
-* Yihang Cheng:
