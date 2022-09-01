@@ -23,8 +23,9 @@ class TorchDataset(BaseDataset, Dataset):
 
         if existing_dataset is None:
             if abs_path is not None:
-                # self._torch_dataset = torch.from_numpy(np.genfromtxt(abs_path, delimiter=','))
-                self._torch_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
+                self._torch_dataset = torch.from_numpy(
+                    np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
+                # self._torch_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
             else:
                 raise Exception('data file path is not provided.')
         else:
@@ -56,7 +57,8 @@ class TorchDataset(BaseDataset, Dataset):
         # avoid re-computing on each function call
         if not hasattr(self, '_ids'):
             torch_ids = self._torch_dataset[:, 0].type(torch.int32)
-            setattr(self, '_ids', torch_ids)
+            py_ids = [_id.item() for _id in torch_ids]
+            setattr(self, '_ids', py_ids)
         return getattr(self, '_ids')
 
     @property
@@ -146,7 +148,7 @@ class TorchDataset(BaseDataset, Dataset):
             pass
 
         idxes = []
-        all_ids = self.ids
+        all_ids = torch.tensor(self.ids)
         for _id in intersect_ids:
             idx = torch.where(all_ids == _id)[0].item()
             idxes.append(idx)
