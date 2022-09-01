@@ -1,3 +1,4 @@
+import datetime
 import time
 
 from termcolor import colored
@@ -5,9 +6,10 @@ import torch
 from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory, crypto_factory
+from linkefl.common.factory import messenger_factory
 from linkefl.dataio import TorchDataset, BuildinTorchDataset
 from linkefl.feature.transform import scale
+from linkefl.modelio import TorchModelIO
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.model import PassiveBottomModel
 
@@ -22,7 +24,9 @@ class PassiveNeuralNetwork:
                  crypto_type,
                  *,
                  precision=0.001,
-                 random_state=None
+                 random_state=None,
+                 saving_model=False,
+                 model_path='./models',
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -33,6 +37,13 @@ class PassiveNeuralNetwork:
 
         self.precision = precision
         self.random_state = random_state
+        self.saving_model = saving_model
+        self.model_path = model_path
+        self.model_name = "{time}-{role}-{model_type}".format(
+            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            role=Const.PASSIVE_NAME,
+            model_type=Const.VERTICAL_NN
+        )
 
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
@@ -62,24 +73,79 @@ class PassiveNeuralNetwork:
             is_best = self.messenger.recv()
             if is_best:
                 print(colored('Best model updated.', 'red'))
+                if self.saving_model:
+                    model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    TorchModelIO.save(self.model,
+                                      self.model_path,
+                                      model_name,
+                                      epoch=epoch,
+                                      optimizer=self.optimizer)
             print(f"Epoch {epoch+1} finished.\n")
         print(colored('Total training and validation time: {:.2f}'
                       .format(time.time() - start_time), 'red'))
 
     def validate(self, testset, existing_loader=None):
-        assert isinstance(testset, TorchDataset), 'testset should be an instance ' \
-                                                  'of TorchDataset'
-        if existing_loader is None:
-            test_dataloader = self._init_dataloader(testset)
-        else:
-            test_dataloader = existing_loader
+        scores = PassiveNeuralNetwork._validate_util(
+            testset, self.messenger,
+            model=self.model,
+            existing_loader=existing_loader
+        )
+        return scores
 
-        self.model.eval()
+        # assert isinstance(testset, TorchDataset), 'testset should be an instance ' \
+        #                                           'of TorchDataset'
+        # if existing_loader is None:
+        #     test_dataloader = self._init_dataloader(testset)
+        # else:
+        #     test_dataloader = existing_loader
+        #
+        # self.model.eval()
+        # with torch.no_grad():
+        #     for batch, X in enumerate(test_dataloader):
+        #         outputs = self.model(X)
+        #         self.messenger.send(outputs.data)
+        #         pred = _messenger.recv() # pred for specific usage
+
+    @staticmethod
+    def online_inference(dataset, messenger,
+                         model_arch, model_name, model_path='./models',
+                         optimizer_arch=None,
+                         infer_step=64):
+        scores = PassiveNeuralNetwork._validate_util(
+            dataset,
+            messenger,
+            model_arch=model_arch,
+            model_path=model_path,
+            model_name=model_name,
+            optimizer_arch=optimizer_arch,
+            infer_step=infer_step
+        )
+        return scores
+
+    @staticmethod
+    def _validate_util(dataset, messenger, *,
+                       model=None,
+                       model_arch=None, model_path='./models', model_name=None,
+                       optimizer_arch=None,
+                       existing_loader=None, infer_step=64):
+        assert isinstance(dataset, TorchDataset), 'dataset should be an instance ' \
+                                                  'of TorchDataset'
+        if model is None:
+            model, _, _ = TorchModelIO.load(model_arch, model_path, model_name,
+                                            optimizer_arch=optimizer_arch)
+        if existing_loader is None:
+            dataloader = DataLoader(dataset, batch_size=infer_step, shuffle=False)
+        else:
+            dataloader = existing_loader
+
+        model.eval()
         with torch.no_grad():
-            for batch, X in enumerate(test_dataloader):
-                outputs = self.model(X)
-                self.messenger.send(outputs.data)
-                pred = _messenger.recv() # pred for specific usage
+            for batch, X in enumerate(dataloader):
+                outputs = model(X)
+                messenger.send(outputs)
+                # pred = messenger.recv()
+        scores = messenger.recv()
+        return scores
 
 
 if __name__ == '__main__':
@@ -139,9 +205,21 @@ if __name__ == '__main__':
                                          model=passive_bottom_model,
                                          optimizer=_optimizer,
                                          messenger=_messenger,
-                                         crypto_type=_crypto_type)
+                                         crypto_type=_crypto_type,
+                                         saving_model=False)
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training
     _messenger.close()
+
+
+    # # For online inference
+    # _scores = PassiveNeuralNetwork.online_inference(
+    #     passive_testset,
+    #     _messenger,
+    #     model_arch=passive_bottom_model,
+    #     model_name='20220901_120152-passive_party-vertical_nn-60000_samples.model',
+    #     optimizer_arch=_optimizer
+    # )
+    # print(_scores)
 
