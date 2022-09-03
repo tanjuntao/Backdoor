@@ -23,37 +23,37 @@ LinkeFL is a versatile federated learning framework including both horizonal FL 
 First install LinkeFL in development mode.
 
 ``` shell
-$ git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install -e .
+git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install -e .
 ```
 
 Then remove the generated `.c` files and binary files ending with `*.so` (macOS and Linux) or `*.pyd` (Windows).
 ``` shell
-$ find . -type f -name "*.c" -exec rm {} \;
-$ find . -type f -name "*.so" -exec rm {} \; # macOS and Linux
-$ find . -type f -name "*.pyd" -exec rm {} \; # Windows
+find . -type f -name "*.c" -exec rm {} \;
+find . -type f -name "*.so" -exec rm {} \; # macOS and Linux
+find . -type f -name "*.pyd" -exec rm {} \; # Windows
 ```
 
 ### local installation mode
 
 First Install LinkeFL locally.
 ``` shell
-$ git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install .
+git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install .
 ```
 Then also remove the generated files.
 ``` shell
-$ find . -type f -name "*.c" -exec rm {} \;
-$ find . -type f -name "*.so" -exec rm {} \; # macOS and Linux
-$ find . -type f -name "*.pyd" -exec rm {} \; # Windows
+find . -type f -name "*.c" -exec rm {} \;
+find . -type f -name "*.so" -exec rm {} \; # macOS and Linux
+find . -type f -name "*.pyd" -exec rm {} \; # Windows
 ```
 
 ### build wheels and install
 If you need to build Python wheel for software delivering, you can use the `build.sh` script. The generated `.whl` file be within `LinkeFL/sdist` directory.
 ``` shell
-$ git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && bash build.sh
+git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && bash build.sh
 ```
 Then you can goto the `sdist` directory and install LinkeFL via
 ``` shell
-$ pip3 install *.whl
+pip3 install *.whl
 ```
 
 ## Examples 
