@@ -7,10 +7,7 @@ import torch
 from linkefl.common.const import Const
 from linkefl.config import LinearConfig
 from linkefl.config import NNConfig
-from linkefl.vfl.nn.model import (
-    PassiveBottomModel, ActiveBottomModel,
-    IntersectionModel, TopModel
-)
+import linkefl.vfl
 
 
 def sigmoid(x):
@@ -76,22 +73,22 @@ def load_model(model_name):
         PyTorch model.
     """
     if model_name == 'alice_bottom_model':
-        model = PassiveBottomModel(NNConfig.ALICE_BOTTOM_NODES)
+        model = linkefl.vfl.nn.PassiveBottomModel(NNConfig.ALICE_BOTTOM_NODES)
 
     elif model_name == 'bob_bottom_model':
-        model = ActiveBottomModel(NNConfig.BOB_BOTTOM_NODES)
+        model = linkefl.vfl.nn.ActiveBottomModel(NNConfig.BOB_BOTTOM_NODES)
 
     elif model_name == 'intersection_model':
-        model = IntersectionModel(NNConfig.INTERSECTION_NODES)
+        model = linkefl.vfl.nn.IntersectionModel(NNConfig.INTERSECTION_NODES)
 
     elif model_name == 'top_model':
-        model = TopModel(NNConfig.TOP_NODES)
+        model = linkefl.vfl.nn.TopModel(NNConfig.TOP_NODES)
 
     elif model_name == 'local_bottom':
-        model = PassiveBottomModel(NNConfig.ALICE_BOTTOM_NODES)
+        model = linkefl.vfl.nn.PassiveBottomModel(NNConfig.ALICE_BOTTOM_NODES)
 
     elif model_name == 'local_append':
-        model = TopModel(NNConfig.APPEND_NODES)
+        model = linkefl.vfl.nn.TopModel(NNConfig.APPEND_NODES)
 
     else:
         raise ValueError('Invalid model name, please check in again.')
