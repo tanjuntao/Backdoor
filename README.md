@@ -23,7 +23,7 @@ LinkeFL is a versatile federated learning framework including both horizonal FL 
 First install LinkeFL in development mode.
 
 ``` shell
-git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install -e .
+git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install Cython>=3.0.0a11 && pip3 install -e .
 ```
 
 Then remove the generated `.c` files and binary files ending with `*.so` (macOS and Linux) or `*.pyd` (Windows).
@@ -37,7 +37,7 @@ find . -type f -name "*.pyd" -exec rm {} \; # Windows
 
 First Install LinkeFL locally.
 ``` shell
-git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install .
+git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install Cython>=3.0.0a11 && pip3 install .
 ```
 Then also remove the generated files.
 ``` shell
@@ -59,8 +59,8 @@ pip3 install *.whl
 ## Examples 
 * [Running PSI protocol alone](./examples/psi-alone/README.md)
 * [Running verticalLR model training along with PSI](./examples/psi-lr/README.md)
-* [Running vertical SBT model training alone with PSI](./examples/psi-tree/README.md)
-* [Running verticalNN model training alone with PSI](./examples/psi-nn/README.md)
+* [Running verticalSBT model training along with PSI](./examples/psi-tree/README.md)
+* [Running verticalNN model training along with PSI](./examples/psi-nn/README.md)
 
 ## API references 
 WIP...
