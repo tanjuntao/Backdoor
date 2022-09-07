@@ -1,18 +1,28 @@
+import datetime
 import time
 
 import numpy as np
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.messenger.base import Messenger
+from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.tree.hist import PassiveHist
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 
 
 class PassiveTreeParty:
-    def __init__(self, task: str, crypto_type: str, messenger: Messenger, *, max_bin: int = 16):
+    def __init__(
+        self,
+        task: str,
+        crypto_type: str,
+        messenger: Messenger,
+        *,
+        max_bin: int = 16,
+        saving_model: bool = False,
+        model_path: str = "./models",
+    ):
         """Passive Tree Party class to train and validate dataset
 
         Args:
@@ -25,6 +35,14 @@ class PassiveTreeParty:
         self.messenger = messenger
 
         self.max_bin = max_bin
+        self.saving_model = saving_model
+        self.model_path = model_path
+
+        self.model_name = "{time}-{role}-{model_type}".format(
+            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            role=Const.PASSIVE_NAME,
+            model_type=Const.VERTICAL_SBT,
+        )
 
         # given when training starts
         self.bin_index = None
@@ -53,6 +71,9 @@ class PassiveTreeParty:
             # ready to receive instructions from active party
             data = self.messenger.recv()
             if data["name"] == "train finished" and data["content"] is True:
+                if self.saving_model:
+                    model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    NumpyModelIO.save(self.record, self.model_path, model_name)
                 print("train finished")
                 break
             elif data["name"] == "gh":
@@ -124,3 +145,9 @@ class PassiveTreeParty:
 
     def predict(self, testset):
         self._validate(testset)
+
+    def online_inference(self, dataset, model_name, model_path="./models"):
+        assert isinstance(dataset, NumpyDataset), "inference dataset should be an instance of NumpyDataset"
+        self.record = NumpyModelIO.load(model_path, model_name)
+
+        self._validate(dataset)

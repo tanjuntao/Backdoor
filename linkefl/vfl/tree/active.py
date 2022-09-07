@@ -1,3 +1,4 @@
+import datetime
 import time
 import warnings
 from multiprocessing import Pool
@@ -13,6 +14,7 @@ from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
 from linkefl.messenger.base import Messenger
+from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
@@ -39,6 +41,8 @@ class ActiveTreeParty:
         fix_point_precision: int = 53,
         sampling_method: str = "uniform",
         n_processes: int = 1,
+        saving_model: bool = False,
+        model_path: str = "./models",
     ):
         """Active Tree Party class to train and validate dataset
 
@@ -65,11 +69,19 @@ class ActiveTreeParty:
 
         self.learning_rate = learning_rate
         self.max_bin = max_bin
+        self.saving_model = saving_model
+        self.model_path = model_path
 
         if n_processes > 1:
             self.pool = Pool(n_processes)
         else:
             self.pool = None
+
+        self.model_name = "{time}-{role}-{model_type}".format(
+            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            role=Const.ACTIVE_NAME,
+            model_type=Const.VERTICAL_SBT,
+        )
 
         # 初始化 loss
         if task == "binary":
@@ -154,9 +166,15 @@ class ActiveTreeParty:
                 raw_outputs += self.learning_rate * update_pred
                 outputs = softmax(raw_outputs, axis=1)
 
-        print("train finished")
         for messenger in self.messengers:
             messenger.send(wrap_message("train finished", content=True))
+
+        if self.saving_model:
+            model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+            model_params = [(tree.record, tree.root) for tree in self.trees]
+            NumpyModelIO.save(model_params, self.model_path, model_name)
+
+        print("train finished")
 
         if self.pool is not None:
             self.pool.close()
@@ -204,6 +222,16 @@ class ActiveTreeParty:
     def predict(self, testset):
         return self._validate(testset)
 
+    def online_inference(self, dataset, model_name, model_path="./models"):
+        assert isinstance(dataset, NumpyDataset), "inference dataset should be an instance of NumpyDataset"
+        model_params = NumpyModelIO.load(model_path, model_name)
+        for i, (record, root) in enumerate(model_params):
+            tree = self.trees[i]
+            tree.record = record
+            tree.root = root
+
+        return self._validate(dataset)
+
 
 if __name__ == "__main__":
     # 0. Set parameters
@@ -216,8 +244,6 @@ if __name__ == "__main__":
     n_labels = 2
     _crypto_type = Const.PAILLIER
     _key_size = 1024
-
-    compress = True
 
     active_ips = ["localhost", "localhost"]
     active_ports = [20001, 20002]
@@ -253,14 +279,19 @@ if __name__ == "__main__":
     )
 
     # 3. Initialize messenger
-    messengers = [messenger_factory(
-        messenger_type=Const.FAST_SOCKET,
-        role=Const.ACTIVE_NAME,
-        active_ip=active_ip,
-        active_port=active_port,
-        passive_ip=passive_ip,
-        passive_port=passive_port,
-    ) for active_ip, active_port, passive_ip, passive_port in zip(active_ips, active_ports, passive_ips, passive_ports)]
+    messengers = [
+        messenger_factory(
+            messenger_type=Const.FAST_SOCKET,
+            role=Const.ACTIVE_NAME,
+            active_ip=active_ip,
+            active_port=active_port,
+            passive_ip=passive_ip,
+            passive_port=passive_port,
+        )
+        for active_ip, active_port, passive_ip, passive_port in zip(
+            active_ips, active_ports, passive_ips, passive_ports
+        )
+    ]
 
     # 4. Initialize active tree party and start training
     active_party = ActiveTreeParty(
@@ -270,9 +301,11 @@ if __name__ == "__main__":
         crypto_type=_crypto_type,
         crypto_system=crypto_system,
         messengers=messengers,
-        compress=compress,
+        saving_model=True,
     )
     active_party.train(active_trainset, active_testset)
+    # scores = active_party.online_inference(active_testset, "20220905_155209-active_party-vertical_sbt-120000_samples.model")
+    # print(scores)
 
     # 5. Close messenger, finish training
     for messenger in messengers:
