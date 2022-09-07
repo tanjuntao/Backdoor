@@ -46,7 +46,7 @@ class GlobalLogger:
             if writing_http:
                 # initial http handler, subustite the host and url if needed.
                 http_handler = HTTPHandler(
-                    host='localhost:5000',
+                    host='127.0.0.1:5000',
                     url='/log',
                     method='POST'
                 )
@@ -67,9 +67,11 @@ class GlobalLogger:
 
 
 if __name__ == '__main__':
-    logger = GlobalLogger(role=Const.ACTIVE_NAME, writing_file=True)
-    logger.info('INFO-hello world')
+    logger1 = GlobalLogger(role=Const.ACTIVE_NAME, writing_file=True, writing_http=False)
+    logger1.info('INFO-hello world')
 
-    logger = GlobalLogger(role=Const.ACTIVE_NAME, writing_file=True)
-    logger.warning('Warning-Hello world')
+    logger2 = GlobalLogger(role=Const.ACTIVE_NAME, writing_file=True, writing_http=False)
+    logger2.warning('Warning-Hello world')
+
+    print(id(logger1), id(logger2))
 
