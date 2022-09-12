@@ -14,6 +14,7 @@ def hello_world():
 def logging():
     msg = request.form['msg'] # logger message is stored with the 'msg' key
     msg = msg.strip()
+    print(msg)
 
     if msg[0] == '{' and msg[-1] == '}': # means that msg is a stringfied json
         metrics = json.loads(msg) # metrics is a Python dict

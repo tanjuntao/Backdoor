@@ -48,3 +48,8 @@ class Const:
     HORIZONTAL_NN = 'horizontal_nn'
     SPLIT_NN = 'split_nn'
 
+    DEBUG = 'debug'
+    INFO = 'info'
+    WARNING = 'warning'
+    ERROR = 'error'
+    CRITICAL = 'critical'
