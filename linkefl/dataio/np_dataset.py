@@ -21,10 +21,11 @@ from linkefl.feature import cal_importance_ranking
 
 
 class NumpyDataset(BaseDataset):
-    def __init__(self, role, abs_path=None, transform=None, existing_dataset=None):
+    def __init__(self, role, dataset_type, abs_path=None, transform=None, existing_dataset=None):
         super(NumpyDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
+        self.dataset_type = dataset_type
 
         # if existing_dataset is None:
         #     if abs_path is not None:
@@ -56,11 +57,14 @@ class NumpyDataset(BaseDataset):
         np_trainset = whole_dataset.get_dataset()[perm[:n_train_samples], :]
         np_testset = whole_dataset.get_dataset()[perm[n_train_samples:], :]
 
-        trainset = cls(role=whole_dataset.role, existing_dataset=np_trainset)
-        testset = cls(role=whole_dataset.role, existing_dataset=np_testset)
+        trainset = cls(role=whole_dataset.role,
+                       dataset_type=whole_dataset.dataset_type,
+                       existing_dataset=np_trainset)
+        testset = cls(role=whole_dataset.role,
+                      dataset_type=whole_dataset.dataset_type,
+                      existing_dataset=np_testset)
 
         return trainset, testset
-
 
     @classmethod
     def feature_split(cls, whole_dataset, n_splits, option=Const.SEQUENCE, seed=1314):
@@ -86,11 +90,12 @@ class NumpyDataset(BaseDataset):
                 end_idx = whole_dataset.n_features
             splitted_feats = permed_features[:, begin_idx:end_idx]
             np_dataset = np.concatenate((ids[:, np.newaxis], splitted_feats), axis=1)
-            curr_dataset = cls(role=whole_dataset.role, existing_dataset=np_dataset)
+            curr_dataset = cls(role=whole_dataset.role,
+                               dataset_type=whole_dataset.dataset_type,
+                               existing_dataset=np_dataset)
             splitted_datasets.append(curr_dataset)
 
         return splitted_datasets
-
 
     @classmethod
     def buildin_dataset(cls,
@@ -118,12 +123,21 @@ class NumpyDataset(BaseDataset):
                                                         frac=passive_feat_frac,
                                                         perm_option=feat_perm_option,
                                                         seed=seed)
-
-        return cls(role=role, transform=transform, existing_dataset=np_dataset)
+        if dataset_name in Const.DATA_TYPE_DICT[Const.REGRESSION]:
+            dataset_type = Const.REGRESSION
+        else:
+            dataset_type = Const.CLASSIFICATION
+        return cls(
+            role=role,
+            dataset_type=dataset_type,
+            transform=transform,
+            existing_dataset=np_dataset
+        )
 
     @classmethod
     def database_dataset(cls,
                          role,
+                         dataset_type,
                          host,
                          user,
                          password,
@@ -144,7 +158,7 @@ class NumpyDataset(BaseDataset):
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
-        return cls(role=role, existing_dataset=df_dataset)
+        return cls(role=role, dataset_type=dataset_type, existing_dataset=df_dataset)
 
         #         count = 0
         #         if ids is None:
@@ -170,7 +184,6 @@ class NumpyDataset(BaseDataset):
         #                     final_dataframe = final_dataframe.append(item_dataframe)
         #
         # return cls(role=role, existing_dataset=final_dataframe)
-
 
     @staticmethod
     def _load_csv_dataset(path, existing_dataset=None):
@@ -488,7 +501,7 @@ class NumpyDataset(BaseDataset):
             labels = self._np_dataset[:, 1]
             # simply treat dataset where the label column contains more than
             # 100 unique values as regression dataset
-            if len(np.unique(labels)) > 100: # regression dataset
+            if self.dataset_type == Const.REGRESSION: # regression dataset
                 setattr(self, '_labels', labels)
             else: # classification dataset
                 # convert potential floating-point label values, e.g., 4.0, to
@@ -550,7 +563,7 @@ class NumpyDataset(BaseDataset):
         # Output the distribution for the data label.
         if self.role == Const.ACTIVE_NAME:
             n_classes = len(np.unique(self.labels))
-            if n_classes > 100: # regression dataset
+            if self.dataset_type == Const.REGRESSION: # regression dataset
                 dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
                                          columns=['label'])
                 # histplot
@@ -573,7 +586,6 @@ class NumpyDataset(BaseDataset):
                 plt.xticks(x, bars, fontsize=14)
 
             plt.show()
-
 
     def filter(self, intersect_ids):
         # Solution 1: this works only when dataset ids start from zero

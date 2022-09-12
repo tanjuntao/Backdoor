@@ -53,3 +53,12 @@ class Const:
     WARNING = 'warning'
     ERROR = 'error'
     CRITICAL = 'critical'
+
+    REGRESSION = 'regression'
+    CLASSIFICATION = 'classification'
+    DATA_TYPE_DICT = {
+        REGRESSION: ['diabetes', 'year', 'nyc-taxi'],
+        CLASSIFICATION: ['cancer', 'digits', 'epsilon', 'census', 'credit',
+                         'default_credit', 'covertype', 'higgs',
+                         'iris', 'wine', 'mnist', 'fashion_mnist', 'cifar', 'svhn']
+    }
