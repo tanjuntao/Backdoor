@@ -13,6 +13,7 @@ class GlobalLogger:
     """This class is a Python logger singleton."""
     _logger = None
     _loglevel_dict = {}
+    FLOAT_PRECISION = 6
 
     def __new__(cls, *,
                 role,
@@ -86,10 +87,10 @@ class GlobalLogger:
     def log_metric(self, epoch, loss, acc, auc, f1, total_epoch, level='info'):
         json_msg = json.dumps({
             'epoch': epoch + 1,
-            'loss': loss,
-            'acc': acc,
-            'auc': auc,
-            'f1': f1,
+            'loss': round(loss, GlobalLogger.FLOAT_PRECISION),
+            'acc': round(acc, GlobalLogger.FLOAT_PRECISION),
+            'auc': round(auc, GlobalLogger.FLOAT_PRECISION),
+            'f1': round(f1, GlobalLogger.FLOAT_PRECISION),
             'progress': (epoch + 1) / total_epoch,
             'role': self.role,
         })

@@ -97,6 +97,7 @@ class ActiveLinReg(BaseLinearActive):
         start_time = None
         compu_time = 0
         # Main Training Loop Here
+        self.logger.log('Start collaborative model training...')
         for epoch in range(self.epochs):
             is_best = False
             all_idxes = list(range(n_samples))
@@ -135,7 +136,8 @@ class ActiveLinReg(BaseLinearActive):
 
             # validate model performance
             if epoch % self.val_freq == 0:
-                print(f"\nEpoch: {epoch}, Loss: {np.array(batch_losses).mean()}")
+                cur_loss = np.array(batch_losses).mean()
+                self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
                 val_loss, val_score = self.validate(testset)
                 if val_loss < best_loss:
                     best_loss = val_loss
@@ -144,7 +146,7 @@ class ActiveLinReg(BaseLinearActive):
                     best_score = val_score
                 if is_best:
                     # save_params(self.params, role='bob')
-                    print(colored('Best model updates.', 'red'))
+                    self.logger.log('Best model updates.')
                     if self.saving_model:
                         model_params = copy.deepcopy(getattr(self, 'params'))
                         model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
@@ -152,6 +154,11 @@ class ActiveLinReg(BaseLinearActive):
 
                 self.messenger.send(is_best)
 
+        self.logger.log('Finish model training.')
+        self.logger.log('Best validation loss: {:.5f}'.format(best_loss))
+        self.logger.log('Best r2_score: {:.5f}'.format(best_score))
+        self.logger.log('Computation time: {:.5f}'.format(compu_time))
+        self.logger.log('Elapsed time: {:.5f}s'.format(time.time() - start_time))
         print(colored('Best validation loss: {:.5f}'.format(best_loss), 'red'))
         print(colored('Best r2_score: {:.5f}'.format(best_score), 'red'))
         print(colored('Computation time: {:.5f}'.format(compu_time), 'red'))
