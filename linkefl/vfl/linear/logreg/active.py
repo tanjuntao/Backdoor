@@ -6,7 +6,7 @@ from sklearn.metrics import log_loss, accuracy_score, roc_auc_score, f1_score
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, messenger_factory
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import add_intercept, scale, parse_label
 from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
@@ -113,6 +113,7 @@ class ActiveLogReg(BaseLinearActive):
         start_time = None
         compu_time = 0
         # Main Training Loop Here
+        self.logger.log('Start collaborative model training...')
         for epoch in range(self.epochs):
             is_best = False
             all_idxes = list(range(n_samples))
@@ -150,7 +151,8 @@ class ActiveLogReg(BaseLinearActive):
 
             # validate model performance
             if epoch % self.val_freq == 0:
-                print(f"\nEpoch: {epoch}, Loss: {np.array(batch_losses).mean()}")
+                cur_loss = np.array(batch_losses).mean()
+                self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
 
                 scores = self.validate(testset)
                 if scores['acc'] > best_acc:
@@ -159,20 +161,24 @@ class ActiveLogReg(BaseLinearActive):
                 if scores['auc'] > best_auc:
                     best_auc = scores['auc']
                     is_best = True
-                print('Acc: {:.5f}, Auc: {:.5f}, f1-score: {:.5f}'.format(
-                    scores['acc'],
-                    scores['auc'],
-                    scores['f1']
-                ))
+                self.logger.log_metric(epoch,
+                                       cur_loss,
+                                       scores['acc'], scores['auc'], scores['f1'],
+                                       total_epoch=self.epochs)
                 if is_best:
                     # save_params(self.params, role='bob')
-                    print(colored('Best model updates.', 'red'))
+                    self.logger.log('Best model updates.')
                     if self.saving_model:
                         model_params = copy.deepcopy(getattr(self, 'params'))
                         model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
                         NumpyModelIO.save(model_params, self.model_path, model_name)
                 self.messenger.send(is_best)
 
+        self.logger.log('Finish model training.')
+        self.logger.log('Best history acc: {:.5f}'.format(best_acc))
+        self.logger.log('Best history auc: {:.5f}'.format(best_auc))
+        self.logger.log('Computation time: {:.5f}'.format(compu_time))
+        self.logger.log('Elapsed time: {:.5f}s'.format(time.time() - start_time))
         print(colored('Best history acc: {:.5f}'.format(best_acc), 'red'))
         print(colored('Best history auc: {:.5f}'.format(best_auc), 'red'))
         print(colored('Computation time: {:.5f}'.format(compu_time), 'red'))
@@ -225,7 +231,7 @@ class ActiveLogReg(BaseLinearActive):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'cancer'
+    dataset_name = 'census'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'

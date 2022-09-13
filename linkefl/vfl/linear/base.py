@@ -14,9 +14,10 @@ from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import (
-    messenger_factory,
     crypto_factory,
-    partial_crypto_factory
+    logger_factory,
+    messenger_factory,
+    partial_crypto_factory,
 )
 from linkefl.config import BaseConfig
 from linkefl.dataio import NumpyDataset
@@ -115,6 +116,8 @@ class BaseLinearPassive(BaseLinear):
             role=Const.PASSIVE_NAME,
             model_type=model_type
         )
+        self.logger = logger_factory(role=Const.PASSIVE_NAME)
+
     @classmethod
     def from_config(cls, config):
         assert isinstance(config, BaseConfig), 'config object should be an ' \
@@ -142,11 +145,11 @@ class BaseLinearPassive(BaseLinear):
                    val_freq=config.VAL_FREQ)
 
     def _sync_pubkey(self):
-        print('[PASSIVE] Requesting publie key...')
+        self.logger.log('[PASSIVE] Requesting publie key...')
         signal = Const.START_SIGNAL
         self.messenger.send(signal)
         public_key = self.messenger.recv()
-        print('[PASSIVE] Done!')
+        self.logger.log('[PASSIVE] Done!')
         return public_key
 
     def _grad(self, enc_residue, batch_idxes):
@@ -302,8 +305,9 @@ class BaseLinearPassive(BaseLinear):
 
         commu_plus_compu_time = 0
         # Main Training Loop Here
+        self.logger.log('Start collaborative model training...')
         for epoch in range(self.epochs):
-            print('\nEpoch: {}'.format(epoch))
+            self.logger.log('Epoch: {}'.format(epoch))
             all_idxes = list(range(n_samples))
 
             for batch in range(n_batches):
@@ -337,7 +341,7 @@ class BaseLinearPassive(BaseLinear):
                 is_best = self.messenger.recv()
                 if is_best:
                     # save_params(self.params, role=Const.PASSIVE_NAME)
-                    print(colored('Best model updates.', 'red'))
+                    self.logger.log('Best model updates.')
                     if self.saving_model:
                         # the use of deepcopy here is to avoid saving other self attrbiutes
                         model_params = copy.deepcopy(getattr(self, 'params'))
@@ -349,7 +353,8 @@ class BaseLinearPassive(BaseLinear):
             self.pool.close()
             self.pool.join()
 
-        print('The summation of communication time and computation time is '
+        self.logger.log('Finish model training.')
+        self.logger.log('The summation of communication time and computation time is '
               '{:.4f}s. In order to obtain the communication time only, you should'
               'substract the computation time which is printed in the console'
               'of active party.'.format(commu_plus_compu_time))
@@ -417,6 +422,7 @@ class BaseLinearActive(BaseLinear):
             role=Const.ACTIVE_NAME,
             model_type=model_type
         )
+        self.logger = logger_factory(role=Const.ACTIVE_NAME)
 
     @classmethod
     def from_config(cls, config):

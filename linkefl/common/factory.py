@@ -1,4 +1,5 @@
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.crypto import Plain, Paillier, FastPaillier
 from linkefl.crypto import PartialPlain, PartialPaillier, PartialFastPaillier
 from linkefl.messenger import Socket, FastSocket
@@ -68,3 +69,9 @@ def messenger_factory(messenger_type,
         raise ValueError('Unrecoginized messenger type.')
 
     return messenger
+
+
+def logger_factory(role):
+    return GlobalLogger(role=role,
+                        writing_file=False,
+                        writing_http=False)

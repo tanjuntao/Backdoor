@@ -2,6 +2,8 @@ import numpy as np
 import shap
 from xgboost import XGBClassifier, XGBRegressor, plot_importance
 
+from linkefl.common.const import Const
+
 
 # def _get_dataset(name):
 #     """Load np_dataset by name.
@@ -87,7 +89,7 @@ from xgboost import XGBClassifier, XGBRegressor, plot_importance
 
 def cal_importance_ranking(dataset_name, feats, labels, measurement='xgboost'):
     if dataset_name in ('cancer',
-                        # 'digits',
+                        'digits',
                         'epsilon',
                         'census',
                         'credit',
@@ -99,10 +101,13 @@ def cal_importance_ranking(dataset_name, feats, labels, measurement='xgboost'):
         ranking = cached_permutation(dataset_name, measurement)
         return ranking
 
-    # simply treat dataset where the label column contains more than
-    # 100 unique values as regression dataset
+
     n_classes = len(np.unique(labels))
-    if n_classes > 100: # regression dataset
+    if dataset_name in Const.DATA_TYPE_DICT[Const.REGRESSION]:
+        dataset_type = Const.REGRESSION
+    else:
+        dataset_type = Const.CLASSIFICATION
+    if dataset_type == Const.REGRESSION: # regression dataset
         model = XGBRegressor()
         model.fit(feats, labels)
     else: # classification dataset
