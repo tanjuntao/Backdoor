@@ -197,8 +197,12 @@ def bin(dataset, bin_features, bin_methods, para):
         bin_features: list
             The position of the column to be binned.
 
-        bin_methods: list
+        bin_methods: string or list
             The method corresponds to the column to be binned. (ed for equal distance / ef for equal frequency)
+            When its type is a string,
+            it means that all specified columns will be binned using the method represented by this string.
+            When its type is a list,
+            it means that each specified column will be binned using the corresponding method within the list.
 
         para: list
             The number of the bins for the column to be binned.
@@ -210,27 +214,46 @@ def bin(dataset, bin_features, bin_methods, para):
         """
     if isinstance(dataset, linkefl.dataio.NumpyDataset):
         new_dataset = copy.deepcopy(dataset.get_dataset())
+        split = dict()
+        if isinstance(bin_methods, list) == False:
+            bin_methods = [bin_methods] * len(bin_features)
+            
         for i in range(len(bin_features)):
-            if bin_methods[i] == 'ed':
-                new_dataset[:, bin_features[i]] = pd.cut(new_dataset[:, bin_features[i]], para[i], labels=False)
-            elif bin_methods[i] == 'ef':
-                new_dataset[:, bin_features[i]] = pd.qcut(new_dataset[:, bin_features[i]], para[i], labels=False)
+            if bin_methods[i] == 'equalizer':
+                new_dataset[:, bin_features[i]], split[bin_features[i]] = \
+                    pd.cut(new_dataset[:, bin_features[i]], para[i], labels=False, retbins=True)
+                split[bin_features[i]] = split[bin_features[i]][1: -1]
+            elif bin_methods[i] == 'quantiler':
+                new_dataset[:, bin_features[i]], split[bin_features[i]] = \
+                    pd.qcut(new_dataset[:, bin_features[i]], para[i], labels=False, retbins=True)
+                split[bin_features[i]] = split[bin_features[i]][1: -1]
             else:
-                raise TypeError('Method %d should be ed or ef' % i)
+                raise TypeError('Method %d should be equalizer or quantiler' % i)
+            
     elif isinstance(dataset, linkefl.dataio.TorchDataset):
+        if isinstance(bin_methods, list) == False:
+            bin_methods = [bin_methods] * len(bin_features)
         new_dataset = copy.deepcopy(dataset.get_dataset())
+        split = dict()
         for i in range(len(bin_features)):
-            if bin_methods[i] == 'ed':
-                new_dataset[:, bin_features[i]] = torch.from_numpy(pd.cut(new_dataset[:, bin_features[i]].numpy(), para[i], labels=False))
-            elif bin_methods[i] == 'ef':
-                new_dataset[:, bin_features[i]] = torch.from_numpy(pd.qcut(new_dataset[:, bin_features[i]].numpy(), para[i], labels=False))
+            if bin_methods[i] == 'equalizer':
+                temp_dataset, split[bin_features[i]] = pd.cut(new_dataset[:, bin_features[i]].numpy(), para[i],
+                                                              labels=False, retbins=True)
+                new_dataset[:, bin_features[i]] = torch.from_numpy(temp_dataset)
+                split[bin_features[i]] = split[bin_features[i]][1: -1]
+            elif bin_methods[i] == 'quantiler':
+                temp_dataset, split[bin_features[i]] = pd.qcut(new_dataset[:, bin_features[i]].numpy(), para[i],
+                                                              labels=False, retbins=True)
+                new_dataset[:, bin_features[i]] = torch.from_numpy(temp_dataset)
+                split[bin_features[i]] = split[bin_features[i]][1: -1]
             else:
-                raise TypeError('Method %d should be ed or ef' % i)
+                raise TypeError('Method %d should be equalizer or quantiler' % i)
     else:
         raise TypeError('dataset should be an instance of'
                         'NumpyDataset or TorchDataset')
 
     dataset.set_dataset(new_dataset) # update status of dataset object
+    setattr(dataset, 'bin_split', split) # set the bin_split attr of dataset object
 
     return dataset
 

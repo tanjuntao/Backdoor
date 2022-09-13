@@ -122,9 +122,9 @@ class OneHot(BaseTransform):
              2, 0, 1, 1, 0],
              3, 0, 1, 1, 0]])
     """
-    def __init__(self, target_datatype, index=[]):
+    def __init__(self, target_datatype, index=None):
         super(OneHot, self).__init__()
-        self.index = index
+        self.index = index if index is not None else []
         self.target_datatype = target_datatype
 
     def __call__(self, dataset):
@@ -171,37 +171,46 @@ class OneHot(BaseTransform):
 
 
 class Bin(BaseTransform):
-    def __init__(self, bin_features=[], bin_methods=[], para=[]):
+    def __init__(self, bin_features=None, bin_methods=None, para=None):
         super(Bin, self).__init__()
-        self.bin_features = bin_features
-        self.bin_methods = bin_methods
-        self.para = para
+        self.bin_features = bin_features if bin_features is not None else []
+        self.bin_methods = bin_methods if bin_methods is not None else []
+        if isinstance(bin_methods, list) == False:
+            self.bin_methods = [bin_methods] * len(bin_features)
+        self.para = para if para is not None else []
+        self.split = dict()
 
     def __call__(self, dataset):
         if isinstance(dataset, np.ndarray):
             for i in range(len(self.bin_features)):
-                if self.bin_methods[i] == 'ed':
-                    dataset[:, self.bin_features[i]] = \
-                        pd.cut(dataset[:, self.bin_features[i]], self.para[i], labels=False)
-                elif self.bin_methods[i] == 'ef':
-                    dataset[:, self.bin_features[i]] = \
-                        pd.qcut(dataset[:, self.bin_features[i]], self.para[i], labels=False)
+                if self.bin_methods[i] == 'equalizer':
+                    dataset[:, self.bin_features[i]], self.split[self.bin_features[i]] = \
+                        pd.cut(dataset[:, self.bin_features[i]], self.para[i], labels=False, retbins=True)
+                    self.split[self.bin_features[i]] = self.split[self.bin_features[i]][1: -1]
+                elif self.bin_methods[i] == 'quantiler':
+                    dataset[:, self.bin_features[i]], self.split[self.bin_features[i]] = \
+                        pd.qcut(dataset[:, self.bin_features[i]], self.para[i], labels=False, retbins=True)
+                    self.split[self.bin_features[i]] = self.split[self.bin_features[i]][1: -1]
                 else:
                     raise TypeError('Method %d should be ed or ef' % i)
         elif isinstance(dataset, torch.Tensor):
             for i in range(len(self.bin_features)):
-                if self.bin_methods[i] == 'ed':
-                    dataset[:, self.bin_features[i]] = torch.from_numpy(
-                        pd.cut(dataset[:, self.bin_features[i]].numpy(), self.para[i], labels=False))
-                elif self.bin_methods[i] == 'ef':
-                    dataset[:, self.bin_features[i]] = torch.from_numpy(
-                        pd.qcut(dataset[:, self.bin_features[i]].numpy(), self.para[i], labels=False))
+                if self.bin_methods[i] == 'equalizer':
+                    temp_dataset, self.split[self.bin_features[i]] = \
+                        pd.cut(dataset[:, self.bin_features[i]].numpy(), self.para[i], labels=False, retbins=True)
+                    dataset[:, self.bin_features[i]] = torch.from_numpy(temp_dataset)
+                    self.split[self.bin_features[i]] = self.split[self.bin_features[i]][1: -1]
+                elif self.bin_methods[i] == 'quantiler':
+                    temp_dataset, self.split[self.bin_features[i]] = \
+                        pd.qcut(dataset[:, self.bin_features[i]].numpy(), self.para[i], labels=False, retbins=True)
+                    dataset[:, self.bin_features[i]] = torch.from_numpy(temp_dataset)
+                    self.split[self.bin_features[i]] = self.split[self.bin_features[i]][1: -1]
                 else:
                     raise TypeError('Method %d should be ed or ef' % i)
         else:
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
 
-        return dataset
+        return dataset, self.split
 
 
 class Compose(BaseTransform):
@@ -212,10 +221,18 @@ class Compose(BaseTransform):
             assert isinstance(transform, BaseTransform), \
                 'each element in Compose should be an instance of BaseTransform'
 
-        self.transforms = transforms
+        self.transforms = transforms  # 别卷了
 
     def __call__(self, dataset, role):
         # argument role is just for interface consistency
+        flag = True
         for transform in self.transforms:
-            dataset = transform(dataset)
-        return dataset
+            if isinstance(transform, Bin):
+                dataset, split = transform(dataset)
+                flag = False
+            else:
+                dataset = transform(dataset)
+        if flag is True:
+            return dataset
+        else:
+            return dataset, split
