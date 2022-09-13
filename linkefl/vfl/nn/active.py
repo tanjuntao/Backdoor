@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, crypto_factory
-from linkefl.dataio import TorchDataset, BuildinTorchDataset
+from linkefl.dataio import TorchDataset
 from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.feature.transform.transform import OneHot
 from linkefl.feature.transform import parse_label, scale
@@ -259,16 +259,26 @@ if __name__ == '__main__':
 
     # 1. Load datasets
     print('Loading dataset...')
-    active_trainset = BuildinTorchDataset(dataset_name=dataset_name,
+    active_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
                                           role=Const.ACTIVE_NAME,
                                           train=True,
                                           passive_feat_frac=passive_feat_frac,
                                           feat_perm_option=feat_perm_option)
-    active_testset = BuildinTorchDataset(dataset_name=dataset_name,
+    active_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
                                          role=Const.ACTIVE_NAME,
                                          train=False,
                                          passive_feat_frac=passive_feat_frac,
                                          feat_perm_option=feat_perm_option)
+    # active_trainset = BuildinTorchDataset(dataset_name=dataset_name,
+    #                                       role=Const.ACTIVE_NAME,
+    #                                       train=True,
+    #                                       passive_feat_frac=passive_feat_frac,
+    #                                       feat_perm_option=feat_perm_option)
+    # active_testset = BuildinTorchDataset(dataset_name=dataset_name,
+    #                                      role=Const.ACTIVE_NAME,
+    #                                      train=False,
+    #                                      passive_feat_frac=passive_feat_frac,
+    #                                      feat_perm_option=feat_perm_option)
     print('Done.')
     # for epsilon dataset, scale() must be applied.
     # active_trainset = scale(active_trainset)
