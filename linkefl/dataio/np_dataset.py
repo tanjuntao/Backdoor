@@ -41,7 +41,11 @@ class NumpyDataset(BaseDataset):
         self.set_dataset(np_data)
 
         if transform is not None:
-            self._np_dataset = transform(self._np_dataset, role=role)
+            temp = transform(self._np_dataset, role=role)
+            if isinstance(temp, tuple):
+                self._np_dataset, self.bin_split = temp
+            else:
+                self._np_dataset = temp
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     @classmethod
@@ -190,8 +194,8 @@ class NumpyDataset(BaseDataset):
         if existing_dataset is None:
             if path is not None:
                 # TODO: support one-hot encoding here
-                np_dataset = np.genfromtxt(path, delimiter=',', encoding="utf-8")
-                # np_dataset = pd.read_csv(path, delimiter=',', header=None)
+                # np_dataset = np.genfromtxt(path, delimiter=',', encoding="utf-8")
+                np_dataset = pd.read_csv(path, delimiter=',', header=None)
             else:
                 raise Exception('CSV file path is not provided')
         else:
@@ -619,8 +623,8 @@ class NumpyDataset(BaseDataset):
         return self._np_dataset
 
     def set_dataset(self, new_np_dataset):
-        assert isinstance(new_np_dataset, np.ndarray),\
-            "new_np_dataset should be an instance of np.ndarray"
+        # assert isinstance(new_np_dataset, np.ndarray),\
+        #     "new_np_dataset should be an instance of np.ndarray"
 
         # must delete old properties to save memory
         if hasattr(self, '_np_dataset'):

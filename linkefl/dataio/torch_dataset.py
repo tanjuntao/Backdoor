@@ -34,8 +34,15 @@ class TorchDataset(BaseDataset, Dataset):
         torch_data = TorchDataset._load_csv_dataset(abs_path, existing_dataset)
         self.set_dataset(torch_data)
 
+        # if transform is not None:
+        #     # self._torch_dataset = transform(self._torch_dataset)
+        #     self._torch_dataset = transform(self._torch_dataset, role=role)
         if transform is not None:
-            self._torch_dataset = transform(self._torch_dataset)
+            temp = transform(self._torch_dataset, role=role)
+            if isinstance(temp, tuple):
+                self._torch_dataset, self.bin_split = temp
+            else:
+                self._torch_dataset = temp
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
     @classmethod

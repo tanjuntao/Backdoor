@@ -23,7 +23,7 @@ LinkeFL is a versatile federated learning framework including both horizonal FL 
 First install LinkeFL in development mode.
 
 ``` shell
-git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install Cython>=3.0.0a11 && pip3 install -e .
+git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install Cython>=3.0.0a11 && pip3 install -e . --no-use-pep517
 ```
 
 Then remove the generated `.c` files and binary files ending with `*.so` (macOS and Linux) or `*.pyd` (Windows).
@@ -37,7 +37,7 @@ find . -type f -name "*.pyd" -exec rm {} \; # Windows
 
 First Install LinkeFL locally.
 ``` shell
-git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install Cython>=3.0.0a11 && pip3 install .
+git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && pip3 install Cython>=3.0.0a11 && pip3 install . --no-use-pep517
 ```
 Then also remove the generated files.
 ``` shell
