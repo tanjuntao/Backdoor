@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory
-from linkefl.dataio import TorchDataset, BuildinTorchDataset
+from linkefl.dataio import TorchDataset
 from linkefl.feature.transform import scale
 from linkefl.modelio import TorchModelIO
 from linkefl.util import num_input_nodes
@@ -164,16 +164,26 @@ if __name__ == '__main__':
 
     # 1. Load datasets
     print('Loading dataset...')
-    passive_trainset = BuildinTorchDataset(dataset_name=dataset_name,
-                                           role=Const.PASSIVE_NAME,
-                                           train=True,
-                                           passive_feat_frac=passive_feat_frac,
-                                           feat_perm_option=feat_perm_option)
-    passive_testset = BuildinTorchDataset(dataset_name=dataset_name,
-                                          role=Const.PASSIVE_NAME,
-                                          train=False,
-                                          passive_feat_frac=passive_feat_frac,
-                                          feat_perm_option=feat_perm_option)
+    passive_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
+                                                    role=Const.PASSIVE_NAME,
+                                                    train=True,
+                                                    passive_feat_frac=passive_feat_frac,
+                                                    feat_perm_option=feat_perm_option)
+    passive_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
+                                                   role=Const.PASSIVE_NAME,
+                                                   train=False,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option)
+    # passive_trainset = BuildinTorchDataset(dataset_name=dataset_name,
+    #                                        role=Const.PASSIVE_NAME,
+    #                                        train=True,
+    #                                        passive_feat_frac=passive_feat_frac,
+    #                                        feat_perm_option=feat_perm_option)
+    # passive_testset = BuildinTorchDataset(dataset_name=dataset_name,
+    #                                       role=Const.PASSIVE_NAME,
+    #                                       train=False,
+    #                                       passive_feat_frac=passive_feat_frac,
+    #                                       feat_perm_option=feat_perm_option)
     print('Done.')
     # for epsilon dataset, scale() must be applied.
     # passive_trainset = scale(passive_trainset)
