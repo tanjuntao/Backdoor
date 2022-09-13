@@ -194,8 +194,8 @@ class NumpyDataset(BaseDataset):
         if existing_dataset is None:
             if path is not None:
                 # TODO: support one-hot encoding here
-                # np_dataset = np.genfromtxt(path, delimiter=',', encoding="utf-8")
-                np_dataset = pd.read_csv(path, delimiter=',', header=None)
+                np_dataset = np.genfromtxt(path, delimiter=',', encoding="utf-8")
+                # np_dataset = pd.read_csv(path, delimiter=',', header=None)
             else:
                 raise Exception('CSV file path is not provided')
         else:
