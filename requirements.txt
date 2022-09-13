@@ -1,3 +1,4 @@
+blosc
 Cython>=3.0.0a11
 gmpy2
 grpcio-tools

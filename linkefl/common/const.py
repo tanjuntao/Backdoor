@@ -62,3 +62,10 @@ class Const:
                          'default_credit', 'covertype', 'higgs',
                          'iris', 'wine', 'mnist', 'fashion_mnist', 'cifar', 'svhn']
     }
+
+    BLOSC = 'blosc'
+    ZLIB = 'zlib'
+    COMPRESSION_DICT = {
+        BLOSC: 0,
+        ZLIB: 1,
+    }

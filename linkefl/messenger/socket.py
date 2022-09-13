@@ -2,6 +2,9 @@ import pickle
 import socket
 import struct
 import time
+import zlib
+
+import blosc
 
 from .base import Messenger
 from linkefl.config import BaseConfig
@@ -59,11 +62,12 @@ class FastSocket(Messenger):
                    passive_port=config.PASSIVE_PORT,
                    verbose=config.VERBOSE)
 
-    def send(self, msg):
+    def send(self, msg, compress=False, cname='blosc'):
+        assert cname in (Const.BLOSC, Const.ZLIB), "invalid compression name"
         if self.role == Const.PASSIVE_NAME:
-            self._passive_send(msg)
+            self._passive_send(msg, compress=compress, cname=cname)
         else:
-            self._active_send(msg)
+            self._active_send(msg, compress=compress, cname=cname)
 
     def recv(self):
         if self.role == Const.PASSIVE_NAME:
@@ -75,15 +79,22 @@ class FastSocket(Messenger):
         self.sock_send.close()
         self.sock_daemon.close()
 
-    def _passive_send(self, msg):
+    def _passive_send(self, msg, compress=False, cname='blosc'):
         if not self.is_connected:
             self.sock_send.connect((self.active_ip, self.active_port))
             self.is_connected = True
         try:
-            msg_pickled = pickle.dumps(msg)
-            # prefix is the binary representation of the length of pickled message
-            prefix = self._msg_prefix(len(msg_pickled))
-            msg_send = prefix + msg_pickled
+            msg_binary = pickle.dumps(msg)
+            if compress:
+                if cname == Const.BLOSC:
+                    msg_binary = blosc.compress(msg_binary)
+                elif cname == Const.ZLIB:
+                    msg_binary = zlib.compress(msg_binary)
+                else: pass
+            msglen_prefix = self._msglen_prefix(len(msg_binary))
+            compress_prefix = self._compress_prefix(compress)
+            cname_prefix = self._cname_prefix(cname)
+            msg_send = msglen_prefix + compress_prefix + cname_prefix + msg_binary
             self.sock_send.sendall(msg_send)
             if self.verbose:
                 print('[SOCKET-PASSIVE]: Send message to active party.')
@@ -91,14 +102,22 @@ class FastSocket(Messenger):
             raise pickle.PickleError(
                 "Can't pickle object of type {}".format(type(msg)))
 
-    def _active_send(self, msg):
+    def _active_send(self, msg, compress=False, cname='blosc'):
         if not self.is_connected:
             self.sock_send.connect((self.passive_ip, self.passive_port))
             self.is_connected = True
         try:
-            msg_pickled = pickle.dumps(msg)
-            prefix = self._msg_prefix(len(msg_pickled))
-            msg_send = prefix + msg_pickled
+            msg_binary = pickle.dumps(msg)
+            if compress:
+                if cname == Const.BLOSC:
+                    msg_binary = blosc.compress(msg_binary)
+                elif cname == Const.ZLIB:
+                    msg_binary = zlib.compress(msg_binary)
+                else: pass
+            msglen_prefix = self._msglen_prefix(len(msg_binary))
+            compress_prefix = self._compress_prefix(compress)
+            cname_prefix = self._cname_prefix(cname)
+            msg_send = msglen_prefix + compress_prefix + cname_prefix + msg_binary
             self.sock_send.sendall(msg_send)
             if self.verbose:
                 print('[SOCKET-ACTIVE]: Send message to passive party.')
@@ -110,32 +129,42 @@ class FastSocket(Messenger):
         if not self.is_accepted:
             self.conn, addr = self.sock_daemon.accept()
             self.is_accepted = True
-        # first 4 bytes means length of msg
-        raw_msglen = self._recvall(self.conn, 4)
-        if not raw_msglen:
-            return None
-        msglen = struct.unpack('>I', raw_msglen)[0] # unpack always returns a tuple
-        raw_data = self._recvall(self.conn, msglen)
+
+        msglen, compress, cname = self._recv_prefixes()
+        binary_data = self._recvall(self.conn, msglen)
+        if compress:
+            if cname == Const.BLOSC:
+                binary_data = blosc.decompress(binary_data)
+            elif cname == Const.ZLIB:
+                binary_data = zlib.decompress(binary_data)
+            else: pass
+        msg = pickle.loads(binary_data)
         if self.verbose:
             print('[SOCKET-PASSIVE]: Receive meesage from active party.')
 
-        return pickle.loads(raw_data)
+        return msg
 
     def _active_recv(self):
         if not self.is_accepted:
             self.conn, addr = self.sock_daemon.accept()
             self.is_accepted = True
-        raw_msglen = self._recvall(self.conn, 4)
-        if not raw_msglen:
-            return None
-        msglen = struct.unpack('>I', raw_msglen)[0]
-        raw_data = self._recvall(self.conn, msglen)
+
+        msglen, compress, cname = self._recv_prefixes()
+        binary_data = self._recvall(self.conn, msglen)
+        if compress:
+            if cname == Const.BLOSC:
+                binary_data = blosc.decompress(binary_data)
+            elif cname == Const.ZLIB:
+                binary_data = zlib.decompress(binary_data)
+            else:
+                pass
+        msg = pickle.loads(binary_data)
         if self.verbose:
             print('[SOCKET-ACTIVE]: Receive message from passive party.')
 
-        return pickle.loads(raw_data)
+        return msg
 
-    def _msg_prefix(self, msg_len):
+    def _msglen_prefix(self, msg_len):
         """Prefix each message with its length
 
         Args:
@@ -148,6 +177,48 @@ class FastSocket(Messenger):
             message size if 4GB
         """
         return struct.pack('>I', msg_len)
+
+    def _compress_prefix(self, compress):
+        """
+        Args:
+            compress[bool], whether using data compression algo
+            '>?': '>' means Big Endian, '?' means python bool type (1 byte)
+        """
+        return struct.pack('>?', compress)
+
+    def _cname_prefix(self, cname):
+        """
+        Args:
+            cname[str], compression type
+            '>B': 'B" means unsigned char (1 byte)
+        """
+        value = Const.COMPRESSION_DICT[cname]
+        return struct.pack('>B', value)
+
+    def _recv_prefixes(self):
+        # first 4 bytes means length of msg
+        raw_msglen = self._recvall(self.conn, 4)
+        if not raw_msglen:
+            return None
+        msglen = struct.unpack('>I', raw_msglen)[0]  # unpack always returns a tuple
+
+        # second 1 byte means whether using data compression algorotihm
+        raw_compress = self._recvall(self.conn, 1)
+        if not raw_compress:
+            return None
+        compress = struct.unpack('>?', raw_compress)[0]
+
+        # third 1 byte means compresssion type
+        raw_cname_value = self._recvall(self.conn, 1)
+        if not raw_cname_value:
+            return None
+        cname_value = struct.unpack('>B', raw_cname_value)[0]
+        cname = None
+        for key, value in Const.COMPRESSION_DICT.items():
+            if value == cname_value:
+                cname = key
+
+        return msglen, compress, cname
 
     def _recvall(self, sock, n_bytes):
         """Receive specific number of bytes from a socket connection.
