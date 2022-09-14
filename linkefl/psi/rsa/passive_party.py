@@ -13,6 +13,7 @@ import gmpy2
 from termcolor import colored
 
 from linkefl.common.const import Const
+from linkefl.common.factory import logger_factory
 from linkefl.crypto import PartialRSACrypto
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
@@ -35,14 +36,15 @@ class RSAPSIPassive:
         self.RANDOMS_FILENAME = 'randoms.pkl'
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
+        self.logger = logger_factory(role=Const.PASSIVE_NAME)
 
     def _get_pub_key(self):
-        print('[PASSIVE] Requesting public key...')
+        self.logger.log('[PASSIVE] Requesting RSA public key...')
         self.messenger.send(Const.START_SIGNAL)
         n, e = self.messenger.recv()
         pub_key = RSA.construct((n, e))
         self.cryptosystem = PartialRSACrypto(pub_key=pub_key)
-        print('[PASSIVE] Receive public key successfully.')
+        self.logger.log('[PASSIVE] Receive RSA public key successfully.')
 
     def _random_factors(self, randoms):
         random_factors = []
@@ -161,34 +163,64 @@ class RSAPSIPassive:
 
     def run(self):
         # sync RSA public key
-        print('requesting RSA public key...')
         self._get_pub_key()
-        print('Done.')
         start = time.time()
 
         # 1. generate random factors
         randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(len(self.ids))]
         random_factors = self._random_factors_mp_pool(randoms,
                                                       n_processes=self.num_workers)
-        print('Passive party finished genrating random factors.')
+        self.logger.log('Passive party finished genrating random factors.')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.1
+        )
 
         # 2. blind ids
         blinded_ids = self._blind_set(self.ids, random_factors)
         self.messenger.send(blinded_ids)
-        print('Passive party finished sending blinded ids to active party.')
+        self.logger.log('Passive party finished sending blinded ids to active party.')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.2
+        )
 
         # 3. unblind then hash signed ids
         signed_blined_ids = self.messenger.recv()
         signed_ids = self._unblind_set(signed_blined_ids, random_factors)
         hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
         self.messenger.send(hashed_signed_ids)
-        print('Passive party finished sending hashed signed ids to active party')
+        self.logger.log('Passive party finished sending hashed signed ids to active party')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.6
+        )
 
         # 4. receive intersection
         intersections = self.messenger.recv()
-        print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
+        self.logger.log('Size of intersection: {}'.format(len(intersections)))
 
-        print('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        self.logger.log('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.SUCCESS,
+            begin=start,
+            end=time.time(),
+            duration=time.time() - start,
+            progress=1.0
+        )
         return intersections
 
 
@@ -199,31 +231,31 @@ if __name__ == '__main__':
     parser.add_argument('--phase', type=str)
     args = parser.parse_args()
 
-    # 1. Get sample IDs
-    _ids = gen_dummy_ids(size=100000, option=Const.SEQUENCE)
+    # # 1. Get sample IDs
+    # _ids = gen_dummy_ids(size=100000, option=Const.SEQUENCE)
+    #
+    # # 2. Initialize messenger
+    # _messenger = FastSocket(role=Const.PASSIVE_NAME,
+    #                         active_ip='127.0.0.1',
+    #                         active_port=20000,
+    #                         passive_ip='127.0.0.1',
+    #                         passive_port=30000)
+    #
+    # # 3. Start the RSA-Blind-Signature protocol
+    # alice = RSAPSIPassive(_ids, _messenger)
+    # if args.phase == 'offline':
+    #     alice.run_offline()
+    # elif args.phase == 'online':
+    #     alice.run_online()
+    # else:
+    #     raise ValueError(f"command line argument `--phase` can only"
+    #                      f"take `offline` and `online`, "
+    #                      f"but {args.phase} got instead")
+    #
+    # # 4. close messenger
+    # _messenger.close()
 
-    # 2. Initialize messenger
-    _messenger = FastSocket(role=Const.PASSIVE_NAME,
-                            active_ip='127.0.0.1',
-                            active_port=20000,
-                            passive_ip='127.0.0.1',
-                            passive_port=30000)
-
-    # 3. Start the RSA-Blind-Signature protocol
-    alice = RSAPSIPassive(_ids, _messenger)
-    if args.phase == 'offline':
-        alice.run_offline()
-    elif args.phase == 'online':
-        alice.run_online()
-    else:
-        raise ValueError(f"command line argument `--phase` can only"
-                         f"take `offline` and `online`, "
-                         f"but {args.phase} got instead")
-
-    # 4. close messenger
-    _messenger.close()
-
-    '''
+    # '''
     ######   Option 2: run the whole protocol   ######
     # 1. Get sample IDs
     _ids = gen_dummy_ids(size=100000, option=Const.SEQUENCE)
@@ -241,5 +273,5 @@ if __name__ == '__main__':
 
     # 4. Close messenger
     _messenger.close()
-    '''
+    # '''
 

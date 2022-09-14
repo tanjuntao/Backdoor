@@ -8,6 +8,7 @@ import time
 from termcolor import colored
 
 from linkefl.common.const import Const
+from linkefl.common.factory import logger_factory
 from linkefl.crypto import RSACrypto
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
@@ -23,6 +24,7 @@ class RSAPSIActive:
         self.num_workers = num_workers
         self.HASHED_IDS_FILENAME = 'hashed_signed_ids.pkl'
         self.HERE = os.path.abspath(os.path.dirname(__file__))
+        self.logger = logger_factory(role=Const.ACTIVE_NAME)
 
     def _send_pub_key(self):
         signal = self.messenger.recv()
@@ -30,7 +32,7 @@ class RSAPSIActive:
             n = self.cryptosystem.pub_key.n
             e = self.cryptosystem.pub_key.e
             self.messenger.send([n, e])
-            print('[ACTIVE] Finish sending public key.')
+            self.logger.log('[ACTIVE] Finish sending RSA public key.')
         else:
             raise ValueError('Invalid start signal.')
 
@@ -92,32 +94,58 @@ class RSAPSIActive:
 
     def run(self):
         # 1. sync RSA public key
-        print('Active party starts PSI, listening...')
+        self.logger.log('Active party starts PSI, listening...')
         self._send_pub_key()
         start = time.time()
 
         # 2. signing blinded ids of passive party
         blinded_ids = self.messenger.recv()
-        signed_blinded_ids = self.cryptosystem.sign_set_thread(blinded_ids,
-                                                               n_threads=self.num_workers)
+        signed_blinded_ids = self.cryptosystem.sign_set_thread(
+            blinded_ids,
+            n_threads=self.num_workers
+        )
         self.messenger.send(signed_blinded_ids)
-        print('Active party sends signed blinded ids back to passive party.')
+        self.logger.log('Active party sends signed blinded ids back to passive party.')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.4
+        )
 
         # 3. signing and hashing its own ids
         signed_ids = self.cryptosystem.sign_set_thread(self.ids,
                                                        n_threads=self.num_workers)
         active_hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
-        print('Active party finished signing and hashing its own ids.')
+        self.logger.log('Active party finished signing and hashing its own ids.')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.8
+        )
 
         # 4. receiving hashed signed ids from passive party
         passive_hashed_signed_ids = self.messenger.recv()
 
         # 5. find the intersection
         intersections = self._intersect(active_hashed_signed_ids, passive_hashed_signed_ids)
-        print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
+        self.logger.log('Size of intersection: {}'.format(len(intersections)))
         self.messenger.send(intersections)
 
-        print('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        self.logger.log('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.SUCCESS,
+            begin=start,
+            end=time.time(),
+            duration=time.time() - start,
+            progress=1.0
+        )
         return intersections
 
 
@@ -128,36 +156,36 @@ if __name__ == '__main__':
     parser.add_argument('--phase', type=str)
     args = parser.parse_args()
 
-    # 1. get sample IDs
-    _ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
+    # # 1. get sample IDs
+    # _ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
+    #
+    # # 2. Initialize messenger
+    # _messenger = FastSocket(role=Const.ACTIVE_NAME,
+    #                         active_ip='127.0.0.1',
+    #                         active_port=20000,
+    #                         passive_ip='127.0.0.1',
+    #                         passive_port=30000)
+    #
+    # # 3. Start the RSA-Blind-Signature protocol
+    # if args.phase == 'offline':
+    #     _crypto = RSACrypto()
+    #     bob = RSAPSIActive(_ids, _messenger, _crypto)
+    #     bob.run_offline()
+    #
+    # elif args.phase == 'online':
+    #     _crypto = RSACrypto.from_private()
+    #     bob = RSAPSIActive(_ids, _messenger, _crypto)
+    #     bob.run_online()
+    #
+    # else:
+    #     raise ValueError(f"command line argument `--phase` can only"
+    #                      f"take `offline` and `online`, "
+    #                      f"but {args.phase} got instead")
+    #
+    # # 4. close messenger
+    # _messenger.close()
 
-    # 2. Initialize messenger
-    _messenger = FastSocket(role=Const.ACTIVE_NAME,
-                            active_ip='127.0.0.1',
-                            active_port=20000,
-                            passive_ip='127.0.0.1',
-                            passive_port=30000)
-
-    # 3. Start the RSA-Blind-Signature protocol
-    if args.phase == 'offline':
-        _crypto = RSACrypto()
-        bob = RSAPSIActive(_ids, _messenger, _crypto)
-        bob.run_offline()
-
-    elif args.phase == 'online':
-        _crypto = RSACrypto.from_private()
-        bob = RSAPSIActive(_ids, _messenger, _crypto)
-        bob.run_online()
-
-    else:
-        raise ValueError(f"command line argument `--phase` can only"
-                         f"take `offline` and `online`, "
-                         f"but {args.phase} got instead")
-
-    # 4. close messenger
-    _messenger.close()
-
-    '''
+    # '''
     ######   Option 2: run the whole protocol   ######
     # 1. get sample IDs
     _ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
@@ -177,4 +205,4 @@ if __name__ == '__main__':
 
     # 5. Close messenger
     _messenger.close()
-    '''
+    # '''

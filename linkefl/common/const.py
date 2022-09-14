@@ -41,12 +41,17 @@ class Const:
     SOCKET = 'socket'
     FAST_SOCKET = 'fast_socket'
 
+    DATALOADER = 'dataloader'
+    TRANSFORM = 'transform'
+    RSA_PSI = 'rsa_psi'
     VERTICAL_LINREG = 'vertical_linreg'
     VERTICAL_LOGREG = 'vertical_logreg'
     VERTICAL_SBT = 'vertical_sbt'
     VERTICAL_NN = 'vertical_nn'
     HORIZONTAL_NN = 'horizontal_nn'
     SPLIT_NN = 'split_nn'
+    VERTICAL_INFERENCE = 'vertical_inference'
+    HORIZONTAL_INFERENCE = 'horizontal_inference'
 
     DEBUG = 'debug'
     INFO = 'info'
