@@ -5,6 +5,7 @@ from logging.handlers import HTTPHandler, QueueHandler, QueueListener
 import os
 import pathlib
 import queue
+import time
 
 from linkefl.common.const import Const
 
@@ -86,27 +87,66 @@ class GlobalLogger:
 
     def log_metric(self, epoch, loss, acc, auc, f1, total_epoch, level='info'):
         json_msg = json.dumps({
-            'epoch': epoch + 1,
-            'loss': round(loss, GlobalLogger.FLOAT_PRECISION),
-            'acc': round(acc, GlobalLogger.FLOAT_PRECISION),
-            'auc': round(auc, GlobalLogger.FLOAT_PRECISION),
-            'f1': round(f1, GlobalLogger.FLOAT_PRECISION),
-            'progress': (epoch + 1) / total_epoch,
-            'role': self.role,
+            'metricLog': {
+                'epoch': epoch + 1,
+                'loss': round(loss, GlobalLogger.FLOAT_PRECISION),
+                'acc': round(acc, GlobalLogger.FLOAT_PRECISION),
+                'auc': round(auc, GlobalLogger.FLOAT_PRECISION),
+                'f1': round(f1, GlobalLogger.FLOAT_PRECISION),
+                'time': self.time_formatter(time.time()),
+                'progress': (epoch + 1) / total_epoch,
+                'role': self.role,
+            }
+        })
+        log_func = GlobalLogger._loglevel_dict[level]
+        log_func(json_msg)
+
+    def log_component(self, name, status,
+                      begin, end, duration, progress,
+                      failure_reason=None, level='info'):
+        json_msg = json.dumps({
+            'componentLog': {
+                'name': name,
+                'status': status,
+                'begin': self.time_formatter(begin),
+                'end': self.time_formatter(end),
+                'duration': duration,
+                'progress': progress,
+                'failure_reason': failure_reason,
+                'role': self.role,
+            }
+        })
+        log_func = GlobalLogger._loglevel_dict[level]
+        log_func(json_msg)
+
+    def log_task(self, begin, end, status, level='info'):
+        json_msg = json.dumps({
+            'taskLog': {
+                'begin': begin,
+                'end': end,
+                'status': status,
+                'role': self.role,
+            }
         })
         log_func = GlobalLogger._loglevel_dict[level]
         log_func(json_msg)
 
     def log(self, content, level='info'):
         json_msg = json.dumps({
-            'content': content,
-            'role': self.role,
+            'messageLog': {
+                'content': content,
+                'time': self.time_formatter(time.time()),
+                'role': self.role,
+            }
         })
         log_func = GlobalLogger._loglevel_dict[level]
         log_func(json_msg)
 
     def get_logger(self):
         return GlobalLogger._logger
+
+    def time_formatter(self, timestamp):
+        return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))
 
 
 if __name__ == '__main__':

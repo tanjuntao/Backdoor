@@ -69,3 +69,7 @@ class Const:
         BLOSC: 0,
         ZLIB: 1,
     }
+
+    RUNNING = 'running'
+    FAILURE = 'failure'
+    SUCCESS = 'success'
