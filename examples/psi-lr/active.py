@@ -1,7 +1,9 @@
+import time
+
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory
+from linkefl.common.factory import crypto_factory, logger_factory
 from linkefl.crypto import RSACrypto
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import scale, add_intercept
@@ -28,8 +30,12 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
     _random_state = None
     _key_size = 1024
+    logger = logger_factory(role=Const.ACTIVE_NAME)
+
+    task_start_time = time.time()
 
     # 1. Load dataset
+    start_time = time.time()
     active_trainset = NumpyDataset(role=Const.ACTIVE_NAME,
                                    dataset_type=Const.CLASSIFICATION,
                                    abs_path=trainset_path)
@@ -37,11 +43,30 @@ if __name__ == '__main__':
                                   dataset_type=Const.CLASSIFICATION,
                                   abs_path=testset_path)
     print(colored('1. Finish loading dataset.', 'red'))
+    logger.log('1. Finish loading dataset.')
+    logger.log_component(
+        name=Const.DATALOADER,
+        status=Const.SUCCESS,
+        begin=start_time,
+        end=time.time(),
+        duration=time.time() - start_time,
+        progress=1.0
+    )
 
     # 2. Feature transformation
+    start_time = time.time()
     active_trainset = scale(add_intercept(active_trainset))
     active_testset = scale(add_intercept(active_testset))
     print(colored('2. Finish transforming features', 'red'))
+    logger.log('2. Finish transforming features')
+    logger.log_component(
+        name=Const.TRANSFORM,
+        status=Const.SUCCESS,
+        begin=start_time,
+        end=time.time(),
+        duration=time.time() - start_time,
+        progress=1.0
+    )
 
     # 3. Run PSI
     messenger = FastSocket(role=Const.ACTIVE_NAME,
@@ -54,8 +79,10 @@ if __name__ == '__main__':
     common_ids = active_psi.run()
     active_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))
+    logger.log('3. Finish psi protocol')
 
     # 4. VFL training
+    start_time = time.time()
     vfl_crypto = crypto_factory(crypto_type=_crypto_type,
                                 key_size=_key_size,
                                 num_enc_zeros=10000,
@@ -72,17 +99,46 @@ if __name__ == '__main__':
                               saving_model=False)
     active_vfl.train(active_trainset, active_testset)
     print(colored('4. Finish collaborative model training', 'red'))
+    logger.log('4. Finish collaborative model training')
+    logger.log_component(
+        name=Const.VERTICAL_LOGREG,
+        status=Const.SUCCESS,
+        begin=start_time,
+        end=time.time(),
+        duration=time.time() - start_time,
+        progress=1.0
+    )
 
     # 5. VFL inference
+    start_time = time.time()
     scores = active_vfl.predict(active_testset)
     print('Acc: {:.5f} \nAuc: {:.5f} \nf1: {:.5f}'.format(scores['acc'],
                                                             scores['auc'],
                                                             scores['f1']))
     print(colored('5. Finish collaborative inference', 'red'))
+    logger.log('Acc: {:.5f} \nAuc: {:.5f} \nf1: {:.5f}'.format(scores['acc'],
+                                                               scores['auc'],
+                                                               scores['f1']))
+    logger.log('5. Finish collaborative inference')
+    logger.log_component(
+        name=Const.VERTICAL_INFERENCE,
+        status=Const.SUCCESS,
+        begin=start_time,
+        end=time.time(),
+        duration=time.time() - start_time,
+        progress=1.0
+    )
 
     # 6. Finish the whole pipeline
     messenger.close()
     print(colored('All Done.', 'red'))
+    logger.log('All Done.')
+    logger.log_task(
+        begin=task_start_time,
+        end=time.time(),
+        status=Const.SUCCESS
+    )
+
 
     # #For online inference, you just need to substitute the model_name
     # scores = ActiveLogReg.online_inference(
