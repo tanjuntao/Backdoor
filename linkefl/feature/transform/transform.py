@@ -1,3 +1,5 @@
+from typing import List, Any
+
 import numpy as np
 import pandas as pd
 from sklearn import preprocessing
@@ -122,52 +124,79 @@ class OneHot(BaseTransform):
              2, 0, 1, 1, 0],
              3, 0, 1, 1, 0]])
     """
-    def __init__(self, target_datatype, index=None):
+    def __init__(self, idxes):
         super(OneHot, self).__init__()
-        self.index = index if index is not None else []
-        self.target_datatype = target_datatype
+        if type(idxes) != list or not idxes:
+            raise ValueError('idxes should be an non-empty Python list')
+        self.idxes = idxes
 
-    def __call__(self, dataset):
-        if self.target_datatype == 'numpy.ndarray':
-            n_features = dataset.shape[1]
-            for i in range(n_features):
-                if i in self.index:
-                    # Require to do One-hot coding
-                    data = pd.DataFrame(dataset.iloc[:, i:i+1])
-                    new_data = np.array(pd.get_dummies(data))
-                    if i == 0:
-                        new_dataset = new_data
-                    else:
-                        new_dataset = np.c_[new_dataset, new_data]
-                else:
-                    # No require to do One-hot coding
-                    new_data  = np.array(pd.DataFrame(dataset.iloc[:, i:i+1]))
-                    if i == 0:
-                        new_dataset = new_data
-                    else:
-                        new_dataset = np.c_[new_dataset, new_data]
-        elif self.target_datatype == 'torch.Tensor':
-            n_features = dataset.shape[1]
-            for i in range(n_features):
-                if i in self.index:
-                    # Require to do One-hot coding
-                    data = pd.DataFrame(dataset.iloc[:, i:i+1])
-                    new_data = torch.from_numpy(np.array(pd.get_dummies(data)))
-                    if i == 0:
-                        new_dataset = new_data
-                    else:
-                        new_dataset = torch.cat((new_dataset, new_data), dim=1)
-                else:
-                    # No require to do One-hot coding
-                    new_data  = torch.from_numpy(np.array(pd.DataFrame(dataset.iloc[:, i:i+1])))
-                    if i == 0:
-                        new_dataset = new_data
-                    else:
-                        new_dataset = torch.cat((new_dataset, new_data), dim=1)
-        else:
-            raise TypeError('The target type of the dataset should be numpy.ndarray or torch.Tensor')
-        
-        return new_dataset
+    def __call__(self, df, role):
+        offset = 2 if role == Const.ACTIVE_NAME else 1
+        n_features = df.shape[1] - offset
+
+        all_idxes = list(range(n_features))
+        remain_idxes = list(set(all_idxes) - set(self.idxes))
+        sub_dfs = list() # a list composed of sub dataframes
+        sub_dfs.append(df[:, list(range(offset))]) # store ids or ids+labels
+        # store non one-hot features
+        sub_dfs.append(df[:, [idx+offset for idx in remain_idxes]])
+
+        for idx in self.idxes:
+            if df[idx+offset].dtype in ('float32', 'float64'):
+                raise ValueError(f"{idx+offset}-th column has a dtype of float,"
+                                 f"which should not be applied by OneHot.")
+            dummy_df = pd.get_dummies(df[idx+offset], prefix=str(idx+offset))
+            sub_dfs.append(dummy_df)
+
+        # set copy=False to save memory
+        final_df = pd.concat(sub_dfs, axis=1, copy=False)
+        return final_df
+
+
+        # if datatype == 'numpy.ndarray':
+        #
+        #
+        #     n_features = dataset.shape[1]
+        #     for i in range(n_features):
+        #         if i in self.index:
+        #             # Require to do One-hot coding
+        #             data = pd.DataFrame(dataset.iloc[:, i:i+1])
+        #             new_data = np.array(pd.get_dummies(data))
+        #             if i == 0:
+        #                 new_dataset = new_data
+        #             else:
+        #                 new_dataset = np.c_[new_dataset, new_data]
+        #         else:
+        #             # No require to do One-hot coding
+        #             new_data  = np.array(pd.DataFrame(dataset.iloc[:, i:i+1]))
+        #             if i == 0:
+        #                 new_dataset = new_data
+        #             else:
+        #                 new_dataset = np.c_[new_dataset, new_data]
+        #
+        # elif datatype == 'torch.Tensor':
+        #     n_features = dataset.shape[1]
+        #     for i in range(n_features):
+        #         if i in self.index:
+        #             # Require to do One-hot coding
+        #             data = pd.DataFrame(dataset.iloc[:, i:i+1])
+        #             new_data = torch.from_numpy(np.array(pd.get_dummies(data)))
+        #             if i == 0:
+        #                 new_dataset = new_data
+        #             else:
+        #                 new_dataset = torch.cat((new_dataset, new_data), dim=1)
+        #         else:
+        #             # No require to do One-hot coding
+        #             new_data  = torch.from_numpy(np.array(pd.DataFrame(dataset.iloc[:, i:i+1])))
+        #             if i == 0:
+        #                 new_dataset = new_data
+        #             else:
+        #                 new_dataset = torch.cat((new_dataset, new_data), dim=1)
+        #
+        # else:
+        #     raise TypeError('The target type of the dataset should be numpy.ndarray or torch.Tensor')
+        #
+        # return new_dataset
 
 
 class Bin(BaseTransform):
