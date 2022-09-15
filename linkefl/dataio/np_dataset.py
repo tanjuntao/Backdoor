@@ -3,6 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from pandas.api.types import is_numeric_dtype
 import pymysql
 from sklearn.datasets import (
     load_breast_cancer,
@@ -18,35 +19,39 @@ from termcolor import colored
 from linkefl.common.const import Const
 from linkefl.dataio.base import BaseDataset
 from linkefl.feature import cal_importance_ranking
+from linkefl.feature import Compose, OneHot
 
 
 class NumpyDataset(BaseDataset):
-    def __init__(self, role, dataset_type, abs_path=None, transform=None, existing_dataset=None):
+    def __init__(self, role, existing_dataset, dataset_type, transform=None):
         super(NumpyDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
         self.dataset_type = dataset_type
+        self.has_label = True if role == Const.ACTIVE_NAME else False
 
-        # if existing_dataset is None:
-        #     if abs_path is not None:
-        #         # self._np_dataset = np.genfromtxt(abs_path, delimiter=',', encoding="utf-8")
-        #         self._np_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
-        #     else:
-        #         raise Exception('abs_path should not be None')
-        # else:
-        #     self.set_dataset(existing_dataset)
+        if isinstance(existing_dataset, np.ndarray):
+            np_dataset = existing_dataset
+            has_non_onehot_transform = False if transform is None else True
+        elif isinstance(existing_dataset, pd.DataFrame):
+            np_dataset, has_non_onehot_transform, transform = \
+                self._pandas2numpy(existing_dataset, transform)
+        else:
+            raise ValueError('existing_dataset should be a ndarray or pd.DataFrame.')
 
-        np_data = NumpyDataset._load_csv_dataset(abs_path, existing_dataset)
-        # after this function call, self._np_dataset property will be created
-        self.set_dataset(np_data)
+        # at this step, existing_dataset is a np.ndarray
+        # after this function call, self._np_dataset attribute will be created
+        self.set_dataset(np_dataset)
 
-        if transform is not None:
+        # finally apply non-onehot transformation if it exists
+        if has_non_onehot_transform:
             temp = transform(self._np_dataset, role=role)
             if isinstance(temp, tuple):
                 self._np_dataset, self.bin_split = temp
             else:
                 self._np_dataset = temp
-        self.has_label = True if role == Const.ACTIVE_NAME else False
+
+        # After the initilization process, self._np_dataset attribute is ready for use.
 
     @classmethod
     def train_test_split(cls, whole_dataset, test_size, seed=1314):
@@ -62,11 +67,11 @@ class NumpyDataset(BaseDataset):
         np_testset = whole_dataset.get_dataset()[perm[n_train_samples:], :]
 
         trainset = cls(role=whole_dataset.role,
-                       dataset_type=whole_dataset.dataset_type,
-                       existing_dataset=np_trainset)
+                       existing_dataset=np_trainset,
+                       dataset_type=whole_dataset.dataset_type)
         testset = cls(role=whole_dataset.role,
-                      dataset_type=whole_dataset.dataset_type,
-                      existing_dataset=np_testset)
+                      existing_dataset=np_testset,
+                      dataset_type=whole_dataset.dataset_type)
 
         return trainset, testset
 
@@ -95,8 +100,8 @@ class NumpyDataset(BaseDataset):
             splitted_feats = permed_features[:, begin_idx:end_idx]
             np_dataset = np.concatenate((ids[:, np.newaxis], splitted_feats), axis=1)
             curr_dataset = cls(role=whole_dataset.role,
-                               dataset_type=whole_dataset.dataset_type,
-                               existing_dataset=np_dataset)
+                               existing_dataset=np_dataset,
+                               dataset_type=whole_dataset.dataset_type)
             splitted_datasets.append(curr_dataset)
 
         return splitted_datasets
@@ -131,23 +136,26 @@ class NumpyDataset(BaseDataset):
             dataset_type = Const.REGRESSION
         else:
             dataset_type = Const.CLASSIFICATION
+
         return cls(
             role=role,
+            existing_dataset=np_dataset,
             dataset_type=dataset_type,
-            transform=transform,
-            existing_dataset=np_dataset
+            transform=transform
         )
 
     @classmethod
-    def database_dataset(cls,
-                         role,
-                         dataset_type,
-                         host,
-                         user,
-                         password,
-                         database,
-                         table,
-                         port=3306):
+    def from_mysql(cls,
+                   role,
+                   dataset_type,
+                   host,
+                   user,
+                   password,
+                   database,
+                   table,
+                   *,
+                   transform=None,
+                   port=3306):
         """Load dataset from MySQL database."""
         connection = pymysql.connect(host=host,
                                      user=user,
@@ -162,7 +170,12 @@ class NumpyDataset(BaseDataset):
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
-        return cls(role=role, dataset_type=dataset_type, existing_dataset=df_dataset)
+        return cls(
+            role=role,
+            existing_dataset=df_dataset,
+            dataset_type=dataset_type,
+            transform=transform
+        )
 
         #         count = 0
         #         if ids is None:
@@ -189,19 +202,19 @@ class NumpyDataset(BaseDataset):
         #
         # return cls(role=role, existing_dataset=final_dataframe)
 
-    @staticmethod
-    def _load_csv_dataset(path, existing_dataset=None):
-        if existing_dataset is None:
-            if path is not None:
-                # TODO: support one-hot encoding here
-                np_dataset = np.genfromtxt(path, delimiter=',', encoding="utf-8")
-                # np_dataset = pd.read_csv(path, delimiter=',', header=None)
-            else:
-                raise Exception('CSV file path is not provided')
-        else:
-            np_dataset = existing_dataset # just assign a new pointer
+    @classmethod
+    def from_csv(cls, role, abs_path, dataset_type, transform=None):
+        df_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
+        return cls(
+            role=role,
+            existing_dataset=df_dataset,
+            dataset_type=dataset_type,
+            transform=transform
+        )
 
-        return np_dataset
+    @classmethod
+    def from_excel(cls, role, abs_path, dataset_type, transform=None):
+        pass
 
     # utility method
     @staticmethod
@@ -638,6 +651,59 @@ class NumpyDataset(BaseDataset):
 
         # update new property
         self._np_dataset = new_np_dataset
+
+    def _pandas2numpy(self, df_dataset, transform):
+        """Transform a pandas DataFrame into Numpy Array"""
+        if isinstance(transform, OneHot):
+            df_dataset = transform(df_dataset, role=self.role)
+            has_non_onehot_transform = False
+
+        elif isinstance(transform, Compose):
+            non_onehot_transform = []
+            for transfm in transform.transforms:
+                if isinstance(transfm, OneHot):
+                    df_dataset = transfm(df_dataset, role=self.role)
+                else:
+                    non_onehot_transform.append(transfm)
+            if not non_onehot_transform:  # no non-onehot transfm in transform
+                has_non_onehot_transform = False
+            else:
+                has_non_onehot_transform = True
+                transform = Compose(non_onehot_transform)
+
+        else:
+            has_non_onehot_transform = False if transform is None else True
+
+        # check if all column dtypes in df_dataset are numerical type
+        if not NumpyDataset._check_numeric_dtype(df_dataset):
+            raise ValueError('There still exists non-numerical features, please'
+                             'check your transform parameter.')
+        np_dataset = df_dataset.to_numpy(copy=False)
+
+        return np_dataset, has_non_onehot_transform, transform
+
+    @staticmethod
+    def _check_numeric_dtype(df_dataset):
+        """return True only when all column dtype in a dataframe is numerical"""
+        assert isinstance(df_dataset, pd.DataFrame), 'expected type is pd.DataFrame'
+        return all([is_numeric_dtype(dtype) for dtype in df_dataset.dtypes])
+
+    @staticmethod
+    def _load_csv_dataset(path, existing_dataset=None):
+        """return a pandas dataframe"""
+        if existing_dataset is None:
+            if path is not None:
+                # TODO: support one-hot encoding here
+                np_dataset = np.genfromtxt(path, delimiter=',',
+                                           encoding="utf-8")
+                # np_dataset = pd.read_csv(path, delimiter=',', header=None)
+            else:
+                raise Exception('CSV file path is not provided')
+        else:
+            np_dataset = existing_dataset  # just assign a new pointer
+
+        return np_dataset
+
 
 '''
 class BuildinNumpyDataset(NumpyDataset):
