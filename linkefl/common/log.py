@@ -122,8 +122,8 @@ class GlobalLogger:
     def log_task(self, begin, end, status, level='info'):
         json_msg = json.dumps({
             'taskLog': {
-                'begin': begin,
-                'end': end,
+                'begin': self.time_formatter(begin),
+                'end': self.time_formatter(end),
                 'status': status,
                 'role': self.role,
             }
