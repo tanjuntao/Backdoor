@@ -36,12 +36,12 @@ if __name__ == '__main__':
 
     # 1. Load dataset
     start_time = time.time()
-    active_trainset = NumpyDataset(role=Const.ACTIVE_NAME,
-                                   dataset_type=Const.CLASSIFICATION,
-                                   abs_path=trainset_path)
-    active_testset = NumpyDataset(role=Const.ACTIVE_NAME,
-                                  dataset_type=Const.CLASSIFICATION,
-                                  abs_path=testset_path)
+    active_trainset = NumpyDataset.from_csv(role=Const.ACTIVE_NAME,
+                                            abs_path=trainset_path,
+                                            dataset_type=Const.CLASSIFICATION)
+    active_testset = NumpyDataset.from_csv(role=Const.ACTIVE_NAME,
+                                           abs_path=testset_path,
+                                           dataset_type=Const.CLASSIFICATION)
     print(colored('1. Finish loading dataset.', 'red'))
     logger.log('1. Finish loading dataset.')
     logger.log_component(

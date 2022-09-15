@@ -34,12 +34,12 @@ if __name__ == '__main__':
 
     # 1. Load dataset
     start_time = time.time()
-    passive_trainset = NumpyDataset(role=Const.PASSIVE_NAME,
-                                    dataset_type=Const.CLASSIFICATION,
-                                    abs_path=trainset_path)
-    passive_testset = NumpyDataset(role=Const.PASSIVE_NAME,
-                                   dataset_type=Const.CLASSIFICATION,
-                                   abs_path=testset_path)
+    passive_trainset = NumpyDataset.from_csv(role=Const.PASSIVE_NAME,
+                                             abs_path=trainset_path,
+                                             dataset_type=Const.CLASSIFICATION)
+    passive_testset = NumpyDataset.from_csv(role=Const.PASSIVE_NAME,
+                                            abs_path=testset_path,
+                                            dataset_type=Const.CLASSIFICATION)
     print(colored('1. Finish loading dataset.', 'red'))
     logger.log('1. Finish loading dataset.')
     logger.log_component(

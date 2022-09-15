@@ -39,12 +39,12 @@ if __name__ == "__main__":
     _key_size = 1024
 
     # 1. Load dataset
-    active_trainset = NumpyDataset(role=Const.ACTIVE_NAME,
-                                   dataset_type=Const.CLASSIFICATION,
-                                   abs_path=trainset_path)
-    active_testset = NumpyDataset(role=Const.ACTIVE_NAME,
-                                  dataset_type=Const.CLASSIFICATION,
-                                  abs_path=testset_path)
+    active_trainset = NumpyDataset.from_csv(role=Const.ACTIVE_NAME,
+                                            abs_path=trainset_path,
+                                            dataset_type=Const.CLASSIFICATION)
+    active_testset = NumpyDataset.from_csv(role=Const.ACTIVE_NAME,
+                                           abs_path=testset_path,
+                                           dataset_type=Const.CLASSIFICATION)
     print(colored("1. Finish loading dataset.", "red"))
 
     # 2. Feature transformation
