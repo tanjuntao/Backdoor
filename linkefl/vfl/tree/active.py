@@ -1,15 +1,17 @@
 import datetime
 import time
-import warnings
 from multiprocessing import Pool
 
 import numpy as np
 from scipy.special import softmax
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
-from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, messenger_factory
+from linkefl.common.factory import (
+    crypto_factory,
+    messenger_factory,
+    logger_factory,
+)
 from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
@@ -18,7 +20,10 @@ from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
-from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss
+from linkefl.vfl.tree.loss_functions import (
+    CrossEntropyLoss,
+    MultiCrossEntropyLoss,
+)
 
 
 class ActiveTreeParty:
@@ -56,13 +61,14 @@ class ActiveTreeParty:
             reg_lambda: used to compute gain and leaf weight
             min_split_samples: minimum samples required to split
             min_split_gain: minimum gain required to split
-            fix_point_precision: bit length to preserve when converting float to int
+            fix_point_precision: binary length to keep when casting float to int
             sampling_method: uniform
             n_processes: number of processes in multiprocessing
         """
 
         self._check_parameters(task, n_labels, compress, sampling_method)
 
+        self.n_trees = n_trees
         self.task = task
         self.n_labels = n_labels
         self.messengers = messengers
@@ -83,6 +89,8 @@ class ActiveTreeParty:
             model_type=Const.VERTICAL_SBT,
         )
 
+        self.logger = logger_factory(Const.ACTIVE_NAME)
+
         # 初始化 loss
         if task == "binary":
             self.loss = CrossEntropyLoss()
@@ -98,6 +106,7 @@ class ActiveTreeParty:
                 crypto_type=crypto_type,
                 crypto_system=crypto_system,
                 messengers=messengers,
+                logger=self.logger,
                 compress=compress,
                 max_depth=max_depth,
                 reg_lambda=reg_lambda,
@@ -110,28 +119,36 @@ class ActiveTreeParty:
             for _ in range(n_trees)
         ]
 
-    @staticmethod
-    def _check_parameters(task, n_labels, compress, sampling_method):
+    def _check_parameters(self, task, n_labels, compress, sampling_method):
         assert task in ("binary", "multi"), "task should be binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
-        assert sampling_method in ("uniform",), "sampling method should be uniform"
+        assert sampling_method in ("uniform",), "sampling should be uniform"
 
         if task == "binary":
-            assert task == "binary" and n_labels == 2, "binary task should set n_labels as 2"
+            assert (
+                task == "binary" and n_labels == 2
+            ), "binary task should set n_labels as 2"
 
         if task == "multi":
             if compress is True:
-                warnings.warn("compress should be set only when task is binary", SyntaxWarning)
+                self.logger.log(
+                    "compress should be set only when task is binary",
+                    level=Const.WARNING,
+                )
 
     def train(self, trainset, testset):
-        assert isinstance(trainset, NumpyDataset), "trainset should be an instance of NumpyDataset"
-        assert isinstance(testset, NumpyDataset), "testset should be an instance of NumpyDataset"
+        assert isinstance(
+            trainset, NumpyDataset
+        ), "trainset should be an instance of NumpyDataset"
+        assert isinstance(
+            testset, NumpyDataset
+        ), "testset should be an instance of NumpyDataset"
 
         start_time = time.time()
 
-        print("Building hist...")
+        self.logger.log("Building hist...")
         bin_index, bin_split = get_bin_info(trainset.features, self.max_bin)
-        print("Done")
+        self.logger.log("Done")
 
         labels = trainset.labels
 
@@ -140,11 +157,25 @@ class ActiveTreeParty:
             outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
 
             for i, tree in enumerate(self.trees):
-                print(f"\ntree {i} started...")
+                self.logger.log(f"tree {i} started...")
+                loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
                 update_pred = tree.fit(gradient, hessian, bin_index, bin_split)
-                print(f"tree {i} finished")
+                self.logger.log(f"tree {i} finished")
+
+                for messenger in self.messengers:
+                    messenger.send(wrap_message("validate", content=True))
+
+                scores = self._validate(testset)
+                self.logger.log_metric(
+                    epoch=i,
+                    loss=loss.mean(),
+                    acc=scores["acc"],
+                    auc=scores["auc"],
+                    f1=scores["f1"],
+                    total_epoch=self.n_trees,
+                )
 
                 raw_outputs += self.learning_rate * update_pred
                 outputs = sigmoid(raw_outputs)
@@ -153,15 +184,29 @@ class ActiveTreeParty:
             labels_onehot = np.zeros((len(labels), self.n_labels))
             labels_onehot[np.arange(len(labels)), labels] = 1
 
-            raw_outputs = np.zeros((len(labels), self.n_labels))  # sum of tree raw outputs
+            raw_outputs = np.zeros((len(labels), self.n_labels))
             outputs = softmax(raw_outputs, axis=1)  # softmax of raw_outputs
 
             for i, tree in enumerate(self.trees):
-                print(f"\ntree {i} started...")
+                self.logger.log(f"tree {i} started...")
+                loss = self.loss.loss(labels_onehot, outputs)
                 gradient = self.loss.gradient(labels_onehot, outputs)
                 hessian = self.loss.hessian(labels_onehot, outputs)
                 update_pred = tree.fit(gradient, hessian, bin_index, bin_split)
-                print(f"tree {i} finished")
+                self.logger.log(f"tree {i} finished")
+
+                for messenger in self.messengers:
+                    messenger.send(wrap_message("validate", content=True))
+
+                scores = self._validate(testset)
+                self.logger.log_metric(
+                    epoch=i,
+                    loss=loss.mean(),
+                    acc=scores["acc"],
+                    auc=scores["auc"],
+                    f1=scores["f1"],
+                    total_epoch=self.n_trees,
+                )
 
                 raw_outputs += self.learning_rate * update_pred
                 outputs = softmax(raw_outputs, axis=1)
@@ -170,50 +215,63 @@ class ActiveTreeParty:
             messenger.send(wrap_message("train finished", content=True))
 
         if self.saving_model:
-            model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+            model_name = f"{self.model_name}-{trainset.n_samples}_samples.model"
             model_params = [(tree.record, tree.root) for tree in self.trees]
             NumpyModelIO.save(model_params, self.model_path, model_name)
 
-        print("train finished")
+        self.logger.log("train finished")
 
         if self.pool is not None:
             self.pool.close()
 
-        scores = self._validate(testset)
-        print(scores)
-
-        print(colored("Total training and validation time: {:.4f}".format(time.time() - start_time), "red"))
+        self.logger.log(
+            "Total training and validation time: {:.4f}".format(
+                time.time() - start_time
+            )
+        )
 
     def _validate(self, testset):
-        assert isinstance(testset, NumpyDataset), "testset should be an instance of NumpyDataset"
+        assert isinstance(
+            testset, NumpyDataset
+        ), "testset should be an instance of NumpyDataset"
 
         features = testset.features
         labels = testset.labels
 
-        raw_outputs = np.zeros((len(labels), self.n_labels)) if self.task == "multi" else np.zeros(len(labels))
+        raw_outputs = (
+            np.zeros((len(labels), self.n_labels))
+            if self.task == "multi"
+            else np.zeros(len(labels))
+        )
         for tree in self.trees:
             update_pred = tree.predict(features)
+            if update_pred is None:
+                # the trees after are not trained
+                break
             raw_outputs += self.learning_rate * update_pred
 
         if self.task == "binary":
             outputs = sigmoid(raw_outputs)
             targets = np.round(outputs).astype(int)
+
+            acc = accuracy_score(labels, targets)
+            auc = roc_auc_score(labels, outputs)
+            f1 = f1_score(labels, targets, average="weighted")
+
         elif self.task == "multi":
             outputs = softmax(raw_outputs, axis=1)
             targets = np.argmax(outputs, axis=1)
+
+            acc = accuracy_score(labels, targets)
+            auc = -1
+            f1 = -1
+
         else:
             raise ValueError("No such task label.")
 
-        scores = dict()
-        acc = accuracy_score(labels, targets)
-        scores["acc"] = acc
-        if self.task == "binary":
-            auc = roc_auc_score(labels, outputs)
-            scores["auc"] = auc
-            f1 = f1_score(labels, targets, average="weighted")
-            scores["f1"] = f1
+        scores = {"acc": acc, "auc": auc, "f1": f1}
 
-        print("validate finished")
+        self.logger.log("validate finished")
         for messenger in self.messengers:
             messenger.send(wrap_message("validate finished", content=True))
 
@@ -223,7 +281,9 @@ class ActiveTreeParty:
         return self._validate(testset)
 
     def online_inference(self, dataset, model_name, model_path="./models"):
-        assert isinstance(dataset, NumpyDataset), "inference dataset should be an instance of NumpyDataset"
+        assert isinstance(
+            dataset, NumpyDataset
+        ), "inference dataset should be an instance of NumpyDataset"
         model_params = NumpyModelIO.load(model_path, model_name)
         for i, (record, root) in enumerate(model_params):
             tree = self.trees[i]
@@ -244,6 +304,8 @@ if __name__ == "__main__":
     n_labels = 2
     _crypto_type = Const.PAILLIER
     _key_size = 1024
+
+    n_processes = 6
 
     active_ips = ["localhost", "localhost"]
     active_ports = [20001, 20002]
@@ -302,9 +364,10 @@ if __name__ == "__main__":
         crypto_system=crypto_system,
         messengers=messengers,
         saving_model=True,
+        n_processes=n_processes,
     )
     active_party.train(active_trainset, active_testset)
-    # scores = active_party.online_inference(active_testset, "20220905_155209-active_party-vertical_sbt-120000_samples.model")
+    # scores = active_party.online_inference(active_testset, "xxx.model")
     # print(scores)
 
     # 5. Close messenger, finish training

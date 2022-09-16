@@ -2,14 +2,14 @@ import datetime
 import time
 
 import numpy as np
-from termcolor import colored
 
 from linkefl.common.const import Const
+from linkefl.common.factory import logger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.messenger.base import Messenger
 from linkefl.modelio import NumpyModelIO
-from linkefl.vfl.tree.hist import PassiveHist
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
+from linkefl.vfl.tree.hist import PassiveHist
 
 
 class PassiveTreeParty:
@@ -38,6 +38,8 @@ class PassiveTreeParty:
         self.saving_model = saving_model
         self.model_path = model_path
 
+        self.logger = logger_factory(role=Const.PASSIVE_NAME)
+
         self.model_name = "{time}-{role}-{model_type}".format(
             time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
             role=Const.PASSIVE_NAME,
@@ -56,47 +58,68 @@ class PassiveTreeParty:
         self.record = None
 
     def train(self, trainset, testset):
-        assert isinstance(trainset, NumpyDataset), "trainset should be an instance of NumpyDataset"
-        assert isinstance(testset, NumpyDataset), "testset should be an instance of NumpyDataset"
+        assert isinstance(
+            trainset, NumpyDataset
+        ), "trainset should be an instance of NumpyDataset"
+        assert isinstance(
+            testset, NumpyDataset
+        ), "testset should be an instance of NumpyDataset"
 
         start_time = time.time()
 
-        print("Building hist...")
-        self.bin_index, self.bin_split = get_bin_info(trainset.features, self.max_bin)
-        print("Done")
+        self.logger.log("Building hist...")
+        self.bin_index, self.bin_split = get_bin_info(
+            trainset.features, self.max_bin
+        )
+        self.logger.log("Done")
 
-        print(colored("Waiting for active party...", "red"))
+        self.logger.log("Waiting for active party...")
 
         while True:
             # ready to receive instructions from active party
             data = self.messenger.recv()
             if data["name"] == "train finished" and data["content"] is True:
                 if self.saving_model:
-                    model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    model_name = (
+                        f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    )
                     NumpyModelIO.save(self.record, self.model_path, model_name)
-                print("train finished")
+                self.logger.log("train finished")
                 break
             elif data["name"] == "gh":
-                self.gh_recv, self.compress, self.capacity, self.padding = data["content"]
-                print("\nstart a new tree")
+                self.gh_recv, self.compress, self.capacity, self.padding = data[
+                    "content"
+                ]
+                self.logger.log("start a new tree")
             elif data["name"] == "record":
                 feature_id, split_id, sample_tag = data["content"]
-                record_id, sample_tag_left = self._save_record(feature_id, split_id, sample_tag)
-                print(f"threshold saved in record_id: {record_id}")
-                self.messenger.send(wrap_message("record", content=(record_id, sample_tag_left)))
+                record_id, sample_tag_left = self._save_record(
+                    feature_id, split_id, sample_tag
+                )
+                self.logger.log(f"threshold saved in record_id: {record_id}")
+                self.messenger.send(
+                    wrap_message("record", content=(record_id, sample_tag_left))
+                )
             elif data["name"] == "hist":
                 sample_tag = data["content"]
                 bin_gh_data = self._get_hist(sample_tag)
-                # print("bin_gh computed")
+                # self.logger.log("bin_gh computed")
                 self.messenger.send(wrap_message("hist", content=bin_gh_data))
+            elif data["name"] == "validate" and data["content"] is True:
+                self._validate(testset)
             else:
                 raise KeyError
 
-        self._validate(testset)
-        print(colored("Total training and validation time: {:.2f}".format(time.time() - start_time), "red"))
+        self.logger.log(
+            "Total training and validation time: {:.2f}".format(
+                time.time() - start_time
+            )
+        )
 
     def _save_record(self, feature_id, split_id, sample_tag):
-        record = np.array([feature_id, self.bin_split[feature_id][split_id]]).reshape(1, 2)
+        record = np.array(
+            [feature_id, self.bin_split[feature_id][split_id]]
+        ).reshape(1, 2)
 
         if self.record is None:
             self.record = record
@@ -111,15 +134,26 @@ class PassiveTreeParty:
         return record_id, sample_tag_left
 
     def _get_hist(self, sample_tag):
-        hist = PassiveHist(task=self.task, sample_tag=sample_tag, bin_index=self.bin_index, gh_data=self.gh_recv)
+        hist = PassiveHist(
+            task=self.task,
+            sample_tag=sample_tag,
+            bin_index=self.bin_index,
+            gh_data=self.gh_recv,
+        )
 
-        if self.task == "binary" and self.crypto_type == Const.PAILLIER and self.compress:
+        if (
+            self.task == "binary"
+            and self.crypto_type == Const.PAILLIER
+            and self.compress
+        ):
             return hist.compress(self.capacity, self.padding)
         else:
             return hist.bin_gh_data
 
     def _validate(self, testset):
-        assert isinstance(testset, NumpyDataset), "testset should be an instance of NumpyDataset"
+        assert isinstance(
+            testset, NumpyDataset
+        ), "testset should be an instance of NumpyDataset"
 
         features = testset.features
 
@@ -127,7 +161,7 @@ class PassiveTreeParty:
             # ready to receive instructions from active party
             data = self.messenger.recv()
             if data["name"] == "validate finished" and data["content"] is True:
-                print("validate finished")
+                self.logger.log("validate finished")
                 break
             elif data["name"] == "judge":
                 sample_id, record_id = data["content"]
@@ -139,7 +173,9 @@ class PassiveTreeParty:
     def _judge(self, feature, record_id):
         feature_id, threshold = self.record[record_id]
         # feature_id is float thanks to threshold...
-        result = True if feature[int(feature_id)] > threshold else False  # avoid numpy bool
+        result = (
+            True if feature[int(feature_id)] > threshold else False
+        )  # avoid numpy bool
 
         return result
 
@@ -147,7 +183,9 @@ class PassiveTreeParty:
         self._validate(testset)
 
     def online_inference(self, dataset, model_name, model_path="./models"):
-        assert isinstance(dataset, NumpyDataset), "inference dataset should be an instance of NumpyDataset"
+        assert isinstance(
+            dataset, NumpyDataset
+        ), "inference dataset should be an instance of NumpyDataset"
         self.record = NumpyModelIO.load(model_path, model_name)
 
         self._validate(dataset)

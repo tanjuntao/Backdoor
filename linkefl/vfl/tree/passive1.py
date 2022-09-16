@@ -49,9 +49,14 @@ if __name__ == "__main__":
     )
 
     # 3. Initialize passive tree party and start training
-    passive_party = PassiveTreeParty(task=task, crypto_type=_crypto_type, messenger=messenger, saving_model=True)
+    passive_party = PassiveTreeParty(
+        task=task,
+        crypto_type=_crypto_type,
+        messenger=messenger,
+        saving_model=True,
+    )
     passive_party.train(passive_trainset, passive_testset)
-    # passive_party.online_inference(passive_testset, "20220905_155213-passive_party-vertical_sbt-120000_samples.model")
+    # passive_party.online_inference(passive_testset, "xxx.model")
 
     # 4. Close messenger, finish training
     messenger.close()

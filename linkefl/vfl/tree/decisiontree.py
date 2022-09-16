@@ -5,24 +5,36 @@ from multiprocessing import Pool
 import numpy as np
 
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.crypto.base import CryptoSystem
 from linkefl.messenger.base import Messenger
 from linkefl.vfl.tree.hist import ActiveHist
 from linkefl.vfl.tree.data_functions import wrap_message
-from linkefl.vfl.tree.train_functions import gh_packing, find_split, leaf_weight, gh_compress_multi, leaf_weight_multi
+from linkefl.vfl.tree.train_functions import (
+    gh_packing,
+    find_split,
+    leaf_weight,
+    gh_compress_multi,
+    leaf_weight_multi,
+)
 
 
 class _DecisionNode:
-    def __init__(self, party_id=None, record_id=None, left_branch=None, right_branch=None, value=None):
-        # 查询时使用
+    def __init__(
+        self,
+        party_id=None,
+        record_id=None,
+        left_branch=None,
+        right_branch=None,
+        value=None,
+    ):
+        # intermediate node
         self.party_id = party_id
         self.record_id = record_id
-
-        # 创建中间节点时使用
         self.left_branch = left_branch
         self.right_branch = right_branch
 
-        # 叶节点信息
+        # leaf node
         self.value = value
 
 
@@ -34,6 +46,7 @@ class DecisionTree:
         crypto_type: str,
         crypto_system: CryptoSystem,
         messengers: list[Messenger],
+        logger: GlobalLogger,
         *,
         compress: bool = False,
         max_depth: int = 4,
@@ -54,7 +67,7 @@ class DecisionTree:
             reg_lambda: used to compute gain and leaf weight
             min_split_samples: minimum samples required to split
             min_split_gain: minimum gain required to split
-            fix_point_precision: bit length to preserve when converting float to int
+            fix_point_precision: binary length to keep when casting float to int
             sampling_method: uniform
             pool: multiprocessing pool
         """
@@ -64,6 +77,7 @@ class DecisionTree:
         self.crypto_type = crypto_type
         self.crypto_system = crypto_system
         self.messengers = messengers
+        self.logger = logger
 
         self.compress = compress
         self.max_depth = max_depth
@@ -102,7 +116,9 @@ class DecisionTree:
             self.gh = np.array([gradient, hessian]).T
             self.update_pred = np.zeros(sample_num, dtype=float)
 
-            gh_int, self.h_length, self.gh_length = gh_packing(gradient, hessian, self.fix_point_precision)
+            gh_int, self.h_length, self.gh_length = gh_packing(
+                gradient, hessian, self.fix_point_precision
+            )
             self.capacity = self.crypto_system.key_size // self.gh_length
 
             if self.crypto_type == Const.PLAIN:
@@ -114,24 +130,41 @@ class DecisionTree:
 
         elif self.task == "multi":
             self.gh = np.stack((gradient, hessian), axis=2)
-            self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
+            self.update_pred = np.zeros(
+                (sample_num, self.n_labels), dtype=float
+            )
 
             gh_compress, self.h_length, self.gh_length = gh_compress_multi(
-                gradient, hessian, self.fix_point_precision, self.crypto_system.key_size
+                gradient,
+                hessian,
+                self.fix_point_precision,
+                self.crypto_system.key_size,
             )
             self.capacity = self.crypto_system.key_size // self.gh_length
 
             if self.crypto_type == Const.PAILLIER:
-                gh_send = self.crypto_system.encrypt_data(gh_compress, self.pool)
+                gh_send = self.crypto_system.encrypt_data(
+                    gh_compress, self.pool
+                )
             else:
                 raise NotImplementedError
 
         else:
             raise ValueError("No such task label.")
 
-        print("gh packed")
+        self.logger.log("gh packed")
         for messenger in self.messengers:
-            messenger.send(wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length)))
+            messenger.send(
+                wrap_message(
+                    "gh",
+                    content=(
+                        gh_send,
+                        self.compress,
+                        self.capacity,
+                        self.gh_length,
+                    ),
+                )
+            )
 
         # start building tree
         self.root = self._build_tree(sample_tag, current_depth=0)
@@ -141,34 +174,64 @@ class DecisionTree:
     def predict(self, x_test):
         """single tree predict"""
 
+        if self.root is None:
+            return None
+
         y_pred = []
         for sampleID in range(x_test.shape[0]):
-            x_sample = x_test[sampleID: sampleID + 1, :].flatten()
+            x_sample = x_test[sampleID : sampleID + 1, :].flatten()
             score = self._predict_value(x_sample, sampleID, self.root)
             y_pred.append(score)
 
         return np.array(y_pred)
 
-    def _build_tree(self, sample_tag, current_depth, *, hist_list=None, party_id=None, feature_id=None, split_id=None, max_gain=None):
+    def _build_tree(
+        self,
+        sample_tag,
+        current_depth,
+        *,
+        hist_list=None,
+        party_id=None,
+        feature_id=None,
+        split_id=None,
+        max_gain=None,
+    ):
         # split only when conditions meet
-        if current_depth < self.max_depth - 1 and sample_tag.sum() >= self.min_split_samples:
+        if (
+            current_depth < self.max_depth - 1
+            and sample_tag.sum() >= self.min_split_samples
+        ):
             if hist_list is None:
                 # happens in root
-                hist_list, party_id, feature_id, split_id, max_gain = self._get_hist_list(sample_tag)
+                (
+                    hist_list,
+                    party_id,
+                    feature_id,
+                    split_id,
+                    max_gain,
+                ) = self._get_hist_list(sample_tag)
             if party_id is None:
                 # happens in sub hist
-                party_id, feature_id, split_id, max_gain = find_split(hist_list, self.task, self.reg_lambda)
+                party_id, feature_id, split_id, max_gain = find_split(
+                    hist_list, self.task, self.reg_lambda
+                )
 
             if max_gain > self.min_split_gain:
                 if party_id == 0:
                     # split in active party
-                    record_id, sample_tag_left = self._save_record(feature_id, split_id, sample_tag)
-                    print(f"threshold saved in record_id: {record_id}")
+                    record_id, sample_tag_left = self._save_record(
+                        feature_id, split_id, sample_tag
+                    )
+                    self.logger.log(
+                        f"threshold saved in record_id: {record_id}"
+                    )
 
                 else:
                     # ask corresponding passive party to split
                     self.messengers[party_id - 1].send(
-                        wrap_message("record", content=(feature_id, split_id, sample_tag))
+                        wrap_message(
+                            "record", content=(feature_id, split_id, sample_tag)
+                        )
                     )
                     data = self.messengers[party_id - 1].recv()
                     assert data["name"] == "record"
@@ -177,26 +240,74 @@ class DecisionTree:
 
                 sample_tag_right = sample_tag - sample_tag_left
 
-                # choose the easy part to directly compute hist, other part can be computed by a simple subtract
+                # choose the easy part to directly compute hist, the other part
+                # can be computed by a simple subtract
                 if sample_tag_left.sum() <= sample_tag_right.sum():
-                    hist_list_left, party_id_left, feature_id_left, split_id_left, max_gain_left = self._get_hist_list(sample_tag_left)
-                    hist_list_right = [current - left for current, left in zip(hist_list, hist_list_left)]
-                    left_node = self._build_tree(sample_tag_left, current_depth + 1, hist_list=hist_list_left, party_id=party_id_left, feature_id=feature_id_left, split_id=split_id_left, max_gain=max_gain_left)
-                    right_node = self._build_tree(sample_tag_right, current_depth + 1, hist_list=hist_list_right)
+                    (
+                        hist_list_left,
+                        party_id_left,
+                        feature_id_left,
+                        split_id_left,
+                        max_gain_left,
+                    ) = self._get_hist_list(sample_tag_left)
+                    hist_list_right = [
+                        current - left
+                        for current, left in zip(hist_list, hist_list_left)
+                    ]
+                    left_node = self._build_tree(
+                        sample_tag_left,
+                        current_depth + 1,
+                        hist_list=hist_list_left,
+                        party_id=party_id_left,
+                        feature_id=feature_id_left,
+                        split_id=split_id_left,
+                        max_gain=max_gain_left,
+                    )
+                    right_node = self._build_tree(
+                        sample_tag_right,
+                        current_depth + 1,
+                        hist_list=hist_list_right,
+                    )
                 else:
-                    hist_list_right, party_id_right, feature_id_right, split_id_right, max_gain_right = self._get_hist_list(sample_tag_right)
-                    hist_list_left = [current - right for current, right in zip(hist_list, hist_list_right)]
-                    left_node = self._build_tree(sample_tag_left, current_depth + 1, hist_list=hist_list_left)
-                    right_node = self._build_tree(sample_tag_right, current_depth + 1, hist_list=hist_list_right, party_id=party_id_right, feature_id=feature_id_right, split_id=split_id_right, max_gain=max_gain_right)
+                    (
+                        hist_list_right,
+                        party_id_right,
+                        feature_id_right,
+                        split_id_right,
+                        max_gain_right,
+                    ) = self._get_hist_list(sample_tag_right)
+                    hist_list_left = [
+                        current - right
+                        for current, right in zip(hist_list, hist_list_right)
+                    ]
+                    left_node = self._build_tree(
+                        sample_tag_left,
+                        current_depth + 1,
+                        hist_list=hist_list_left,
+                    )
+                    right_node = self._build_tree(
+                        sample_tag_right,
+                        current_depth + 1,
+                        hist_list=hist_list_right,
+                        party_id=party_id_right,
+                        feature_id=feature_id_right,
+                        split_id=split_id_right,
+                        max_gain=max_gain_right,
+                    )
 
                 return _DecisionNode(
-                    party_id=party_id, record_id=record_id, left_branch=left_node, right_branch=right_node
+                    party_id=party_id,
+                    record_id=record_id,
+                    left_branch=left_node,
+                    right_branch=right_node,
                 )
 
         # compute leaf weight
         if self.task == "multi":
             leaf_value = leaf_weight_multi(self.gh, sample_tag, self.reg_lambda)
-            update_temp = np.dot(sample_tag.reshape(-1, 1), leaf_value.reshape(1, -1))
+            update_temp = np.dot(
+                sample_tag.reshape(-1, 1), leaf_value.reshape(1, -1)
+            )
         else:
             leaf_value = leaf_weight(self.gh, sample_tag, self.reg_lambda)
             update_temp = np.dot(sample_tag, leaf_value)
@@ -206,7 +317,9 @@ class DecisionTree:
         return _DecisionNode(value=leaf_value)
 
     def _save_record(self, feature_id, split_id, sample_tag):
-        record = np.array([feature_id, self.bin_split[feature_id][split_id]]).reshape(1, 2)
+        record = np.array(
+            [feature_id, self.bin_split[feature_id][split_id]]
+        ).reshape(1, 2)
 
         if self.record is None:
             self.record = record
@@ -220,13 +333,15 @@ class DecisionTree:
 
         return record_id, sample_tag_left
 
-    def _predict_value(self, x_sample, sample_id, tree_node: _DecisionNode = None):
+    def _predict_value(
+        self, x_sample, sample_id, tree_node: _DecisionNode = None
+    ):
         """predict a sample"""
 
         if tree_node is None:
             tree_node = self.root
 
-        # If we have a value (i.e. we're at a leaf), return value as the prediction
+        # If we have a value (i.e. we're at a leaf), return value as prediction
         if tree_node.value is not None:
             return tree_node.value
 
@@ -235,10 +350,14 @@ class DecisionTree:
             feature_id = int(self.record[tree_node.record_id][0])
             threshold = self.record[tree_node.record_id][1]
 
-            branch_tag = True if x_sample[feature_id] > threshold else False  # avoid numpy bool
+            branch_tag = (
+                True if x_sample[feature_id] > threshold else False
+            )  # avoid numpy bool
         else:
             # ask corresponding passive party to judge
-            self.messengers[tree_node.party_id - 1].send(wrap_message("judge", content=(sample_id, tree_node.record_id)))
+            self.messengers[tree_node.party_id - 1].send(
+                wrap_message("judge", content=(sample_id, tree_node.record_id))
+            )
             data = self.messengers[tree_node.party_id - 1].recv()
             assert data["name"] == "judge"
 
@@ -246,16 +365,22 @@ class DecisionTree:
 
         # query in corresponding branch
         if branch_tag is True:
-            return self._predict_value(x_sample, sample_id, tree_node.right_branch)
+            return self._predict_value(
+                x_sample, sample_id, tree_node.right_branch
+            )
         else:
-            return self._predict_value(x_sample, sample_id, tree_node.left_branch)
+            return self._predict_value(
+                x_sample, sample_id, tree_node.left_branch
+            )
 
     def _process_passive_hist(self, messenger, i, q: queue.Queue):
         data = messenger.recv()
         assert data["name"] == "hist"
 
         passive_hist = self._get_passive_hist(data)
-        _, feature_id, split_id, max_gain = find_split([passive_hist], self.task, self.reg_lambda)
+        _, feature_id, split_id, max_gain = find_split(
+            [passive_hist], self.task, self.reg_lambda
+        )
         q.put((i, passive_hist, feature_id, split_id, max_gain))
 
     def _get_hist_list(self, sample_tag):
@@ -268,15 +393,23 @@ class DecisionTree:
         # 2. get passive party hist
         thread_list = []
         for i, messenger in enumerate(self.messengers, 1):
-            t = threading.Thread(target=self._process_passive_hist, args=(messenger, i, q))
+            t = threading.Thread(
+                target=self._process_passive_hist, args=(messenger, i, q)
+            )
             t.start()
             thread_list.append(t)
 
         # 3. active party computes hist
         active_hist = ActiveHist.compute_hist(
-            task=self.task, n_labels=self.n_labels, sample_tag=sample_tag, bin_index=self.bin_index, gh=self.gh
+            task=self.task,
+            n_labels=self.n_labels,
+            sample_tag=sample_tag,
+            bin_index=self.bin_index,
+            gh=self.gh,
         )
-        _, feature_id, split_id, max_gain = find_split([active_hist], self.task, self.reg_lambda)
+        _, feature_id, split_id, max_gain = find_split(
+            [active_hist], self.task, self.reg_lambda
+        )
         q.put((0, active_hist, feature_id, split_id, max_gain))
 
         # 4. get the best gain
