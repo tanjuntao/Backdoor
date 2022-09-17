@@ -39,19 +39,16 @@ class NumpyDataset(BaseDataset):
         else:
             raise ValueError('existing_dataset should be a ndarray or pd.DataFrame.')
 
-        # at this step, existing_dataset is a np.ndarray
+        # apply non-onehot transformation if it exists
+        if has_non_onehot_transform:
+            temp = transform(np_dataset, role=role)
+            if isinstance(temp, tuple):
+                np_dataset, self.bin_split = temp
+            else:
+                np_dataset = temp
+
         # after this function call, self._np_dataset attribute will be created
         self.set_dataset(np_dataset)
-
-        # finally apply non-onehot transformation if it exists
-        if has_non_onehot_transform:
-            temp = transform(self._np_dataset, role=role)
-            if isinstance(temp, tuple):
-                self._np_dataset, self.bin_split = temp
-            else:
-                self._np_dataset = temp
-
-        # After the initilization process, self._np_dataset attribute is ready for use.
 
     @classmethod
     def train_test_split(cls, whole_dataset, test_size, seed=1314):
