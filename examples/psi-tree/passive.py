@@ -1,6 +1,7 @@
 from termcolor import colored
 
 from linkefl.common.const import Const
+from linkefl.common.factory import logger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIPassive
@@ -24,6 +25,7 @@ if __name__ == '__main__':
     _n_processes = 6
 
     _key_size = 1024
+    _logger = logger_factory(role=Const.PASSIVE_NAME)
 
     # 1. Load dataset
     passive_trainset = NumpyDataset.from_csv(role=Const.PASSIVE_NAME,
@@ -45,7 +47,7 @@ if __name__ == '__main__':
                            active_port=active_port,
                            passive_ip=passive_ip,
                            passive_port=passive_port)
-    passive_psi = RSAPSIPassive(passive_trainset.ids, messenger, num_workers=_n_processes)
+    passive_psi = RSAPSIPassive(passive_trainset.ids, messenger, _logger, num_workers=_n_processes)
     common_ids = passive_psi.run()
     passive_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))

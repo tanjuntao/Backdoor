@@ -1,7 +1,7 @@
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory
+from linkefl.common.factory import crypto_factory, logger_factory
 from linkefl.crypto import RSACrypto
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import parse_label
@@ -37,6 +37,7 @@ if __name__ == "__main__":
     _n_processes = 6
 
     _key_size = 1024
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
 
     # 1. Load dataset
     active_trainset = NumpyDataset.from_csv(role=Const.ACTIVE_NAME,
@@ -61,7 +62,11 @@ if __name__ == "__main__":
         passive_port=passive_port,
     )
     psi_crypto = RSACrypto()
-    active_psi = RSAPSIActive(active_trainset.ids, messenger, psi_crypto, num_workers=_n_processes)
+    active_psi = RSAPSIActive(active_trainset.ids,
+                              messenger,
+                              psi_crypto,
+                              _logger,
+                              num_workers=_n_processes)
     common_ids = active_psi.run()
     active_trainset.filter(common_ids)
     print(colored("3. Finish psi protocol", "red"))

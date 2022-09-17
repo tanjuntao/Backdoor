@@ -75,7 +75,7 @@ if __name__ == '__main__':
                            passive_ip=passive_ip,
                            passive_port=passive_port)
     psi_crypto = RSACrypto()
-    active_psi = RSAPSIActive(active_trainset.ids, messenger, psi_crypto)
+    active_psi = RSAPSIActive(active_trainset.ids, messenger, psi_crypto, logger)
     common_ids = active_psi.run()
     active_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))
@@ -92,6 +92,7 @@ if __name__ == '__main__':
                               learning_rate=_learning_rate,
                               messenger=messenger,
                               cryptosystem=vfl_crypto,
+                              logger=logger,
                               penalty=_penalty,
                               reg_lambda=_reg_lambda,
                               random_state=_random_state,
