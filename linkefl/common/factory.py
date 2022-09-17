@@ -71,7 +71,14 @@ def messenger_factory(messenger_type,
     return messenger
 
 
-def logger_factory(role):
+def logger_factory(role,
+                   writing_file=False,
+                   writing_http=False,
+                   http_host=None, http_port=None, http_url=None):
+
     return GlobalLogger(role=role,
-                        writing_file=False,
-                        writing_http=False)
+                        writing_file=writing_file,
+                        writing_http=writing_http,
+                        http_host=http_host,
+                        http_port=http_port,
+                        http_url=http_url)
