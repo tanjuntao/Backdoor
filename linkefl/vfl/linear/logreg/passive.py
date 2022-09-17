@@ -1,5 +1,5 @@
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory
+from linkefl.common.factory import logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import scale, Scale
 from linkefl.vfl.linear import BaseLinearPassive
@@ -12,6 +12,7 @@ class PassiveLogReg(BaseLinearPassive):
                  learning_rate,
                  messenger,
                  crypto_type,
+                 logger,
                  *,
                  penalty=Const.L2,
                  reg_lambda=0.01,
@@ -29,6 +30,7 @@ class PassiveLogReg(BaseLinearPassive):
             learning_rate=learning_rate,
             messenger=messenger,
             crypto_type=crypto_type,
+            logger=logger,
             penalty=penalty,
             reg_lambda=reg_lambda,
             precision=precision,
@@ -111,11 +113,13 @@ if __name__ == '__main__':
                                   passive_port=passive_port)
 
     # 4. Initialize model and start training
+    _logger = logger_factory(role=Const.PASSIVE_NAME)
     passive_party = PassiveLogReg(epochs=_epochs,
                                   batch_size=_batch_size,
                                   learning_rate=_learning_rate,
                                   messenger=_messenger,
                                   crypto_type=_crypto_type,
+                                  logger=_logger,
                                   penalty=_penalty,
                                   reg_lambda=_reg_lambda,
                                   random_state=_random_state,

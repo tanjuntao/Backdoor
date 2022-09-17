@@ -77,6 +77,7 @@ class BaseLinearPassive(BaseLinear):
                  learning_rate,
                  messenger,
                  crypto_type,
+                 logger,
                  *,
                  penalty=Const.L2,
                  reg_lambda=0.01,
@@ -116,7 +117,7 @@ class BaseLinearPassive(BaseLinear):
             role=Const.PASSIVE_NAME,
             model_type=model_type
         )
-        self.logger = logger_factory(role=Const.PASSIVE_NAME)
+        self.logger = logger
 
     @classmethod
     def from_config(cls, config):
@@ -386,6 +387,7 @@ class BaseLinearActive(BaseLinear):
                  learning_rate,
                  messenger,
                  cryptosystem,
+                 logger,
                  *,
                  penalty=Const.L2,
                  reg_lambda=0.01,
@@ -422,7 +424,7 @@ class BaseLinearActive(BaseLinear):
             role=Const.ACTIVE_NAME,
             model_type=model_type
         )
-        self.logger = logger_factory(role=Const.ACTIVE_NAME)
+        self.logger = logger
 
     @classmethod
     def from_config(cls, config):

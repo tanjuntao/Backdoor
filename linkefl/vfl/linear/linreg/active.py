@@ -6,7 +6,7 @@ from sklearn.metrics import r2_score
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, messenger_factory
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import add_intercept, AddIntercept
 from linkefl.modelio import NumpyModelIO
@@ -20,6 +20,7 @@ class ActiveLinReg(BaseLinearActive):
                  learning_rate,
                  messenger,
                  cryptosystem,
+                 logger,
                  *,
                  penalty=Const.L2,
                  reg_lambda=0.01,
@@ -38,6 +39,7 @@ class ActiveLinReg(BaseLinearActive):
             learning_rate=learning_rate,
             messenger=messenger,
             cryptosystem=cryptosystem,
+            logger=logger,
             penalty=penalty,
             reg_lambda=reg_lambda,
             crypto_type=crypto_type,
@@ -271,11 +273,13 @@ if __name__ == '__main__':
     print('ACTIVE PARTY started, listening...')
 
     # 5. Initialize model and start training
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
     active_party = ActiveLinReg(epochs=_epochs,
                                 batch_size=_batch_size,
                                 learning_rate=_learning_rate,
                                 messenger=_messenger,
                                 cryptosystem=_crypto,
+                                logger=_logger,
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,

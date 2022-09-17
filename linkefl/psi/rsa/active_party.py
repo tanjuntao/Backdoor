@@ -15,7 +15,7 @@ from linkefl.messenger import FastSocket
 
 
 class RSAPSIActive:
-    def __init__(self, ids, messenger, cryptosystem, num_workers=-1):
+    def __init__(self, ids, messenger, cryptosystem, logger, num_workers=-1):
         self.ids = ids
         self.messenger = messenger
         self.cryptosystem = cryptosystem
@@ -24,7 +24,7 @@ class RSAPSIActive:
         self.num_workers = num_workers
         self.HASHED_IDS_FILENAME = 'hashed_signed_ids.pkl'
         self.HERE = os.path.abspath(os.path.dirname(__file__))
-        self.logger = logger_factory(role=Const.ACTIVE_NAME)
+        self.logger = logger
 
     def _send_pub_key(self):
         signal = self.messenger.recv()
@@ -165,16 +165,17 @@ if __name__ == '__main__':
     #                         active_port=20000,
     #                         passive_ip='127.0.0.1',
     #                         passive_port=30000)
+    # _logger = logger_factory(role=Const.ACTIVE_NAME)
     #
     # # 3. Start the RSA-Blind-Signature protocol
     # if args.phase == 'offline':
     #     _crypto = RSACrypto()
-    #     bob = RSAPSIActive(_ids, _messenger, _crypto)
+    #     bob = RSAPSIActive(_ids, _messenger, _crypto, _logger)
     #     bob.run_offline()
     #
     # elif args.phase == 'online':
     #     _crypto = RSACrypto.from_private()
-    #     bob = RSAPSIActive(_ids, _messenger, _crypto)
+    #     bob = RSAPSIActive(_ids, _messenger, _crypto, _logger)
     #     bob.run_online()
     #
     # else:
@@ -196,11 +197,12 @@ if __name__ == '__main__':
                             active_port=20000,
                             passive_ip='127.0.0.1',
                             passive_port=30000)
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
     # 3. Initialize cryptosystem
     _crypto = RSACrypto()
 
     # 4. Start the RSA-Blind-Signature protocol
-    active_party = RSAPSIActive(_ids, _messenger, _crypto)
+    active_party = RSAPSIActive(_ids, _messenger, _crypto, _logger)
     intersections = active_party.run()
 
     # 5. Close messenger

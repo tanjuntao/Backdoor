@@ -27,7 +27,7 @@ def _target_mp_pool(r, e, n):
 
 
 class RSAPSIPassive:
-    def __init__(self, ids, messenger, num_workers=-1):
+    def __init__(self, ids, messenger, logger, num_workers=-1):
         self.ids = ids
         self.messenger = messenger
         if num_workers == -1:
@@ -36,7 +36,7 @@ class RSAPSIPassive:
         self.RANDOMS_FILENAME = 'randoms.pkl'
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
-        self.logger = logger_factory(role=Const.PASSIVE_NAME)
+        self.logger = logger
 
     def _get_pub_key(self):
         self.logger.log('[PASSIVE] Requesting RSA public key...')
@@ -240,9 +240,10 @@ if __name__ == '__main__':
     #                         active_port=20000,
     #                         passive_ip='127.0.0.1',
     #                         passive_port=30000)
+    # _logger = logger_factory(role=Const.ACTIVE_NAME)
     #
     # # 3. Start the RSA-Blind-Signature protocol
-    # alice = RSAPSIPassive(_ids, _messenger)
+    # alice = RSAPSIPassive(_ids, _messenger, _logger)
     # if args.phase == 'offline':
     #     alice.run_offline()
     # elif args.phase == 'online':
@@ -266,10 +267,10 @@ if __name__ == '__main__':
                             active_port=20000,
                             passive_ip='127.0.0.1',
                             passive_port=30000)
-
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
     # 3. Start the RSA-Blind-Signature protocol
-    passive_party = RSAPSIPassive(_ids, _messenger)
-    intersections = passive_party.run()
+    passive_party = RSAPSIPassive(_ids, _messenger, _logger)
+    intersections_ = passive_party.run()
 
     # 4. Close messenger
     _messenger.close()
