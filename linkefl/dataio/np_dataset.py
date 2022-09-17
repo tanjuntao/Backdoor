@@ -1,7 +1,9 @@
 import os
 
+import cx_Oracle
 import matplotlib.pyplot as plt
 import numpy as np
+import openpyxl
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import pymysql
@@ -199,6 +201,35 @@ class NumpyDataset(BaseDataset):
         #
         # return cls(role=role, existing_dataset=final_dataframe)
 
+
+    @classmethod
+    def from_oracle(cls,
+                    role,
+                    dataset_type,
+                    host,
+                    user,
+                    password,
+                    table,
+                    *,
+                    transform=None,
+                    port=1521,
+                    service_name="orcl"):
+                    
+        dsn = cx_Oracle.makedsn(host, port, service_name=service_name)
+        connection = cx_Oracle.connect(user=user, password=password, dsn=dsn, encoding="UTF-8")
+
+        with connection:
+            with connection.cursor() as cursor:
+               cursor.execute("select * from {}".format(table))
+               results = cursor.fetchall() 
+               df_dataset = pd.DataFrame.from_dict(results)
+
+        return cls(role=role, 
+                   existing_dataset=df_dataset,
+                   dataset_type=dataset_type,
+                   transform=transform)
+
+
     @classmethod
     def from_csv(cls, role, abs_path, dataset_type, transform=None):
         df_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
@@ -211,7 +242,14 @@ class NumpyDataset(BaseDataset):
 
     @classmethod
     def from_excel(cls, role, abs_path, dataset_type, transform=None):
-        pass
+        '''Load dataset from excel, need dependency package openpyxl, support .xls .xlsx '''
+
+        df_dataset = pd.read_excel("{}".format(abs_path), index_col=False)
+
+        return cls(role=role, 
+                   existing_dataset=df_dataset,
+                   dataset_type=dataset_type,
+                   transform=transform)
 
     # utility method
     @staticmethod
