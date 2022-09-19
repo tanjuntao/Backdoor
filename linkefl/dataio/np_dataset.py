@@ -7,6 +7,7 @@ import openpyxl
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import pymysql
+import psycopg2
 from sklearn.datasets import (
     load_breast_cancer,
     load_digits,
@@ -201,7 +202,6 @@ class NumpyDataset(BaseDataset):
         #
         # return cls(role=role, existing_dataset=final_dataframe)
 
-
     @classmethod
     def from_oracle(cls,
                     role,
@@ -214,21 +214,51 @@ class NumpyDataset(BaseDataset):
                     transform=None,
                     port=1521,
                     service_name="orcl"):
-                    
+
         dsn = cx_Oracle.makedsn(host, port, service_name=service_name)
         connection = cx_Oracle.connect(user=user, password=password, dsn=dsn, encoding="UTF-8")
 
         with connection:
             with connection.cursor() as cursor:
-               cursor.execute("select * from {}".format(table))
-               results = cursor.fetchall() 
-               df_dataset = pd.DataFrame.from_dict(results)
+                cursor.execute("select * from {}".format(table))
+                results = cursor.fetchall()
+                df_dataset = pd.DataFrame.from_dict(results)
 
-        return cls(role=role, 
+        return cls(role=role,
                    existing_dataset=df_dataset,
                    dataset_type=dataset_type,
                    transform=transform)
 
+    @classmethod
+    def from_gaussdb(cls,
+                     role,
+                     dataset_type,
+                     host,
+                     user,
+                     password,
+                     database,
+                     table,
+                     *,
+                     transform=None,
+                     port=6789):
+        """Load dataset from Gaussdb database."""
+        connection = psycopg2.connect(database=database,
+                                      user=user,
+                                      password=password,
+                                      host=host,
+                                      port=port)
+        with connection:
+            with connection.cursor() as cursor:
+                cursor.execute("select * from {}".format(table))
+                results = cursor.fetchall()
+                df_dataset = pd.DataFrame.from_dict(results)
+
+        return cls(
+            role=role,
+            existing_dataset=df_dataset,
+            dataset_type=dataset_type,
+            transform=transform
+        )
 
     @classmethod
     def from_csv(cls, role, abs_path, dataset_type, transform=None):
@@ -246,7 +276,7 @@ class NumpyDataset(BaseDataset):
 
         df_dataset = pd.read_excel("{}".format(abs_path), index_col=False)
 
-        return cls(role=role, 
+        return cls(role=role,
                    existing_dataset=df_dataset,
                    dataset_type=dataset_type,
                    transform=transform)
@@ -347,7 +377,7 @@ class NumpyDataset(BaseDataset):
                 _feats = _whole_feats[-test_size:]
                 _labels = _whole_labels[-test_size:]
 
-        elif name == 'iris': # classification, 3 classes
+        elif name == 'iris':  # classification, 3 classes
             X, Y = load_iris(return_X_y=True)
             x_train, x_test, y_train, y_test = train_test_split(X, Y,
                                                                 test_size=0.2,
@@ -361,7 +391,7 @@ class NumpyDataset(BaseDataset):
                 _feats = x_test
                 _labels = y_test
 
-        elif name == 'wine': # classification, 3 classes
+        elif name == 'wine':  # classification, 3 classes
             X, Y = load_wine(return_X_y=True)
             x_train, x_test, y_train, y_test = train_test_split(X, Y,
                                                                 test_size=0.2,
@@ -444,7 +474,7 @@ class NumpyDataset(BaseDataset):
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
-                                 '../data/tabular/covertype_test.csv'), 
+                                 '../data/tabular/covertype_test.csv'),
                     delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
@@ -459,7 +489,7 @@ class NumpyDataset(BaseDataset):
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
-                                 '../data/tabular/higgs_test.csv'), 
+                                 '../data/tabular/higgs_test.csv'),
                     delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
@@ -474,7 +504,7 @@ class NumpyDataset(BaseDataset):
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
-                                 '../data/tabular/year_test.csv'), 
+                                 '../data/tabular/year_test.csv'),
                     delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
@@ -489,7 +519,7 @@ class NumpyDataset(BaseDataset):
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path,
-                                 '../data/tabular/nyc-taxi_test.csv'), 
+                                 '../data/tabular/nyc-taxi_test.csv'),
                     delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
@@ -526,7 +556,7 @@ class NumpyDataset(BaseDataset):
         return np_dataset
 
     @property
-    def ids(self): # read only
+    def ids(self):  # read only
         # avoid re-computing on each function call
         if not hasattr(self, '_ids'):
             np_ids = self._np_dataset[:, 0].astype(np.int32)
@@ -536,7 +566,7 @@ class NumpyDataset(BaseDataset):
         return getattr(self, '_ids')
 
     @property
-    def features(self): # read only
+    def features(self):  # read only
         if not hasattr(self, '_features'):
             if self.role == Const.ACTIVE_NAME:
                 setattr(self, '_features', self._np_dataset[:, 2:])
@@ -545,7 +575,7 @@ class NumpyDataset(BaseDataset):
         return getattr(self, '_features')
 
     @property
-    def labels(self): # read only
+    def labels(self):  # read only
         if self.role == Const.PASSIVE_NAME:
             raise AttributeError('Passive party has no labels.')
 
@@ -553,20 +583,20 @@ class NumpyDataset(BaseDataset):
             labels = self._np_dataset[:, 1]
             # simply treat dataset where the label column contains more than
             # 100 unique values as regression dataset
-            if self.dataset_type == Const.REGRESSION: # regression dataset
+            if self.dataset_type == Const.REGRESSION:  # regression dataset
                 setattr(self, '_labels', labels)
-            else: # classification dataset
+            else:  # classification dataset
                 # convert potential floating-point label values, e.g., 4.0, to
                 # int data type
                 setattr(self, '_labels', labels.astype(np.int32))
         return getattr(self, '_labels')
 
     @property
-    def n_features(self): # read only
+    def n_features(self):  # read only
         return self.features.shape[1]
 
     @property
-    def n_samples(self): # read only
+    def n_samples(self):  # read only
         return self.features.shape[0]
 
     def describe(self):
@@ -583,13 +613,13 @@ class NumpyDataset(BaseDataset):
         pd.set_option('display.max_columns', None)
         df = pd.DataFrame(self._np_dataset)
         if self.role == Const.ACTIVE_NAME:
-            df.rename(columns={0:'id', 1:'lable'}, inplace=True)
+            df.rename(columns={0: 'id', 1: 'lable'}, inplace=True)
             for i in range(self.n_features):
-                df.rename(columns={i+2: 'x' + str(i+1)}, inplace=True)
+                df.rename(columns={i + 2: 'x' + str(i + 1)}, inplace=True)
         elif self.role == Const.PASSIVE_NAME:
             df.rename(columns={0: 'id'}, inplace=True)
             for i in range(self.n_features):
-                df.rename(columns={i+1: 'x' + str(i+1)}, inplace=True)
+                df.rename(columns={i + 1: 'x' + str(i + 1)}, inplace=True)
 
         print(colored('The first 5 rows and the last 5 rows of the dataset are as follows:', 'red'))
         print(pd.concat([df.head(), df.tail()]))
@@ -615,12 +645,12 @@ class NumpyDataset(BaseDataset):
         # Output the distribution for the data label.
         if self.role == Const.ACTIVE_NAME:
             n_classes = len(np.unique(self.labels))
-            if self.dataset_type == Const.REGRESSION: # regression dataset
+            if self.dataset_type == Const.REGRESSION:  # regression dataset
                 dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
                                          columns=['label'])
                 # histplot
                 sns.histplot(dis_label, kde=True, linewidth=1)
-            else: # classification dataset
+            else:  # classification dataset
                 bars = [str(i) for i in range(n_classes)]
                 counts = [(self.labels == i).astype(np.int32).sum() for i in range(n_classes)]
                 x = np.arange(len(bars))
@@ -664,7 +694,7 @@ class NumpyDataset(BaseDataset):
         for _id in intersect_ids:
             idx = np.where(all_ids == _id)[0][0]
             idxes.append(idx)
-        new_np_dataset = self._np_dataset[idxes] # return a new numpy object
+        new_np_dataset = self._np_dataset[idxes]  # return a new numpy object
         self.set_dataset(new_np_dataset)
 
     def get_dataset(self):
