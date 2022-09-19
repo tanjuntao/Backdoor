@@ -1,3 +1,9 @@
 [tool.black]
 line-length = 88
 preview = true
+
+[tool.isort]
+line_length = 88
+profile = "black"
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "CYTHON", "FIRSTPARTY", "LOCALFOLDER"]
+known_cython = ["Cython"]
