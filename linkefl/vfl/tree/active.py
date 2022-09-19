@@ -4,14 +4,10 @@ from multiprocessing import Pool
 
 import numpy as np
 from scipy.special import softmax
-from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from linkefl.common.const import Const
-from linkefl.common.factory import (
-    crypto_factory,
-    messenger_factory,
-    logger_factory,
-)
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
@@ -20,10 +16,7 @@ from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
-from linkefl.vfl.tree.loss_functions import (
-    CrossEntropyLoss,
-    MultiCrossEntropyLoss,
-)
+from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss
 
 
 class ActiveTreeParty:
@@ -302,7 +295,7 @@ if __name__ == "__main__":
     n_trees = 5
     task = "binary"
     n_labels = 2
-    _crypto_type = Const.PAILLIER
+    _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
 
     n_processes = 6

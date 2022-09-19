@@ -8,13 +8,13 @@ from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.crypto.base import CryptoSystem
 from linkefl.messenger.base import Messenger
-from linkefl.vfl.tree.hist import ActiveHist
 from linkefl.vfl.tree.data_functions import wrap_message
+from linkefl.vfl.tree.hist import ActiveHist
 from linkefl.vfl.tree.train_functions import (
-    gh_packing,
     find_split,
-    leaf_weight,
     gh_compress_multi,
+    gh_packing,
+    leaf_weight,
     leaf_weight_multi,
 )
 
@@ -123,16 +123,14 @@ class DecisionTree:
 
             if self.crypto_type == Const.PLAIN:
                 gh_send = gh_int
-            elif self.crypto_type == Const.PAILLIER:
+            elif self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 gh_send = self.crypto_system.encrypt_data(gh_int, self.pool)
             else:
                 raise NotImplementedError
 
         elif self.task == "multi":
             self.gh = np.stack((gradient, hessian), axis=2)
-            self.update_pred = np.zeros(
-                (sample_num, self.n_labels), dtype=float
-            )
+            self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
 
             gh_compress, self.h_length, self.gh_length = gh_compress_multi(
                 gradient,
@@ -143,9 +141,7 @@ class DecisionTree:
             self.capacity = self.crypto_system.key_size // self.gh_length
 
             if self.crypto_type == Const.PAILLIER:
-                gh_send = self.crypto_system.encrypt_data(
-                    gh_compress, self.pool
-                )
+                gh_send = self.crypto_system.encrypt_data(gh_compress, self.pool)
             else:
                 raise NotImplementedError
 
@@ -222,9 +218,7 @@ class DecisionTree:
                     record_id, sample_tag_left = self._save_record(
                         feature_id, split_id, sample_tag
                     )
-                    self.logger.log(
-                        f"threshold saved in record_id: {record_id}"
-                    )
+                    self.logger.log(f"threshold saved in record_id: {record_id}")
 
                 else:
                     # ask corresponding passive party to split
@@ -305,9 +299,7 @@ class DecisionTree:
         # compute leaf weight
         if self.task == "multi":
             leaf_value = leaf_weight_multi(self.gh, sample_tag, self.reg_lambda)
-            update_temp = np.dot(
-                sample_tag.reshape(-1, 1), leaf_value.reshape(1, -1)
-            )
+            update_temp = np.dot(sample_tag.reshape(-1, 1), leaf_value.reshape(1, -1))
         else:
             leaf_value = leaf_weight(self.gh, sample_tag, self.reg_lambda)
             update_temp = np.dot(sample_tag, leaf_value)
@@ -317,9 +309,9 @@ class DecisionTree:
         return _DecisionNode(value=leaf_value)
 
     def _save_record(self, feature_id, split_id, sample_tag):
-        record = np.array(
-            [feature_id, self.bin_split[feature_id][split_id]]
-        ).reshape(1, 2)
+        record = np.array([feature_id, self.bin_split[feature_id][split_id]]).reshape(
+            1, 2
+        )
 
         if self.record is None:
             self.record = record
@@ -333,9 +325,7 @@ class DecisionTree:
 
         return record_id, sample_tag_left
 
-    def _predict_value(
-        self, x_sample, sample_id, tree_node: _DecisionNode = None
-    ):
+    def _predict_value(self, x_sample, sample_id, tree_node: _DecisionNode = None):
         """predict a sample"""
 
         if tree_node is None:
@@ -365,13 +355,9 @@ class DecisionTree:
 
         # query in corresponding branch
         if branch_tag is True:
-            return self._predict_value(
-                x_sample, sample_id, tree_node.right_branch
-            )
+            return self._predict_value(x_sample, sample_id, tree_node.right_branch)
         else:
-            return self._predict_value(
-                x_sample, sample_id, tree_node.left_branch
-            )
+            return self._predict_value(x_sample, sample_id, tree_node.left_branch)
 
     def _process_passive_hist(self, messenger, i, q: queue.Queue):
         data = messenger.recv()
@@ -453,7 +439,7 @@ class DecisionTree:
                     r=self.fix_point_precision,
                 )
 
-            elif self.crypto_type == Const.PAILLIER:
+            elif self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 if self.compress:
                     bin_gh_enc_compress = data["content"]
                     hist = ActiveHist.decompress_hist(
