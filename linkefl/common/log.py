@@ -13,6 +13,7 @@ from linkefl.common.const import Const
 class GlobalLogger:
     """This class is a Python logger singleton."""
     _logger = None
+    _http_listener = None
     _loglevel_dict = {}
     FLOAT_PRECISION = 6
 
@@ -25,6 +26,10 @@ class GlobalLogger:
         if writing_http:
             if None in (http_host, http_port, http_url):
                 raise ValueError('http host/port/url should not be None.')
+
+        instance = super().__new__(cls)
+        instance.role = role
+        instance.writing_http = writing_http
 
         # generat Python logger if it does not exist
         if cls._logger is None:
@@ -68,6 +73,7 @@ class GlobalLogger:
                 queue_handler = QueueHandler(log_queue)
                 # initial QueueListener
                 http_listener = QueueListener(log_queue, http_handler)
+                cls._http_listener = http_listener # make http_listener an class variable
                 # attach custom handler to logger
                 cls._logger.addHandler(queue_handler)
                 # start the listener
@@ -81,8 +87,6 @@ class GlobalLogger:
                 Const.CRITICAL: cls._logger.critical,
             }
 
-        instance = super().__new__(cls)
-        instance.role = role
         return instance
 
     def log_metric(self, epoch, loss, acc, auc, f1, total_epoch, level='info'):
@@ -142,6 +146,14 @@ class GlobalLogger:
         log_func = GlobalLogger._loglevel_dict[level]
         log_func(json_msg)
 
+    def close(self):
+        if GlobalLogger._http_listener is not None:
+            # you must call stop() explicitly to flush the records in the queue
+            GlobalLogger._http_listener.stop()
+            GlobalLogger._http_listener = None
+        else:
+            pass # nothing to do
+
     def get_logger(self):
         return GlobalLogger._logger
 
@@ -171,3 +183,6 @@ if __name__ == '__main__':
 
     logger1.log('hello world from logger1')
     logger2.log('nihao from logger2')
+
+    logger1.close()
+    logger2.close()
