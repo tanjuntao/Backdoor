@@ -140,7 +140,7 @@ class DecisionTree:
             )
             self.capacity = self.crypto_system.key_size // self.gh_length
 
-            if self.crypto_type == Const.PAILLIER:
+            if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 gh_send = self.crypto_system.encrypt_data(gh_compress, self.pool)
             else:
                 raise NotImplementedError
@@ -411,7 +411,7 @@ class DecisionTree:
 
     def _get_passive_hist(self, data):
         if self.task == "multi":
-            if self.crypto_type == Const.PAILLIER:
+            if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 bin_gh_compress_multi = data["content"]
                 hist = ActiveHist.decompress_multi_hist(
                     task=self.task,
