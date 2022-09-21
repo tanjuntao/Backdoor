@@ -3,11 +3,9 @@ import os
 import cx_Oracle
 import matplotlib.pyplot as plt
 import numpy as np
-import openpyxl
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import pymysql
-import psycopg2
 from sklearn.datasets import (
     load_breast_cancer,
     load_digits,
@@ -242,6 +240,17 @@ class NumpyDataset(BaseDataset):
                      transform=None,
                      port=6789):
         """Load dataset from Gaussdb database."""
+        # Note that Python is a dynamic programming language, so this error message can
+        # be safely ignored in case where you do not need to call this method with a
+        # Python interpreter without psyconpg2 package installed. If you do get
+        # annoyed by this error message, you can use pip3 to install the psyconpg2 package
+        # to suppress it. But the package installed via pip3 may be incompatible when
+        # connnecting to gaussdb, this is why it is not included in LinkeFL's
+        # requirements. If your application needs to load data from gaussdb, it's required
+        # that you should first install guassdb manually and generate psycopg2 package
+        # which can be imported by a Python script, and then use this method to load raw
+        # data from guassdb into LinkeFL project.
+        import psycopg2
         connection = psycopg2.connect(database=database,
                                       user=user,
                                       password=password,
