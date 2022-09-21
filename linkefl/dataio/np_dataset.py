@@ -261,6 +261,37 @@ class NumpyDataset(BaseDataset):
         )
 
     @classmethod
+    def from_gbase8a(cls,
+                     role,
+                     dataset_type,
+                     host,
+                     user,
+                     password,
+                     database,
+                     table,
+                     *,
+                     transform=None,
+                     port=6789):
+        """Load dataset from gbase8a database."""
+        connection = pymysql.connect(database=database,
+                                     user=user,
+                                     password=password,
+                                     host=host,
+                                     port=port)
+        with connection:
+            with connection.cursor() as cursor:
+                cursor.execute("select * from {}".format(table))
+                results = cursor.fetchall()
+                df_dataset = pd.DataFrame.from_dict(results)
+
+        return cls(
+            role=role,
+            existing_dataset=df_dataset,
+            dataset_type=dataset_type,
+            transform=transform
+        )
+
+    @classmethod
     def from_csv(cls, role, abs_path, dataset_type, transform=None):
         df_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
         return cls(
