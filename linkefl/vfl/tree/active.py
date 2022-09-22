@@ -1,6 +1,7 @@
 import datetime
 import time
 from multiprocessing import Pool
+from typing import List
 
 import numpy as np
 from scipy.special import softmax
@@ -27,7 +28,7 @@ class ActiveTreeParty:
         n_labels: int,
         crypto_type: str,
         crypto_system: CryptoSystem,
-        messengers: list[Messenger],
+        messengers: List[Messenger],
         *,
         learning_rate: float = 0.3,
         compress: bool = False,

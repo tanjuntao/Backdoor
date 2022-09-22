@@ -11,7 +11,7 @@ if __name__ == "__main__":
     feat_perm_option = Const.SEQUENCE
 
     task = "binary"
-    _crypto_type = Const.PAILLIER
+    _crypto_type = Const.FAST_PAILLIER
 
     active_ip = "localhost"
     active_port = 20002

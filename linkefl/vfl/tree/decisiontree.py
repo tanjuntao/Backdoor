@@ -1,6 +1,7 @@
 import queue
 import threading
 from multiprocessing import Pool
+from typing import List
 
 import numpy as np
 
@@ -45,7 +46,7 @@ class DecisionTree:
         n_labels: int,
         crypto_type: str,
         crypto_system: CryptoSystem,
-        messengers: list[Messenger],
+        messengers: List[Messenger],
         logger: GlobalLogger,
         *,
         compress: bool = False,
