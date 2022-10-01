@@ -28,12 +28,16 @@ if __name__ == '__main__':
     # load dataset
     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
                                                    dataset_name=dataset_name,
+                                                   root='data',
                                                    train=True,
+                                                   download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=Const.SEQUENCE)
     active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
                                                   dataset_name=dataset_name,
+                                                  root='data',
                                                   train=False,
+                                                  download=True,
                                                   passive_feat_frac=passive_feat_frac,
                                                   feat_perm_option=Const.SEQUENCE)
     # active_trainset = scale(add_intercept(active_trainset))

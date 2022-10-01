@@ -1,4 +1,5 @@
 import os
+from urllib.error import URLError
 
 import cx_Oracle
 import matplotlib.pyplot as plt
@@ -6,21 +7,14 @@ import numpy as np
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 import pymysql
-from sklearn.datasets import (
-    load_breast_cancer,
-    load_digits,
-    load_diabetes,
-    load_iris,
-    load_wine,
-)
 import seaborn as sns
-from sklearn.model_selection import train_test_split
 from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.dataio.base import BaseDataset
 from linkefl.feature import cal_importance_ranking
 from linkefl.feature import Compose, OneHot
+from linkefl.util import urlretrive
 
 
 class NumpyDataset(BaseDataset):
@@ -105,14 +99,8 @@ class NumpyDataset(BaseDataset):
         return splitted_datasets
 
     @classmethod
-    def buildin_dataset(cls,
-                        role,
-                        dataset_name,
-                        train,
-                        passive_feat_frac,
-                        feat_perm_option,
-                        transform=None,
-                        seed=1314):
+    def buildin_dataset(cls, role, dataset_name, root, train, passive_feat_frac,
+                        feat_perm_option, download=False, transform=None, seed=1314):
         def _check_params():
             assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
             assert dataset_name in Const.BUILDIN_DATASETS, "not supported dataset right now"
@@ -124,12 +112,11 @@ class NumpyDataset(BaseDataset):
 
         # function body
         _check_params()
-        np_dataset = NumpyDataset._load_buildin_dataset(role=role,
-                                                        name=dataset_name,
-                                                        train=train,
-                                                        frac=passive_feat_frac,
-                                                        perm_option=feat_perm_option,
-                                                        seed=seed)
+        np_dataset = NumpyDataset._load_buildin_dataset(
+            role=role, name=dataset_name, root=root, train=train,
+            download=download, frac=passive_feat_frac, perm_option=feat_perm_option,
+            seed=seed
+        )
         if dataset_name in Const.DATA_TYPE_DICT[Const.REGRESSION]:
             dataset_type = Const.REGRESSION
         else:
@@ -323,250 +310,69 @@ class NumpyDataset(BaseDataset):
 
     # utility method
     @staticmethod
-    def _load_buildin_dataset(role, name, train, frac, perm_option, seed):
-        curr_path = os.path.abspath(os.path.dirname(__file__))
-
-        # 1. load whole dataset and split it into trainset and testset
-        if name == 'cancer':  # classification
-            cancer = load_breast_cancer()
-            x_train, x_test, y_train, y_test = train_test_split(cancer.data,
-                                                                cancer.target,
-                                                                test_size=0.2,
-                                                                random_state=0)
-
-            if train:
-                _ids = np.arange(x_train.shape[0])
-                _feats = x_train
-                _labels = y_train
+    def _load_buildin_dataset(role, name, root, train, frac, perm_option, download, seed):
+        def _check_exists(dataset_name, root_, train_, resources_):
+            if train_:
+                filename_ = resources_[dataset_name][0]
             else:
-                _ids = np.arange(x_train.shape[0],
-                                 x_train.shape[0] + x_test.shape[0])
-                _feats = x_test
-                _labels = y_test
+                filename_ = resources_[dataset_name][1]
+            return os.path.exists(os.path.join(root_, filename_))
 
-            # cancer = load_breast_cancer()
-            # _whole_feats = cancer.data
-            # _whole_labels = cancer.target
-            # _n_samples = len(_whole_labels)
-            # _whole_ids = np.arange(_n_samples)
-            # np.random.seed(seed)
-            # shuffle = np.random.permutation(_n_samples)
-            # test_size = 0.2
-            # _n_train_samples = int(_n_samples * (1 - test_size))
-            # if train:
-            #     _ids = _whole_ids[shuffle[:_n_train_samples]]
-            #     _feats = _whole_feats[shuffle[:_n_train_samples], :]
-            #     _labels = _whole_labels[shuffle[:_n_train_samples]]
-            # else:
-            #     _ids = _whole_ids[shuffle[_n_train_samples:]]
-            #     _feats = _whole_feats[shuffle[_n_train_samples:], :]
-            #     _labels = _whole_labels[shuffle[_n_train_samples:]]
+        resources = {
+            "cancer": ("cancer-train.csv", "cancer-test.csv"),
+            "digits": ("digits-train.csv", "digits-test.csv"),
+            "diabetes": ("diabetes-train.csv", "diabetes-test.csv"),
+            "iris": ("iris-train.csv", "iris-test.csv"),
+            "wine": ("wine-train.csv", "wine-test.csv"),
+            "epsilon": ("epsilon-train.csv", "epsilon-test.csv"),
+            "census": ("census-train.csv", "census-test.csv"),
+            "credit": ("credit-train.csv", "credit-test.csv"),
+            "default_credit": ("default-credit-train.csv", "default-credit-test.csv"),
+            "covertype": ("covertype-train.csv", "covertype-test.csv"),
+            "criteo": ("criteo-train.csv", "criteo-test.csv"),
+            "higgs": ("higgs-train.csv", "higgs-test.csv"),
+            "year": ("year-train.csv", "year-test.csv"),
+            "nyc_taxi": ("nyc-taxi-train.csv", "nyc-taxi-test.csv"),
+        }
+        BASE_URL = 'http://47.96.163.59:80/download/'
+        root = os.path.join(root, 'tabular')
 
-        elif name == 'digits':  # classification
-            X, Y = load_digits(return_X_y=True)
-            odd_idxes = np.where(Y % 2 == 1)[0]
-            even_idxes = np.where(Y % 2 == 0)[0]
-            Y[odd_idxes] = 1
-            Y[even_idxes] = 0
-            x_train, x_test, y_train, y_test = train_test_split(X, Y,
-                                                                test_size=0.2,
-                                                                random_state=0)
-            if train:
-                _ids = np.arange(x_train.shape[0])
-                _feats = x_train
-                _labels = y_train
+        if download:
+            if _check_exists(name, root, train, resources):
+                # if data files have already been downloaded, then skip this branch
+                print('Data files have already been downloaded.')
             else:
-                _ids = np.arange(x_train.shape[0],
-                                 x_train.shape[0] + x_test.shape[0])
-                _feats = x_test
-                _labels = y_test
+                # download data files from web server
+                os.makedirs(root, exist_ok=True)
+                filename = resources[name][0] if train else resources[name][1]
+                fpath = os.path.join(root, filename)
+                full_url = BASE_URL + filename
+                try:
+                    print('Downloading {} to {}'.format(full_url, fpath))
+                    urlretrive(full_url, fpath)
+                except URLError as error:
+                    raise RuntimeError('Failed to download {} with error message: {}'
+                                       .format(full_url, error))
+                print('Done!')
+        if not _check_exists(name, root, train, resources):
+            raise RuntimeError('Dataset not found. You can use download=True to get it.')
 
-            # _whole_feats, _whole_labels = load_digits(return_X_y=True)
-            # _n_samples = len(_whole_labels)
-            # odd_idxes = np.where(_whole_labels % 2 == 1)[0]
-            # even_idxes = np.where(_whole_labels % 2 == 0)[0]
-            # _whole_labels[odd_idxes] = 1
-            # _whole_labels[even_idxes] = 0
-            # _whole_ids = np.arange(len(_whole_labels))
-            # np.random.seed(seed)
-            # shuffle = np.random.permutation(_n_samples)
-            # test_size = 0.2
-            # _n_train_samples = int(_n_samples * (1 - test_size))
-            # if train:
-            #     _ids = _whole_ids[shuffle[:_n_train_samples]]
-            #     _feats = _whole_feats[shuffle[:_n_train_samples], :]
-            #     _labels = _whole_labels[shuffle[:_n_train_samples]]
-            # else:
-            #     _ids = _whole_ids[shuffle[_n_train_samples:]]
-            #     _feats = _whole_feats[shuffle[_n_train_samples:], :]
-            #     _labels = _whole_labels[shuffle[_n_train_samples:]]
-
-        elif name == 'diabetes':  # regression
-            # original dataset shape: 442*10
-            _whole_feats, _whole_labels = load_diabetes(return_X_y=True,
-                                                        scaled=True)
-            _n_samples = len(_whole_labels)
-            _whole_ids = np.arange(_n_samples)
-            test_size = 40  # fixed testing set size
-            if train:
-                _ids = _whole_ids[:-test_size]
-                _feats = _whole_feats[:-test_size]
-                _labels = _whole_labels[:-test_size]
-            else:
-                _ids = _whole_ids[-test_size:]
-                _feats = _whole_feats[-test_size:]
-                _labels = _whole_labels[-test_size:]
-
-        elif name == 'iris':  # classification, 3 classes
-            X, Y = load_iris(return_X_y=True)
-            x_train, x_test, y_train, y_test = train_test_split(X, Y,
-                                                                test_size=0.2,
-                                                                random_state=0)
-            if train:
-                _ids = np.arange(x_train.shape[0])
-                _feats = x_train
-                _labels = y_train
-            else:
-                _ids = np.arange(x_train.shape[0], x_train.shape[0] + x_test.shape[0])
-                _feats = x_test
-                _labels = y_test
-
-        elif name == 'wine':  # classification, 3 classes
-            X, Y = load_wine(return_X_y=True)
-            x_train, x_test, y_train, y_test = train_test_split(X, Y,
-                                                                test_size=0.2,
-                                                                random_state=0)
-            if train:
-                _ids = np.arange(x_train.shape[0])
-                _feats = x_train
-                _labels = y_train
-            else:
-                _ids = np.arange(x_train.shape[0],
-                                 x_train.shape[0] + x_test.shape[0])
-                _feats = x_test
-                _labels = y_test
-
-        elif name == 'epsilon':  # classification
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/epsilon_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/epsilon_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
-        elif name == 'census':  # classification
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/census_income_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/census_income_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
-        elif name == 'credit':  # classification
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/give_me_some_credit_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/give_me_some_credit_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
-        elif name == 'default_credit':  # classification
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/default_credit_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/default_credit_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
-        elif name == 'covertype':  # classification
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/covertype_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/covertype_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
-        elif name == 'higgs':  # classification
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/higgs_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/higgs_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
-        elif name == 'year':  # regression
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/year_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/year_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
-        elif name == 'nyc-taxi':  # regression
-            if train:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/nyc-taxi_train.csv'),
-                    delimiter=',', encoding="utf-8")
-            else:
-                np_csv = np.genfromtxt(
-                    os.path.join(curr_path,
-                                 '../data/tabular/nyc-taxi_test.csv'),
-                    delimiter=',', encoding="utf-8")
-            _ids = np_csv[:, 0].astype(np.int32)
-            _labels = np_csv[:, 1].astype(np.int32)
-            _feats = np_csv[:, 2:]
-
+        # 1. load dataset
+        if train:
+            np_csv = np.genfromtxt(
+                os.path.join(root, resources[name][0]),
+                delimiter=',',
+                encoding="utf-8"
+            )
         else:
-            raise ValueError('Invalid dataset name.')
+            np_csv = np.genfromtxt(
+                os.path.join(root, resources[name][1]),
+                delimiter=',',
+                encoding="utf-8"
+            )
+        _ids = np_csv[:, 0].astype(np.int32)
+        _labels = np_csv[:, 1].astype(np.int32)
+        _feats = np_csv[:, 2:]
 
         # 2. Apply feature permutation to the train features or validate features
         if perm_option == Const.SEQUENCE:
@@ -846,7 +652,7 @@ class BuildinNumpyDataset(NumpyDataset):
         curr_path = os.path.abspath(os.path.dirname(__file__))
 
         # 1. load whole dataset and split it into trainset and testset
-        if name == 'cancer': # classification
+        if name == 'cancer':  # classification
             cancer = load_breast_cancer()
             x_train, x_test, y_train, y_test = train_test_split(cancer.data,
                                                                 cancer.target,
@@ -858,7 +664,8 @@ class BuildinNumpyDataset(NumpyDataset):
                 _feats = x_train
                 _labels = y_train
             else:
-                _ids = np.arange(x_train.shape[0], x_train.shape[0] + x_test.shape[0])
+                _ids = np.arange(x_train.shape[0],
+                                 x_train.shape[0] + x_test.shape[0])
                 _feats = x_test
                 _labels = y_test
 
@@ -880,19 +687,22 @@ class BuildinNumpyDataset(NumpyDataset):
             #     _feats = _whole_feats[shuffle[_n_train_samples:], :]
             #     _labels = _whole_labels[shuffle[_n_train_samples:]]
 
-        elif name == 'digits': # classification
+        elif name == 'digits':  # classification
             X, Y = load_digits(return_X_y=True)
             odd_idxes = np.where(Y % 2 == 1)[0]
             even_idxes = np.where(Y % 2 == 0)[0]
             Y[odd_idxes] = 1
             Y[even_idxes] = 0
-            x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.2, random_state=0)
+            x_train, x_test, y_train, y_test = train_test_split(X, Y,
+                                                                test_size=0.2,
+                                                                random_state=0)
             if train:
                 _ids = np.arange(x_train.shape[0])
                 _feats = x_train
                 _labels = y_train
             else:
-                _ids = np.arange(x_train.shape[0], x_train.shape[0] + x_test.shape[0])
+                _ids = np.arange(x_train.shape[0],
+                                 x_train.shape[0] + x_test.shape[0])
                 _feats = x_test
                 _labels = y_test
 
@@ -916,12 +726,13 @@ class BuildinNumpyDataset(NumpyDataset):
             #     _feats = _whole_feats[shuffle[_n_train_samples:], :]
             #     _labels = _whole_labels[shuffle[_n_train_samples:]]
 
-        elif name == 'diabetes': # regression
+        elif name == 'diabetes':  # regression
             # original dataset shape: 442*10
-            _whole_feats, _whole_labels = load_diabetes(return_X_y=True, scaled=True)
+            _whole_feats, _whole_labels = load_diabetes(return_X_y=True,
+                                                        scaled=True)
             _n_samples = len(_whole_labels)
             _whole_ids = np.arange(_n_samples)
-            test_size = 40 # fixed testing set size
+            test_size = 40  # fixed testing set size
             if train:
                 _ids = _whole_ids[:-test_size]
                 _feats = _whole_feats[:-test_size]
@@ -931,54 +742,150 @@ class BuildinNumpyDataset(NumpyDataset):
                 _feats = _whole_feats[-test_size:]
                 _labels = _whole_labels[-test_size:]
 
-        elif name == 'epsilon': # classification
+        elif name == 'iris':  # classification, 3 classes
+            X, Y = load_iris(return_X_y=True)
+            x_train, x_test, y_train, y_test = train_test_split(X, Y,
+                                                                test_size=0.2,
+                                                                random_state=0)
+            if train:
+                _ids = np.arange(x_train.shape[0])
+                _feats = x_train
+                _labels = y_train
+            else:
+                _ids = np.arange(x_train.shape[0], x_train.shape[0] + x_test.shape[0])
+                _feats = x_test
+                _labels = y_test
+
+        elif name == 'wine':  # classification, 3 classes
+            X, Y = load_wine(return_X_y=True)
+            x_train, x_test, y_train, y_test = train_test_split(X, Y,
+                                                                test_size=0.2,
+                                                                random_state=0)
+            if train:
+                _ids = np.arange(x_train.shape[0])
+                _feats = x_train
+                _labels = y_train
+            else:
+                _ids = np.arange(x_train.shape[0],
+                                 x_train.shape[0] + x_test.shape[0])
+                _feats = x_test
+                _labels = y_test
+
+        elif name == 'epsilon':  # classification
             if train:
                 np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/epsilon_train.csv'),
-                    delimiter=',')
+                    os.path.join(curr_path,
+                                 '../data/tabular/epsilon_train.csv'),
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
                     os.path.join(curr_path, '../data/tabular/epsilon_test.csv'),
-                    delimiter=',')
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
 
-        elif name == 'census': # classification
+        elif name == 'census':  # classification
             if train:
                 np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/census_income_train.csv'),
-                    delimiter=',')
+                    os.path.join(curr_path,
+                                 '../data/tabular/census_income_train.csv'),
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/census_income_test.csv'),
-                    delimiter=',')
+                    os.path.join(curr_path,
+                                 '../data/tabular/census_income_test.csv'),
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
 
-        elif name == 'credit': # classification
+        elif name == 'credit':  # classification
             if train:
                 np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/give_me_some_credit_train.csv'),
-                    delimiter=',')
+                    os.path.join(curr_path,
+                                 '../data/tabular/give_me_some_credit_train.csv'),
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/give_me_some_credit_test.csv'),
-                    delimiter=',')
+                    os.path.join(curr_path,
+                                 '../data/tabular/give_me_some_credit_test.csv'),
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]
 
-        elif name == 'default_credit': # classification
+        elif name == 'default_credit':  # classification
             if train:
                 np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/default_credit_train.csv'),
-                    delimiter=',')
+                    os.path.join(curr_path,
+                                 '../data/tabular/default_credit_train.csv'),
+                    delimiter=',', encoding="utf-8")
             else:
                 np_csv = np.genfromtxt(
-                    os.path.join(curr_path, '../data/tabular/default_credit_test.csv'),
-                    delimiter=',')
+                    os.path.join(curr_path,
+                                 '../data/tabular/default_credit_test.csv'),
+                    delimiter=',', encoding="utf-8")
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
+        elif name == 'covertype':  # classification
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/covertype_train.csv'),
+                    delimiter=',', encoding="utf-8")
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/covertype_test.csv'),
+                    delimiter=',', encoding="utf-8")
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
+        elif name == 'higgs':  # classification
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/higgs_train.csv'),
+                    delimiter=',', encoding="utf-8")
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/higgs_test.csv'),
+                    delimiter=',', encoding="utf-8")
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
+        elif name == 'year':  # regression
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/year_train.csv'),
+                    delimiter=',', encoding="utf-8")
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/year_test.csv'),
+                    delimiter=',', encoding="utf-8")
+            _ids = np_csv[:, 0].astype(np.int32)
+            _labels = np_csv[:, 1].astype(np.int32)
+            _feats = np_csv[:, 2:]
+
+        elif name == 'nyc_taxi':  # regression
+            if train:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/nyc-taxi_train.csv'),
+                    delimiter=',', encoding="utf-8")
+            else:
+                np_csv = np.genfromtxt(
+                    os.path.join(curr_path,
+                                 '../data/tabular/nyc-taxi_test.csv'),
+                    delimiter=',', encoding="utf-8")
             _ids = np_csv[:, 0].astype(np.int32)
             _labels = np_csv[:, 1].astype(np.int32)
             _feats = np_csv[:, 2:]

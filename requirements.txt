@@ -17,4 +17,5 @@ shap
 termcolor
 torch
 torchvision
+tqdm
 xgboost

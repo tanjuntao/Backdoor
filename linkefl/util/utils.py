@@ -1,8 +1,10 @@
 import os
 import pathlib
+import urllib
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from linkefl.common.const import Const
 from linkefl.config import LinearConfig
@@ -161,3 +163,14 @@ def num_input_nodes(dataset_name, role, passive_feat_frac):
 def count_params(model):
     total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return total_params
+
+
+def urlretrive(url, fullpath=None, chunk_size=1024):
+    with open(fullpath, "wb") as fh:
+        with urllib.request.urlopen(urllib.request.Request(url)) as response:
+            with tqdm(total=response.length) as pbar:
+                for chunk in iter(lambda: response.read(chunk_size), ""):
+                    if not chunk:
+                        break
+                    pbar.update(chunk_size)
+                    fh.write(chunk)

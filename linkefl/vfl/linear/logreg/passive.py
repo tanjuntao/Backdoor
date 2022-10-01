@@ -46,15 +46,15 @@ class PassiveLogReg(BaseLinearPassive):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'digits'
+    dataset_name = 'criteo'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20001
     passive_ip = 'localhost'
     passive_port = 30001
-    _epochs = 200
-    _batch_size = 32
+    _epochs = 10
+    _batch_size = 100
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
@@ -66,14 +66,18 @@ if __name__ == '__main__':
     print('Loading dataset...')
     passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
                                                     dataset_name=dataset_name,
+                                                    root='../data',
                                                     train=True,
+                                                    download=True,
                                                     passive_feat_frac=passive_feat_frac,
                                                     feat_perm_option=feat_perm_option)
     passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
-                                                    dataset_name=dataset_name,
-                                                    train=False,
-                                                    passive_feat_frac=passive_feat_frac,
-                                                    feat_perm_option=feat_perm_option)
+                                                   dataset_name=dataset_name,
+                                                   root='../data',
+                                                   train=False,
+                                                   download=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option)
     # passive_trainset = BuildinNumpyDataset(dataset_name=dataset_name,
     #                                        train=True,
     #                                        role=Const.PASSIVE_NAME,

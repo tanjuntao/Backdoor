@@ -140,7 +140,8 @@ class ActiveLinReg(BaseLinearActive):
             if epoch % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
-                val_loss, val_score = self.validate(testset)
+                result = self.validate(testset)
+                val_loss, val_score = result['loss'], result['r2']
                 if val_loss < best_loss:
                     best_loss = val_loss
                     is_best = True
@@ -228,14 +229,18 @@ if __name__ == '__main__':
     print('Loading dataset...')
     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
                                                    dataset_name=dataset_name,
+                                                   root='../data',
                                                    train=True,
+                                                   download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
     active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                   dataset_name=dataset_name,
-                                                   train=False,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+                                                  dataset_name=dataset_name,
+                                                  root='../data',
+                                                  train=False,
+                                                  download=True,
+                                                  passive_feat_frac=passive_feat_frac,
+                                                  feat_perm_option=feat_perm_option)
     active_trainset = add_intercept(active_trainset)
     active_testset = add_intercept(active_testset)
     print('Done.')
