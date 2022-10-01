@@ -19,16 +19,17 @@ class Const:
                        'default_credit',
                        'covertype',
                        'higgs',
+                        'criteo',
                        'diabetes',
                        'year',
-                       'nyc-taxi',
+                       'nyc_taxi',
                         'iris',
                         'wine',
                        'mnist',
                        'fashion_mnist',
                        'cifar',
                        'svhn']
-    REGRESSION_DATASETS = ['diabetes']
+    REGRESSION_DATASETS = ['diabetes', 'year', 'nyc_taxi']
 
     PLAIN = 'plain'
     PAILLIER = 'paillier'
@@ -62,8 +63,8 @@ class Const:
     REGRESSION = 'regression'
     CLASSIFICATION = 'classification'
     DATA_TYPE_DICT = {
-        REGRESSION: ['diabetes', 'year', 'nyc-taxi'],
-        CLASSIFICATION: ['cancer', 'digits', 'epsilon', 'census', 'credit',
+        REGRESSION: ['diabetes', 'year', 'nyc_taxi'],
+        CLASSIFICATION: ['cancer', 'digits', 'epsilon', 'census', 'credit', 'criteo',
                          'default_credit', 'covertype', 'higgs',
                          'iris', 'wine', 'mnist', 'fashion_mnist', 'cifar', 'svhn']
     }
