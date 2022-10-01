@@ -1,4 +1,5 @@
 import os
+from urllib.error import URLError
 
 import numpy as np
 import pandas as pd
@@ -13,6 +14,7 @@ import matplotlib.pyplot as plt
 
 from linkefl.common.const import Const
 from linkefl.dataio.base import BaseDataset
+from linkefl.util import urlretrive
 
 
 class TorchDataset(BaseDataset, Dataset):
@@ -63,14 +65,8 @@ class TorchDataset(BaseDataset, Dataset):
         return trainset, testset
 
     @classmethod
-    def buildin_dataset(cls,
-                        dataset_name,
-                        role,
-                        train,
-                        passive_feat_frac,
-                        feat_perm_option,
-                        transform=None,
-                        seed=1314):
+    def buildin_dataset(cls, dataset_name, role, root, train, passive_feat_frac,
+                        feat_perm_option, download=False, transform=None, seed=1314):
         def _check_params():
             assert dataset_name in Const.BUILDIN_DATASETS, f"{dataset_name} is not a buildin dataset"
             assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
@@ -81,12 +77,11 @@ class TorchDataset(BaseDataset, Dataset):
 
         # function body
         _check_params()
-        torch_dataset = TorchDataset._load_buildin_dataset(name=dataset_name,
-                                                           role=role,
-                                                           train=train,
-                                                           frac=passive_feat_frac,
-                                                           perm_option=feat_perm_option,
-                                                           seed=seed)
+        torch_dataset = TorchDataset._load_buildin_dataset(
+            role=role, name=dataset_name, root=root, train=train,
+            download=download, frac=passive_feat_frac, perm_option=feat_perm_option,
+            seed=seed
+        )
         return cls(
             role=role,
             transform=transform,
@@ -108,165 +103,149 @@ class TorchDataset(BaseDataset, Dataset):
         return torch_dataset
 
     @staticmethod
-    def _load_buildin_dataset(name, role, train, frac, perm_option, seed):
-        curr_path = os.path.abspath(os.path.dirname(__file__))
-
-        # 1. load whole dataset and split it into trainset and testset
-        if name == 'cancer':
-            raise NotImplementedError('future work')
-
-        elif name == 'digits':
-            raise NotImplementedError('future work')
-
-        elif name == 'epsilon':
-            if train:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/epsilon_train.csv'
-                )
+    def _load_buildin_dataset(role, name, root, train, download, frac, perm_option, seed):
+        def _check_exists(dataset_name, root_, train_, resources_):
+            if train_:
+                filename_ = resources_[dataset_name][0]
             else:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/epsilon_test.csv'
-                )
-            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
+                filename_ = resources_[dataset_name][1]
+            return os.path.exists(os.path.join(root_, filename_))
+
+        # 1. Load dataset
+        if name not in ('mnist', 'fashion_mnist', 'svhn'): # CSV datasets
+            resources = {
+                "cancer": ("cancer-train.csv", "cancer-test.csv"),
+                "digits": ("digits-train.csv", "digits-test.csv"),
+                "diabetes": ("diabetes-train.csv", "diabetes-test.csv"),
+                "iris": ("iris-train.csv", "iris-test.csv"),
+                "wine": ("wine-train.csv", "wine-test.csv"),
+                "epsilon": ("epsilon-train.csv", "epsilon-test.csv"),
+                "census": ("census-train.csv", "census-test.csv"),
+                "credit": ("credit-train.csv", "credit-test.csv"),
+                "default_credit": (
+                "default-credit-train.csv", "default-credit-test.csv"),
+                "covertype": ("covertype-train.csv", "covertype-test.csv"),
+                "criteo": ("criteo-train.csv", "criteo-test.csv"),
+                "higgs": ("higgs-train.csv", "higgs-test.csv"),
+                "year": ("year-train.csv", "year-test.csv"),
+                "nyc_taxi": ("nyc-taxi-train.csv", "nyc-taxi-test.csv"),
+            }
+            BASE_URL = 'http://47.96.163.59:80/download/'
+            root = os.path.join(root, 'tabular')
+            if download:
+                if _check_exists(name, root, train, resources):
+                    # if data files have already been downloaded, then skip this branch
+                    print('Data files have already been downloaded.')
+                else:
+                    # download data files from web server
+                    os.makedirs(root, exist_ok=True)
+                    filename = resources[name][0] if train else resources[name][1]
+                    fpath = os.path.join(root, filename)
+                    full_url = BASE_URL + filename
+                    try:
+                        print('Downloading {} to {}'.format(full_url, fpath))
+                        urlretrive(full_url, fpath)
+                    except URLError as error:
+                        raise RuntimeError(
+                            'Failed to download {} with error message: {}'
+                            .format(full_url, error))
+                    print('Done!')
+            if not _check_exists(name, root, train, resources):
+                raise RuntimeError('Dataset not found. You can use download=True to get it.')
+
+            if train:
+                fpath = os.path.join(root, resources[name][0])
+            else:
+                fpath = os.path.join(root, resources[name][1])
+            torch_csv = torch.from_numpy(np.genfromtxt(fpath, dtype=np.float32, delimiter=','))
             _ids = torch_csv[:, 0].type(torch.int32)
             _labels = torch_csv[:, 1].type(torch.int32)
             _feats = torch_csv[:, 2:]
 
-        elif name == 'census':
-            if train:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/census_income_train.csv'
-                )
+        else: # PyTorch datasets
+            if name == 'mnist':
+                transform = transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,))
+                ])
+                buildin_dataset = datasets.MNIST(root=root,
+                                                 train=train,
+                                                 download=download,
+                                                 transform=transform)
+                n_samples = len(buildin_dataset)
+                n_features = 28 * 28
+                _ids = torch.arange(n_samples)
+                _labels = buildin_dataset.targets
+                # A notation about the __getitem__() method of PyTorch Datasets:
+                # The raw images are normalized within the __getitem__ method rather
+                # than the __init__ method, which means that if we call
+                # buildin_dataset.data[i] we will get the
+                # i-th PILImage with pixel range of [0, 255], but if we call
+                # buildin_dataset[i] we will get a tuple of (Tensor, label) where Tensor
+                # is a PyTorch tensor with normalized pixel in the range (0, 1).
+                # So here we first normalized the raw PILImage and then store it in
+                # the _feats attribute.
+                # ref:https://stackoverflow.com/questions/66821250/pytorch-totensor-scaling-to-0-1-discrepancy
+
+                # The execution time of the following two solutions is almost same,
+                # but solution 1 is a bit faster which is used as default solution.
+
+                # solution 1: use torch.cat()
+                imgs = []
+                for i in range(n_samples):
+                    # this will trigger the __getitem__ method and the images will be
+                    # normalized. The return type is a tuple composed of (PILImage, label)
+                    image, _ = buildin_dataset[i]  # image shape: [1, 28, 28]
+                    img = image.view(1, -1)
+                    imgs.append(img)
+                _feats = torch.Tensor(n_samples, n_features)
+                torch.cat(imgs, out=_feats)
+
+                # solution 2: use tensor.index_copy_()
+                # _feats = torch.zeros(n_samples, n_features)
+                # for i in range(n_samples):
+                #     image, _ = buildin_dataset[i]
+                #     img = image.view(1, -1)
+                #     _feats.index_copy_(0, torch.tensor([i], dtype=torch.long), img)
+
+            elif name == 'fashion_mnist':
+                transform = transforms.Compose([
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.5,), (0.5,))
+                ])
+                buildin_dataset = datasets.FashionMNIST(root=root,
+                                                        train=train,
+                                                        download=download,
+                                                        transform=transform)
+                n_samples = buildin_dataset.data.shape[0]
+                n_features = 28 * 28
+                _ids = torch.arange(n_samples)
+                _labels = buildin_dataset.targets
+
+                imgs = []
+                for i in range(n_samples):
+                    # this will trigger the __getitem__ method
+                    # the return type is a tuple composed of (PILImage, label)
+                    image, _ = buildin_dataset[i]  # image shape: [1, 28, 28]
+                    img = image.view(1, -1)
+                    imgs.append(img)
+                _feats = torch.Tensor(n_samples, n_features)
+                torch.cat(imgs, out=_feats)
+
+            elif name == 'svhn':
+                # TODO: add SVHN specific transforms here
+                split = 'train' if train else 'test'
+                buildin_dataset = datasets.SVHN(root=root,
+                                                split=split,
+                                                download=download,
+                                                transform=transforms.ToTensor())
+                n_samples = buildin_dataset.data.shape[0]
+                _ids = torch.arange(n_samples)
+                _labels = buildin_dataset.labels
+                _feats = buildin_dataset.data.view(n_samples, -1)
+
             else:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/census_income_test.csv'
-                )
-            # PyTorch forward() function expects tensor type of Float rather Double
-            # so the dtype should be specified to np.float32
-            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
-            _ids = torch_csv[:, 0].type(torch.int32)
-            _labels = torch_csv[:, 1].type(torch.int32)
-            _feats = torch_csv[:, 2:]
-
-        elif name == 'credit':
-            if train:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/give_me_some_credit_train.csv'
-                )
-            else:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/give_me_some_credit_test.csv'
-                )
-            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
-            _ids = torch_csv[:, 0].type(torch.int32)
-            _labels = torch_csv[:, 1].type(torch.int32)
-            _feats = torch_csv[:, 2:]
-
-        elif name == 'default_credit':
-            if train:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/default_credit_train.csv'
-                )
-            else:
-                abs_path = os.path.join(
-                    curr_path,
-                    '../data/tabular/default_credit_test.csv'
-                )
-            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
-            _ids = torch_csv[:, 0].type(torch.int32)
-            _labels = torch_csv[:, 1].type(torch.int32)
-            _feats = torch_csv[:, 2:]
-
-        elif name == 'mnist':
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.1307,), (0.3081,))
-            ])
-            buildin_dataset = datasets.MNIST(root='data',
-                                             train=train,
-                                             download=True,
-                                             transform=transform)
-            n_samples = len(buildin_dataset)
-            n_features = 28 * 28
-            _ids = torch.arange(n_samples)
-            _labels = buildin_dataset.targets
-            # A notation about the __getitem__() method of PyTorch Datasets:
-            # The raw images are normalized within the __getitem__ method rather
-            # than the __init__ method, which means that if we call
-            # buildin_dataset.data[i] we will get the
-            # i-th PILImage with pixel range of [0, 255], but if we call
-            # buildin_dataset[i] we will get a tuple of (Tensor, label) where Tensor
-            # is a PyTorch tensor with normalized pixel in the range (0, 1).
-            # So here we first normalized the raw PILImage and then store it in
-            # the _feats attribute.
-            # ref:https://stackoverflow.com/questions/66821250/pytorch-totensor-scaling-to-0-1-discrepancy
-
-            # The execution time of the following two solutions is almost same,
-            # but solution 1 is a bit faster which is used as default solution.
-
-            # solution 1: use torch.cat()
-            imgs = []
-            for i in range(n_samples):
-                # this will trigger the __getitem__ method and the images will be
-                # normalized. The return type is a tuple composed of (PILImage, label)
-                image, _ = buildin_dataset[i]  # image shape: [1, 28, 28]
-                img = image.view(1, -1)
-                imgs.append(img)
-            _feats = torch.Tensor(n_samples, n_features)
-            torch.cat(imgs, out=_feats)
-
-            # solution 2: use tensor.index_copy_()
-            # _feats = torch.zeros(n_samples, n_features)
-            # for i in range(n_samples):
-            #     image, _ = buildin_dataset[i]
-            #     img = image.view(1, -1)
-            #     _feats.index_copy_(0, torch.tensor([i], dtype=torch.long), img)
-
-        elif name == 'fashion_mnist':
-            transform = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.5,), (0.5,))
-            ])
-            buildin_dataset = datasets.FashionMNIST(root='data',
-                                                    train=train,
-                                                    download=True,
-                                                    transform=transform)
-            n_samples = buildin_dataset.data.shape[0]
-            n_features = 28 * 28
-            _ids = torch.arange(n_samples)
-            _labels = buildin_dataset.targets
-
-            imgs = []
-            for i in range(n_samples):
-                # this will trigger the __getitem__ method
-                # the return type is a tuple composed of (PILImage, label)
-                image, _ = buildin_dataset[i]  # image shape: [1, 28, 28]
-                img = image.view(1, -1)
-                imgs.append(img)
-            _feats = torch.Tensor(n_samples, n_features)
-            torch.cat(imgs, out=_feats)
-
-        elif name == 'svhn':
-            # TODO: add SVHN specific transforms here
-            split = 'train' if train else 'test'
-            buildin_dataset = datasets.SVHN(root='data',
-                                            split=split,
-                                            download=True,
-                                            transform=transforms.ToTensor())
-            n_samples = buildin_dataset.data.shape[0]
-            _ids = torch.arange(n_samples)
-            _labels = buildin_dataset.labels
-            _feats = buildin_dataset.data.view(n_samples, -1)
-
-        else:
-            raise ValueError('Invalid dataset name.')
+                raise ValueError('not supported right now')
 
         # 2. Apply feature permutation to the train features or validate features
         if perm_option == Const.SEQUENCE:
@@ -461,7 +440,6 @@ class BuildinTorchDataset(TorchDataset):
 
     def _load_dataset(self, name, role, train, frac, perm_option, seed):
         curr_path = os.path.abspath(os.path.dirname(__file__))
-
         # 1. load whole dataset and split it into trainset and testset
         if name == 'cancer':
             raise NotImplementedError('future work')
@@ -529,6 +507,22 @@ class BuildinTorchDataset(TorchDataset):
                 abs_path = os.path.join(
                     curr_path,
                     '../data/tabular/default_credit_test.csv'
+                )
+            torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
+            _ids = torch_csv[:, 0].type(torch.int32)
+            _labels = torch_csv[:, 1].type(torch.int32)
+            _feats = torch_csv[:, 2:]
+
+        elif name == 'criteo':
+            if train:
+                abs_path = os.path.join(
+                    curr_path,
+                    '../vfl/linear/data/tabular/criteo-train.csv'
+                )
+            else:
+                abs_path = os.path.join(
+                    curr_path,
+                    '../vfl/linear/data/tabular/criteo-test.csv'
                 )
             torch_csv = torch.from_numpy(np.genfromtxt(abs_path, dtype=np.float32, delimiter=','))
             _ids = torch_csv[:, 0].type(torch.int32)

@@ -229,14 +229,14 @@ if __name__ == '__main__':
     print('Loading dataset...')
     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
                                                    dataset_name=dataset_name,
-                                                   root='../data',
+                                                   root='../../data',
                                                    train=True,
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
     active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
                                                   dataset_name=dataset_name,
-                                                  root='../data',
+                                                  root='../../data',
                                                   train=False,
                                                   download=True,
                                                   passive_feat_frac=passive_feat_frac,

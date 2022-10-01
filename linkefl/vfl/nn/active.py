@@ -244,15 +244,15 @@ class ActiveNeuralNetwork:
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'mnist'
+    dataset_name = 'fashion_mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 80
-    _batch_size = 64
+    _epochs = 100
+    _batch_size = 200
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
@@ -260,15 +260,19 @@ if __name__ == '__main__':
     # 1. Load datasets
     print('Loading dataset...')
     active_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                          role=Const.ACTIVE_NAME,
-                                          train=True,
-                                          passive_feat_frac=passive_feat_frac,
-                                          feat_perm_option=feat_perm_option)
+                                                   role=Const.ACTIVE_NAME,
+                                                   root='../data',
+                                                   train=True,
+                                                   download=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option)
     active_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                         role=Const.ACTIVE_NAME,
-                                         train=False,
-                                         passive_feat_frac=passive_feat_frac,
-                                         feat_perm_option=feat_perm_option)
+                                                  role=Const.ACTIVE_NAME,
+                                                  root='../data',
+                                                  train=False,
+                                                  download=True,
+                                                  passive_feat_frac=passive_feat_frac,
+                                                  feat_perm_option=feat_perm_option)
     # active_trainset = BuildinTorchDataset(dataset_name=dataset_name,
     #                                       role=Const.ACTIVE_NAME,
     #                                       train=True,
@@ -292,6 +296,11 @@ if __name__ == '__main__':
     bottom_nodes = [input_nodes, 256, 128]
     intersect_nodes = [128, 128, 10]
     top_nodes = [10, 10]
+
+    # criteo
+    # bottom_nodes = [input_nodes, 15, 10]
+    # intersect_nodes = [10, 10, 10]
+    # top_nodes = [10, 2]
 
     # census
     # bottom_nodes = [input_nodes, 20, 10]
