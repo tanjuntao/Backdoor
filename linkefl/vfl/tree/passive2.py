@@ -20,20 +20,20 @@ if __name__ == "__main__":
 
     # 1. Load datasets
     print("Loading dataset...")
-    passive_trainset = NumpyDataset.buildin_dataset(
-        role=Const.PASSIVE_NAME,
-        dataset_name=dataset_name,
-        train=True,
-        passive_feat_frac=passive_feat_frac,
-        feat_perm_option=feat_perm_option,
-    )
-    passive_testset = NumpyDataset.buildin_dataset(
-        role=Const.PASSIVE_NAME,
-        dataset_name=dataset_name,
-        train=False,
-        passive_feat_frac=passive_feat_frac,
-        feat_perm_option=feat_perm_option,
-    )
+    passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+                                                    dataset_name=dataset_name,
+                                                    root='data',
+                                                    train=True,
+                                                    download=True,
+                                                    passive_feat_frac=passive_feat_frac,
+                                                    feat_perm_option=feat_perm_option)
+    passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
+                                                   dataset_name=dataset_name,
+                                                   root='data',
+                                                   train=False,
+                                                   download=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option)
     _, passive_trainset = NumpyDataset.feature_split(passive_trainset, 2)
     _, passive_testset = NumpyDataset.feature_split(passive_testset, 2)
     print("Done")
