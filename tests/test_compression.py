@@ -14,6 +14,16 @@ import numpy as np
 from linkefl.crypto import Paillier
 
 
+def is_pubkey_same(pub_key, size=10):
+    random_vector = [random.random() for _ in range(size)]
+    enc_vector = [pub_key.encrypt(val) for val in random_vector]
+    print(id(enc_vector[0].public_key), id(enc_vector[1].public_key))
+
+    pickle_dumps = pickle.dumps(enc_vector)
+    pickle_loads = pickle.loads(pickle_dumps)
+    print(id(pickle_loads[0].public_key), id(pickle_loads[1].public_key))
+
+
 if __name__ == '__main__':
     paillier = Paillier(key_size=1024)
     num_enc_values = int(1e5)
