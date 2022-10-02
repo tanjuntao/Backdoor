@@ -60,7 +60,7 @@ def enc_vector(plain_vector, public_key, release_gil=False, n_threads=os.cpu_cou
 
 
 if __name__ == '__main__':
-    size = 1200
+    size = 40000
     offset = 100
     paillier = Paillier(key_size=1024)
     pub_key, priv_key = paillier.pub_key, paillier.priv_key
@@ -70,8 +70,9 @@ if __name__ == '__main__':
     large_plaintexts = [-1 * (pub_key.max_int - offset) for _ in range(size)]
 
     start = time.time()
-    result = [pub_key.encrypt(val) for val in small_plaintexts]
+    result = [pub_key.encrypt(val) for val in large_plaintexts]
     print('small plaintexts encryption time: {}'.format(time.time() - start))
+    # print(priv_key.decrypt(result[0]))
 
     # start = time.time()
     # resutl = [pub_key.encrypt(val) for val in large_plaintexts]
@@ -83,8 +84,9 @@ if __name__ == '__main__':
     # # print(priv_key.decrypt(ciphers[0]))
 
     start_time = time.time()
-    ciphers = enc_vector(small_plaintexts, pub_key, release_gil=True)
+    ciphers = enc_vector(large_plaintexts, pub_key, release_gil=True)
     print('multi thread elapsed time: {}'.format(time.time() - start_time))
+    # print(priv_key.decrypt(ciphers[0]))
 
     start_time = time.time()
     pool = multiprocessing.Pool(os.cpu_count())
