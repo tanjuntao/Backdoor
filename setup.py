@@ -17,8 +17,8 @@ from linkefl import __version__
 NAME = 'linkefl'
 DESCRIPTION = 'LinkeFL is a versatile federated learning framework developed by USTC LINKE Lab'
 AUTHOR_EMAIL = 'tjt@mail.ustc.edu.cn, zhanglan@ustc.edu.cn'
-AUTHOR = 'Juntao Tan, Haoran Cheng, Yihang Cheng, Junhao Wang, Ju Huang, ' \
-          'Xinben Gao, Jiahui Huang, Anran Li, Lan Zhang'
+AUTHOR = 'Juntao Tan, Yihang Cheng, Haoran Cheng, Junhao Wang, Ju Huang, ' \
+          'Jiahui Huang, Xinben Gao, Anran Li, Lan Zhang'
 PYTHON_REQUIRES = '>=3.6.0'
 
 
