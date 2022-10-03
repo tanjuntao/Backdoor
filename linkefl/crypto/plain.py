@@ -6,25 +6,28 @@ import torch
 
 class PartialPlain(PartialCryptoSystem):
     def __init__(self, pub_key=None):
-        super(PartialPlain, self).__init__(pub_key)
+        super(PartialPlain, self).__init__()
 
     def encrypt(self, plaintext):
         return plaintext
 
-    def encrypt_vector(self, plain_vector, using_mp=False, n_processes=None):
-        if type(plain_vector) == np.ndarray:
+    def encrypt_vector(self, plain_vector,
+                       using_pool=False, n_workers=None, pool=None):
+        if type(plain_vector) == list:
+            return plain_vector.copy()
+        elif type(plain_vector) == np.ndarray:
             return list(plain_vector)
         elif type(plain_vector) == torch.Tensor:
             return list(plain_vector.numpy())
         else:
-            return plain_vector.copy() # Python list
+            raise TypeError("Only Python list, Numpy Array, and PyTorch Tensor can be"
+                            " passed to this method.")
 
 
 class Plain(CryptoSystem):
     """Pseudo cryptosystem."""
     def __init__(self, key_size=0):
         super(Plain, self).__init__(key_size)
-        self.pub_key, self.priv_key = self._gen_key(key_size)
 
     def _gen_key(self, key_size):
         return None, None
@@ -35,13 +38,20 @@ class Plain(CryptoSystem):
     def decrypt(self, ciphertext):
         return ciphertext
 
-    def encrypt_vector(self, plain_vector, using_mp=False, n_processes=None):
-        if type(plain_vector) == np.ndarray:
+    def encrypt_vector(self, plain_vector,
+                       using_pool=False, n_workers=None, pool=None):
+        if type(plain_vector) == list:
+            return plain_vector.copy()
+        elif type(plain_vector) == np.ndarray:
             return list(plain_vector)
         elif type(plain_vector) == torch.Tensor:
             return list(plain_vector.numpy())
         else:
-            return plain_vector.copy() # Python list
+            raise TypeError("Only Python list, Numpy Array, and PyTorch Tensor can be"
+                            " passed to this method.")
 
-    def decrypt_vector(self, cipher_vector, using_mp=False, n_processes=None):
+    def decrypt_vector(self, cipher_vector,
+                       using_pool=False, n_workers=None, pool=None):
+        assert type(cipher_vector) in (list, np.ndarray), \
+            "cipher_vector's dtype can only be Python list or Numpy array."
         return [val for val in cipher_vector]
