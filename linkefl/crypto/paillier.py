@@ -252,42 +252,54 @@ class PaillierPrivateKey:
             return ciphertext
 
     def raw_decrypt_vector(self, cipher_vector,
-                           using_pool=False, n_workers=None, process_pool=None):
+                           using_pool=False, n_workers=None, thread_pool=None):
         assert type(cipher_vector) in (list, np.ndarray), \
             "cipher_vector's dtype can only be Python list or Numpy array."
         if not using_pool:
             return [self.raw_decrypt(cipher) for cipher in cipher_vector]
-
-        if process_pool is None:
+        if thread_pool is None:
             if n_workers is None:
                 n_workers = os.cpu_count()
-            process_pool = multiprocessing.Pool(n_workers)
+            thread_pool = multiprocessing.pool.ThreadPool(n_workers)
 
-        manager = multiprocessing.Manager()
-        shared_data = manager.list(list(cipher_vector))
-        n_processes = process_pool._processes
+        ciphertexts, exponents = [], []
+        for enc_number in cipher_vector:
+            ciphertexts.append(enc_number.ciphertext(be_secure=False))
+            exponents.append(enc_number.exponent)
+        n_threads = thread_pool._processes
         data_size = len(cipher_vector)
-        quotient = data_size // n_processes
-        remainder = data_size % n_processes
+        quotient = data_size // n_threads
+        remainder = data_size % n_threads
         async_results = []
-        for idx in range(n_processes):
+        for idx in range(n_threads):
             start = idx * quotient
             end = (idx + 1) * quotient
             if idx == n_workers - 1:
                 end += remainder
-            # target function will modify shared_data in-place
-            result = process_pool.apply_async(self._target_dec_vector,
-                                              args=(shared_data, start, end))
+            # target function will modify ciphertexts in-place
+            result = thread_pool.apply_async(self._target_dec_vector,
+                                             args=(ciphertexts, exponents, start, end))
             async_results.append(result)
         for idx, result in enumerate(async_results):
             assert result.get() is True, "worker process did not finish " \
                                          "within default timeout"
 
-        return [item for item in shared_data]  # always return a Python list
+        return ciphertexts  # always return a Python list
 
-    def _target_dec_vector(self, ciphertexts, start, end):
+    def _target_dec_vector(self, ciphertexts, exponents, start, end):
+        p, psquare, hp = self.raw_priv_key.p, self.raw_priv_key.psquare, self.raw_priv_key.hp
+        q, qsquare, hq = self.raw_priv_key.q, self.raw_priv_key.qsquare, self.raw_priv_key.hq
+        powmod_p = gmpy2.powmod_list(ciphertexts[start:end], p - 1, psquare) # multi thread
+        powmod_q = gmpy2.powmod_list(ciphertexts[start:end], q - 1, qsquare) # multi thread
+        public_key = self.raw_priv_key.public_key
+        sublist_idx = 0
         for k in range(start, end):
-            ciphertexts[k] = self.raw_priv_key.decrypt(ciphertexts[k])
+            decrypt_to_p = mulmod(self.raw_priv_key.l_function(powmod_p[sublist_idx], p), hp, p)
+            decrypt_to_q = mulmod(self.raw_priv_key.l_function(powmod_q[sublist_idx], q), hq, q)
+            encoding = self.raw_priv_key.crt(decrypt_to_p, decrypt_to_q)
+            encoding = EncodedNumber(public_key, encoding, exponents[k])
+            ciphertexts[k] = encoding.decode() # this will modify ciphertexts(list) in place
+            sublist_idx += 1
         return True
 
     def raw_decrypt_data(self, encrypted_data, pool: Pool = None):
@@ -426,12 +438,12 @@ class Paillier(CryptoSystem):
         )
 
     def decrypt_vector(self, cipher_vector,
-                       using_pool=False, n_workers=None, process_pool=None):
+                       using_pool=False, n_workers=None, thread_pool=None):
         return self.priv_key.raw_decrypt_vector(
             cipher_vector,
             using_pool,
             n_workers,
-            process_pool
+            thread_pool
         )
 
     def encrypt_data(self, plain_data, pool: Pool = None):
@@ -501,12 +513,12 @@ class FastPaillier(CryptoSystem):
         )
 
     def decrypt_vector(self, cipher_vector,
-                       using_pool=False, n_workers=None, process_pool=None):
+                       using_pool=False, n_workers=None, thread_pool=None):
         return self.priv_key.raw_decrypt_vector(
             cipher_vector,
             using_pool,
             n_workers,
-            process_pool
+            thread_pool
         )
 
     def encrypt_data(self, plain_data, pool: Pool = None):
