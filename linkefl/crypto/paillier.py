@@ -241,6 +241,7 @@ class PaillierPublicKey:
     def set_enc_zeros(self, enc_zeros):
         setattr(self, 'enc_zeros', enc_zeros)
 
+
 class PaillierPrivateKey:
     def __init__(self, priv_key):
         self.raw_priv_key = priv_key
@@ -528,7 +529,9 @@ class FastPaillier(CryptoSystem):
         return self.priv_key.raw_decrypt_data(encrypted_data, pool)
 
 
-def fast_ciphers_addition(cipher_vector, thread_pool=None):
+def fast_add_ciphers(cipher_vector, thread_pool=None):
+    assert type(cipher_vector) in (list, np.ndarray), \
+        "cipher_vector's dtype can only be Python list or Numpy array."
     exp2cipher = {}
     for enc_number in cipher_vector:
         ciphertext = enc_number.ciphertext(be_secure=False)
@@ -548,7 +551,7 @@ def fast_ciphers_addition(cipher_vector, thread_pool=None):
     nsquare = public_key.nsquare
     async_results = []
     for exp, ciphers in exp2cipher.items():
-        result = thread_pool.apply_async(_target_ciphers_add,
+        result = thread_pool.apply_async(_target_add_ciphers,
                                          args=(ciphers, exp, min_exp, base, nsquare))
         async_results.append(result)
     final_ciphertext = gmpy2.mpz(1)
@@ -558,13 +561,61 @@ def fast_ciphers_addition(cipher_vector, thread_pool=None):
     return EncryptedNumber(public_key, int(final_ciphertext), min_exp)
 
 
-def _target_ciphers_add(ciphertexts, curr_exp, min_exp, base, nsquare):
+def _target_add_ciphers(ciphertexts, curr_exp, min_exp, base, nsquare):
     multiplier = pow(base, curr_exp - min_exp)
     aligned_ciphers = gmpy2.powmod_list(ciphertexts, multiplier, nsquare)
     result = gmpy2.mpz(1)
     for ciphertext in aligned_ciphers:
         result = gmpy2.mod(gmpy2.mul(result, ciphertext), nsquare)
     return result
+
+
+def fast_mul_ciphers(plain_vector, cipher, thread_pool=None):
+    assert type(plain_vector) in (list, np.ndarray), \
+        "plain_vector's dtype can only be Python list or Numpy array."
+    if thread_pool is None:
+        n_workers = 2
+        thread_pool = multiprocessing.pool.ThreadPool(n_workers)
+    public_key = cipher.public_key
+    n, nsquare, max_int = public_key.n, public_key.nsquare, public_key.max_int
+    ciphertext, exponent = cipher.ciphertext(be_secure=False), cipher.exponent
+    ciphertext_inverse = gmpy2.invert(ciphertext, nsquare)
+
+    pos_idxs, neg_idxs = [], []
+    pos_exps, neg_exps = [], []
+    for i, encoded_number in enumerate(plain_vector):
+        encoding = encoded_number.encoding
+        if n - max_int <= encoding:
+            neg_idxs.append(i)
+            neg_exps.append(n - encoding)
+        else:
+            pos_idxs.append(i)
+            pos_exps.append(encoding)
+
+    async_results = []
+    for mode in ('pos', 'neg'):
+        if mode == 'pos':
+            result = thread_pool.apply_async(_target_mul_ciphers,
+                                             args=(ciphertext, pos_exps, nsquare))
+        else:
+            result = thread_pool.apply_async(_target_mul_ciphers,
+                                             args=(ciphertext_inverse, neg_exps, nsquare))
+        async_results.append(result)
+    pos_ciphertexts = async_results[0].get()
+    neg_ciphertexts = async_results[1].get()
+
+    result_vector = [None] * len(plain_vector)  # plain_vector is never modified
+    for pos_i, pos_cipher in zip(pos_idxs, pos_ciphertexts):
+        exp = plain_vector[pos_i].exponent + exponent
+        result_vector[pos_i] = EncryptedNumber(public_key, int(pos_cipher), exp)
+    for neg_i, neg_cipher in zip(neg_idxs, neg_ciphertexts):
+        exp = plain_vector[neg_i].exponent + exponent
+        result_vector[neg_i] = EncryptedNumber(public_key, int(neg_cipher), exp)
+
+    return result_vector
+
+def _target_mul_ciphers(base, exps, nsquare):
+    return gmpy2.powmod_exp_list(base, exps, nsquare)
 
 
 if __name__ == "__main__":

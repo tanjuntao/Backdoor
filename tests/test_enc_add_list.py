@@ -10,7 +10,7 @@ import gmpy2
 from phe import paillier, EncodedNumber, EncryptedNumber
 from tqdm import tqdm
 
-from linkefl.crypto import fast_ciphers_addition
+from linkefl.crypto import fast_add_ciphers
 
 
 if __name__ == '__main__':
@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
     thread_pool = multiprocessing.pool.ThreadPool(os.cpu_count())
     start_time = time.time()
-    res = fast_ciphers_addition(
+    res = fast_add_ciphers(
         cipher_vector=enc_data,
         thread_pool=thread_pool
     )
