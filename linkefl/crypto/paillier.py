@@ -528,6 +528,45 @@ class FastPaillier(CryptoSystem):
         return self.priv_key.raw_decrypt_data(encrypted_data, pool)
 
 
+def fast_ciphers_addition(cipher_vector, thread_pool=None):
+    exp2cipher = {}
+    for enc_number in cipher_vector:
+        ciphertext = enc_number.ciphertext(be_secure=False)
+        exponent = enc_number.exponent
+        if exponent not in exp2cipher:
+            exp2cipher[exponent] = [gmpy2.mpz(ciphertext)]
+        else:
+            exp2cipher[exponent].append(gmpy2.mpz(ciphertext))
+
+    if thread_pool is None:
+        n_workers = min(os.cpu_count(), len(exp2cipher))
+        thread_pool = multiprocessing.pool.ThreadPool(n_workers)
+
+    min_exp = min(exp2cipher.keys())
+    base = EncodedNumber.BASE
+    public_key = cipher_vector[0].public_key
+    nsquare = public_key.nsquare
+    async_results = []
+    for exp, ciphers in exp2cipher.items():
+        result = thread_pool.apply_async(_target_ciphers_add,
+                                         args=(ciphers, exp, min_exp, base, nsquare))
+        async_results.append(result)
+    final_ciphertext = gmpy2.mpz(1)
+    for result in async_results:
+        final_ciphertext = gmpy2.mod(gmpy2.mul(result.get(), final_ciphertext), nsquare)
+
+    return EncryptedNumber(public_key, int(final_ciphertext), min_exp)
+
+
+def _target_ciphers_add(ciphertexts, curr_exp, min_exp, base, nsquare):
+    multiplier = pow(base, curr_exp - min_exp)
+    aligned_ciphers = gmpy2.powmod_list(ciphertexts, multiplier, nsquare)
+    result = gmpy2.mpz(1)
+    for ciphertext in aligned_ciphers:
+        result = gmpy2.mod(gmpy2.mul(result, ciphertext), nsquare)
+    return result
+
+
 if __name__ == "__main__":
     # crypto_system = FastPaillier(num_enc_zeros=64, gen_from_set=True)
     # enc_zero_ = crypto_system._enc_zeros[20]
