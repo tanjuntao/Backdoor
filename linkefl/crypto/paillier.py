@@ -57,8 +57,8 @@ def _cal_enc_zeros(public_key, num_enc_zeros, gen_from_set):
 
 
 class PaillierPublicKey:
-    def __init__(self, pub_key):
-        self.raw_pub_key = pub_key
+    def __init__(self, raw_pub_key):
+        self.raw_pub_key = raw_pub_key
 
     @staticmethod
     def _convert_vector(plain_vector):
@@ -243,8 +243,8 @@ class PaillierPublicKey:
 
 
 class PaillierPrivateKey:
-    def __init__(self, priv_key):
-        self.raw_priv_key = priv_key
+    def __init__(self, raw_priv_key):
+        self.raw_priv_key = raw_priv_key
 
     def raw_decrypt(self, ciphertext):
         if isinstance(ciphertext, EncryptedNumber):
@@ -355,14 +355,15 @@ class PaillierPrivateKey:
 class PartialPaillier(PartialCryptoSystem):
     def __init__(self, raw_public_key):
         super(PartialPaillier, self).__init__()
-        self.pub_key = PaillierPublicKey(raw_public_key)
+        self.pub_key = raw_public_key # for API consistency
+        self.pub_key_obj = PaillierPublicKey(raw_public_key)
 
     def encrypt(self, plaintext):
-        return self.pub_key.raw_encrypt(plaintext)
+        return self.pub_key_obj.raw_encrypt(plaintext)
 
     def encrypt_vector(self, plain_vector,
                        using_pool=False, n_workers=None, thread_pool=None):
-        return self.pub_key.raw_encrypt_vector(
+        return self.pub_key_obj.raw_encrypt_vector(
             plain_vector,
             using_pool,
             n_workers,
@@ -373,18 +374,19 @@ class PartialPaillier(PartialCryptoSystem):
 class PartialFastPaillier(PartialCryptoSystem):
     def __init__(self, raw_public_key, num_enc_zeros=10000, gen_from_set=True):
         super(PartialFastPaillier, self).__init__()
-        self.pub_key = PaillierPublicKey(raw_public_key)
+        self.pub_key = raw_public_key
+        self.pub_key_obj = PaillierPublicKey(raw_public_key)
         print("Generating encrypted zeros...")
         enc_zeros = _cal_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
-        self.pub_key.set_enc_zeros(enc_zeros)
+        self.pub_key_obj.set_enc_zeros(enc_zeros)
         print("Done!")
 
     def encrypt(self, plaintext):
-        return self.pub_key.raw_fast_encrypt(plaintext)
+        return self.pub_key_obj.raw_fast_encrypt(plaintext)
 
     def encrypt_vector(self, plain_vector,
                        using_pool=False, n_workers=None, thread_pool=None):
-        return self.pub_key.raw_fast_encrypt_vector(
+        return self.pub_key_obj.raw_fast_encrypt_vector(
             plain_vector,
             using_pool,
             n_workers,
@@ -409,8 +411,9 @@ class Paillier(CryptoSystem):
     def __init__(self, key_size=1024):
         super(Paillier, self).__init__(key_size)
         raw_public_key, raw_private_key = self._gen_key(key_size)
-        self.pub_key = PaillierPublicKey(raw_public_key)
-        self.priv_key = PaillierPrivateKey(raw_private_key)
+        self.pub_key, self.priv_key = raw_public_key, raw_private_key # for API consistency
+        self.pub_key_obj = PaillierPublicKey(raw_public_key)
+        self.priv_key_obj = PaillierPrivateKey(raw_private_key)
 
     @classmethod
     def from_config(cls, config):
@@ -424,14 +427,14 @@ class Paillier(CryptoSystem):
         return pub_key, priv_key
 
     def encrypt(self, plaintext):
-        return self.pub_key.raw_encrypt(plaintext)
+        return self.pub_key_obj.raw_encrypt(plaintext)
 
     def decrypt(self, ciphertext):
-        return self.priv_key.raw_decrypt(ciphertext)
+        return self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(self, plain_vector,
                        using_pool=False, n_workers=None, thread_pool=None):
-        return self.pub_key.raw_encrypt_vector(
+        return self.pub_key_obj.raw_encrypt_vector(
             plain_vector,
             using_pool,
             n_workers,
@@ -440,7 +443,7 @@ class Paillier(CryptoSystem):
 
     def decrypt_vector(self, cipher_vector,
                        using_pool=False, n_workers=None, thread_pool=None):
-        return self.priv_key.raw_decrypt_vector(
+        return self.priv_key_obj.raw_decrypt_vector(
             cipher_vector,
             using_pool,
             n_workers,
@@ -448,10 +451,10 @@ class Paillier(CryptoSystem):
         )
 
     def encrypt_data(self, plain_data, pool: Pool = None):
-        return self.pub_key.raw_encrypt_data(plain_data, pool)
+        return self.pub_key_obj.raw_encrypt_data(plain_data, pool)
 
     def decrypt_data(self, encrypted_data, pool: Pool = None):
-        return self.priv_key.raw_decrypt_data(encrypted_data, pool)
+        return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
 class FastPaillier(CryptoSystem):
@@ -475,12 +478,13 @@ class FastPaillier(CryptoSystem):
         # TODO: move the process of generating encrypted zeros to offline phase
         super(FastPaillier, self).__init__(key_size)
         raw_public_key, raw_private_key = self._gen_key(key_size)
-        self.pub_key = PaillierPublicKey(raw_public_key)
-        self.priv_key = PaillierPrivateKey(raw_private_key)
+        self.pub_key, self.priv_key = raw_public_key, raw_private_key
+        self.pub_key_obj = PaillierPublicKey(raw_public_key)
+        self.priv_key_obj = PaillierPrivateKey(raw_private_key)
 
         print("Generating encrypted zeros...")
         enc_zeros = _cal_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
-        self.pub_key.set_enc_zeros(enc_zeros)
+        self.pub_key_obj.set_enc_zeros(enc_zeros)
         print("Done!")
 
     @classmethod
@@ -499,14 +503,14 @@ class FastPaillier(CryptoSystem):
         return pub_key, priv_key
 
     def encrypt(self, plaintext):
-        return self.pub_key.raw_fast_encrypt(plaintext)
+        return self.pub_key_obj.raw_fast_encrypt(plaintext)
 
     def decrypt(self, ciphertext):
-        self.priv_key.raw_decrypt(ciphertext)
+        self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(self, plain_vector,
                        using_pool=False, n_workers=None, thread_pool=None):
-        return self.pub_key.raw_fast_encrypt_vector(
+        return self.pub_key_obj.raw_fast_encrypt_vector(
             plain_vector,
             using_pool,
             n_workers,
@@ -515,7 +519,7 @@ class FastPaillier(CryptoSystem):
 
     def decrypt_vector(self, cipher_vector,
                        using_pool=False, n_workers=None, thread_pool=None):
-        return self.priv_key.raw_decrypt_vector(
+        return self.priv_key_obj.raw_decrypt_vector(
             cipher_vector,
             using_pool,
             n_workers,
@@ -523,10 +527,10 @@ class FastPaillier(CryptoSystem):
         )
 
     def encrypt_data(self, plain_data, pool: Pool = None):
-        return self.pub_key.raw_encrypt_data(plain_data, pool)
+        return self.pub_key_obj.raw_encrypt_data(plain_data, pool)
 
     def decrypt_data(self, encrypted_data, pool: Pool = None):
-        return self.priv_key.raw_decrypt_data(encrypted_data, pool)
+        return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
 def fast_add_ciphers(cipher_vector, thread_pool=None):

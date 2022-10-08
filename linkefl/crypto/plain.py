@@ -5,8 +5,9 @@ import torch
 
 
 class PartialPlain(PartialCryptoSystem):
-    def __init__(self, pub_key=None):
+    def __init__(self, raw_public_key=None):
         super(PartialPlain, self).__init__()
+        self.pub_key = raw_public_key
 
     def encrypt(self, plaintext):
         return plaintext
@@ -28,6 +29,8 @@ class Plain(CryptoSystem):
     """Pseudo cryptosystem."""
     def __init__(self, key_size=0):
         super(Plain, self).__init__(key_size)
+        # this line takes no effect, just for API consistency
+        self.pub_key, self.priv_key = self._gen_key(key_size)
 
     def _gen_key(self, key_size):
         return None, None

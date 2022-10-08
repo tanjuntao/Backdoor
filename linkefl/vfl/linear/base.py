@@ -2,31 +2,23 @@ from abc import ABC, abstractmethod
 import copy
 import datetime
 import multiprocessing
+import multiprocessing.pool
 import os
-from queue import Queue
-import threading
 import time
 
-import gmpy2
 import numpy as np
-from phe import EncodedNumber, EncryptedNumber
-from termcolor import colored
+from phe import EncodedNumber
 
 from linkefl.common.const import Const
 from linkefl.common.factory import (
     crypto_factory,
-    logger_factory,
     messenger_factory,
     partial_crypto_factory,
 )
 from linkefl.config import BaseConfig
+from linkefl.crypto import fast_add_ciphers, fast_mul_ciphers
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
-from linkefl.util import save_params
-
-
-def _target_grad(*args):
-    return sum(args)
 
 
 class BaseLinear(ABC):
@@ -105,9 +97,11 @@ class BaseLinearPassive(BaseLinear):
         if using_pool:
             if num_workers == -1:
                 num_workers = os.cpu_count()
-            self.pool = multiprocessing.Pool(num_workers)
+            self.executor_pool = multiprocessing.pool.ThreadPool(num_workers)
+            self.scheduler_pool = multiprocessing.pool.ThreadPool(8) # fix n_threads to 8
         else:
-            self.pool = None
+            self.executor_pool = None
+            self.scheduler_pool = None
         self.val_freq = val_freq
         self.saving_model = saving_model
         self.model_path = model_path
@@ -153,92 +147,27 @@ class BaseLinearPassive(BaseLinear):
         self.logger.log('[PASSIVE] Done!')
         return public_key
 
-    def _grad(self, enc_residue, batch_idxes):
-        if self.crypto_type == Const.PLAIN:
-            # using x_train if crypto type is PLAIN
-            enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
-                                   getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
-        else:
-            # using x_encode if crypto type is Paillier or FastPaillier
-            enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
-                                   getattr(self, 'x_encode')[batch_idxes]).mean(axis=0)
-
-        return enc_train_grad
-
-    def _grad_mp_pool(self, enc_residue, batch_idxes, worker_pool):
-        """compute encrypted gradients manully"""
-        n_samples, n_features = len(batch_idxes), getattr(self, 'params').size
-        pub_key = getattr(self, 'cryptosystem').pub_key
-        n = pub_key.n
-        n_squared = pub_key.n ** 2
-        max_int = pub_key.max_int
-        r_ciphers = [enc_r.ciphertext(False) for enc_r in enc_residue]
-        r_ciphers_neg = [gmpy2.invert(r_cipher, n_squared) for r_cipher in r_ciphers]
-
-        # collect encrypted gradient items
-        enc_train_grads = [[] for _ in range(n_features)]
+    @staticmethod
+    def _encode(x_train, pub_key, precision):
+        x_encode = []
+        n_samples = x_train.shape[0]
         for i in range(n_samples):
-            for j in range(n_features):
-                row = getattr(self, 'x_encode')[batch_idxes[i]]
-                encoding = row[j].encoding
-                exponent = row[j].exponent + enc_residue[i].exponent
-                if n - max_int < encoding:
-                    ciphertext = gmpy2.powmod(r_ciphers_neg[i], n - encoding, n_squared)
-                else:
-                    ciphertext = gmpy2.powmod(r_ciphers[i], encoding, n_squared)
-                enc_j = EncryptedNumber(pub_key, ciphertext, exponent)
-                enc_train_grads[j].append(enc_j)
+            row = [EncodedNumber.encode(pub_key, val, precision=precision)
+                   for val in x_train[i]]
+            x_encode.append(row)
+        return np.array(x_encode)
 
-        # using pool to add encrypted gradients in parallel
-        avg_grads = worker_pool.starmap(_target_grad, enc_train_grads)
-
-        # average gradients
-        for j in range(n_features):
-            avg_grads[j] = avg_grads[j] * (-1. / len(batch_idxes))
-
-        # convert grads from python list to numpy.ndarray
-        avg_grads = np.array(avg_grads)
-        return avg_grads
-
-    def _grad_multi_thread(self, enc_residue, batch_idxes, n_threads=-1):
-        if n_threads == -1:
-            n_threads = os.cpu_count()
-
-        bs = len(batch_idxes)
-        quotient = bs // n_threads
-        remainder = bs % n_threads
-        threads = []
-        shared_q = Queue()
-        for i in range(n_threads):
-            start = i * quotient
-            end = (i + 1) * quotient
-            if i == n_threads - 1:
-                end += remainder
-            t = threading.Thread(target=self._target_func_grad,
-                                 args=(batch_idxes[start:end],
-                                       enc_residue[start:end],
-                                       shared_q))
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
-
-        res = shared_q.get()
-        while not shared_q.empty():
-            res += shared_q.get()
-        return res / bs # average gradients
-
-    def _target_func_grad(self, batches, residues, shared_q):
-        gmpy2.get_context().allow_release_gil = True
-        enc_grad = -1 * (residues[:, np.newaxis] * getattr(self, 'x_train')[batches]).sum(axis=0)
-        shared_q.put(enc_grad)
-
-    def _gradient(self, enc_residue, batch_idxes, worker_pool):
+    def _gradient(self, enc_residue, batch_idxes, executor_pool, scheduler_pool):
         # compute gradient of empirical loss term
-        if worker_pool is None:
+        if executor_pool is None and scheduler_pool is None:
             enc_train_grad = self._grad(enc_residue, batch_idxes)
         else:
-            enc_train_grad = self._grad_mp_pool(enc_residue, batch_idxes, worker_pool)
+            enc_train_grad = self._grad_pool(
+                enc_residue,
+                batch_idxes,
+                executor_pool,
+                scheduler_pool
+            )
 
         # compute gradient of regularization term
         params = getattr(self, 'params')
@@ -254,24 +183,103 @@ class BaseLinearPassive(BaseLinear):
 
         return enc_train_grad + enc_reg_grad
 
-    def _mask_grad(self, enc_grad):
+    def _grad(self, enc_residue, batch_idxes):
+        if self.crypto_type == Const.PLAIN:
+            # using x_train if crypto type is PLAIN
+            enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
+                                   getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
+        else:
+            # using x_encode if crypto type is Paillier or FastPaillier
+            enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
+                                   getattr(self, 'x_encode')[batch_idxes]).mean(axis=0)
+
+        return enc_train_grad
+
+    def _grad_pool(self, enc_residue, batch_idxes, executor_pool, scheduler_pool):
+        """compute encrypted gradients manually via Python ThreadPool"""
+        if self.crypto_type == Const.PLAIN:
+            raise RuntimeError("you should not use pool when crypto type is Plain.")
+
+        n_samples, n_features = len(batch_idxes), getattr(self, 'params').size
+        x_encode = getattr(self, 'x_encode')
+
+        # 1. multipy each sample with its corresponding encrypted residue
+        enc_train_grads = [None] * n_samples
+        data_size = n_samples
+        n_schedulers = scheduler_pool._processes
+        quotient = data_size // n_schedulers
+        remainder = data_size % n_schedulers
+        async_results = []
+        for idx in range(n_schedulers):
+            start = idx * quotient
+            end = (idx + 1) * quotient
+            if idx == n_schedulers - 1:
+                end += remainder
+            # this will modify enc_train_grads in-place
+            result = scheduler_pool.apply_async(
+                BaseLinearPassive._target_grad_mul,
+                args=(x_encode, enc_residue, enc_train_grads, start, end, executor_pool)
+            )
+            async_results.append(result)
+        for result in async_results:
+            assert result.get() is True
+
+        # 2. transpose this two-dim numpy array so that each row can be averaged to
+        #    get the gradient of its corresponding feature
+        enc_train_grads = np.array(enc_train_grads).transpose()
+
+        # 3. average the encrypted gradients of each sample to get the final averaged
+        #    gradients
+        avg_grad = [None] * n_features
+        data_size = n_features
+        n_schedulers = scheduler_pool._processes
+        quotient = data_size // n_schedulers
+        remainder = data_size % n_schedulers
+        async_results = []
+        for idx in range(n_schedulers):
+            start = idx * quotient
+            end = (idx + 1) * quotient
+            if idx == n_schedulers - 1:
+                end += remainder
+            # this will modify avg_grad in-place
+            result = scheduler_pool.apply_async(
+                BaseLinearPassive._target_grad_add,
+                args=(enc_train_grads, avg_grad, start,end, executor_pool)
+            )
+            async_results.append(result)
+        for result in async_results:
+            assert result.get() is True
+
+        return np.array(avg_grad)
+
+    @staticmethod
+    def _target_grad_mul(x_encode, enc_residue, enc_train_grads,
+                         start, end, executor_pool):
+        for k in range(start, end):
+            curr_grad = fast_mul_ciphers(x_encode[k], enc_residue[k], executor_pool)
+            enc_train_grads[k] = curr_grad
+        return True
+
+    @staticmethod
+    def _target_grad_add(enc_train_grads, avg_grad,
+                         start, end, executor_pool):
+        batch_size = len(enc_train_grads[start])
+        for k in range(start, end):
+            grad = fast_add_ciphers(enc_train_grads[k], executor_pool)
+            avg_grad[k] = grad * (-1. / batch_size)
+        return True
+
+    @staticmethod
+    def _mask_grad(enc_grad):
         perm = np.random.permutation(enc_grad.shape[0])
         return enc_grad[perm], perm
 
-    def _unmask_grad(self, masked_grad, perm):
+    @staticmethod
+    def _unmask_grad(masked_grad, perm):
         perm_inverse = np.empty_like(perm)
         perm_inverse[perm] = np.arange(perm.size)
         true_grad = masked_grad[perm_inverse]
         return true_grad
-
-    def _encode(self, x_train, pub_key, precision):
-        x_encode = []
-        n_samples = x_train.shape[0]
-        for i in range(n_samples):
-            row = [EncodedNumber.encode(pub_key, val, precision=precision)
-                   for val in x_train[i]]
-            x_encode.append(row)
-        return np.array(x_encode)
 
     def train(self, trainset, testset):
         assert isinstance(trainset, NumpyDataset), 'trainset should be an instance ' \
@@ -294,7 +302,11 @@ class BaseLinearPassive(BaseLinear):
 
         # encode the training dataset if the crypto type belongs to Paillier family
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            x_encode = self._encode(getattr(self, 'x_train'), public_key, self.precision)
+            x_encode = BaseLinearPassive._encode(
+                getattr(self, 'x_train'),
+                public_key,
+                self.precision
+            )
             setattr(self, 'x_encode', x_encode)
 
         bs = self.batch_size if self.batch_size != -1 else trainset.n_samples
@@ -325,14 +337,19 @@ class BaseLinearPassive(BaseLinear):
                 # Receive encrypted residue and calculate masked encrypted gradients
                 enc_residue = self.messenger.recv()
                 commu_plus_compu_time += time.time() - _begin
-                enc_grad = self._gradient(enc_residue, batch_idxes, self.pool)
-                enc_mask_grad, perm = self._mask_grad(enc_grad)
+                enc_grad = self._gradient(
+                    enc_residue,
+                    batch_idxes,
+                    self.executor_pool,
+                    self.scheduler_pool
+                )
+                enc_mask_grad, perm = BaseLinearPassive._mask_grad(enc_grad)
                 _begin = time.time()
                 self.messenger.send(enc_mask_grad)
 
                 # Receive decrypted masked gradient and update model
                 mask_grad = self.messenger.recv()
-                true_grad = self._unmask_grad(mask_grad, perm)
+                true_grad = BaseLinearPassive._unmask_grad(mask_grad, perm)
                 commu_plus_compu_time += time.time() - _begin
                 self._gradient_descent(getattr(self, 'params'), true_grad)
 
@@ -350,9 +367,11 @@ class BaseLinearPassive(BaseLinear):
                         NumpyModelIO.save(model_params, self.model_path, model_name)
 
         # after training release the multiprocessing pool
-        if self.pool is not None:
-            self.pool.close()
-            self.pool.join()
+        if self.executor_pool is not None:
+            self.executor_pool.close()
+            self.scheduler_pool.close()
+            self.executor_pool.join()
+            self.scheduler_pool.join()
 
         self.logger.log('Finish model training.')
         self.logger.log('The summation of communication time and computation time is '
@@ -414,6 +433,14 @@ class BaseLinearActive(BaseLinear):
         self.precision = precision
         self.random_state = random_state
         self.using_pool = using_pool
+        if using_pool:
+            if num_workers == -1:
+                num_workers = os.cpu_count()
+            # used to accelerate encrypt_vector (for Paillier only)
+            # & decrypt_vector (for both Paillier and FastPaillier)
+            self.executor_pool = multiprocessing.pool.ThreadPool(num_workers)
+        else:
+            self.executor_pool = None
         self.num_workers = num_workers
         self.val_freq = val_freq
         self.saving_model = saving_model

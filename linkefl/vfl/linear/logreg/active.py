@@ -178,6 +178,11 @@ class ActiveLogReg(BaseLinearActive):
                         NumpyModelIO.save(model_params, self.model_path, model_name)
                 self.messenger.send(is_best)
 
+        # close ThreadPool if it exists
+        if self.executor_pool is not None:
+            self.executor_pool.close()
+            self.executor_pool.join()
+
         self.logger.log('Finish model training.')
         self.logger.log('Best history acc: {:.5f}'.format(best_acc))
         self.logger.log('Best history auc: {:.5f}'.format(best_auc))
@@ -235,7 +240,7 @@ class ActiveLogReg(BaseLinearActive):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'criteo'
+    dataset_name = 'census'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -243,13 +248,14 @@ if __name__ == '__main__':
     passive_ip = 'localhost'
     passive_port = 30001
     _epochs = 10
-    _batch_size = 100
+    _batch_size = -1
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
-    _crypto_type = Const.PLAIN
+    _crypto_type = Const.FAST_PAILLIER
     _random_state = None
     _key_size = 1024
+    _using_pool = True
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
@@ -316,7 +322,7 @@ if __name__ == '__main__':
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
-                                using_pool=False,
+                                using_pool=_using_pool,
                                 saving_model=False)
 
     active_party.train(active_trainset, active_testset)
