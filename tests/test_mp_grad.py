@@ -1,5 +1,5 @@
-import multiprocessing
-import multiprocessing.pool
+from multiprocessing import Pool
+from multiprocessing.pool import ThreadPool
 import os
 import time
 
@@ -63,7 +63,7 @@ def grad_mp_pool(x_encode, pub_key, params, enc_residue, batch_idxes,
                 else:
                     ciphertext = gmpy2.powmod(r_ciphers[i], encoding, n_squared)
                 enc_j = EncryptedNumber(pub_key, ciphertext, exponent)
-                enc_train_grads[j].append(enc_j)
+                enc_train_grads[j].append(enc_j) # a python list
     else:
         enc_train_grads = [None] * n_batch_samples
         data_size = n_batch_samples
@@ -132,16 +132,18 @@ def enc_grad_serial(trainset, num_batches, bs, encrypted_zero):
 
 if __name__ == '__main__':
     pub_key_, priv_key = generate_paillier_keypair(n_length=1024)
-    n_samples, n_features = 10000, 100
-    batch_size = 10000
+    n_samples, n_features = 30000, 100
+    batch_size = 100
     precision=0.001
     n_batches = n_samples // batch_size
     enc_zero = pub_key_.encrypt(0)
     
     x_train = np.random.rand(n_samples, n_features)
+    start_time = time.time()
     print('encoding x_train...')
     x_encode_ = encode(x_train, public_key=pub_key_, prec=precision)
     print('done.')
+    print('encoding time: {}'.format(time.time() - start_time))
     model_params = np.random.rand(n_features)
 
 
@@ -158,7 +160,7 @@ if __name__ == '__main__':
     # 2. compute encrypted gradient
     start_time = time.time()
     enc_grad_serial(
-        trainset=x_encode_,
+        trainset=x_train,
         num_batches=n_batches,
         bs=batch_size,
         encrypted_zero=enc_zero
@@ -167,9 +169,9 @@ if __name__ == '__main__':
 
 
     # 3. our methods
-    schedule_pool = multiprocessing.pool.ThreadPool(4)
-    process_pool = multiprocessing.Pool(os.cpu_count())
-    thread_pool = multiprocessing.pool.ThreadPool(os.cpu_count())
+    schedule_pool = ThreadPool(4)
+    process_pool = Pool(os.cpu_count())
+    thread_pool_ = ThreadPool(os.cpu_count())
     case = [True, True, process_pool]
     # case = [True, False, thread_pool]
     # case = [False, False, thread_pool]
@@ -196,4 +198,4 @@ if __name__ == '__main__':
     print('our method elapsed time: {}'.format(time.time() - start_time))
     schedule_pool.close()
     process_pool.close()
-    thread_pool.close()
+    thread_pool_.close()
