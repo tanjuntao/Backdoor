@@ -28,7 +28,8 @@ class Const:
                        'mnist',
                        'fashion_mnist',
                        'cifar',
-                       'svhn']
+                       'svhn',
+                       'avazu']
     REGRESSION_DATASETS = ['diabetes', 'year', 'nyc_taxi']
 
     PLAIN = 'plain'
@@ -66,7 +67,8 @@ class Const:
         REGRESSION: ['diabetes', 'year', 'nyc_taxi'],
         CLASSIFICATION: ['cancer', 'digits', 'epsilon', 'census', 'credit', 'criteo',
                          'default_credit', 'covertype', 'higgs',
-                         'iris', 'wine', 'mnist', 'fashion_mnist', 'cifar', 'svhn']
+                         'iris', 'wine', 'mnist', 'fashion_mnist', 'cifar', 'svhn',
+                         'avazu']
     }
 
     BLOSC = 'blosc'

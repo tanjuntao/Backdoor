@@ -129,6 +129,7 @@ class TorchDataset(BaseDataset, Dataset):
                 "higgs": ("higgs-train.csv", "higgs-test.csv"),
                 "year": ("year-train.csv", "year-test.csv"),
                 "nyc_taxi": ("nyc-taxi-train.csv", "nyc-taxi-test.csv"),
+                "avazu": ("avazu-train.csv", "avazu-test.csv")
             }
             BASE_URL = 'http://47.96.163.59:80/download/'
             root = os.path.join(root, 'tabular')
