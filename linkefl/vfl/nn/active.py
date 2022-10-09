@@ -302,6 +302,11 @@ if __name__ == '__main__':
     # intersect_nodes = [10, 10, 10]
     # top_nodes = [10, 2]
 
+    # avazu
+    # bottom_nodes = [input_nodes, 10, 5]
+    # intersect_nodes = [5, 5, 5]
+    # top_nodes = [5, 2]
+
     # census
     # bottom_nodes = [input_nodes, 20, 10]
     # intersect_nodes = [10, 10, 10]

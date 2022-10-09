@@ -151,6 +151,7 @@ def num_input_nodes(dataset_name, role, passive_feat_frac):
         'mnist': 28 * 28,
         'fashion_mnist': 28 * 28,
         'criteo': 39,
+        'avazu': 22
     }
 
     if role == Const.PASSIVE_NAME:

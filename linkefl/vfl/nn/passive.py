@@ -198,7 +198,8 @@ if __name__ == '__main__':
                                   role=Const.PASSIVE_NAME,
                                   passive_feat_frac=passive_feat_frac)
     all_nodes = [input_nodes, 256, 128] # mnist & fashion_mnist
-    # all_nodes = [input_nodes, 15, 10]
+    # all_nodes = [input_nodes, 15, 10] # criteo
+    # all_nodes = [input_nodes, 10, 5] # avazu
     # all_nodes = [input_nodes, 20, 10] # census
     # all_nodes = [input_nodes, 3, 3] # credit
     # all_nodes = [input_nodes, 8, 5] # default_credit
