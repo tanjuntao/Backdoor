@@ -4,10 +4,12 @@ import datetime
 import multiprocessing
 import multiprocessing.pool
 import os
+import random
 import time
 
 import numpy as np
 from phe import EncodedNumber
+from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import (
@@ -296,17 +298,19 @@ class BaseLinearPassive(BaseLinear):
         public_key = self._sync_pubkey()
         cryptosystem = partial_crypto_factory(crypto_type=self.crypto_type,
                                               public_key=public_key,
-                                              num_enc_zeros=10000,
+                                              num_enc_zeros=10,
                                               gen_from_set=False)
         setattr(self, 'cryptosystem', cryptosystem)
 
         # encode the training dataset if the crypto type belongs to Paillier family
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
+            print('encoding dataset...')
             x_encode = BaseLinearPassive._encode(
                 getattr(self, 'x_train'),
                 public_key,
                 self.precision
             )
+            print('Done!')
             setattr(self, 'x_encode', x_encode)
 
         bs = self.batch_size if self.batch_size != -1 else trainset.n_samples

@@ -550,6 +550,10 @@ def fast_add_ciphers(cipher_vector, thread_pool=None):
         thread_pool = multiprocessing.pool.ThreadPool(n_workers)
 
     min_exp = min(exp2cipher.keys())
+    # print(f"length: {len(exp2cipher)}, "
+    #       f"min: {min(exp2cipher.keys())}, "
+    #       f"max: {max(exp2cipher.keys())}, "
+    #       f"base: {EncodedNumber.BASE}")
     base = EncodedNumber.BASE
     public_key = cipher_vector[0].public_key
     nsquare = public_key.nsquare

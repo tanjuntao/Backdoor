@@ -35,7 +35,8 @@ class ActiveLogReg(BaseLinearActive):
                  val_freq=1,
                  saving_model=False,
                  model_path='./models',
-                 positive_thresh=0.5
+                 positive_thresh=0.5,
+                 residue_precision=0.0001
     ):
         super(ActiveLogReg, self).__init__(
             epochs=epochs,
@@ -57,6 +58,7 @@ class ActiveLogReg(BaseLinearActive):
             task='classification'
         )
         self.POSITIVE_THRESH = positive_thresh
+        self.RESIDUE_PRECISION = len(str(residue_precision).split('.')[1])
 
     @staticmethod
     def _logloss(y_true, y_hat):
@@ -119,6 +121,7 @@ class ActiveLogReg(BaseLinearActive):
         # Main Training Loop Here
         self.logger.log('Start collaborative model training...')
         for epoch in range(self.epochs):
+            self.logger.log('Epoch: {}'.format(epoch))
             is_best = False
             all_idxes = list(range(n_samples))
             batch_losses = []
@@ -137,6 +140,13 @@ class ActiveLogReg(BaseLinearActive):
                 y_hat = sigmoid(active_wx + passive_wx) # use sigmoid as activation function
                 loss = self._loss(getattr(self, 'y_train')[batch_idxes], y_hat)
                 residue = self._residue(getattr(self, 'y_train')[batch_idxes], y_hat)
+                # NB: In verticalLR model, the residue (equals y_true - y_hat) may be
+                # very close to zero, e.g., r = 0.000000000000...000001 (50 dicimal bits)
+                # then the exponent term of the encrypted residue will be extreamly small,
+                # e.g., -50, which will cause slow the ciphertext addition operation.
+                # So you should round the residue's precision before encryption.
+                if self.using_pool:
+                    residue = np.array([round(res, self.RESIDUE_PRECISION) for res in residue])
 
                 # Active party helps passive party to calcalate gradient
                 enc_residue = np.array(self.cryptosystem.encrypt_vector(residue))
@@ -247,13 +257,13 @@ if __name__ == '__main__':
     active_port = 20001
     passive_ip = 'localhost'
     passive_port = 30001
-    _epochs = 10
-    _batch_size = -1
+    _epochs = 4
+    _batch_size = 100
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
     _crypto_type = Const.FAST_PAILLIER
-    _random_state = None
+    _random_state = 3347
     _key_size = 1024
     _using_pool = True
 
@@ -299,7 +309,7 @@ if __name__ == '__main__':
     # 3. Initialize cryptosystem
     _crypto = crypto_factory(crypto_type=_crypto_type,
                              key_size=_key_size,
-                             num_enc_zeros=10000,
+                             num_enc_zeros=10,
                              gen_from_set=False)
 
     # 4. Initialize messenger
