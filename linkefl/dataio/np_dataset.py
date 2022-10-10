@@ -99,6 +99,38 @@ class NumpyDataset(BaseDataset):
         return splitted_datasets
 
     @classmethod
+    def dummy_daaset(cls, role, dataset_type,
+                     n_samples, n_features, passive_feat_frac,
+                     transform=None, seed=1314):
+        if seed is not None:
+            np.random.seed(seed)
+        _ids = np.arange(n_samples)
+        _feats = np.random.rand(n_samples, n_features)
+        if dataset_type == Const.CLASSIFICATION:
+            _labels = np.random.choice([0, 1], size=n_samples, replace=True)
+        else:
+            _labels = np.random.rand(n_samples)
+
+        num_passive_feats = int(passive_feat_frac * n_features)
+        if role == Const.PASSIVE_NAME:
+            np_dataset = np.concatenate(
+                (_ids[:, np.newaxis], _feats[:, :num_passive_feats]),
+                axis=1
+            )
+        else:
+            np_dataset = np.concatenate(
+                (_ids[:, np.newaxis], _labels[:, np.newaxis], _feats[:, num_passive_feats:]),
+                axis=1
+            )
+
+        return cls(
+            role=role,
+            existing_dataset=np_dataset,
+            dataset_type=dataset_type,
+            transform=transform
+        )
+
+    @classmethod
     def buildin_dataset(cls, role, dataset_name, root, train, passive_feat_frac,
                         feat_perm_option, download=False, transform=None, seed=1314):
         def _check_params():

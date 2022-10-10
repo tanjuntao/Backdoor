@@ -79,6 +79,15 @@ if __name__ == '__main__':
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
+    # load dummy dataset
+    # dummy_dataset = NumpyDataset.dummy_daaset(
+    #     role=Const.PASSIVE_NAME,
+    #     dataset_type=Const.CLASSIFICATION,
+    #     n_samples=100000,
+    #     n_features=100,
+    #     passive_feat_frac=passive_feat_frac
+    # )
+    # passive_trainset, passive_testset = NumpyDataset.train_test_split(dummy_dataset, test_size=0.2)
     passive_trainset = scale(passive_trainset)
     passive_testset = scale(passive_testset)
 

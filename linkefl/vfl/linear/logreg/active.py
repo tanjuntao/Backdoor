@@ -121,6 +121,7 @@ class ActiveLogReg(BaseLinearActive):
         # Main Training Loop Here
         self.logger.log('Start collaborative model training...')
         for epoch in range(self.epochs):
+            epoch_start_time = time.time()
             self.logger.log('Epoch: {}'.format(epoch))
             is_best = False
             all_idxes = list(range(n_samples))
@@ -187,6 +188,7 @@ class ActiveLogReg(BaseLinearActive):
                         model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
                         NumpyModelIO.save(model_params, self.model_path, model_name)
                 self.messenger.send(is_best)
+            print(colored('epoch time: {}'.format(time.time() - epoch_start_time), 'red'))
 
         # close ThreadPool if it exists
         if self.executor_pool is not None:
@@ -284,6 +286,16 @@ if __name__ == '__main__':
                                                   download=True,
                                                   passive_feat_frac=passive_feat_frac,
                                                   feat_perm_option=feat_perm_option)
+    # load dummy dataset
+    # dummy_dataset = NumpyDataset.dummy_daaset(
+    #     role=Const.ACTIVE_NAME,
+    #     dataset_type=Const.CLASSIFICATION,
+    #     n_samples=100000,
+    #     n_features=100,
+    #     passive_feat_frac=passive_feat_frac
+    # )
+    # active_trainset, active_testset = NumpyDataset.train_test_split(dummy_dataset, test_size=0.2)
+
     # if using credit dataset, remember to apply scale after add_intercept,
     # otherwise the model cannot converge
     active_trainset = add_intercept(scale(parse_label(active_trainset)))
