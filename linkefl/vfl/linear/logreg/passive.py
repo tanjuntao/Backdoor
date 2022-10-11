@@ -53,8 +53,8 @@ if __name__ == '__main__':
     active_port = 20001
     passive_ip = 'localhost'
     passive_port = 30001
-    _epochs = 4
-    _batch_size = 100
+    _epochs = 10
+    _batch_size = -1
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01

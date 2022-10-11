@@ -220,7 +220,8 @@ class BaseLinearPassive(BaseLinear):
             # this will modify enc_train_grads in-place
             result = scheduler_pool.apply_async(
                 BaseLinearPassive._target_grad_mul,
-                args=(x_encode, enc_residue, enc_train_grads, start, end, executor_pool)
+                args=(x_encode, enc_residue, batch_idxes, enc_train_grads,
+                      start, end, executor_pool)
             )
             async_results.append(result)
         for result in async_results:
@@ -246,7 +247,7 @@ class BaseLinearPassive(BaseLinear):
             # this will modify avg_grad in-place
             result = scheduler_pool.apply_async(
                 BaseLinearPassive._target_grad_add,
-                args=(enc_train_grads, avg_grad, start,end, executor_pool)
+                args=(enc_train_grads, avg_grad, start, end, executor_pool)
             )
             async_results.append(result)
         for result in async_results:
@@ -255,10 +256,14 @@ class BaseLinearPassive(BaseLinear):
         return np.array(avg_grad)
 
     @staticmethod
-    def _target_grad_mul(x_encode, enc_residue, enc_train_grads,
+    def _target_grad_mul(x_encode, enc_residue, batch_idxes, enc_train_grads,
                          start, end, executor_pool):
         for k in range(start, end):
-            curr_grad = fast_mul_ciphers(x_encode[k], enc_residue[k], executor_pool)
+            curr_grad = fast_mul_ciphers(
+                x_encode[batch_idxes[k]],  # remember to obtain the sample index first
+                enc_residue[k],
+                executor_pool
+            )
             enc_train_grads[k] = curr_grad
         return True
 
