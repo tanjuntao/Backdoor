@@ -43,11 +43,16 @@ class RSAPSIActive:
 
     def _intersect(self, active_hashed_ids, passive_hashed_ids):
         intersections = []
+        # directly convert Python list to Python set via the inbuild set() function is
+        # faster than initilizing an empty set and then adding items sequentially
+        # to this set.
         passive_hashed_set = set(passive_hashed_ids)
         for idx, hash_val in enumerate(active_hashed_ids):
             if hash_val in passive_hashed_set:
                 intersections.append(self.ids[idx])
 
+        # Before this function returns, the Python GC will delete the passive_hashed_set,
+        # which is REALLY time-consuming if the set size is big, e.g, >= 40 million.
         return intersections
 
     def run_offline(self):
@@ -56,6 +61,7 @@ class RSAPSIActive:
         signed_ids = self.cryptosystem.sign_set_thread(self.ids, n_threads=self.num_workers)
         print('Signing self id set time: {:.5f}'.format(time.time() - begin))
         hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
+        del signed_ids # save momory
 
         target_dir = os.path.join(Path.home(), '.linkefl')
         if not os.path.exists(target_dir):
@@ -83,6 +89,8 @@ class RSAPSIActive:
 
         begin = time.time()
         intersections = self._intersect(active_hashed_signed_ids, passive_hashed_signed_ids)
+        del active_hashed_signed_ids  # save memory
+        del passive_hashed_signed_ids # save memory
         print('Intersection time: {}'.format(time.time() - begin))
         print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
         self.messenger.send(intersections)
@@ -134,6 +142,8 @@ class RSAPSIActive:
 
         # 5. find the intersection
         intersections = self._intersect(active_hashed_signed_ids, passive_hashed_signed_ids)
+        del active_hashed_signed_ids  # save momory
+        del passive_hashed_signed_ids # save momory
         self.logger.log('Size of intersection: {}'.format(len(intersections)))
         self.messenger.send(intersections)
 
@@ -203,7 +213,7 @@ if __name__ == '__main__':
 
     # 4. Start the RSA-Blind-Signature protocol
     active_party = RSAPSIActive(_ids, _messenger, _crypto, _logger)
-    intersections = active_party.run()
+    intersections_ = active_party.run()
 
     # 5. Close messenger
     _messenger.close()
