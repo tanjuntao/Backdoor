@@ -102,7 +102,7 @@ class DecisionTree:
         self.record = None  # saving split thresholds determined by active party
         self.update_pred = None  # saving tree raw output
 
-    def fit(self, gradient, hessian, bin_index, bin_split):
+    def fit(self, gradient, hessian, bin_index, bin_split, feature_importance_info):
         """single tree training, return raw output"""
 
         self.bin_index, self.bin_split = bin_index, bin_split
@@ -164,7 +164,7 @@ class DecisionTree:
             )
 
         # start building tree
-        self.root = self._build_tree(sample_tag, current_depth=0)
+        self.root = self._build_tree(sample_tag, feature_importance_info, current_depth=0)
 
         return self.update_pred
 
@@ -186,6 +186,7 @@ class DecisionTree:
         self,
         sample_tag,
         current_depth,
+        feature_importance_info,
         *,
         hist_list=None,
         party_id=None,
@@ -214,6 +215,12 @@ class DecisionTree:
                 )
 
             if max_gain > self.min_split_gain:
+                # store feature split information
+                party = 'active party' if party_id == 0 else f'passive party {party_id}'
+                feature_importance_info['split'][(party, f'feature {feature_id}')] += 1
+                feature_importance_info['gain'][(party, f'feature {feature_id}')] += max_gain
+                feature_importance_info['cover'][(party, f'feature {feature_id}')] += sum(sample_tag)
+
                 if party_id == 0:
                     # split in active party
                     record_id, sample_tag_left = self._save_record(

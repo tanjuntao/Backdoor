@@ -5,6 +5,7 @@ from typing import List
 
 import numpy as np
 from scipy.special import softmax
+from collections import defaultdict
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from linkefl.common.const import Const
@@ -113,6 +114,12 @@ class ActiveTreeParty:
             for _ in range(n_trees)
         ]
 
+        self.feature_importance_info = {
+            "split": defaultdict(int),          # Total number of splits
+            "gain": defaultdict(float),         # Total revenue
+            "cover": defaultdict(int)           # Total sample covered
+        }
+
     def _check_parameters(self, task, n_labels, compress, sampling_method):
         assert task in ("binary", "multi"), "task should be binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
@@ -155,7 +162,7 @@ class ActiveTreeParty:
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
-                update_pred = tree.fit(gradient, hessian, bin_index, bin_split)
+                update_pred = tree.fit(gradient, hessian, bin_index, bin_split, self.feature_importance_info)
                 self.logger.log(f"tree {i} finished")
 
                 for messenger in self.messengers:
@@ -285,6 +292,18 @@ class ActiveTreeParty:
             tree.root = root
 
         return self._validate(dataset)
+
+    def feature_importances_(self, evaluation_way="split"):
+        assert evaluation_way in ("split", "gain", "cover"), "Not support evaluation way"
+
+        keys = np.array(list(self.feature_importance_info[evaluation_way].keys()))
+        values = np.array(list(self.feature_importance_info[evaluation_way].values()))
+
+        ascend_index = values.argsort()
+        keys, values = keys[ascend_index[::-1]], values[::-1]
+        result = [[keys[i], values[i]] for i in range(len(keys))]
+
+        return result
 
 
 if __name__ == "__main__":
