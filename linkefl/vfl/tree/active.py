@@ -1,10 +1,12 @@
 import datetime
 import time
+import numpy as np
+import pandas as pd
+
 from multiprocessing import Pool
 from typing import List
-
-import numpy as np
 from scipy.special import softmax
+from collections import defaultdict
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from linkefl.common.const import Const
@@ -113,6 +115,12 @@ class ActiveTreeParty:
             for _ in range(n_trees)
         ]
 
+        self.feature_importance_info = {
+            "split": defaultdict(int),          # Total number of splits
+            "gain": defaultdict(float),         # Total revenue
+            "cover": defaultdict(float)           # Total sample covered
+        }
+
     def _check_parameters(self, task, n_labels, compress, sampling_method):
         assert task in ("binary", "multi"), "task should be binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
@@ -155,7 +163,7 @@ class ActiveTreeParty:
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
-                update_pred = tree.fit(gradient, hessian, bin_index, bin_split)
+                update_pred = tree.fit(gradient, hessian, bin_index, bin_split, self.feature_importance_info)
                 self.logger.log(f"tree {i} finished")
 
                 for messenger in self.messengers:
@@ -286,10 +294,37 @@ class ActiveTreeParty:
 
         return self._validate(dataset)
 
+    def feature_importances_(self, importance_type="split"):
+        """
+        Args:
+            importance_type: choose in ("split", "gain", "cover"), metrics to evaluate the importance of features.
+
+        Returns:
+            dict, include features and importance values.
+        """
+        assert importance_type in ("split", "gain", "cover"), "Not support evaluation way"
+
+        keys = np.array(list(self.feature_importance_info[importance_type].keys()))
+        values = np.array(list(self.feature_importance_info[importance_type].values()))
+
+        if importance_type != 'split':      # The "gain" and "cover" indicators are calculated as mean values
+            split_nums = np.array(list(self.feature_importance_info['split'].values()))
+            split_nums[split_nums==0] = 1   # Avoid division by zero
+            values = values / split_nums
+
+        ascend_index = values.argsort()
+        features, values = keys[ascend_index[::-1]], values[ascend_index[::-1]]
+        result = {
+            'features': list(features),
+            f'importance_{importance_type}': list(values)
+        }
+
+        return result
+
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "credit"
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
@@ -363,6 +398,10 @@ if __name__ == "__main__":
     active_party.train(active_trainset, active_testset)
     # scores = active_party.online_inference(active_testset, "xxx.model")
     # print(scores)
+
+    # test
+    feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
+    print(feature_importance_info)
 
     # 5. Close messenger, finish training
     for messenger in messengers:

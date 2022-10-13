@@ -1,3 +1,5 @@
+import pandas as pd
+
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory
 from linkefl.dataio import NumpyDataset
@@ -6,7 +8,7 @@ from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "credit"
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
@@ -57,6 +59,10 @@ if __name__ == "__main__":
     )
     passive_party.train(passive_trainset, passive_testset)
     # passive_party.online_inference(passive_testset, "xxx.model")
+
+    # test
+    feature_importance_info = pd.DataFrame(passive_party.feature_importances_(importance_type='cover'))
+    print(feature_importance_info)
 
     # 4. Close messenger, finish training
     messenger.close()

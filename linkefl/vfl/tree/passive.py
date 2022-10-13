@@ -2,6 +2,7 @@ import datetime
 import time
 
 import numpy as np
+from collections import defaultdict
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
@@ -45,6 +46,11 @@ class PassiveTreeParty:
             role=Const.PASSIVE_NAME,
             model_type=Const.VERTICAL_SBT,
         )
+
+        self.feature_importance_info = {
+            "split": defaultdict(int),      # Total number of splits
+            "cover": defaultdict(float)       # Total sample covered
+        }
 
         # given when training starts
         self.bin_index = None
@@ -93,6 +99,12 @@ class PassiveTreeParty:
                 self.logger.log("start a new tree")
             elif data["name"] == "record":
                 feature_id, split_id, sample_tag = data["content"]
+
+                # store feature split information
+                self.feature_importance_info['split'][f'feature{feature_id}'] += 1
+                self.feature_importance_info['cover'][f'feature{feature_id}'] += sum(sample_tag)
+                self.logger.log(f"store feature split information")
+
                 record_id, sample_tag_left = self._save_record(
                     feature_id, split_id, sample_tag
                 )
@@ -189,3 +201,23 @@ class PassiveTreeParty:
         self.record = NumpyModelIO.load(model_path, model_name)
 
         self._validate(dataset)
+
+    def feature_importances_(self, importance_type="split"):
+        assert importance_type in ("split", "cover"), "Not support importance type"
+
+        keys = np.array(list(self.feature_importance_info[importance_type].keys()))
+        values = np.array(list(self.feature_importance_info[importance_type].values()))
+
+        if importance_type == 'cover':
+            split_nums = np.array(list(self.feature_importance_info['split'].values()))
+            split_nums[split_nums == 0] = 1  # Avoid division by zero
+            values = values / split_nums
+
+        ascend_index = values.argsort()
+        features, values = keys[ascend_index[::-1]], values[ascend_index[::-1]]
+        result = {
+            'features': list(features),
+            f'importance_{importance_type}': list(values)
+        }
+
+        return result

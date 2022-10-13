@@ -102,7 +102,7 @@ class DecisionTree:
         self.record = None  # saving split thresholds determined by active party
         self.update_pred = None  # saving tree raw output
 
-    def fit(self, gradient, hessian, bin_index, bin_split):
+    def fit(self, gradient, hessian, bin_index, bin_split, feature_importance_info):
         """single tree training, return raw output"""
 
         self.bin_index, self.bin_split = bin_index, bin_split
@@ -164,7 +164,8 @@ class DecisionTree:
             )
 
         # start building tree
-        self.root = self._build_tree(sample_tag, current_depth=0)
+        self.root = self._build_tree(sample_tag, current_depth=0,
+                                     feature_importance_info = feature_importance_info)
 
         return self.update_pred
 
@@ -192,6 +193,7 @@ class DecisionTree:
         feature_id=None,
         split_id=None,
         max_gain=None,
+        feature_importance_info=None,
     ):
         # split only when conditions meet
         if (
@@ -214,6 +216,13 @@ class DecisionTree:
                 )
 
             if max_gain > self.min_split_gain:
+                # store feature split information
+                party = 'active party' if party_id == 0 else f'passive party {party_id}'
+                feature_importance_info['split'][f'client{party_id}_feature{feature_id}'] += 1
+                feature_importance_info['gain'][f'client{party_id}_feature{feature_id}'] += max_gain
+                feature_importance_info['cover'][f'client{party_id}_feature{feature_id}'] += sum(sample_tag)
+                self.logger.log(f"store feature split information")
+
                 if party_id == 0:
                     # split in active party
                     record_id, sample_tag_left = self._save_record(
@@ -257,11 +266,13 @@ class DecisionTree:
                         feature_id=feature_id_left,
                         split_id=split_id_left,
                         max_gain=max_gain_left,
+                        feature_importance_info=feature_importance_info,
                     )
                     right_node = self._build_tree(
                         sample_tag_right,
                         current_depth + 1,
                         hist_list=hist_list_right,
+                        feature_importance_info=feature_importance_info
                     )
                 else:
                     (
@@ -279,6 +290,7 @@ class DecisionTree:
                         sample_tag_left,
                         current_depth + 1,
                         hist_list=hist_list_left,
+                        feature_importance_info = feature_importance_info
                     )
                     right_node = self._build_tree(
                         sample_tag_right,
@@ -288,6 +300,7 @@ class DecisionTree:
                         feature_id=feature_id_right,
                         split_id=split_id_right,
                         max_gain=max_gain_right,
+                        feature_importance_info=feature_importance_info
                     )
 
                 return _DecisionNode(
