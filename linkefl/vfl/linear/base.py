@@ -493,14 +493,16 @@ class BaseLinearActive(BaseLinear):
                    is_multi_thread=config.IS_MULTI_THREAD)
 
     def _sync_pubkey(self):
-        signal = self.messenger.recv()
-        if signal == Const.START_SIGNAL:
-            print('Training protocol started.')
-            print('[ACTIVE] Sending public key to passive party...')
-            self.messenger.send(self.cryptosystem.pub_key)
-            print('[ACTIVE] Done!')
-        else:
-            raise ValueError('Invalid signal, exit.')
+        for msger in self.messenger:
+            signal = msger.recv()
+            if signal == Const.START_SIGNAL:
+                print('Training protocol started.')
+                print('[ACTIVE] Sending public key to passive party...')
+                msger.send(self.cryptosystem.pub_key)
+
+            else:
+                raise ValueError('Invalid signal, exit.')
+        print('[ACTIVE] Sending public key done!')
 
     def _residue(self, y_true, y_hat):
         return y_true - y_hat

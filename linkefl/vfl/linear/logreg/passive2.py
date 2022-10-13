@@ -2,46 +2,8 @@ from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import scale, Scale
-from linkefl.vfl.linear import BaseLinearPassive
+from linkefl.vfl.linear import PassiveLogReg
 
-
-class PassiveLogReg(BaseLinearPassive):
-    def __init__(self,
-                 epochs,
-                 batch_size,
-                 learning_rate,
-                 messenger,
-                 crypto_type,
-                 logger,
-                 *,
-                 penalty=Const.L2,
-                 reg_lambda=0.01,
-                 precision=0.001,
-                 random_state=None,
-                 using_pool=False,
-                 num_workers=-1,
-                 val_freq=1,
-                 saving_model=False,
-                 model_path='./models',
-    ):
-        super(PassiveLogReg, self).__init__(
-            epochs=epochs,
-            batch_size=batch_size,
-            learning_rate=learning_rate,
-            messenger=messenger,
-            crypto_type=crypto_type,
-            logger=logger,
-            penalty=penalty,
-            reg_lambda=reg_lambda,
-            precision=precision,
-            random_state=random_state,
-            using_pool=using_pool,
-            num_workers=num_workers,
-            val_freq=val_freq,
-            saving_model=saving_model,
-            model_path=model_path,
-            task='classification'
-        )
 
 
 if __name__ == '__main__':
@@ -50,9 +12,9 @@ if __name__ == '__main__':
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
-    active_port = 20000
+    active_port = 30000
     passive_ip = 'localhost'
-    passive_port = 20001
+    passive_port = 30001
     _epochs = 10
     _batch_size = -1
     _learning_rate = 0.01
@@ -79,8 +41,8 @@ if __name__ == '__main__':
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
-    passive_trainset = NumpyDataset.feature_split(passive_trainset, n_splits=2)[0]
-    passive_testset = NumpyDataset.feature_split(passive_testset, n_splits=2)[0]
+    passive_trainset = NumpyDataset.feature_split(passive_trainset, n_splits=2)[1]
+    passive_testset = NumpyDataset.feature_split(passive_testset, n_splits=2)[1]
     # load dummy dataset
     # dummy_dataset = NumpyDataset.dummy_daaset(
     #     role=Const.PASSIVE_NAME,
