@@ -164,7 +164,8 @@ class DecisionTree:
             )
 
         # start building tree
-        self.root = self._build_tree(sample_tag, feature_importance_info, current_depth=0)
+        self.root = self._build_tree(sample_tag, current_depth=0,
+                                     feature_importance_info = feature_importance_info)
 
         return self.update_pred
 
@@ -186,13 +187,13 @@ class DecisionTree:
         self,
         sample_tag,
         current_depth,
-        feature_importance_info,
         *,
         hist_list=None,
         party_id=None,
         feature_id=None,
         split_id=None,
         max_gain=None,
+        feature_importance_info=None,
     ):
         # split only when conditions meet
         if (
@@ -264,11 +265,13 @@ class DecisionTree:
                         feature_id=feature_id_left,
                         split_id=split_id_left,
                         max_gain=max_gain_left,
+                        feature_importance_info=feature_importance_info,
                     )
                     right_node = self._build_tree(
                         sample_tag_right,
                         current_depth + 1,
                         hist_list=hist_list_right,
+                        feature_importance_info=feature_importance_info
                     )
                 else:
                     (
@@ -286,6 +289,7 @@ class DecisionTree:
                         sample_tag_left,
                         current_depth + 1,
                         hist_list=hist_list_left,
+                        feature_importance_info = feature_importance_info
                     )
                     right_node = self._build_tree(
                         sample_tag_right,
@@ -295,6 +299,7 @@ class DecisionTree:
                         feature_id=feature_id_right,
                         split_id=split_id_right,
                         max_gain=max_gain_right,
+                        feature_importance_info=feature_importance_info
                     )
 
                 return _DecisionNode(

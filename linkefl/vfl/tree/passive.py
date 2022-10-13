@@ -210,6 +210,7 @@ class PassiveTreeParty:
 
         ascend_index = values.argsort()
         keys, values = keys[ascend_index[::-1]], values[::-1]
-        result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
+        result = [keys, list(values)]
+        # result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
 
         return result

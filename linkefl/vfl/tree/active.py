@@ -301,15 +301,15 @@ class ActiveTreeParty:
 
         ascend_index = values.argsort()
         keys, values = keys[ascend_index[::-1]], values[::-1]
-        result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
-        # result = [[keys[i], values[i]] for i in range(len(keys))]
+        result = [keys, list(values)]
+        # result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
 
         return result
 
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "credit"
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
@@ -383,6 +383,12 @@ if __name__ == "__main__":
     active_party.train(active_trainset, active_testset)
     # scores = active_party.online_inference(active_testset, "xxx.model")
     # print(scores)
+
+    # test
+    feature_importance_split = active_party.feature_importances_(evaluation_way='split')
+    feature_importance_gain = active_party.feature_importances_(evaluation_way='gain')
+    feature_importance_cover = active_party.feature_importances_(evaluation_way='cover')
+    print(feature_importance_split, feature_importance_gain, feature_importance_cover)
 
     # 5. Close messenger, finish training
     for messenger in messengers:
