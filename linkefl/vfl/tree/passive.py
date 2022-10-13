@@ -2,6 +2,7 @@ import datetime
 import time
 
 import numpy as np
+from collections import defaultdict
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
@@ -45,6 +46,11 @@ class PassiveTreeParty:
             role=Const.PASSIVE_NAME,
             model_type=Const.VERTICAL_SBT,
         )
+
+        self.feature_importance_info = {
+            "split": defaultdict(int),  # Total number of splits
+            "cover": defaultdict(int)  # Total sample covered
+        }
 
         # given when training starts
         self.bin_index = None
@@ -100,6 +106,9 @@ class PassiveTreeParty:
                 self.messenger.send(
                     wrap_message("record", content=(record_id, sample_tag_left))
                 )
+                # store feature split information
+                self.feature_importance_info['split'][f'feature {feature_id}'] += 1
+                self.feature_importance_info['cover'][f'feature {feature_id}'] += sum(sample_tag)
             elif data["name"] == "hist":
                 sample_tag = data["content"]
                 bin_gh_data = self._get_hist(sample_tag)
@@ -189,3 +198,15 @@ class PassiveTreeParty:
         self.record = NumpyModelIO.load(model_path, model_name)
 
         self._validate(dataset)
+
+    def feature_importances_(self, evaluation_way="split"):
+        assert evaluation_way in ("split", "cover"), "Not support evaluation way"
+
+        keys = np.array(list(self.feature_importance_info[evaluation_way].keys()))
+        values = np.array(list(self.feature_importance_info[evaluation_way].values()))
+
+        ascend_index = values.argsort()
+        keys, values = keys[ascend_index[::-1]], values[::-1]
+        result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
+
+        return result

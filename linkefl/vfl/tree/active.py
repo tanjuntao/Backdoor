@@ -301,7 +301,8 @@ class ActiveTreeParty:
 
         ascend_index = values.argsort()
         keys, values = keys[ascend_index[::-1]], values[::-1]
-        result = [[keys[i], values[i]] for i in range(len(keys))]
+        result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
+        # result = [[keys[i], values[i]] for i in range(len(keys))]
 
         return result
 
