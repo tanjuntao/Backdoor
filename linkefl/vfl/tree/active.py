@@ -1,9 +1,10 @@
 import datetime
 import time
+import numpy as np
+import pandas as pd
+
 from multiprocessing import Pool
 from typing import List
-
-import numpy as np
 from scipy.special import softmax
 from collections import defaultdict
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
@@ -117,7 +118,7 @@ class ActiveTreeParty:
         self.feature_importance_info = {
             "split": defaultdict(int),          # Total number of splits
             "gain": defaultdict(float),         # Total revenue
-            "cover": defaultdict(int)           # Total sample covered
+            "cover": defaultdict(float)           # Total sample covered
         }
 
     def _check_parameters(self, task, n_labels, compress, sampling_method):
@@ -293,16 +294,30 @@ class ActiveTreeParty:
 
         return self._validate(dataset)
 
-    def feature_importances_(self, evaluation_way="split"):
-        assert evaluation_way in ("split", "gain", "cover"), "Not support evaluation way"
+    def feature_importances_(self, importance_type="split"):
+        """
+        Args:
+            importance_type: choose in ("split", "gain", "cover"), metrics to evaluate the importance of features.
 
-        keys = np.array(list(self.feature_importance_info[evaluation_way].keys()))
-        values = np.array(list(self.feature_importance_info[evaluation_way].values()))
+        Returns:
+            dict, include features and importance values.
+        """
+        assert importance_type in ("split", "gain", "cover"), "Not support evaluation way"
+
+        keys = np.array(list(self.feature_importance_info[importance_type].keys()))
+        values = np.array(list(self.feature_importance_info[importance_type].values()))
+
+        if importance_type != 'split':      # The "gain" and "cover" indicators are calculated as mean values
+            split_nums = np.array(list(self.feature_importance_info['split'].values()))
+            split_nums[split_nums==0] = 1   # Avoid division by zero
+            values = values / split_nums
 
         ascend_index = values.argsort()
-        keys, values = keys[ascend_index[::-1]], values[::-1]
-        result = [keys, list(values)]
-        # result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
+        features, values = keys[ascend_index[::-1]], values[ascend_index[::-1]]
+        result = {
+            'features': list(features),
+            f'importance_{importance_type}': list(values)
+        }
 
         return result
 
@@ -385,10 +400,8 @@ if __name__ == "__main__":
     # print(scores)
 
     # test
-    feature_importance_split = active_party.feature_importances_(evaluation_way='split')
-    feature_importance_gain = active_party.feature_importances_(evaluation_way='gain')
-    feature_importance_cover = active_party.feature_importances_(evaluation_way='cover')
-    print(feature_importance_split, feature_importance_gain, feature_importance_cover)
+    feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
+    print(feature_importance_info)
 
     # 5. Close messenger, finish training
     for messenger in messengers:

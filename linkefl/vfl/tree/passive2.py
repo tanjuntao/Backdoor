@@ -1,3 +1,5 @@
+import pandas as pd
+
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory
 from linkefl.dataio import NumpyDataset
@@ -59,9 +61,8 @@ if __name__ == "__main__":
     # passive_party.online_inference(passive_testset, "xxx.model")
 
     # test
-    feature_importance_split = passive_party.feature_importances_(evaluation_way='split')
-    feature_importance_cover = passive_party.feature_importances_(evaluation_way='cover')
-    print(feature_importance_split, feature_importance_cover)
+    feature_importance_info = pd.DataFrame(passive_party.feature_importances_(importance_type='cover'))
+    print(feature_importance_info)
 
     # 4. Close messenger, finish training
     messenger.close()

@@ -23,7 +23,6 @@ class PassiveTreeParty:
         max_bin: int = 16,
         saving_model: bool = False,
         model_path: str = "./models",
-        # feature_name = None,
     ):
         """Passive Tree Party class to train and validate dataset
 
@@ -47,12 +46,10 @@ class PassiveTreeParty:
             role=Const.PASSIVE_NAME,
             model_type=Const.VERTICAL_SBT,
         )
-        # TODO: add feature name
-        # self.feature_name = feature_name    # 默认为 None
 
         self.feature_importance_info = {
             "split": defaultdict(int),      # Total number of splits
-            "cover": defaultdict(int)       # Total sample covered
+            "cover": defaultdict(float)       # Total sample covered
         }
 
         # given when training starts
@@ -102,6 +99,12 @@ class PassiveTreeParty:
                 self.logger.log("start a new tree")
             elif data["name"] == "record":
                 feature_id, split_id, sample_tag = data["content"]
+
+                # store feature split information
+                self.feature_importance_info['split'][f'feature{feature_id}'] += 1
+                self.feature_importance_info['cover'][f'feature{feature_id}'] += sum(sample_tag)
+                self.logger.log(f"store feature split information")
+
                 record_id, sample_tag_left = self._save_record(
                     feature_id, split_id, sample_tag
                 )
@@ -109,9 +112,6 @@ class PassiveTreeParty:
                 self.messenger.send(
                     wrap_message("record", content=(record_id, sample_tag_left))
                 )
-                # store feature split information
-                self.feature_importance_info['split'][f'feature {feature_id}'] += 1
-                self.feature_importance_info['cover'][f'feature {feature_id}'] += sum(sample_tag)
             elif data["name"] == "hist":
                 sample_tag = data["content"]
                 bin_gh_data = self._get_hist(sample_tag)
@@ -202,15 +202,22 @@ class PassiveTreeParty:
 
         self._validate(dataset)
 
-    def feature_importances_(self, evaluation_way="split"):
-        assert evaluation_way in ("split", "cover"), "Not support evaluation way"
+    def feature_importances_(self, importance_type="split"):
+        assert importance_type in ("split", "cover"), "Not support importance type"
 
-        keys = np.array(list(self.feature_importance_info[evaluation_way].keys()))
-        values = np.array(list(self.feature_importance_info[evaluation_way].values()))
+        keys = np.array(list(self.feature_importance_info[importance_type].keys()))
+        values = np.array(list(self.feature_importance_info[importance_type].values()))
+
+        if importance_type == 'cover':
+            split_nums = np.array(list(self.feature_importance_info['split'].values()))
+            split_nums[split_nums == 0] = 1  # Avoid division by zero
+            values = values / split_nums
 
         ascend_index = values.argsort()
-        keys, values = keys[ascend_index[::-1]], values[::-1]
-        result = [keys, list(values)]
-        # result = np.concatenate([keys.reshape((len(keys), -1)), values.reshape((len(values), -1))], axis=1)
+        features, values = keys[ascend_index[::-1]], values[ascend_index[::-1]]
+        result = {
+            'features': list(features),
+            f'importance_{importance_type}': list(values)
+        }
 
         return result

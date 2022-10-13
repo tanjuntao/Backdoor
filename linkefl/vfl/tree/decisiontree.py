@@ -218,9 +218,10 @@ class DecisionTree:
             if max_gain > self.min_split_gain:
                 # store feature split information
                 party = 'active party' if party_id == 0 else f'passive party {party_id}'
-                feature_importance_info['split'][(party, f'feature {feature_id}')] += 1
-                feature_importance_info['gain'][(party, f'feature {feature_id}')] += max_gain
-                feature_importance_info['cover'][(party, f'feature {feature_id}')] += sum(sample_tag)
+                feature_importance_info['split'][f'client{party_id}_feature{feature_id}'] += 1
+                feature_importance_info['gain'][f'client{party_id}_feature{feature_id}'] += max_gain
+                feature_importance_info['cover'][f'client{party_id}_feature{feature_id}'] += sum(sample_tag)
+                self.logger.log(f"store feature split information")
 
                 if party_id == 0:
                     # split in active party
