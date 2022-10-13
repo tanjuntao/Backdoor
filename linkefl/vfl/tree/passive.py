@@ -23,6 +23,7 @@ class PassiveTreeParty:
         max_bin: int = 16,
         saving_model: bool = False,
         model_path: str = "./models",
+        # feature_name = None,
     ):
         """Passive Tree Party class to train and validate dataset
 
@@ -46,10 +47,12 @@ class PassiveTreeParty:
             role=Const.PASSIVE_NAME,
             model_type=Const.VERTICAL_SBT,
         )
+        # TODO: add feature name
+        # self.feature_name = feature_name    # 默认为 None
 
         self.feature_importance_info = {
-            "split": defaultdict(int),  # Total number of splits
-            "cover": defaultdict(int)  # Total sample covered
+            "split": defaultdict(int),      # Total number of splits
+            "cover": defaultdict(int)       # Total sample covered
         }
 
         # given when training starts
