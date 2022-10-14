@@ -367,7 +367,7 @@ class NumpyDataset(BaseDataset):
             "nyc_taxi": ("nyc-taxi-train.csv", "nyc-taxi-test.csv"),
             "avazu": ("avazu-train.csv", "avazu-test.csv")
         }
-        BASE_URL = 'http://47.96.163.59:80/download/'
+        BASE_URL = 'http://47.96.163.59:80/datasets/'
         root = os.path.join(root, 'tabular')
 
         if download:
