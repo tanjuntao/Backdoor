@@ -2,6 +2,7 @@ import datetime
 import time
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from multiprocessing import Pool
 from typing import List
@@ -20,6 +21,7 @@ from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss
+from linkefl.vfl.tree.plotting import plot_importance
 
 
 class ActiveTreeParty:
@@ -406,3 +408,6 @@ if __name__ == "__main__":
     # 5. Close messenger, finish training
     for messenger in messengers:
         messenger.close()
+
+    ax = plot_importance(active_party, importance_type='split')
+    plt.show()
