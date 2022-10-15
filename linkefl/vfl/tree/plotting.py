@@ -1,3 +1,5 @@
+import numpy as np
+
 from typing import Optional, Any
 from linkefl.vfl.tree import ActiveTreeParty
 
@@ -11,13 +13,14 @@ def plot_importance(
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
     title: str = "Feature importance",
-    xlabel: str = "F score",
+    xlabel: str = "Importance score",
     ylabel: str = "Features",
     fmap: PathLike = "",
-    importance_type: str = "weight",
+    importance_type: str = "split",
     max_num_features: Optional[int] = None,
     grid: bool = True,
     show_values: bool = True,
+    precision: Optional[int] = 3,
     **kwargs: Any
 ) -> Axes:
     """Plot importance based on fitted trees.
@@ -64,38 +67,33 @@ def plot_importance(
         raise ImportError('You must install matplotlib to plot importance') from e
 
     if isinstance(booster, ActiveTreeParty):
-        importance = ActiveTreeParty.feature_importances_(importance_type)
+        importance_info = ActiveTreeParty.feature_importances_(importance_type)
     elif isinstance(booster, dict):
-        importance = booster
+        importance_info = booster
     else:
         raise ValueError('tree must be ActivePartyModel or dict instance')
 
-    if not importance:
-        raise ValueError(
-            'Booster.get_score() results in empty.  ' +
-            'This maybe caused by having all trees as decision dumps.')
-
-    tuples = [(k, importance[k]) for k in importance]
+    # get data
+    features, values = importance_info['features'], importance_info[f'importance_{importance_type}']
     if max_num_features is not None:
-        # pylint: disable=invalid-unary-operand-type
-        tuples = sorted(tuples, key=lambda _x: _x[1])[-max_num_features:]
-    else:
-        tuples = sorted(tuples, key=lambda _x: _x[1])
-    labels, values = zip(*tuples)
+        features = features[:max_num_features]
+        values = values[:max_num_features]
 
+    # set ax
     if ax is None:
         _, ax = plt.subplots(1, 1)
 
     ylocs = np.arange(len(values))
-    ax.barh(ylocs, values, align='center', height=height, **kwargs)
+    ax.barh(ylocs, values, align='center', height=height)
 
     if show_values is True:
         for x, y in zip(values, ylocs):
             ax.text(x + 1, y, x, va='center')
 
     ax.set_yticks(ylocs)
-    ax.set_yticklabels(labels)
+    ax.set_yticklabels(features)
 
+    # Set the x-axis coordinate range
     if xlim is not None:
         if not isinstance(xlim, tuple) or len(xlim) != 2:
             raise ValueError('xlim must be a tuple of 2 elements')
@@ -103,6 +101,7 @@ def plot_importance(
         xlim = (0, max(values) * 1.1)
     ax.set_xlim(xlim)
 
+    # Set the y-axis coordinate range
     if ylim is not None:
         if not isinstance(ylim, tuple) or len(ylim) != 2:
             raise ValueError('ylim must be a tuple of 2 elements')
@@ -117,4 +116,5 @@ def plot_importance(
     if ylabel is not None:
         ax.set_ylabel(ylabel)
     ax.grid(grid)
+
     return ax
