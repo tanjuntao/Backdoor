@@ -1,6 +1,9 @@
-from torchvision import datasets, transforms
-from utils.sampling import mnist_iid
 import torch
+from torchvision import datasets, transforms
+
+from linkefl.hfl.utils import mnist_iid
+
+
 class Partition(object):
     """ Dataset-like object, but only access a subset of it. """
 

@@ -1,8 +1,9 @@
-from torchvision import datasets, transforms
 import torch
-from utils.Nets import SimpleCNN, ResNet18, Nets
-from hfl import Server
 from torch import nn
+from torchvision import datasets, transforms
+
+from linkefl.hfl.hfl import Server
+from linkefl.hfl.utils import Nets
 
 
 def setServer():

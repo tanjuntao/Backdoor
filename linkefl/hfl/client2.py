@@ -1,11 +1,13 @@
-from torchvision import datasets, transforms
-import torch
-from utils.partition import Partition
-from utils.Nets import Nets, ResNet18
-from hfl import Client
-from torch import nn
 import math
-from customed_optimizer import ScaffoldOptimizer
+
+import torch
+from torch import nn
+from torchvision import datasets, transforms
+
+from linkefl.hfl.customed_optimizer import ScaffoldOptimizer
+from linkefl.hfl.hfl import Client
+from linkefl.hfl.utils import Partition, Nets, ResNet18
+
 
 def setClient():
     if aggregator in {'FedAvg', 'FedAvg_seq'}:
