@@ -1,6 +1,9 @@
 import random
+import os
+import sys
 import time
 from typing import List
+from urllib.error import URLError
 
 import numpy as np
 
@@ -8,17 +11,49 @@ from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
+from linkefl.util import urlretrive
 
 try:
     from linkefl.psi.cm20.PsiPython import PsiReceiver
 except ImportError:
-    raise ImportError("Please build CM20 and put it under linkefl.psi.cm20")
+    resources = {
+        "37-darwin": "PsiPython.cpython-37m-darwin.so",
+        "37-linux": "PsiPython.cpython-37m-x86_64-linux-gnu.so",
+        "38-darwin": "PsiPython.cpython-38-darwin.so",
+        "38-linux": "PsiPython.cpython-38-x86_64-linux-gnu.so",
+        "39-darwin": "PsiPython.cpython-39-darwin.so",
+        "39-linux": "PsiPython.cpython-39-x86_64-linux-gnu.so",
+        "310-darwin": "PsiPython.cpython-310-darwin.so",
+        "310-linux": "PsiPython.cpython-310-x86_64-linux-gnu.so",
+    }
+    py_version = str(sys.version_info[0]) + str(sys.version_info[1])
+    platform = sys.platform
+    if platform not in ('linux', 'darwin'):
+        raise RuntimeError('Currently only Linux and macOS are supported OS platform, '
+                           'but you are in a {} platform.'.format(platform))
+    key = py_version + '-' + platform
+    filename = resources[key]
+    this_directory = os.path.abspath(os.path.dirname(__file__))
+    fpath = os.path.join(this_directory, filename)
+    base_url = "http://47.96.163.59:80/wheels/"
+    full_url = base_url + filename
+    try:
+        print('Downloading {} to {}'.format(full_url, fpath))
+        urlretrive(full_url, fpath)
+    except URLError as error:
+        raise RuntimeError('Failed to download {} with error message: {}'
+                           .format(full_url, error))
+    # This static error message can be safely ignored if there is no downloading error.
+    # If the downloading process completes successfully, there will always be a .so file
+    # under the current directory that can be imported into this module.
+    from linkefl.psi.cm20.PsiPython import PsiReceiver
+    print('Done!')
 
 
 class CM20PSIActive:
     def __init__(
         self,
-        ids: List,
+        ids: List[int],
         messenger,
         logger,
         *,
@@ -43,8 +78,12 @@ class CM20PSIActive:
         self.passive_ids_len = None
 
     def run(self):
-        start = time.time()
+        # self.logger.log('Active party starts CM20 PSI, listening...')
+        signal = self.messenger.recv()
+        if signal != Const.START_SIGNAL:
+            raise RuntimeError("Invalid start signal from passive party.")
 
+        start = time.time()
         # 1. sync seed and number of ids
         seed = random.randint(0, 1 << 32)
         self.logger.log(f"Common seed: {seed}")

@@ -15,7 +15,7 @@ except ImportError:
 class CM20PSIPassive:
     def __init__(
         self,
-        ids: List,
+        ids: List[int],
         messenger,
         logger,
         *,
@@ -41,6 +41,7 @@ class CM20PSIPassive:
 
     def run(self):
         start = time.time()
+        self.messenger.send(Const.START_SIGNAL) # send starting singal
 
         # 1. sync seed and number of ids
         seed = self.messenger.recv()
