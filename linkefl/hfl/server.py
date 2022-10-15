@@ -78,16 +78,16 @@ if __name__ == '__main__':
     role = 'server'
 
     # FedProx
-    # aggregator = 'FedProx'
-    # mu = 0.02
+    aggregator = 'FedProx'
+    mu = 0.02
 
     # Scaffold
-    # aggregator = 'Scaffold'
-    # E = 30
+    aggregator = 'Scaffold'
+    E = 30
 
     # PersonalizedFed
-    # aggregator = 'PersonalizedFed'
-    # kp = 0  # rate of personalized lyaer
+    aggregator = 'PersonalizedFed'
+    kp = 0  # rate of personalized lyaer
 
     # Differential Privacy Based Federated Learning
     aggregator = 'FedDP'

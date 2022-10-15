@@ -130,7 +130,7 @@ def Nets(model_name,num_classes,num_channels):
 
     if model_name == 'SimpleCNN':
         return SimpleCNN(num_classes,num_channels)
-    elif model_name == 'VGG16':
-        return VGG16(num_classes,num_channels)
+    # elif model_name == 'VGG16':
+    #     return VGG16(num_classes,num_channels)
     elif model_name == 'ResNet18':
         return ResNet18(num_classes,num_channels)

@@ -105,17 +105,17 @@ if __name__ == '__main__':
     lossfunction = nn.CrossEntropyLoss()
 
     # FedProx
-    # aggregator = 'FedProx'
-    # mu = 0.02
+    aggregator = 'FedProx'
+    mu = 0.02
 
     # Scaffold
-    # aggregator = 'Scaffold'
-    # E = 30
-    # optimizer = ScaffoldOptimizer(model.parameters(), lr=learningrate, weight_decay=1e-4)
+    aggregator = 'Scaffold'
+    E = 30
+    optimizer = ScaffoldOptimizer(model.parameters(), lr=learningrate, weight_decay=1e-4)
 
     # PersonalizedFed
-    # aggregator = 'PersonalizedFed'
-    # kp = 0  # rate of personalized lyaer
+    aggregator = 'PersonalizedFed'
+    kp = 0  # rate of personalized lyaer
 
     # Differential Privacy Based Federated Learning
     aggregator = 'FedDP'
