@@ -9,7 +9,7 @@ from linkefl.messenger import FastSocket
 try:
     from linkefl.psi.cm20.PsiPython import PsiSender
 except ImportError:
-    raise ImportError("Please build CM20 and put it under linkefl.psi.cm20")
+    raise RuntimeError("Script lanching order error. You should launch active party first.")
 
 
 class CM20PSIPassive:
