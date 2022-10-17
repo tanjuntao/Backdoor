@@ -9,8 +9,12 @@ from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.crypto.base import CryptoSystem
 from linkefl.messenger.base import Messenger
-from linkefl.vfl.tree.data_functions import wrap_message
 from linkefl.vfl.tree.hist import ActiveHist
+from linkefl.vfl.tree.data_functions import (
+    wrap_message,
+    random_sampling,
+    goss_sampling
+)
 from linkefl.vfl.tree.train_functions import (
     find_split,
     gh_compress_multi,
@@ -104,16 +108,22 @@ class DecisionTree:
 
     def fit(self, gradient, hessian, bin_index, bin_split, feature_importance_info):
         """single tree training, return raw output"""
+        # TODO: reconstruct parameters file
+        sampling_method  = 'goss'  # uniform, goss
+        subsample = 0.8
+        top_rate, other_rate = 0.25, 0.25
 
         self.bin_index, self.bin_split = bin_index, bin_split
 
         # tree-level sampling
-        sample_num = bin_index.shape[0]
-        if self.sampling_method == "uniform":
-            sample_tag = np.ones(sample_num, dtype=int)
+        if sampling_method == "uniform":
+            selected_g, selected_h, selected_idx = random_sampling(gradient, hessian, subsample)
+        elif sampling_method == "goss":
+            selected_g, selected_h, selected_idx = goss_sampling(gradient, hessian, top_rate, other_rate)
         else:
             raise ValueError
 
+        sample_num = bin_index.shape[0]
         if self.task == "binary":
             self.gh = np.array([gradient, hessian]).T
             self.update_pred = np.zeros(sample_num, dtype=float)
