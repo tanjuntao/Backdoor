@@ -196,7 +196,7 @@ class ActiveTreeParty:
                 loss = self.loss.loss(labels_onehot, outputs)
                 gradient = self.loss.gradient(labels_onehot, outputs)
                 hessian = self.loss.hessian(labels_onehot, outputs)
-                update_pred = tree.fit(gradient, hessian, bin_index, bin_split)
+                update_pred = tree.fit(gradient, hessian, bin_index, bin_split, self.feature_importance_info)
                 self.logger.log(f"tree {i} finished")
 
                 for messenger in self.messengers:
@@ -221,7 +221,8 @@ class ActiveTreeParty:
         if self.saving_model:
             model_name = f"{self.model_name}-{trainset.n_samples}_samples.model"
             model_params = [(tree.record, tree.root) for tree in self.trees]
-            NumpyModelIO.save(model_params, self.model_path, model_name)
+            saved_data = [model_params, self.feature_importance_info]
+            NumpyModelIO.save(saved_data, self.model_path, model_name)
 
         self.logger.log("train finished")
 
@@ -288,7 +289,7 @@ class ActiveTreeParty:
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        model_params = NumpyModelIO.load(model_path, model_name)
+        model_params, _ = NumpyModelIO.load(model_path, model_name)
         for i, (record, root) in enumerate(model_params):
             tree = self.trees[i]
             tree.record = record

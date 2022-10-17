@@ -3,7 +3,7 @@ import numpy as np
 
 from typing import Optional, Any, Tuple
 # TODO：fix ereor "circular import"
-# from linkefl.vfl.tree import ActiveTreeParty
+# import linkefl
 
 Axes = Any              # real type is matplotlib.axes.Axes
 GraphvizSource = Any    # real type is graphviz.Source

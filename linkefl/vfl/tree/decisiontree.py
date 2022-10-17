@@ -107,6 +107,7 @@ class DecisionTree:
 
         self.bin_index, self.bin_split = bin_index, bin_split
 
+        # tree-level sampling
         sample_num = bin_index.shape[0]
         if self.sampling_method == "uniform":
             sample_tag = np.ones(sample_num, dtype=int)
