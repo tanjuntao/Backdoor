@@ -69,7 +69,7 @@ class ParseLabel(BaseTransform):
         elif isinstance(dataset, torch.Tensor):
             if has_label:
                 labels = dataset[:, 1]
-                labels[labels == -1] = labels
+                labels[labels == -1] = self.neg_label
                 dataset[:, 1] = labels
             else:
                 pass
