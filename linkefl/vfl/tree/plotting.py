@@ -38,7 +38,6 @@ def plot_importance(
     Parameters
     ----------
     booster : ActiveTreeParty or dict
-        Booster or XGBModel instance, or dict taken by Booster.get_fscore()
     importance_type : str, default "split"
         How the importance is calculated: either "split", "gain", or "cover"
         * "split" is the number of times a feature appears in trees
