@@ -124,7 +124,9 @@ class ActiveLogReg(BaseLinearActive):
             epoch_start_time = time.time()
             self.logger.log('Epoch: {}'.format(epoch))
             is_best = False
-            all_idxes = list(range(n_samples))
+            all_idxes = np.arange(n_samples)
+            np.random.seed(epoch)
+            np.random.shuffle(all_idxes)
             batch_losses = []
             for batch in range(n_batches):
                 # Choose batch indexes
@@ -266,15 +268,15 @@ if __name__ == '__main__':
     active_port = [20000, 30000]
     passive_ip = ['localhost', 'localhost']
     passive_port = [20001, 30001]
-    _epochs = 10
-    _batch_size = -1
+    _epochs = 100
+    _batch_size = 100
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
-    _crypto_type = Const.FAST_PAILLIER
+    _crypto_type = Const.PLAIN
     _random_state = 3347
     _key_size = 1024
-    _using_pool = True
+    _using_pool = False
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style

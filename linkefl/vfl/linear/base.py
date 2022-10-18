@@ -330,7 +330,9 @@ class BaseLinearPassive(BaseLinear):
         self.logger.log('Start collaborative model training...')
         for epoch in range(self.epochs):
             self.logger.log('Epoch: {}'.format(epoch))
-            all_idxes = list(range(n_samples))
+            all_idxes = np.arange(n_samples)
+            np.random.seed(epoch)
+            np.random.shuffle(all_idxes)
 
             for batch in range(n_batches):
                 # Choose batch indexes

@@ -102,7 +102,9 @@ class ActiveLinReg(BaseLinearActive):
         self.logger.log('Start collaborative model training...')
         for epoch in range(self.epochs):
             is_best = False
-            all_idxes = list(range(n_samples))
+            all_idxes = np.arange(n_samples)
+            np.random.seed(epoch)
+            np.random.shuffle(all_idxes)
             batch_losses = []
             for batch in range(n_batches):
                 # Choose batch indexes

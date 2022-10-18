@@ -15,14 +15,14 @@ if __name__ == '__main__':
     active_port = 30000
     passive_ip = 'localhost'
     passive_port = 30001
-    _epochs = 10
-    _batch_size = -1
+    _epochs = 100
+    _batch_size = 100
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
     _random_state = 3347
-    _crypto_type = Const.FAST_PAILLIER
-    _using_pool = True
+    _crypto_type = Const.PLAIN
+    _using_pool = False
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
