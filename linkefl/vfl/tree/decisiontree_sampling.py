@@ -116,31 +116,45 @@ class DecisionTree:
         self.record = None  # saving split thresholds determined by active party
         self.update_pred = None  # saving tree raw output
 
+
     def fit(self, gradient, hessian, bin_index, bin_split, feature_importance_info):
         """single tree training, return raw output"""
 
         self.bin_index, self.bin_split = bin_index, bin_split
 
         # tree-level sampling
-        sample_num = bin_index.shape[0]
         if self.sampling_method == "uniform":
-            sample_tag = np.ones(sample_num, dtype=int)
+            selected_g, selected_h, selected_idx = random_sampling(gradient, hessian, self.subsample)
+        elif self.sampling_method == "goss":
+            # TODO: 检验 grad 和 hess 有没有发生变化
+            selected_g, selected_h, selected_idx = goss_sampling(gradient, hessian, self.top_rate, self.other_rate)
         else:
             raise ValueError
 
+        sample_num = bin_index.shape[0]
+        sample_tag = [-1 for _ in range(sample_num)]
+        sample_tag[selected_idx] = 1
+
+        # Implementation logic with sampling
         if self.task == "binary":
             self.gh = np.array([gradient, hessian]).T
             self.update_pred = np.zeros(sample_num, dtype=float)
 
-            gh_int, self.h_length, self.gh_length = gh_packing(
-                gradient, hessian, self.fix_point_precision
+            selected_gh_int, self.h_length, self.gh_length = gh_packing(
+                selected_g, selected_h, self.fix_point_precision
             )
+
             self.capacity = self.crypto_system.key_size // self.gh_length
 
+            gh_send = list(np.zeros(sample_num))
             if self.crypto_type == Const.PLAIN:
-                gh_send = gh_int
+                for i, idx in enumerate(selected_idx):
+                    gh_send[idx] = selected_gh_int[i]
             elif self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                gh_send = self.crypto_system.encrypt_data(gh_int, self.pool)
+                # TODO: 验证这里返回的是不是list类型
+                selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_int, self.pool)
+                for i, idx in enumerate(selected_idx):
+                    gh_send[idx] = selected_gh_enc[i]
             else:
                 raise NotImplementedError
 
@@ -148,16 +162,20 @@ class DecisionTree:
             self.gh = np.stack((gradient, hessian), axis=2)
             self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
 
-            gh_compress, self.h_length, self.gh_length = gh_compress_multi(
-                gradient,
-                hessian,
+            selected_gh_compress, self.h_length, self.gh_length = gh_compress_multi(
+                selected_g,
+                selected_h,
                 self.fix_point_precision,
                 self.crypto_system.key_size,
             )
             self.capacity = self.crypto_system.key_size // self.gh_length
 
+            gh_send = list(np.zeros(sample_num))
             if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                gh_send = self.crypto_system.encrypt_data(gh_compress, self.pool)
+                selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_compress, self.pool)
+                # TODO: 验证类型
+                for i, idx in enumerate(selected_idx):
+                    gh_send[idx] = selected_gh_enc[i]
             else:
                 raise NotImplementedError
 
@@ -210,10 +228,11 @@ class DecisionTree:
         max_gain=None,
         feature_importance_info=None,
     ):
+        """ sample_tag: list """
         # split only when conditions meet
         if (
             current_depth < self.max_depth - 1
-            and sample_tag.sum() >= self.min_split_samples
+            and sample_tag.count(1) >= self.min_split_samples   #
         ):
             if hist_list is None:
                 # happens in root
@@ -349,10 +368,10 @@ class DecisionTree:
 
         record_id = len(self.record) - 1
 
-        sample_tag_left = sample_tag.copy()  # avoid modification on sample_tag
+        sample_tag_left = np.array(sample_tag.copy())  # avoid modification on sample_tag
         sample_tag_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
 
-        return record_id, sample_tag_left
+        return record_id, list(sample_tag_left)
 
     def _predict_value(self, x_sample, sample_id, tree_node: _DecisionNode = None):
         """predict a sample"""
