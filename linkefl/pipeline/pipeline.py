@@ -1,17 +1,18 @@
-from linkefl.pipeline.component import Component
-
-
 class PipeLine:
-    """记录调用的函数以及每个函数对应的参数和输入输出，可生成参数表"""
+    def __init__(self, components, role):
+        self.components = components
+        self.role = role
 
-    # Use pipeline to inject pool, messenger and logger?
-
-    def __init__(self):
-        self.components = list()
-
-    def add_component(self, component: Component):
+    def add_component(self, component):
         self.components.append(component)
 
-    def run(self):
-        for component in self.components:
-            component.run()
+    def fit(self, trainset, validset):
+        for component in self.components[:-1]:
+            trainset = component.fit(trainset, role=self.role)
+            validset = component.fit(validset, role=self.role)
+        self.components[-1].fit(trainset, validset, role=self.role)
+
+    def score(self, testset):
+        for component in self.components[:-1]:
+            testset = component.fit(testset, role=self.role)
+        self.components[-1].score(testset, role=self.role)

@@ -20,8 +20,8 @@ if __name__ == '__main__':
     _logger = logger_factory(role=Const.ACTIVE_NAME)
 
     # 3. Start the CM20 protocol
-    active_party = CM20PSIActive(_ids, _messenger, _logger)
-    intersections_ = active_party.run()
+    active_party = CM20PSIActive(_messenger, _logger)
+    intersections_ = active_party.run(_ids)
     print(intersections_[:10])
 
     # 4. Close messenger

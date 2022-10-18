@@ -1,15 +1,14 @@
-import random
 import os
+import random
 import sys
 import time
-from typing import List
 from urllib.error import URLError
 
 import numpy as np
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
-from linkefl.dataio import gen_dummy_ids
+from linkefl.dataio import gen_dummy_ids, NumpyDataset
 from linkefl.messenger import FastSocket
 from linkefl.util import urlretrive
 
@@ -53,7 +52,6 @@ except ImportError:
 class CM20PSIActive:
     def __init__(
         self,
-        ids: List[int],
         messenger,
         logger,
         *,
@@ -64,7 +62,6 @@ class CM20PSIActive:
         bucket1=1 << 8,
         bucket2=1 << 8,
     ):
-        self.ids = ids
         self.messenger = messenger
         self.logger = logger
         self.log_height = log_height
@@ -74,10 +71,16 @@ class CM20PSIActive:
         self.bucket1 = bucket1
         self.bucket2 = bucket2
 
-        self.active_ids_len = len(ids)
-        self.passive_ids_len = None
+    def fit(self, dataset: NumpyDataset, role=Const.ACTIVE_NAME):
+        ids = dataset.ids
+        intersections = self.run(ids)
+        dataset.filter(intersections)
 
-    def run(self):
+        return dataset
+
+    def run(self, ids):
+        active_ids_len = len(ids)
+
         # self.logger.log('Active party starts CM20 PSI, listening...')
         signal = self.messenger.recv()
         if signal != Const.START_SIGNAL:
@@ -88,19 +91,20 @@ class CM20PSIActive:
         seed = random.randint(0, 1 << 32)
         self.logger.log(f"Common seed: {seed}")
         self.messenger.send(seed)
-        self.messenger.send(self.active_ids_len)
-        self.passive_ids_len = self.messenger.recv()
+        self.messenger.send(active_ids_len)
+        passive_ids_len = self.messenger.recv()
 
         # 2. compute common ids and return indexes
+        time.sleep(2)
         common_indexes = PsiReceiver().run(
             self.messenger.passive_ip,
             seed,
-            self.passive_ids_len,
-            self.active_ids_len,
+            passive_ids_len,
+            active_ids_len,
             1 << self.log_height,
             self.log_height,
             self.width,
-            self.ids,
+            ids,
             self.hash_length,
             self.h1_length,
             self.bucket1,
@@ -108,7 +112,7 @@ class CM20PSIActive:
         )
 
         # 3. find the intersection
-        intersections = np.array(self.ids)[np.array(common_indexes)]
+        intersections = np.array(ids)[np.array(common_indexes)]
         self.messenger.send(intersections)
 
         self.logger.log("Size of intersection: {}".format(len(intersections)))
@@ -143,8 +147,8 @@ if __name__ == "__main__":
     _logger = logger_factory(role=Const.ACTIVE_NAME)
 
     # 3. Start the CM20 protocol
-    active_party = CM20PSIActive(_ids, _messenger, _logger)
-    intersections_ = active_party.run()
+    active_party = CM20PSIActive(_messenger, _logger)
+    intersections_ = active_party.run(_ids)
     print(intersections_[:10])
 
     # 4. Close messenger

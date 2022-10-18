@@ -63,6 +63,9 @@ class PassiveTreeParty:
         # filled as training goes on
         self.record = None
 
+    def fit(self, trainset, testset, role=Const.PASSIVE_NAME):
+        self.train(trainset, testset)
+
     def train(self, trainset, testset):
         assert isinstance(
             trainset, NumpyDataset
@@ -190,6 +193,9 @@ class PassiveTreeParty:
         )  # avoid numpy bool
 
         return result
+
+    def score(self, testset, role=Const.PASSIVE_NAME):
+        self.predict(testset)
 
     def predict(self, testset):
         self._validate(testset)

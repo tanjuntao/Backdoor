@@ -140,6 +140,9 @@ class ActiveTreeParty:
                     level=Const.WARNING,
                 )
 
+    def fit(self, trainset, testset, role=Const.ACTIVE_NAME):
+        self.train(trainset, testset)
+
     def train(self, trainset, testset):
         assert isinstance(
             trainset, NumpyDataset
@@ -281,6 +284,9 @@ class ActiveTreeParty:
             messenger.send(wrap_message("validate finished", content=True))
 
         return scores
+
+    def score(self, testset, role=Const.ACTIVE_NAME):
+        return self.predict(testset)
 
     def predict(self, testset):
         return self._validate(testset)

@@ -1,21 +1,19 @@
 import time
-from typing import List
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
-from linkefl.dataio import gen_dummy_ids
+from linkefl.dataio import gen_dummy_ids, NumpyDataset
 from linkefl.messenger import FastSocket
 
 try:
     from linkefl.psi.cm20.PsiPython import PsiSender
 except ImportError:
-    raise RuntimeError("Script lanching order error. You should launch active party first.")
+    raise RuntimeError("Script launching order error. You should launch active party first.")
 
 
 class CM20PSIPassive:
     def __init__(
         self,
-        ids: List[int],
         messenger,
         logger,
         *,
@@ -26,7 +24,6 @@ class CM20PSIPassive:
         bucket1=1 << 8,
         bucket2=1 << 8,
     ):
-        self.ids = ids
         self.messenger = messenger
         self.logger = logger
         self.log_height = log_height
@@ -36,28 +33,34 @@ class CM20PSIPassive:
         self.bucket1 = bucket1
         self.bucket2 = bucket2
 
-        self.passive_ids_len = len(self.ids)
-        self.active_ids_len = None
+    def fit(self, dataset: NumpyDataset, role=Const.PASSIVE_NAME):
+        ids = dataset.ids
+        intersections = self.run(ids)
+        dataset.filter(intersections)
 
-    def run(self):
+        return dataset
+
+    def run(self, ids):
+        passive_ids_len = len(ids)
+
         start = time.time()
-        self.messenger.send(Const.START_SIGNAL) # send starting singal
+        self.messenger.send(Const.START_SIGNAL) # send starting signal
 
         # 1. sync seed and number of ids
         seed = self.messenger.recv()
-        self.active_ids_len = self.messenger.recv()
-        self.messenger.send(self.passive_ids_len)
+        active_ids_len = self.messenger.recv()
+        self.messenger.send(passive_ids_len)
 
         # 2. compute common ids
         PsiSender().run(
             self.messenger.passive_ip,
             seed,
-            self.passive_ids_len,
-            self.active_ids_len,
+            passive_ids_len,
+            active_ids_len,
             1 << self.log_height,
             self.log_height,
             self.width,
-            self.ids,
+            ids,
             self.hash_length,
             self.h1_length,
             self.bucket1,
@@ -98,8 +101,8 @@ if __name__ == "__main__":
     _logger = logger_factory(role=Const.PASSIVE_NAME)
 
     # 3. Start the CM20 protocol
-    passive_party = CM20PSIPassive(_ids, _messenger, _logger)
-    intersections_ = passive_party.run()
+    passive_party = CM20PSIPassive(_messenger, _logger)
+    intersections_ = passive_party.run(_ids)
     print(intersections_[:10])
 
     # 4. Close messenger

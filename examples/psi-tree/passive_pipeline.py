@@ -1,23 +1,25 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
-from linkefl.crypto import RSACrypto
+from linkefl.dataio import NumpyDataset
+from linkefl.feature import Compose, ParseLabel
 from linkefl.messenger import FastSocket
 from linkefl.pipeline import PipeLine
-from linkefl.pipeline.component import (
-    NumpyDataset_from_csv_ReaderComponent,
-    RSAPSIComponent,
-    TransformComponent,
-    VFLSBTComponent,
-)
+from linkefl.psi import CM20PSIPassive
+from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == "__main__":
+    # 0. Set parameters
+
+    # dataloader
+    dataset_name = "credit"
+    passive_feat_frac = 0.5
+    feat_perm_option = Const.SEQUENCE
+
+    # messenger
     active_ip = "localhost"
     active_port = 20000
     passive_ip = "localhost"
     passive_port = 30000
-
-    task = "binary"
-    crypto_type = Const.FAST_PAILLIER
 
     messenger = FastSocket(
         role=Const.PASSIVE_NAME,
@@ -26,43 +28,47 @@ if __name__ == "__main__":
         passive_ip=passive_ip,
         passive_port=passive_port,
     )
+
+    # logger
     logger = logger_factory(role=Const.PASSIVE_NAME)
-    n_processes = 6
-    psi_crypto_system = RSACrypto()
 
-    data_reader = NumpyDataset_from_csv_ReaderComponent(
+    # transformer
+
+    # model
+    task = "binary"
+    crypto_type = Const.FAST_PAILLIER
+
+    # 1. Load dataset
+    passive_trainset = NumpyDataset.buildin_dataset(
         role=Const.PASSIVE_NAME,
-        trainset_path=(
-            r"../../linkefl/data/tabular/give_me_some_credit_passive_train.csv"
-        ),
-        testset_path=r"../../linkefl/data/tabular/give_me_some_credit_passive_test.csv",
-        dataset_type=Const.CLASSIFICATION,
+        dataset_name=dataset_name,
+        root="data",
+        train=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+        download=True,
+    )
+    passive_testset = NumpyDataset.buildin_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_name=dataset_name,
+        root="data",
+        train=False,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+        download=True,
     )
 
-    data_transform = TransformComponent(
-        role=Const.PASSIVE_NAME,
-        # trainset_transform=parse_label,
-        # testset_transform=parse_label,
-    )
-
-    data_psi = RSAPSIComponent(
-        role=Const.PASSIVE_NAME,
-        messenger=messenger,
-        logger=logger,
-        n_processes=n_processes,
-        crypto_system=psi_crypto_system,
-    )
-
-    model = VFLSBTComponent.passive(
+    # 2. Build pipeline
+    psi = CM20PSIPassive(messenger, logger)
+    transforms = Compose([ParseLabel()])
+    model = PassiveTreeParty(
         task=task,
         crypto_type=crypto_type,
         messenger=messenger,
     )
 
-    pipeline = PipeLine()
-    pipeline.add_component(data_reader)
-    pipeline.add_component(data_transform)
-    pipeline.add_component(data_psi)
-    pipeline.add_component(model)
-    pipeline.run()
-    print()
+    pipeline = PipeLine([psi, transforms, model], role=Const.PASSIVE_NAME)
+
+    # 3. Trigger pipeline
+    pipeline.fit(passive_trainset, passive_testset)
+    pipeline.score(passive_testset)

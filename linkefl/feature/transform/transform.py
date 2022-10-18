@@ -7,12 +7,26 @@ import torch
 
 from .base import BaseTransform
 from linkefl.common.const import Const
+from linkefl import dataio
+
+
+def wrapper_for_dataset(func):
+    def wrapper(self, dataset, role):
+        if isinstance(dataset, dataio.NumpyDataset) or isinstance(dataset, dataio.TorchDataset):
+            raw_dataset = dataset.get_dataset()
+            raw_dataset = func(self, raw_dataset, role)
+            dataset.set_dataset(raw_dataset)
+        else:
+            dataset = func(self, dataset, role)
+        return dataset
+    return wrapper
 
 
 class Scale(BaseTransform):
     def __init__(self):
         super(Scale, self).__init__()
 
+    @wrapper_for_dataset
     def __call__(self, dataset, role):
         start_col = 2 if role == Const.ACTIVE_NAME else 1
         if isinstance(dataset, np.ndarray):
@@ -33,6 +47,7 @@ class Normalize(BaseTransform):
         super(Normalize, self).__init__()
         self.norm = norm
 
+    @wrapper_for_dataset
     def __call__(self, dataset, role):
         start_col = 2 if role == Const.ACTIVE_NAME else 1
         if isinstance(dataset, np.ndarray):
@@ -57,6 +72,7 @@ class ParseLabel(BaseTransform):
         super(ParseLabel, self).__init__()
         self.neg_label = neg_label
 
+    @wrapper_for_dataset
     def __call__(self, dataset, role):
         has_label = True if role == Const.ACTIVE_NAME else False
         if isinstance(dataset, np.ndarray):
@@ -83,6 +99,7 @@ class AddIntercept(BaseTransform):
     def __init__(self):
         super(AddIntercept, self).__init__()
 
+    @wrapper_for_dataset
     def __call__(self, dataset, role):
         has_label = True if role == Const.ACTIVE_NAME else False
         if isinstance(dataset, np.ndarray):
@@ -130,6 +147,7 @@ class OneHot(BaseTransform):
             raise ValueError('idxes should be an non-empty Python list')
         self.idxes = idxes
 
+    # TODO: should be the same as other transformers
     def __call__(self, df, role):
         offset = 2 if role == Const.ACTIVE_NAME else 1
         n_features = df.shape[1] - offset
@@ -209,6 +227,8 @@ class Bin(BaseTransform):
         self.para = para if para is not None else []
         self.split = dict()
 
+    # TODO: should be the same as other transformers
+    # TODO: 仅返回 dataset 一个参数
     def __call__(self, dataset):
         if isinstance(dataset, np.ndarray):
             for i in range(len(self.bin_features)):
@@ -250,8 +270,9 @@ class Compose(BaseTransform):
             assert isinstance(transform, BaseTransform), \
                 'each element in Compose should be an instance of BaseTransform'
 
-        self.transforms = transforms  # 别卷了
+        self.transforms = transforms
 
+    @wrapper_for_dataset
     def __call__(self, dataset, role):
         # argument role is just for interface consistency
         flag = True
@@ -260,7 +281,7 @@ class Compose(BaseTransform):
                 dataset, split = transform(dataset)
                 flag = False
             else:
-                dataset = transform(dataset)
+                dataset = transform(dataset, role)
         if flag is True:
             return dataset
         else:
