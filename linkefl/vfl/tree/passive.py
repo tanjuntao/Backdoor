@@ -98,19 +98,19 @@ class PassiveTreeParty:
                 ]
                 self.logger.log("start a new tree")
             elif data["name"] == "record":
-                feature_id, split_id, sample_tag = data["content"]
+                feature_id, split_id, sample_tag_selected, sample_tag_unselected = data["content"]
 
                 # store feature split information
                 self.feature_importance_info['split'][f'feature{feature_id}'] += 1
-                self.feature_importance_info['cover'][f'feature{feature_id}'] += sum(sample_tag)
+                self.feature_importance_info['cover'][f'feature{feature_id}'] += sum(sample_tag_selected)
                 self.logger.log(f"store feature split information")
 
-                record_id, sample_tag_left = self._save_record(
-                    feature_id, split_id, sample_tag
+                record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
+                    feature_id, split_id, sample_tag_selected, sample_tag_unselected
                 )
                 self.logger.log(f"threshold saved in record_id: {record_id}")
                 self.messenger.send(
-                    wrap_message("record", content=(record_id, sample_tag_left))
+                    wrap_message("record", content=(record_id, sample_tag_selected_left, sample_tag_unselected_left))
                 )
             elif data["name"] == "hist":
                 sample_tag = data["content"]
@@ -128,7 +128,7 @@ class PassiveTreeParty:
             )
         )
 
-    def _save_record(self, feature_id, split_id, sample_tag):
+    def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
         record = np.array(
             [feature_id, self.bin_split[feature_id][split_id]]
         ).reshape(1, 2)
@@ -140,10 +140,12 @@ class PassiveTreeParty:
 
         record_id = len(self.record) - 1
 
-        sample_tag_left = sample_tag
-        sample_tag_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
+        sample_tag_selected_left = sample_tag_selected
+        sample_tag_selected_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
+        sample_tag_unselected_left = sample_tag_unselected
+        sample_tag_unselected_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
 
-        return record_id, sample_tag_left
+        return record_id, sample_tag_selected_left , sample_tag_unselected_left
 
     def _get_hist(self, sample_tag):
         hist = PassiveHist(
