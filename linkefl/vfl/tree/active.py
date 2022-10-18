@@ -42,7 +42,10 @@ class ActiveTreeParty:
         min_split_samples: int = 3,
         min_split_gain: float = 1e-7,
         fix_point_precision: int = 53,
-        sampling_method: str = "uniform",
+        sampling_method: str = "goss",
+        subsample: float = 1,
+        top_rate: float = 0.25,
+        other_rate: float = 0.25,
         n_processes: int = 1,
         saving_model: bool = False,
         model_path: str = "./models",
@@ -112,6 +115,9 @@ class ActiveTreeParty:
                 min_split_gain=min_split_gain,
                 fix_point_precision=fix_point_precision,
                 sampling_method=sampling_method,
+                subsample=subsample,
+                top_rate=top_rate,
+                other_rate=other_rate,
                 pool=self.pool,
             )
             for _ in range(n_trees)
@@ -126,7 +132,7 @@ class ActiveTreeParty:
     def _check_parameters(self, task, n_labels, compress, sampling_method):
         assert task in ("binary", "multi"), "task should be binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
-        assert sampling_method in ("uniform",), "sampling should be uniform"
+        assert sampling_method in ("uniform", "goss"), "sampling method not supported"
 
         if task == "binary":
             assert (
@@ -333,13 +339,13 @@ class ActiveTreeParty:
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "cancer"
+    dataset_name = "digits"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
     n_trees = 5
-    task = "binary"
-    n_labels = 2
+    task = "multi"
+    n_labels = 10
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
 
