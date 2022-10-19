@@ -163,36 +163,26 @@ class DecisionTree:
             self.gh = np.stack((gradient, hessian), axis=2)
             self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
 
-            gh_compress, self.h_length, self.gh_length = gh_compress_multi(
-                gradient,
-                hessian,
+            selected_gh_compress, self.h_length, self.gh_length = gh_compress_multi(
+                selected_g,
+                selected_h,
                 self.fix_point_precision,
                 self.crypto_system.key_size,
             )
             self.capacity = self.crypto_system.key_size // self.gh_length
 
+            # The number of ciphertexts occupied by each sample
+            sample2enc_num = (self.n_labels + self.capacity - 1) // self.capacity
+            gh_send = [[0 for _ in range(sample2enc_num)] for _ in range(sample_num)]
+
             if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                gh_send = self.crypto_system.encrypt_data(gh_compress, self.pool)
+                selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_compress, self.pool)
+                for i, sample_idx in enumerate(selected_idx):
+                    for j in range(sample2enc_num):
+                        gh_send[sample_idx][j] = selected_gh_enc[i][j]
+                gh_send = np.array(gh_send)
             else:
                 raise NotImplementedError
-
-            # following logic is wrong
-            # selected_gh_compress, self.h_length, self.gh_length = gh_compress_multi(
-            #     selected_g,
-            #     selected_h,
-            #     self.fix_point_precision,
-            #     self.crypto_system.key_size,
-            # )
-            # self.capacity = self.crypto_system.key_size // self.gh_length
-            #
-            # gh_send = [0 for _ in range(sample_num)]
-            # if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            #     selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_compress, self.pool)
-            #     for i, idx in enumerate(selected_idx):
-            #         gh_send[idx] = selected_gh_enc[i]
-            #     gh_send = np.array(gh_send)
-            # else:
-            #     raise NotImplementedError
 
         else:
             raise ValueError("No such task label.")
