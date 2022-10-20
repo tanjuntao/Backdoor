@@ -14,6 +14,7 @@ import torch
 from phe import EncodedNumber, EncryptedNumber, paillier
 from phe.util import mulmod
 
+from linkefl.common.const import Const
 from linkefl.config import BaseConfig
 from linkefl.crypto.base import CryptoSystem, PartialCryptoSystem
 
@@ -357,6 +358,7 @@ class PartialPaillier(PartialCryptoSystem):
         super(PartialPaillier, self).__init__()
         self.pub_key = raw_public_key # for API consistency
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
+        self.type = Const.PAILLIER
 
     def encrypt(self, plaintext):
         return self.pub_key_obj.raw_encrypt(plaintext)
@@ -376,6 +378,8 @@ class PartialFastPaillier(PartialCryptoSystem):
         super(PartialFastPaillier, self).__init__()
         self.pub_key = raw_public_key
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
+        self.type = Const.FAST_PAILLIER
+
         print("Generating encrypted zeros...")
         enc_zeros = _cal_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
         self.pub_key_obj.set_enc_zeros(enc_zeros)
@@ -414,6 +418,7 @@ class Paillier(CryptoSystem):
         self.pub_key, self.priv_key = raw_public_key, raw_private_key # for API consistency
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
         self.priv_key_obj = PaillierPrivateKey(raw_private_key)
+        self.type = Const.PAILLIER
 
     @classmethod
     def from_config(cls, config):
@@ -481,6 +486,7 @@ class FastPaillier(CryptoSystem):
         self.pub_key, self.priv_key = raw_public_key, raw_private_key
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
         self.priv_key_obj = PaillierPrivateKey(raw_private_key)
+        self.type = Const.FAST_PAILLIER
 
         print("Generating encrypted zeros...")
         enc_zeros = _cal_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
@@ -567,7 +573,6 @@ def fast_add_ciphers(cipher_vector, thread_pool=None):
         final_ciphertext = gmpy2.mod(gmpy2.mul(result.get(), final_ciphertext), nsquare)
 
     return EncryptedNumber(public_key, int(final_ciphertext), min_exp)
-
 
 def _target_add_ciphers(ciphertexts, curr_exp, min_exp, base, nsquare):
     multiplier = pow(base, curr_exp - min_exp)

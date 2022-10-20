@@ -3,11 +3,14 @@ from .base import CryptoSystem, PartialCryptoSystem
 import numpy as np
 import torch
 
+from linkefl.common.const import Const
+
 
 class PartialPlain(PartialCryptoSystem):
     def __init__(self, raw_public_key=None):
         super(PartialPlain, self).__init__()
         self.pub_key = raw_public_key
+        self.type = Const.PLAIN
 
     def encrypt(self, plaintext):
         return plaintext
@@ -31,6 +34,7 @@ class Plain(CryptoSystem):
         super(Plain, self).__init__(key_size)
         # this line takes no effect, just for API consistency
         self.pub_key, self.priv_key = self._gen_key(key_size)
+        self.type = Const.PLAIN
 
     def _gen_key(self, key_size):
         return None, None
