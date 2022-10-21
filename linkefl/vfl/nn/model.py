@@ -1,6 +1,43 @@
 from torch import nn
 
 
+class MLPModel(nn.Module):
+    def __init__(self,
+                 num_nodes,
+                 activation='relu',
+                 activate_input=False,
+                 activate_output=False
+        ):
+        super(MLPModel, self).__init__()
+        assert activation in ('relu',), f"{activation} is not supported now."
+        modules = []
+        n_layers = len(num_nodes) - 1
+        for i in range(n_layers):
+            modules.append(nn.Linear(num_nodes[i], num_nodes[i+1]))
+            modules.append(nn.ReLU())
+        if activate_input:
+            modules.insert(0, nn.ReLU())
+        if not activate_output:
+            modules.pop()
+        self.sequential = nn.Sequential(*modules)
+
+    def forward(self, x):
+        outputs = self.sequential(x)
+        return outputs
+
+
+class CutLayer(nn.Module):
+    def __init__(self, in_nodes, out_nodes):
+        super(CutLayer, self).__init__()
+        self.in_nodes = in_nodes
+        self.out_nodes = out_nodes
+        self.linear = nn.Linear(in_nodes, out_nodes) # no activation
+
+    def forward(self, x):
+        outputs = self.linear(x)
+        return outputs
+
+
 class BottomModel(nn.Module):
     """Bottom model base class."""
     def __init__(self, num_nodes: list):
