@@ -116,6 +116,23 @@ def goss_sampling(grad, hess, top_rate, other_rate):
 
     return selected_g, selected_h, selected_idx
 
+def feature_sampling(bin_index, bin_split, feature_index_selected):
+    """
+
+    Args:
+        bin_index: list, sample_num * feature_num
+        bin_split:  list, feature_num * bin_num
+        feature_index_selected: list, feature indexes selected
+
+    Returns:
+        bin_index_selected, bin_split_selected
+    """
+    bin_index_selected = np.array(bin_index.copy())
+    bin_split_selected = np.array(bin_split.copy())
+    bin_index_selected = bin_index_selected[:, feature_index_selected]
+    bin_split_selected = bin_split_selected[feature_index_selected, :]
+    return bin_index_selected.tolist(), bin_split_selected.tolist()
+
 def wrap_message(name, *, content):
     return {"name": name, "content": content}
 

@@ -1,9 +1,10 @@
 import queue
+import random
 import threading
+import numpy as np
+
 from multiprocessing import Pool
 from typing import List
-
-import numpy as np
 
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
@@ -13,7 +14,8 @@ from linkefl.vfl.tree.hist import ActiveHist
 from linkefl.vfl.tree.data_functions import (
     wrap_message,
     random_sampling,
-    goss_sampling
+    goss_sampling,
+    feature_sampling,
 )
 from linkefl.vfl.tree.train_functions import (
     find_split,
@@ -61,8 +63,9 @@ class DecisionTree:
         fix_point_precision: int = 53,
         sampling_method: str = "uniform",
         subsample: float = 1,
-        top_rate: float = 0.25,
-        other_rate: float = 0.25,
+        top_rate: float = 0.5,
+        other_rate: float = 0.5,
+        colsample_bytree: float = 1,
         pool: Pool = None,
     ):
         """Decision Tree class to create a single tree
@@ -80,6 +83,7 @@ class DecisionTree:
             subsample: sample sampling ratio
             top_rate: parameter for goss_sampling, head retention sample ratio
             other_rate: parameter for goss_sampling, proportion of remaining samples sampled
+            colsample_bytree: tree-level feature sampling scale
             pool: multiprocessing pool
         """
 
@@ -100,13 +104,14 @@ class DecisionTree:
         self.subsample = subsample
         self.top_rate = top_rate
         self.other_rate = other_rate
+        self.colsample_bytree = colsample_bytree
         self.pool = pool
 
         # given when training starts
         self.bin_index = None
         self.bin_split = None
         self.gh = None
-        self.selected_gh = None
+        self.feature_index_selected = None
         self.h_length = None
         self.gh_length = None
         self.capacity = None
@@ -120,9 +125,9 @@ class DecisionTree:
     def fit(self, gradient, hessian, bin_index, bin_split, feature_importance_info):
         """single tree training, return raw output"""
 
-        self.bin_index, self.bin_split = bin_index, bin_split
+        sample_num, feature_num = bin_index.shape[0], bin_index.shape[1]
 
-        # tree-level sampling
+        # tree-level samples sampling
         if self.sampling_method == "uniform":
             selected_g, selected_h, selected_idx = random_sampling(gradient, hessian, self.subsample)
         elif self.sampling_method == "goss":
@@ -130,7 +135,12 @@ class DecisionTree:
         else:
             raise ValueError
 
-        sample_num = bin_index.shape[0]
+        # tree-level feature sampling
+        self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
+        self.feature_index_selected.sort()
+        # reset bin_index
+        self.bin_index, self.bin_split = feature_sampling(bin_index, bin_split, self.feature_index_selected)
+
         sample_tag_selected = np.zeros(sample_num, dtype=int)
         sample_tag_selected[selected_idx] = 1
         sample_tag_unselected = np.ones(sample_num, dtype=int) - sample_tag_selected
@@ -256,15 +266,10 @@ class DecisionTree:
                 )
 
             if max_gain > self.min_split_gain:
-                # store feature split information
-                party = 'active party' if party_id == 0 else f'passive party {party_id}'
-                feature_importance_info['split'][f'client{party_id}_feature{feature_id}'] += 1
-                feature_importance_info['gain'][f'client{party_id}_feature{feature_id}'] += max_gain
-                feature_importance_info['cover'][f'client{party_id}_feature{feature_id}'] += sum(sample_tag_selected)
-                self.logger.log(f"store feature split information")
-
                 if party_id == 0:
                     # split in active party
+                    # Map the selected feature index to the original feature index
+                    feature_id = self.feature_index_selected[feature_id]
                     record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
                         feature_id, split_id, sample_tag_selected, sample_tag_unselected
                     )
@@ -280,7 +285,15 @@ class DecisionTree:
                     data = self.messengers[party_id - 1].recv()
                     assert data["name"] == "record"
 
-                    record_id, sample_tag_selected_left, sample_tag_unselected_left = data["content"]
+                    # Get the selected feature index to the original feature index
+                    record_id, feature_id, sample_tag_selected_left, sample_tag_unselected_left = data["content"]
+
+                # store feature split information
+                feature_importance_info['split'][f'client{party_id}_feature{feature_id}'] += 1
+                feature_importance_info['gain'][f'client{party_id}_feature{feature_id}'] += max_gain
+                feature_importance_info['cover'][f'client{party_id}_feature{feature_id}'] += sum(
+                    sample_tag_selected)
+                self.logger.log(f"store feature split information")
 
                 sample_tag_selected_right = sample_tag_selected - sample_tag_selected_left
                 sample_tag_unselected_right = sample_tag_unselected - sample_tag_unselected_left
@@ -452,6 +465,7 @@ class DecisionTree:
             task=self.task,
             n_labels=self.n_labels,
             sample_tag=sample_tag,
+            feature_index=self.feature_index,
             bin_index=self.bin_index,
             gh=self.gh,
         )

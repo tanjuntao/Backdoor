@@ -1,4 +1,5 @@
 import datetime
+import random
 import time
 
 import numpy as np
@@ -21,6 +22,7 @@ class PassiveTreeParty:
         messenger: Messenger,
         *,
         max_bin: int = 16,
+        colsample_bytree = 1,
         saving_model: bool = False,
         model_path: str = "./models",
     ):
@@ -36,6 +38,7 @@ class PassiveTreeParty:
         self.messenger = messenger
 
         self.max_bin = max_bin
+        self.colsample_bytree = colsample_bytree
         self.saving_model = saving_model
         self.model_path = model_path
 
@@ -59,6 +62,7 @@ class PassiveTreeParty:
         self.compress = None
         self.capacity = None
         self.padding = None
+        self.feature_index_selected = None
 
         # filled as training goes on
         self.record = None
@@ -100,8 +104,14 @@ class PassiveTreeParty:
                     "content"
                 ]
                 self.logger.log("start a new tree")
+
+                # perform feature selection
+                feature_num = self.bin_index.shape[1]
+                self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
+                self.logger.log("complete feature selection")
             elif data["name"] == "record":
                 feature_id, split_id, sample_tag_selected, sample_tag_unselected = data["content"]
+                feature_id = self.feature_index_selected[feature_id]
 
                 # store feature split information
                 self.feature_importance_info['split'][f'feature{feature_id}'] += 1
@@ -113,7 +123,7 @@ class PassiveTreeParty:
                 )
                 self.logger.log(f"threshold saved in record_id: {record_id}")
                 self.messenger.send(
-                    wrap_message("record", content=(record_id, sample_tag_selected_left, sample_tag_unselected_left))
+                    wrap_message("record", content=(record_id, feature_id, sample_tag_selected_left, sample_tag_unselected_left))
                 )
             elif data["name"] == "hist":
                 sample_tag = data["content"]

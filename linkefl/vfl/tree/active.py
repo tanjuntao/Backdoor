@@ -42,10 +42,11 @@ class ActiveTreeParty:
         min_split_samples: int = 3,
         min_split_gain: float = 1e-7,
         fix_point_precision: int = 53,
-        sampling_method: str = "goss",
+        sampling_method: str = "uniform",
         subsample: float = 1,
-        top_rate: float = 0.25,
-        other_rate: float = 0.25,
+        top_rate: float = 0.5,
+        other_rate: float = 0.5,
+        colsample_bytree: float = 1,
         n_processes: int = 1,
         saving_model: bool = False,
         model_path: str = "./models",
@@ -63,7 +64,11 @@ class ActiveTreeParty:
             min_split_samples: minimum samples required to split
             min_split_gain: minimum gain required to split
             fix_point_precision: binary length to keep when casting float to int
-            sampling_method: uniform
+            sampling_method: uniform or goss
+            subsample: sample sampling ratio for uniform sampling
+            top_rate: head sample retention ratio for goss sampling
+            other_rate: tail sample sampling ratio for goss sampling
+            colsample_bytree: tree-level feature sampling scale
             n_processes: number of processes in multiprocessing
         """
 
@@ -118,6 +123,7 @@ class ActiveTreeParty:
                 subsample=subsample,
                 top_rate=top_rate,
                 other_rate=other_rate,
+                colsample_bytree=colsample_bytree,
                 pool=self.pool,
             )
             for _ in range(n_trees)
@@ -339,13 +345,14 @@ class ActiveTreeParty:
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "digits"
+    # cancer, digits, epsilon, census, credit, default_credit, criteo
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
     n_trees = 5
-    task = "multi"
-    n_labels = 10
+    task = "binary"     # multi, binary
+    n_labels = 2
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
 
@@ -406,7 +413,12 @@ if __name__ == "__main__":
         n_labels=n_labels,
         crypto_type=_crypto_type,
         crypto_system=crypto_system,
+
         messengers=messengers,
+        sampling_method='goss',
+        subsample=0.9,
+        top_rate=0.3,
+        other_rate=0.7,
         saving_model=True,
         n_processes=n_processes,
     )
