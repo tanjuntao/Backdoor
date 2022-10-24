@@ -15,7 +15,6 @@ from linkefl.vfl.tree.data_functions import (
     wrap_message,
     random_sampling,
     goss_sampling,
-    feature_sampling,
 )
 from linkefl.vfl.tree.train_functions import (
     find_split,
@@ -108,7 +107,7 @@ class DecisionTree:
         self.pool = pool
 
         # given when training starts
-        self.bin_index = None
+        self.bin_index_selected = None
         self.bin_split = None
         self.gh = None
         self.feature_index_selected = None
@@ -139,7 +138,11 @@ class DecisionTree:
         self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
         self.feature_index_selected.sort()
         # reset bin_index
-        self.bin_index, self.bin_split = feature_sampling(bin_index, bin_split, self.feature_index_selected)
+        self.bin_index_selected = np.array(bin_index.copy())
+        self.bin_index_selected = self.bin_index_selected[:, self.feature_index_selected]
+        # print(self.feature_index_selected, self.bin_index_selected)
+        self.bin_split = bin_split
+        # self.bin_index_selected, self.bin_split = feature_sampling(bin_index, bin_split, self.feature_index_selected)
 
         sample_tag_selected = np.zeros(sample_num, dtype=int)
         sample_tag_selected[selected_idx] = 1
@@ -268,9 +271,7 @@ class DecisionTree:
             if max_gain > self.min_split_gain:
                 if party_id == 0:
                     # split in active party
-                    # Map the selected feature index to the original feature index
-                    feature_id = self.feature_index_selected[feature_id]
-                    record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
+                    feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
                         feature_id, split_id, sample_tag_selected, sample_tag_unselected
                     )
                     self.logger.log(f"threshold saved in record_id: {record_id}")
@@ -286,12 +287,12 @@ class DecisionTree:
                     assert data["name"] == "record"
 
                     # Get the selected feature index to the original feature index
-                    record_id, feature_id, sample_tag_selected_left, sample_tag_unselected_left = data["content"]
+                    feature_id_origin, record_id, sample_tag_selected_left , sample_tag_unselected_left = data["content"]
 
                 # store feature split information
-                feature_importance_info['split'][f'client{party_id}_feature{feature_id}'] += 1
-                feature_importance_info['gain'][f'client{party_id}_feature{feature_id}'] += max_gain
-                feature_importance_info['cover'][f'client{party_id}_feature{feature_id}'] += sum(
+                feature_importance_info['split'][f'client{party_id}_feature{feature_id_origin}'] += 1
+                feature_importance_info['gain'][f'client{party_id}_feature{feature_id_origin}'] += max_gain
+                feature_importance_info['cover'][f'client{party_id}_feature{feature_id_origin}'] += sum(
                     sample_tag_selected)
                 self.logger.log(f"store feature split information")
 
@@ -382,7 +383,10 @@ class DecisionTree:
         return _DecisionNode(value=leaf_value)
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
-        record = np.array([feature_id, self.bin_split[feature_id][split_id]]).reshape(
+        # Map the selected feature index to the original feature index
+        feature_id_origin = self.feature_index_selected[feature_id]
+
+        record = np.array([feature_id_origin, self.bin_split[feature_id_origin][split_id]]).reshape(
             1, 2
         )
 
@@ -394,11 +398,12 @@ class DecisionTree:
         record_id = len(self.record) - 1
 
         sample_tag_selected_left = np.array(sample_tag_selected.copy())  # avoid modification on sample_tag_selected
-        sample_tag_selected_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
-        sample_tag_unselected_left = np.array(sample_tag_unselected.copy())
-        sample_tag_unselected_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
+        sample_tag_selected_left[self.bin_index_selected[:, feature_id].flatten() > split_id] = 0
 
-        return record_id, sample_tag_selected_left, sample_tag_unselected_left
+        sample_tag_unselected_left = np.array(sample_tag_unselected.copy())
+        sample_tag_unselected_left[self.bin_index_selected[:, feature_id].flatten() > split_id] = 0
+
+        return feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left
 
     def _predict_value(self, x_sample, sample_id, tree_node: _DecisionNode = None):
         """predict a sample"""
@@ -465,8 +470,7 @@ class DecisionTree:
             task=self.task,
             n_labels=self.n_labels,
             sample_tag=sample_tag,
-            feature_index=self.feature_index,
-            bin_index=self.bin_index,
+            bin_index=self.bin_index_selected,
             gh=self.gh,
         )
         _, feature_id, split_id, max_gain = find_split(

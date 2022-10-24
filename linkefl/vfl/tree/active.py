@@ -419,6 +419,7 @@ if __name__ == "__main__":
         subsample=0.9,
         top_rate=0.3,
         other_rate=0.7,
+        colsample_bytree=1,
         saving_model=True,
         n_processes=n_processes,
     )
@@ -427,8 +428,8 @@ if __name__ == "__main__":
     # print(scores)
 
     # test
-    feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
-    print(feature_importance_info)
+    # feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
+    # print(feature_importance_info)
 
     # 5. Close messenger, finish training
     for messenger in messengers:

@@ -63,6 +63,7 @@ class PassiveTreeParty:
         self.capacity = None
         self.padding = None
         self.feature_index_selected = None
+        self.bin_index_selected = None
 
         # filled as training goes on
         self.record = None
@@ -108,22 +109,19 @@ class PassiveTreeParty:
                 # perform feature selection
                 feature_num = self.bin_index.shape[1]
                 self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
+                self.bin_index_selected = np.array(self.bin_index.copy())
+                self.bin_index_selected = self.bin_index_selected[:, self.feature_index_selected]
                 self.logger.log("complete feature selection")
+
             elif data["name"] == "record":
                 feature_id, split_id, sample_tag_selected, sample_tag_unselected = data["content"]
-                feature_id = self.feature_index_selected[feature_id]
 
-                # store feature split information
-                self.feature_importance_info['split'][f'feature{feature_id}'] += 1
-                self.feature_importance_info['cover'][f'feature{feature_id}'] += sum(sample_tag_selected)
-                self.logger.log(f"store feature split information")
-
-                record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
+                feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
                     feature_id, split_id, sample_tag_selected, sample_tag_unselected
                 )
                 self.logger.log(f"threshold saved in record_id: {record_id}")
                 self.messenger.send(
-                    wrap_message("record", content=(record_id, feature_id, sample_tag_selected_left, sample_tag_unselected_left))
+                    wrap_message("record", content=(feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left))
                 )
             elif data["name"] == "hist":
                 sample_tag = data["content"]
@@ -142,29 +140,37 @@ class PassiveTreeParty:
         )
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
+        feature_id_origin = self.feature_index_selected[feature_id]
+
+        # store feature split information
+        self.feature_importance_info['split'][f'feature{feature_id_origin}'] += 1
+        self.feature_importance_info['cover'][f'feature{feature_id_origin}'] += sum(sample_tag_selected)
+        self.logger.log(f"store feature split information")
+
+        # update record
         record = np.array(
-            [feature_id, self.bin_split[feature_id][split_id]]
+            [feature_id_origin, self.bin_split[feature_id_origin][split_id]]
         ).reshape(1, 2)
 
         if self.record is None:
             self.record = record
         else:
             self.record = np.concatenate((self.record, record), axis=0)
-
         record_id = len(self.record) - 1
 
+        # update sample_tag
         sample_tag_selected_left = sample_tag_selected
-        sample_tag_selected_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
+        sample_tag_selected_left[self.bin_index[:, feature_id_origin].flatten() > split_id] = 0
         sample_tag_unselected_left = sample_tag_unselected
-        sample_tag_unselected_left[self.bin_index[:, feature_id].flatten() > split_id] = 0
+        sample_tag_unselected_left[self.bin_index[:, feature_id_origin].flatten() > split_id] = 0
 
-        return record_id, sample_tag_selected_left , sample_tag_unselected_left
+        return feature_id_origin, record_id, sample_tag_selected_left , sample_tag_unselected_left
 
     def _get_hist(self, sample_tag):
         hist = PassiveHist(
             task=self.task,
             sample_tag=sample_tag,
-            bin_index=self.bin_index,
+            bin_index=self.bin_index_selected,
             gh_data=self.gh_recv,
         )
 
