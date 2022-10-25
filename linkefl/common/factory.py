@@ -1,9 +1,8 @@
 from linkefl.common.const import Const
-from linkefl.common.log import GlobalLogger
 from linkefl.crypto import Plain, Paillier, FastPaillier
 from linkefl.crypto import PartialPlain, PartialPaillier, PartialFastPaillier
-from linkefl.messenger import Socket, FastSocket
-
+from linkefl.messenger.socket import Socket, FastSocket,FastSocket_v1
+from linkefl.messenger.socket_disconnection import Socket_disconnection, FastSocket_disconnection
 
 def crypto_factory(crypto_type,
                    *,
@@ -30,11 +29,11 @@ def partial_crypto_factory(crypto_type,
                            num_enc_zeros=10000,
                            gen_from_set=True):
     if crypto_type == Const.PLAIN:
-        partial_crypto = PartialPlain(raw_public_key=public_key)
+        partial_crypto = PartialPlain(pub_key=public_key)
     elif crypto_type == Const.PAILLIER:
-        partial_crypto = PartialPaillier(raw_public_key=public_key)
+        partial_crypto = PartialPaillier(pub_key=public_key)
     elif crypto_type == Const.FAST_PAILLIER:
-        partial_crypto = PartialFastPaillier(raw_public_key=public_key,
+        partial_crypto = PartialFastPaillier(pub_key=public_key,
                                              num_enc_zeros=num_enc_zeros,
                                              gen_from_set=gen_from_set)
     else:
@@ -71,14 +70,56 @@ def messenger_factory(messenger_type,
     return messenger
 
 
-def logger_factory(role,
-                   writing_file=False,
-                   writing_http=False,
-                   http_host=None, http_port=None, http_url=None):
+def messenger_factory_disconnection(messenger_type,
+                      *,
+                      role,
+                      active_ip,
+                      active_port,
+                      passive_ip,
+                      passive_port,
+                      verbose=False):
+    if messenger_type == Const.SOCKET:
+        messenger = Socket_disconnection(role=role,
+                           active_ip=active_ip,
+                           active_port=active_port,
+                           passive_ip=passive_ip,
+                           passive_port=passive_port,
+                           verbose=verbose)
+    elif messenger_type == Const.FAST_SOCKET:
+        messenger = FastSocket_disconnection(role=role,
+                               active_ip=active_ip,
+                               active_port=active_port,
+                               passive_ip=passive_ip,
+                               passive_port=passive_port,
+                               verbose=verbose)
+    else:
+        raise ValueError('Unrecoginized messenger type.')
 
-    return GlobalLogger(role=role,
-                        writing_file=writing_file,
-                        writing_http=writing_http,
-                        http_host=http_host,
-                        http_port=http_port,
-                        http_url=http_url)
+    return messenger
+
+def messenger_factory_v1(messenger_type,
+                      *,
+                      role,
+                      active_ip,
+                      active_port,
+                      passive_ip,
+                      passive_port,
+                      verbose=False):
+    if messenger_type == Const.SOCKET:
+        messenger = Socket(role=role,
+                           active_ip=active_ip,
+                           active_port=active_port,
+                           passive_ip=passive_ip,
+                           passive_port=passive_port,
+                           verbose=verbose)
+    elif messenger_type == Const.FAST_SOCKET:
+        messenger = FastSocket_v1(role=role,
+                               active_ip=active_ip,
+                               active_port=active_port,
+                               passive_ip=passive_ip,
+                               passive_port=passive_port,
+                               verbose=verbose)
+    else:
+        raise ValueError('Unrecoginized messenger type.')
+
+    return messenger
