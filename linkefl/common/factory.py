@@ -2,7 +2,7 @@ from linkefl.common.const import Const
 from linkefl.crypto import Plain, Paillier, FastPaillier
 from linkefl.crypto import PartialPlain, PartialPaillier, PartialFastPaillier
 from linkefl.messenger.socket import Socket, FastSocket,FastSocket_v1
-from linkefl.messenger.socket_disconnection import Socket_disconnection, FastSocket_disconnection
+# from linkefl.messenger.socket_disconnection import Socket_disconnection, FastSocket_disconnection
 
 def crypto_factory(crypto_type,
                    *,
@@ -70,32 +70,32 @@ def messenger_factory(messenger_type,
     return messenger
 
 
-def messenger_factory_disconnection(messenger_type,
-                      *,
-                      role,
-                      active_ip,
-                      active_port,
-                      passive_ip,
-                      passive_port,
-                      verbose=False):
-    if messenger_type == Const.SOCKET:
-        messenger = Socket_disconnection(role=role,
-                           active_ip=active_ip,
-                           active_port=active_port,
-                           passive_ip=passive_ip,
-                           passive_port=passive_port,
-                           verbose=verbose)
-    elif messenger_type == Const.FAST_SOCKET:
-        messenger = FastSocket_disconnection(role=role,
-                               active_ip=active_ip,
-                               active_port=active_port,
-                               passive_ip=passive_ip,
-                               passive_port=passive_port,
-                               verbose=verbose)
-    else:
-        raise ValueError('Unrecoginized messenger type.')
-
-    return messenger
+# def messenger_factory_disconnection(messenger_type,
+#                       *,
+#                       role,
+#                       active_ip,
+#                       active_port,
+#                       passive_ip,
+#                       passive_port,
+#                       verbose=False):
+#     if messenger_type == Const.SOCKET:
+#         messenger = Socket_disconnection(role=role,
+#                            active_ip=active_ip,
+#                            active_port=active_port,
+#                            passive_ip=passive_ip,
+#                            passive_port=passive_port,
+#                            verbose=verbose)
+#     elif messenger_type == Const.FAST_SOCKET:
+#         messenger = FastSocket_disconnection(role=role,
+#                                active_ip=active_ip,
+#                                active_port=active_port,
+#                                passive_ip=passive_ip,
+#                                passive_port=passive_port,
+#                                verbose=verbose)
+#     else:
+#         raise ValueError('Unrecoginized messenger type.')
+#
+#     return messenger
 
 def messenger_factory_v1(messenger_type,
                       *,
