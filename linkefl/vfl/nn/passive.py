@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory
+from linkefl.common.factory import messenger_factory,messenger_factory_v1
 from linkefl.dataio import TorchDataset
 from linkefl.feature.transform import scale
 from linkefl.modelio import TorchModelIO
@@ -150,7 +150,7 @@ class PassiveNeuralNetwork:
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'fashion_mnist'
+    dataset_name = 'census'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -197,10 +197,10 @@ if __name__ == '__main__':
     input_nodes = num_input_nodes(dataset_name=dataset_name,
                                   role=Const.PASSIVE_NAME,
                                   passive_feat_frac=passive_feat_frac)
-    all_nodes = [input_nodes, 256, 128] # mnist & fashion_mnist
+    # all_nodes = [input_nodes, 256, 128] # mnist & fashion_mnist
     # all_nodes = [input_nodes, 15, 10] # criteo
     # all_nodes = [input_nodes, 10, 5] # avazu
-    # all_nodes = [input_nodes, 20, 10] # census
+    all_nodes = [input_nodes, 20, 10] # census
     # all_nodes = [input_nodes, 3, 3] # credit
     # all_nodes = [input_nodes, 8, 5] # default_credit
     # all_nodes = [input_nodes, 25, 10] # epsilon
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     _optimizer = torch.optim.SGD(passive_bottom_model.parameters(), lr=_learning_rate)
 
     # 3. Initialize messenger
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
+    _messenger = messenger_factory_v1(messenger_type=Const.FAST_SOCKET,
                                    role=Const.PASSIVE_NAME,
                                    active_ip=active_ip,
                                    active_port=active_port,

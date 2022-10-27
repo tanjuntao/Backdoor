@@ -10,7 +10,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory, crypto_factory
+from linkefl.common.factory import messenger_factory_v1, crypto_factory
 from linkefl.dataio import TorchDataset
 from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.feature.transform.transform import OneHot
@@ -244,7 +244,7 @@ class ActiveNeuralNetwork:
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'fashion_mnist'
+    dataset_name = 'census'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -293,9 +293,9 @@ if __name__ == '__main__':
                                   role=Const.ACTIVE_NAME,
                                   passive_feat_frac=passive_feat_frac)
     # mnist & fashion_mnist
-    bottom_nodes = [input_nodes, 256, 128]
-    intersect_nodes = [128, 128, 10]
-    top_nodes = [10, 10]
+    # bottom_nodes = [input_nodes, 256, 128]
+    # intersect_nodes = [128, 128, 10]
+    # top_nodes = [10, 10]
 
     # criteo
     # bottom_nodes = [input_nodes, 15, 10]
@@ -308,9 +308,9 @@ if __name__ == '__main__':
     # top_nodes = [5, 2]
 
     # census
-    # bottom_nodes = [input_nodes, 20, 10]
-    # intersect_nodes = [10, 10, 10]
-    # top_nodes = [10, 2]
+    bottom_nodes = [input_nodes, 20, 10]
+    intersect_nodes = [10, 10, 10]
+    top_nodes = [10, 2]
 
     # credit
     # bottom_nodes = [input_nodes, 3, 3]
@@ -335,7 +335,7 @@ if __name__ == '__main__':
                    for model in _models]
 
     # 3. Initialize messenger
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
+    _messenger = messenger_factory_v1(messenger_type=Const.FAST_SOCKET,
                                    role=Const.ACTIVE_NAME,
                                    active_ip=active_ip,
                                    active_port=active_port,
