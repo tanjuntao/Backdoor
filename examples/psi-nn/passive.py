@@ -2,8 +2,8 @@ import torch.optim.optimizer
 from termcolor import colored
 
 from linkefl.common.const import Const
+from linkefl.common.factory import logger_factory
 from linkefl.dataio import TorchDataset
-from linkefl.feature import scale
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIPassive
 from linkefl.vfl.nn import PassiveBottomModel, PassiveNeuralNetwork
@@ -11,8 +11,8 @@ from linkefl.vfl.nn import PassiveBottomModel, PassiveNeuralNetwork
 
 if __name__ == '__main__':
     # 0. Set parameters
-    trainset_path = '/Users/tanjuntao/LinkeFL/linkefl/data/tabular/give_me_some_credit_passive_train.csv'
-    testset_path = '/Users/tanjuntao/LinkeFL/linkefl/data/tabular/give_me_some_credit_passive_test.csv'
+    trainset_path = '/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-passive-train.csv'
+    testset_path = '/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-passive-test.csv'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -24,11 +24,20 @@ if __name__ == '__main__':
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN
     _key_size = 1024
+    _logger = logger_factory(role=Const.PASSIVE_NAME)
     bottom_nodes = [5, 3, 3]
 
     # 1. Load dataset
-    passive_trainset = TorchDataset(role=Const.PASSIVE_NAME, abs_path=trainset_path)
-    passive_testset = TorchDataset(role=Const.PASSIVE_NAME, abs_path=testset_path)
+    passive_trainset = TorchDataset.from_csv(
+        role=Const.PASSIVE_NAME,
+        abs_path=trainset_path,
+        dataset_type=Const.CLASSIFICATION
+    )
+    passive_testset = TorchDataset.from_csv(
+        role=Const.PASSIVE_NAME,
+        abs_path=testset_path,
+        dataset_type=Const.CLASSIFICATION
+    )
     print(colored('1. Finish loading dataset.', 'red'))
 
     # # 2. Feature transformation
@@ -37,12 +46,13 @@ if __name__ == '__main__':
     # print(colored('2. Finish transforming features', 'red'))
 
     # 3. Run PSI
+    print(colored('3. PSI protocol started, computing...', 'red'))
     messenger = FastSocket(role=Const.PASSIVE_NAME,
                            active_ip=active_ip,
                            active_port=active_port,
                            passive_ip=passive_ip,
                            passive_port=passive_port)
-    passive_psi = RSAPSIPassive(passive_trainset.ids, messenger)
+    passive_psi = RSAPSIPassive(passive_trainset.ids, messenger, _logger)
     common_ids = passive_psi.run()
     passive_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))

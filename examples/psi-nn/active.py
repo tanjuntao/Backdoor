@@ -3,10 +3,9 @@ import torch
 from torch import nn
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory
+from linkefl.common.factory import crypto_factory, logger_factory
 from linkefl.crypto import RSACrypto
 from linkefl.dataio import TorchDataset
-from linkefl.feature import scale, add_intercept
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIActive
 from linkefl.vfl.nn import ActiveBottomModel, IntersectionModel, TopModel
@@ -16,8 +15,8 @@ from linkefl.vfl.nn import ActiveNeuralNetwork
 
 if __name__ == '__main__':
     # 0. Set parameters
-    trainset_path = '/Users/tanjuntao/LinkeFL/linkefl/data/tabular/give_me_some_credit_active_train.csv'
-    testset_path = '/Users/tanjuntao/LinkeFL/linkefl/data/tabular/give_me_some_credit_active_test.csv'
+    trainset_path = '/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-active-train.csv'
+    testset_path = '/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-active-test.csv'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -30,13 +29,22 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
     _key_size = 1024
     _loss_fn = nn.CrossEntropyLoss()
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
     bottom_nodes = [5, 3, 3]
     intersect_nodes = [3, 3, 3]
     top_nodes = [3, 2]
 
     # 1. Load dataset
-    active_trainset = TorchDataset(role=Const.ACTIVE_NAME, abs_path=trainset_path)
-    active_testset = TorchDataset(role=Const.ACTIVE_NAME, abs_path=testset_path)
+    active_trainset = TorchDataset.from_csv(
+        role=Const.ACTIVE_NAME,
+        abs_path=trainset_path,
+        dataset_type=Const.CLASSIFICATION
+    )
+    active_testset = TorchDataset.from_csv(
+        role=Const.ACTIVE_NAME,
+        abs_path=testset_path,
+        dataset_type=Const.CLASSIFICATION
+    )
     print(colored('1. Finish loading dataset.', 'red'))
 
     # # 2. Feature transformation
@@ -45,13 +53,14 @@ if __name__ == '__main__':
     # print(colored('2. Finish transforming features', 'red'))
 
     # 3. Run PSI
+    print(colored('3. PSI protocol started, computing...', 'red'))
     messenger = FastSocket(role=Const.ACTIVE_NAME,
                            active_ip=active_ip,
                            active_port=active_port,
                            passive_ip=passive_ip,
                            passive_port=passive_port)
     psi_crypto = RSACrypto()
-    active_psi = RSAPSIActive(active_trainset.ids, messenger, psi_crypto)
+    active_psi = RSAPSIActive(active_trainset.ids, messenger, psi_crypto, _logger)
     common_ids = active_psi.run()
     active_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))
