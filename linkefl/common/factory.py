@@ -32,11 +32,11 @@ def partial_crypto_factory(crypto_type,
                            num_enc_zeros=10000,
                            gen_from_set=True):
     if crypto_type == Const.PLAIN:
-        partial_crypto = PartialPlain(pub_key=public_key)
+        partial_crypto = PartialPlain(raw_public_key=public_key)
     elif crypto_type == Const.PAILLIER:
-        partial_crypto = PartialPaillier(pub_key=public_key)
+        partial_crypto = PartialPaillier(raw_public_key=public_key)
     elif crypto_type == Const.FAST_PAILLIER:
-        partial_crypto = PartialFastPaillier(pub_key=public_key,
+        partial_crypto = PartialFastPaillier(raw_public_key=public_key,
                                              num_enc_zeros=num_enc_zeros,
                                              gen_from_set=gen_from_set)
     else:

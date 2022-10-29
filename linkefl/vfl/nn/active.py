@@ -12,8 +12,7 @@ from torch.utils.data import DataLoader
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, crypto_factory
 from linkefl.dataio import TorchDataset
-from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
-from linkefl.feature.transform.transform import OneHot
+from linkefl.feature.transform import ParseLabel, Scale, AddIntercept, Compose, OneHot
 from linkefl.feature.transform import parse_label, scale
 from linkefl.modelio import TorchModelIO
 from linkefl.util import num_input_nodes

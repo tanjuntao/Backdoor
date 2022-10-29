@@ -8,7 +8,7 @@ from termcolor import colored
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature import add_intercept, AddIntercept
+from linkefl.feature.transform import add_intercept, AddIntercept
 from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.linear import BaseLinearActive
 
