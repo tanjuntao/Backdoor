@@ -3,26 +3,23 @@ import time
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.crypto import RSACrypto
 from linkefl.dataio import NumpyDataset
-from linkefl.feature import scale, add_intercept
-from linkefl.messenger import FastSocket
+from linkefl.feature.transform import scale, add_intercept
 from linkefl.psi.rsa import RSAPSIActive
 from linkefl.vfl.linear import ActiveLogReg
 
 
 if __name__ == '__main__':
     # 0. Set parameters
-    trainset_path = '/Users/tanjuntao/LinkeFL/linkefl/data/tabular/give_me_some_credit_active_train.csv'
-    testset_path = '/Users/tanjuntao/LinkeFL/linkefl/data/tabular/give_me_some_credit_active_test.csv'
-    passive_feat_frac = 0.5
-    feat_perm_option = Const.SEQUENCE
-    active_ip = 'localhost'
-    active_port = 20000
-    passive_ip = 'localhost'
-    passive_port = 30000
-    _epochs = 200
+    trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-active-train.csv"
+    testset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-active-test.csv"
+    active_ip = ['localhost', 'localhost']
+    active_port = [20000, 30000]
+    passive_ip = ['localhost', 'localhost']
+    passive_port = [20001, 30001]
+    _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
     _penalty = Const.L2
@@ -69,19 +66,27 @@ if __name__ == '__main__':
     )
 
     # 3. Run PSI
-    messenger = FastSocket(role=Const.ACTIVE_NAME,
-                           active_ip=active_ip,
-                           active_port=active_port,
-                           passive_ip=passive_ip,
-                           passive_port=passive_port)
+    print(colored('3. PSI protocol started, computing...', 'red'))
+    messenger = [
+        messenger_factory(messenger_type=Const.FAST_SOCKET,
+                          role=Const.ACTIVE_NAME,
+                          active_ip=ac_ip,
+                          active_port=ac_port,
+                          passive_ip=pass_ip,
+                          passive_port=pass_port,
+        )
+        for ac_ip, ac_port, pass_ip, pass_port in
+            zip(active_ip, active_port, passive_ip, passive_port)
+    ]
     psi_crypto = RSACrypto()
-    active_psi = RSAPSIActive(active_trainset.ids, messenger, psi_crypto, logger)
+    active_psi = RSAPSIActive(active_trainset.ids, messenger[0], psi_crypto, logger)
     common_ids = active_psi.run()
     active_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))
     logger.log('3. Finish psi protocol')
 
     # 4. VFL training
+    print(colored('4. Training protocol started, computing...', 'red'))
     start_time = time.time()
     vfl_crypto = crypto_factory(crypto_type=_crypto_type,
                                 key_size=_key_size,
@@ -114,12 +119,12 @@ if __name__ == '__main__':
     start_time = time.time()
     scores = active_vfl.predict(active_testset)
     print('Acc: {:.5f} \nAuc: {:.5f} \nf1: {:.5f}'.format(scores['acc'],
-                                                            scores['auc'],
-                                                            scores['f1']))
+                                                          scores['auc'],
+                                                          scores['f1']))
     print(colored('5. Finish collaborative inference', 'red'))
-    logger.log('Acc: {:.5f} \nAuc: {:.5f} \nf1: {:.5f}'.format(scores['acc'],
-                                                               scores['auc'],
-                                                               scores['f1']))
+    logger.log('Acc: {:.5f} Auc: {:.5f} f1: {:.5f}'.format(scores['acc'],
+                                                           scores['auc'],
+                                                           scores['f1']))
     logger.log('5. Finish collaborative inference')
     logger.log_component(
         name=Const.VERTICAL_INFERENCE,
@@ -131,7 +136,8 @@ if __name__ == '__main__':
     )
 
     # 6. Finish the whole pipeline
-    messenger.close()
+    for msger in messenger:
+        msger.close()
     print(colored('All Done.', 'red'))
     logger.log('All Done.')
     logger.log_task(

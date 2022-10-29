@@ -4,7 +4,7 @@ from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory
 from linkefl.crypto import RSACrypto
 from linkefl.dataio import NumpyDataset
-from linkefl.feature import parse_label
+from linkefl.feature.transform import parse_label
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIActive
 from linkefl.vfl.tree import ActiveTreeParty

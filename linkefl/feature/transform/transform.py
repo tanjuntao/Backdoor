@@ -1,18 +1,16 @@
-from typing import List, Any
-
 import numpy as np
 import pandas as pd
-from sklearn import preprocessing
 import torch
+from sklearn import preprocessing
 
-from .base import BaseTransform
 from linkefl.common.const import Const
-from linkefl import dataio
+from linkefl.dataio import NumpyDataset, TorchDataset
+from linkefl.feature.transform.base import BaseTransform
 
 
 def wrapper_for_dataset(func):
     def wrapper(self, dataset, role):
-        if isinstance(dataset, dataio.NumpyDataset) or isinstance(dataset, dataio.TorchDataset):
+        if isinstance(dataset, NumpyDataset) or isinstance(dataset, TorchDataset):
             raw_dataset = dataset.get_dataset()
             raw_dataset = func(self, raw_dataset, role)
             dataset.set_dataset(raw_dataset)
@@ -23,9 +21,6 @@ def wrapper_for_dataset(func):
 
 
 class Scale(BaseTransform):
-    def __init__(self):
-        super(Scale, self).__init__()
-
     @wrapper_for_dataset
     def __call__(self, dataset, role):
         start_col = 2 if role == Const.ACTIVE_NAME else 1
@@ -44,7 +39,6 @@ class Scale(BaseTransform):
 
 class Normalize(BaseTransform):
     def __init__(self, norm=Const.L2):
-        super(Normalize, self).__init__()
         self.norm = norm
 
     @wrapper_for_dataset
@@ -69,7 +63,6 @@ class Normalize(BaseTransform):
 
 class ParseLabel(BaseTransform):
     def __init__(self, neg_label=0):
-        super(ParseLabel, self).__init__()
         self.neg_label = neg_label
 
     @wrapper_for_dataset
@@ -96,9 +89,6 @@ class ParseLabel(BaseTransform):
 
 
 class AddIntercept(BaseTransform):
-    def __init__(self):
-        super(AddIntercept, self).__init__()
-
     @wrapper_for_dataset
     def __call__(self, dataset, role):
         has_label = True if role == Const.ACTIVE_NAME else False
@@ -119,107 +109,40 @@ class AddIntercept(BaseTransform):
 
 
 class OneHot(BaseTransform):
-    """
-    An example of how to use this class:
-        data = pd.DataFrame(data=[[1, 'fe', 'y'],[2, 'ma', 'n'],[3, 'ma', 'n']] )
-        data.to_csv(r"D:/project/LinkeFL/linkefl/data/test1.csv", sep=',', header=False, index=False)
-
-        abs_path = r"D:/project/LinkeFL/linkefl/data/test1.csv"
-        transform = Compose([OneHot(target_datatype='numpy.ndarray', index=[1, 2])])
-        
-        dataset = NumpyDataset(role=Const.ACTIVE_NAME,
-                    abs_path=abs_path,
-                    transform=transform)
-
-    existing_dataset:
-        0   1   2
-    0   1   fe  y
-    1   2   ma  n
-    2   3   ma  n
-    dataset:
-    tensor([[1, 1, 0, 0, 1],
-             2, 0, 1, 1, 0],
-             3, 0, 1, 1, 0]])
-    """
-    def __init__(self, idxes):
-        super(OneHot, self).__init__()
-        if type(idxes) != list or not idxes:
-            raise ValueError('idxes should be an non-empty Python list')
+    def __init__(self, idxes=None):
+        if idxes is None:
+            idxes = []
         self.idxes = idxes
 
-    # TODO: should be the same as other transformers
-    def __call__(self, df, role):
+    @wrapper_for_dataset
+    def __call__(self, dataset, role):
+        df_dataset = pd.DataFrame(dataset)
+
         offset = 2 if role == Const.ACTIVE_NAME else 1
-        n_features = df.shape[1] - offset
+        n_features = df_dataset.shape[1] - offset
 
         all_idxes = list(range(n_features))
         remain_idxes = list(set(all_idxes) - set(self.idxes))
         sub_dfs = list() # a list composed of sub dataframes
-        sub_dfs.append(df[:, list(range(offset))]) # store ids or ids+labels
+        sub_dfs.append(df_dataset.iloc[:, :offset]) # store ids or ids+labels
         # store non one-hot features
-        sub_dfs.append(df[:, [idx+offset for idx in remain_idxes]])
+        sub_dfs.append(df_dataset.iloc[:, [idx + offset for idx in remain_idxes]])
 
         for idx in self.idxes:
-            if df[idx+offset].dtype in ('float32', 'float64'):
-                raise ValueError(f"{idx+offset}-th column has a dtype of float,"
-                                 f"which should not be applied by OneHot.")
-            dummy_df = pd.get_dummies(df[idx+offset], prefix=str(idx+offset))
+            # if df_dataset[idx + offset].dtype in ('float32', 'float64'):
+            #     raise ValueError(f"{idx+offset}-th column has a dtype of float,"
+            #                      f"which should not be applied by OneHot.")
+            dummy_df = pd.get_dummies(df_dataset[idx + offset], prefix=str(idx + offset))
             sub_dfs.append(dummy_df)
 
         # set copy=False to save memory
         final_df = pd.concat(sub_dfs, axis=1, copy=False)
-        return final_df
-
-
-        # if datatype == 'numpy.ndarray':
-        #
-        #
-        #     n_features = dataset.shape[1]
-        #     for i in range(n_features):
-        #         if i in self.index:
-        #             # Require to do One-hot coding
-        #             data = pd.DataFrame(dataset.iloc[:, i:i+1])
-        #             new_data = np.array(pd.get_dummies(data))
-        #             if i == 0:
-        #                 new_dataset = new_data
-        #             else:
-        #                 new_dataset = np.c_[new_dataset, new_data]
-        #         else:
-        #             # No require to do One-hot coding
-        #             new_data  = np.array(pd.DataFrame(dataset.iloc[:, i:i+1]))
-        #             if i == 0:
-        #                 new_dataset = new_data
-        #             else:
-        #                 new_dataset = np.c_[new_dataset, new_data]
-        #
-        # elif datatype == 'torch.Tensor':
-        #     n_features = dataset.shape[1]
-        #     for i in range(n_features):
-        #         if i in self.index:
-        #             # Require to do One-hot coding
-        #             data = pd.DataFrame(dataset.iloc[:, i:i+1])
-        #             new_data = torch.from_numpy(np.array(pd.get_dummies(data)))
-        #             if i == 0:
-        #                 new_dataset = new_data
-        #             else:
-        #                 new_dataset = torch.cat((new_dataset, new_data), dim=1)
-        #         else:
-        #             # No require to do One-hot coding
-        #             new_data  = torch.from_numpy(np.array(pd.DataFrame(dataset.iloc[:, i:i+1])))
-        #             if i == 0:
-        #                 new_dataset = new_data
-        #             else:
-        #                 new_dataset = torch.cat((new_dataset, new_data), dim=1)
-        #
-        # else:
-        #     raise TypeError('The target type of the dataset should be numpy.ndarray or torch.Tensor')
-        #
-        # return new_dataset
+        new_dataset = final_df.to_numpy()
+        return new_dataset
 
 
 class Bin(BaseTransform):
     def __init__(self, bin_features=None, bin_methods=None, para=None):
-        super(Bin, self).__init__()
         self.bin_features = bin_features if bin_features is not None else []
         self.bin_methods = bin_methods if bin_methods is not None else []
         if isinstance(bin_methods, list) == False:

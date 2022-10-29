@@ -177,8 +177,13 @@ if __name__ == '__main__':
         role=Const.PASSIVE_NAME,
         passive_feat_frac=passive_feat_frac
     )
+    # mnist & fashion_mnist
     bottom_nodes = [input_nodes, 256, 128]
     cut_nodes = [128, 64]
+
+    # criteo
+    # bottom_nodes = [input_nodes, 15, 10]
+    # cut_nodes = [10, 10]
     bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
     cut_layer = CutLayer(*cut_nodes)
     _models = {"bottom": bottom_model, "cut": cut_layer}

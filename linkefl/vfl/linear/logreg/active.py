@@ -9,8 +9,8 @@ from termcolor import colored
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature import add_intercept, scale, parse_label
-from linkefl.feature import ParseLabel, Scale, AddIntercept, Compose
+from linkefl.feature.transform import add_intercept, scale, parse_label
+from linkefl.feature.transform import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid, save_params
 from linkefl.vfl.linear import BaseLinearActive
