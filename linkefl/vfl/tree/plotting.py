@@ -26,7 +26,8 @@ def plot_importance(
     title: str = "Feature importance",
     xlabel: str = "Importance score",
     ylabel: str = "Features",
-    figsize: Optional[Tuple[float, float]] = None,
+    # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
+    figsize: Optional[tuple] = None,
     height: float = 0.2,
     xlim: Optional[tuple] = None,
     ylim: Optional[tuple] = None,
