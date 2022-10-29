@@ -2,27 +2,59 @@ from typing import Union
 
 import numpy as np
 import torch
+from torch.utils.data import Dataset
 
+from linkefl.dataio.common_dataset import CommonDataset
 from linkefl.common.const import Const
-from linkefl.dataio import NumpyDataset
+# avoid circular importing
+# from linkefl.feature.transform import BaseTransform
 
 
-class TorchDataset(NumpyDataset):
-    def __init__(self, role, dataset: Union[np.ndarray, torch.Tensor], dataset_type, transform=None):
-        if isinstance(dataset, np.ndarray):
-            dataset = torch.from_numpy(dataset)
+class TorchDataset(CommonDataset, Dataset):
+    def __init__(self,
+                 role: str,
+                 raw_dataset: Union[np.ndarray, torch.Tensor],
+                 dataset_type: str,
+                 # transform: BaseTransform = None
+                 transform=None
+    ):
+        if isinstance(raw_dataset, np.ndarray):
+            # PyTorch forward() function expects tensor type of Float rather Double,
+            raw_dataset = raw_dataset.astype(np.float32)
+            raw_dataset = torch.from_numpy(raw_dataset) # very important
 
-        super().__init__(role, dataset, dataset_type, transform)
+        # since there is no super() in CommonDataset's __init__() constructor,
+        # python's MRO(method resolution order) will not be triggered, and only
+        # CommonDataset's __init__() constructor is being called.
+        # ref: https://stackoverflow.com/a/16310777/8418540
+        super(TorchDataset, self).__init__(
+            role=role,
+            raw_dataset=raw_dataset,
+            dataset_type=dataset_type,
+            transform=transform
+        )
 
     @staticmethod
-    def _load_buildin_dataset(role, name, root, train, frac, perm_option, download, seed=1314):
+    def _load_buildin_dataset(role, name,
+                              root, train, download,
+                              frac, perm_option,
+                              seed=None
+    ):
         if name not in ('mnist', 'fashion_mnist', 'svhn'):
-            # Load CSV datasets
-            np_dataset = super()._load_buildin_dataset(role, name, root, train, frac, perm_option, download, seed)
+            # the following answer shows how to call staticmethod in superclass:
+            # ref: https://stackoverflow.com/a/26807879/8418540
+            np_dataset = super(TorchDataset, TorchDataset)._load_buildin_dataset(
+                role=role, name=name,
+                root=root, train=train, download=download,
+                frac=frac, perm_option=perm_option,
+                seed=seed
+            )
             return np_dataset
 
         # 1. Load PyTorch datasets
         from torchvision import datasets, transforms
+
+        from linkefl.feature import cal_importance_ranking
 
         if name == 'mnist':
             transform = transforms.Compose([
@@ -116,19 +148,24 @@ class TorchDataset(NumpyDataset):
             n_feats = _feats.shape[1]
             _feats = _feats[:, torch.randperm(n_feats)]
         elif perm_option == Const.IMPORTANCE:
-            raise NotImplementedError('future work')
+            rankings = cal_importance_ranking(name, _feats.numpy(), _labels.numpy())
+            rankings = torch.from_numpy(rankings)
+            _feats = _feats[:, rankings]
 
         # 3. Split the features into active party and passive party
         num_passive_feats = int(frac * _feats.shape[1])
         if role == Const.PASSIVE_NAME:
             _feats = _feats[:, :num_passive_feats]
-            torch_dataset = torch.cat((torch.unsqueeze(_ids, 1), _feats), dim=1)
+            torch_dataset = torch.cat(
+                (torch.unsqueeze(_ids, 1), _feats),
+                dim=1
+            )
         else:
             _feats = _feats[:, num_passive_feats:]
-            torch_dataset = torch.cat((torch.unsqueeze(_ids, 1),
-                                       torch.unsqueeze(_labels, 1),
-                                       _feats),
-                                      dim=1)
+            torch_dataset = torch.cat(
+                (torch.unsqueeze(_ids, 1), torch.unsqueeze(_labels, 1), _feats),
+                dim=1
+            )
 
         return torch_dataset
 
