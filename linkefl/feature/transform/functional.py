@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 
 from linkefl.common.const import Const
-from linkefl.feature.transform import Scale, Normalize, ParseLabel, AddIntercept, OneHot
+from linkefl.feature.transform.transform import Scale, Normalize, ParseLabel, AddIntercept, OneHot
 
 if TYPE_CHECKING:
     # Only import in 3rd party static type checkers (e.g. vscode pycharm)
