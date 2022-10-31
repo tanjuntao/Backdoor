@@ -428,12 +428,12 @@ if __name__ == "__main__":
     # print(scores)
 
     # test
-    # feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
-    # print(feature_importance_info)
+    feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
+    print(feature_importance_info)
 
     # 5. Close messenger, finish training
     for messenger in messengers:
         messenger.close()
 
-    ax = plot_importance(active_party, importance_type='split')
-    plt.show()
+    # ax = plot_importance(active_party, importance_type='split')
+    # plt.show()

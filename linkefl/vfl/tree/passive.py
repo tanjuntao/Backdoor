@@ -68,8 +68,6 @@ class PassiveTreeParty:
         # filled as training goes on
         self.record = None
 
-        self._init_tree_info()
-
     def fit(self, trainset, testset, role=Const.PASSIVE_NAME):
         self.train(trainset, testset)
 
@@ -117,11 +115,10 @@ class PassiveTreeParty:
                     wrap_message("record", content=(feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left))
                 )
 
-            elif data['name'] == 'tree finished' and data["content"] is True:
+            elif data["name"] == "validate" and data["content"] is True:
+                # after training a tree, enter the evaluation stage
                 self._merge_tree_info()     # merge information from current tree
                 # Todo: store model
-
-            elif data["name"] == "validate" and data["content"] is True:
                 self._validate(testset)
 
             elif data["name"] == "train finished" and data["content"] is True:
@@ -163,8 +160,12 @@ class PassiveTreeParty:
         if self.record_tree is None:
             self.record_tree = record
         else:
-            self.record_tree = np.concatenate((self.record, record), axis=0)
-        record_id = len(self.record) + len(self.record_tree) - 1
+            self.record_tree = np.concatenate((self.record_tree, record), axis=0)
+
+        if self.record is None:
+            record_id = len(self.record_tree) - 1
+        else:
+            record_id = len(self.record) + len(self.record_tree) - 1
 
         # update sample_tag
         sample_tag_selected_left = sample_tag_selected
