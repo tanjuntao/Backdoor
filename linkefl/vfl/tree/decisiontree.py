@@ -215,6 +215,7 @@ class DecisionTree:
             )
 
         # start building tree
+        feature_importance_info_tree =
         self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
                                      current_depth=0,
                                      feature_importance_info = feature_importance_info)
