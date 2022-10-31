@@ -4,6 +4,7 @@ from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.dataio import gen_dummy_ids, NumpyDataset
 from linkefl.messenger import FastSocket
+from linkefl.pipeline.base import TransformComponent
 
 try:
     from linkefl.psi.cm20.PsiPython import PsiSender
@@ -11,7 +12,7 @@ except ImportError:
     raise RuntimeError("Script launching order error. You should launch active party first.")
 
 
-class CM20PSIPassive:
+class CM20PSIPassive(TransformComponent):
     def __init__(
         self,
         messenger,

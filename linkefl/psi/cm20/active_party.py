@@ -10,6 +10,7 @@ from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.dataio import gen_dummy_ids, NumpyDataset
 from linkefl.messenger import FastSocket
+from linkefl.pipeline.base import TransformComponent
 from linkefl.util import urlretrive
 
 try:
@@ -49,7 +50,7 @@ except ImportError:
     print('Done!')
 
 
-class CM20PSIActive:
+class CM20PSIActive(TransformComponent):
     def __init__(
         self,
         messenger,

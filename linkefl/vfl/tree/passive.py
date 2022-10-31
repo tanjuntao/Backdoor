@@ -10,11 +10,12 @@ from linkefl.common.factory import logger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.messenger.base import Messenger
 from linkefl.modelio import NumpyModelIO
+from linkefl.pipeline.base import ModelComponent
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.hist import PassiveHist
 
 
-class PassiveTreeParty:
+class PassiveTreeParty(ModelComponent):
     def __init__(
         self,
         task: str,

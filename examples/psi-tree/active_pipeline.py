@@ -1,7 +1,7 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature import Compose, ParseLabel
+from linkefl.feature.transform import Compose, ParseLabel
 from linkefl.messenger import FastSocket
 from linkefl.pipeline import PipeLine
 from linkefl.psi import CM20PSIActive

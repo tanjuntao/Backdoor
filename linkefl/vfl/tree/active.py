@@ -17,6 +17,7 @@ from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
 from linkefl.messenger.base import Messenger
 from linkefl.modelio import NumpyModelIO
+from linkefl.pipeline.base import ModelComponent
 from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
@@ -24,7 +25,7 @@ from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyL
 from linkefl.vfl.tree.plotting import plot_importance
 
 
-class ActiveTreeParty:
+class ActiveTreeParty(ModelComponent):
     def __init__(
         self,
         n_trees: int,
