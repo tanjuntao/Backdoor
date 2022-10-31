@@ -3,6 +3,7 @@ import random
 import threading
 import numpy as np
 
+from collections import defaultdict
 from multiprocessing import Pool
 from typing import List
 
@@ -105,6 +106,11 @@ class DecisionTree:
         self.other_rate = other_rate
         self.colsample_bytree = colsample_bytree
         self.pool = pool
+        self.feature_importance_info = {
+            "split": defaultdict(int),
+            "gain": defaultdict(float),
+            "cover": defaultdict(float)
+        }
 
         # given when training starts
         self.bin_index_selected = None
@@ -121,7 +127,7 @@ class DecisionTree:
         self.update_pred = None  # saving tree raw output
 
 
-    def fit(self, gradient, hessian, bin_index, bin_split, feature_importance_info):
+    def fit(self, gradient, hessian, bin_index, bin_split):
         """single tree training, return raw output"""
 
         sample_num, feature_num = bin_index.shape[0], bin_index.shape[1]
@@ -216,10 +222,9 @@ class DecisionTree:
 
         # start building tree
         self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
-                                     current_depth=0,
-                                     feature_importance_info = feature_importance_info)
+                                     current_depth=0)
 
-        return self.update_pred
+        return self.update_pred, self.feature_importance_info
 
     def predict(self, x_test):
         """single tree predict"""
@@ -245,8 +250,7 @@ class DecisionTree:
         party_id=None,
         feature_id=None,
         split_id=None,
-        max_gain=None,
-        feature_importance_info=None,
+        max_gain=None
     ):
         # split only when conditions meet
         if (
@@ -290,9 +294,9 @@ class DecisionTree:
                     feature_id_origin, record_id, sample_tag_selected_left , sample_tag_unselected_left = data["content"]
 
                 # store feature split information
-                feature_importance_info['split'][f'client{party_id}_feature{feature_id_origin}'] += 1
-                feature_importance_info['gain'][f'client{party_id}_feature{feature_id_origin}'] += max_gain
-                feature_importance_info['cover'][f'client{party_id}_feature{feature_id_origin}'] += sum(
+                self.feature_importance_info['split'][f'client{party_id}_feature{feature_id_origin}'] += 1
+                self.feature_importance_info['gain'][f'client{party_id}_feature{feature_id_origin}'] += max_gain
+                self.feature_importance_info['cover'][f'client{party_id}_feature{feature_id_origin}'] += sum(
                     sample_tag_selected)
                 self.logger.log(f"store feature split information")
 
@@ -321,15 +325,13 @@ class DecisionTree:
                         party_id=party_id_left,
                         feature_id=feature_id_left,
                         split_id=split_id_left,
-                        max_gain=max_gain_left,
-                        feature_importance_info=feature_importance_info,
+                        max_gain=max_gain_left
                     )
                     right_node = self._build_tree(
                         sample_tag_selected_right,
                         sample_tag_unselected_right,
                         current_depth + 1,
-                        hist_list=hist_list_right,
-                        feature_importance_info=feature_importance_info
+                        hist_list=hist_list_right
                     )
                 else:
                     (
@@ -347,8 +349,7 @@ class DecisionTree:
                         sample_tag_selected_left,
                         sample_tag_unselected_left,
                         current_depth + 1,
-                        hist_list=hist_list_left,
-                        feature_importance_info = feature_importance_info
+                        hist_list=hist_list_left
                     )
                     right_node = self._build_tree(
                         sample_tag_selected_right,
@@ -358,8 +359,7 @@ class DecisionTree:
                         party_id=party_id_right,
                         feature_id=feature_id_right,
                         split_id=split_id_right,
-                        max_gain=max_gain_right,
-                        feature_importance_info=feature_importance_info
+                        max_gain=max_gain_right
                     )
 
                 return _DecisionNode(

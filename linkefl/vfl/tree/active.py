@@ -180,9 +180,11 @@ class ActiveTreeParty:
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
-                update_pred = tree.fit(gradient, hessian, bin_index, bin_split, self.feature_importance_info)
-                self.logger.log(f"tree {i} finished")
 
+                update_pred, feature_importance_info_tree = tree.fit(gradient, hessian, bin_index, bin_split)
+                self._merge_tree_info(feature_importance_info_tree)
+
+                self.logger.log(f"tree {i} finished")
                 for messenger in self.messengers:
                     messenger.send(wrap_message("validate", content=True))
 
@@ -211,9 +213,11 @@ class ActiveTreeParty:
                 loss = self.loss.loss(labels_onehot, outputs)
                 gradient = self.loss.gradient(labels_onehot, outputs)
                 hessian = self.loss.hessian(labels_onehot, outputs)
-                update_pred = tree.fit(gradient, hessian, bin_index, bin_split, self.feature_importance_info)
-                self.logger.log(f"tree {i} finished")
 
+                update_pred, feature_importance_info_tree = tree.fit(gradient, hessian, bin_index, bin_split)
+                self._merge_tree_info(feature_importance_info_tree)
+
+                self.logger.log(f"tree {i} finished")
                 for messenger in self.messengers:
                     messenger.send(wrap_message("validate", content=True))
 
@@ -296,6 +300,17 @@ class ActiveTreeParty:
             messenger.send(wrap_message("validate finished", content=True))
 
         return scores
+
+    def _merge_tree_info(self, feature_importance_info_tree):
+        if feature_importance_info_tree is not None:
+            for key in feature_importance_info_tree["split"].keys():
+                self.feature_importance_info["split"][key] += feature_importance_info_tree["split"][key]
+            for key in feature_importance_info_tree["gain"].keys():
+                self.feature_importance_info["gain"][key] += feature_importance_info_tree["gain"][key]
+            for key in feature_importance_info_tree["cover"].keys():
+                self.feature_importance_info["cover"][key] += feature_importance_info_tree["cover"][key]
+
+        self.logger.log("merge tree information done")
 
     def score(self, testset, role=Const.ACTIVE_NAME):
         return self.predict(testset)
