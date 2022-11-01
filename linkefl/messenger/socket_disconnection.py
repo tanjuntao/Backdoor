@@ -7,7 +7,129 @@ from termcolor import colored
 from .base import Messenger
 from linkefl.config import BaseConfig
 from linkefl.common.const import Const
+
 socket.setdefaulttimeout(20)
+
+class FastSocket_disconnection_v1(Messenger):
+    def __init__(self,
+                 role,
+                 active_ip,
+                 active_port,
+                 passive_ip,
+                 passive_port,
+                 verbose=False):
+        """Initialize socket messenger.
+
+        After Initialzation, a daemon socket will run in backend at both RSAPSIPassive
+        and RSAPSIActive's side.
+        """
+        super(FastSocket_disconnection_v1, self).__init__()
+        assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
+
+        self.role = role
+        self.active_ip = active_ip
+        self.active_port = active_port
+        self.passive_ip = passive_ip
+        self.passive_port = passive_port
+        self.verbose = verbose
+
+        self.sock_daemon = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock_send = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.is_connected = False
+        self.is_accepted = False
+
+        if self.role == Const.PASSIVE_NAME:
+            self.sock_daemon.bind((passive_ip, passive_port))
+        else:
+            self.sock_daemon.bind((active_ip, active_port))
+
+        self.sock_daemon.listen(10)
+
+    @classmethod
+    def from_config(cls, config):
+        assert isinstance(config, BaseConfig), 'config object should be an ' \
+                                               'instance of BaseConfig class.'
+        return cls(role=config.ROLE,
+                   active_ip=config.ACTIVE_IP,
+                   active_port=config.ACTIVE_PORT,
+                   passive_ip=config.PASSIVE_IP,
+                   passive_port=config.PASSIVE_PORT,
+                   verbose=config.VERBOSE)
+
+    def send(self, msg, compress=False, cname='blosc', passive_party_connected=True):
+
+        assert cname in (Const.BLOSC, Const.ZLIB), "invalid compression name"
+
+        if self.role == Const.PASSIVE_NAME:
+            self._passive_send(msg, compress=compress, cname=cname)
+        else:
+            # active party makes a disconnection judgment
+            if passive_party_connected:
+                try:
+                    self._active_send(msg, compress=compress, cname=cname)
+                    return True
+                except Exception:
+                    print(colored("Passive party is disconnected", 'red'))
+                    return False
+            else:
+                return False
+
+    def recv(self, passive_party_connected=True):
+        """
+
+        Args:
+            passive_party_connected:
+
+        Returns:
+            receive message and passive party state.
+        """
+        if self.role == Const.PASSIVE_NAME:
+            return self._passive_recv()
+        else:
+            # active party makes a disconnection judgment
+            if passive_party_connected:
+                try:
+                    rec_data = self._active_recv()
+                except Exception:
+                    print(colored("Passive party is disconnected", 'red'))
+                    return None, False
+                else:
+                    # execute after the try part is executed
+                    passive_party_connected = self._verify_data_integrtiy(rec_data)
+                    if not passive_party_connected:
+                        print(colored("Passive party has been disconnected", 'red'))
+                    return rec_data, passive_party_connected
+            else:
+                return None, False
+
+    def close(self):
+        self.sock_send.close()
+        self.sock_daemon.close()
+
+    def try_reconnect(self):
+        self.sock_send = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            self.sock_send.connect((self.passive_ip, self.passive_port))
+            self.is_connected = True
+            return True
+        except Exception:
+            return False
+
+    def _verify_data_integrtiy(self):
+        pass
+
+    def _active_send(self):
+        pass
+
+    def _passive_send(self):
+        pass
+
+    def _active_recv(self):
+        pass
+
+    def _passive_recv(self):
+        pass
+
 
 class FastSocket_disconnection(Messenger):
     """Implement messenger using python socket
