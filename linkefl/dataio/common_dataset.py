@@ -15,6 +15,8 @@ from linkefl.dataio import BaseDataset
 
 class CommonDataset(BaseDataset):
     """Common Dataset"""
+    mappings = None  # mappings for pandas non-numeric columns
+
     def __init__(self,
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
@@ -639,9 +641,49 @@ class CommonDataset(BaseDataset):
         """Transform a pandas DataFrame into Numpy Array"""
         from pandas.core.dtypes.common import is_numeric_dtype
 
+        if CommonDataset.mappings is not None:
+            create_mappings_flag = False
+            mappings = CommonDataset.mappings
+        else:
+            create_mappings_flag = True
+            mappings = dict()
+
         for i, dtype in enumerate(df_dataset.dtypes):
             if not is_numeric_dtype(dtype):
-                df_dataset[df_dataset.columns[i]], _ = pd.factorize(df_dataset.iloc[:, i])
+                if create_mappings_flag is True:
+                    df_dataset[df_dataset.columns[i]], uniques = pd.factorize(df_dataset.iloc[:, i])
+                    mapping = dict(zip(uniques, range(len(uniques))))
+                    mappings[i] = mapping
+                else:
+                    df_dataset[df_dataset.columns[i]] = df_dataset.iloc[:, i].replace(mappings[i])
+
+        CommonDataset.mappings = mappings
 
         np_dataset = df_dataset.to_numpy()
         return np_dataset
+
+
+if __name__ == "__main__":
+    from linkefl.feature.transform import OneHot
+
+    print("the first df_dataset")
+    df_dataset = pd.DataFrame(
+        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["aaa", "bbb", "ccc"], "b": ["aa", "bb", "cc"]}
+    )
+    print(df_dataset)
+    np_dataset = CommonDataset._pandas2numpy(df_dataset)
+    print(np_dataset)
+    np_dataset = OneHot([1, 2]).fit(np_dataset, Const.PASSIVE_NAME)
+    print(np_dataset)
+
+    print()
+
+    print("the second df_dataset")
+    another_df_dataset = pd.DataFrame(
+        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["bbb", "ccc", "aaa"], "b": ["cc", "aa", "bb"]}
+    )
+    print(another_df_dataset)
+    another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset)
+    print(another_np_dataset)
+    another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
+    print(another_np_dataset)
