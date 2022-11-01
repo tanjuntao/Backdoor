@@ -1,12 +1,16 @@
 import queue
 import random
 import threading
+import time
+
 import numpy as np
 
 from collections import defaultdict
 from multiprocessing import Pool
 from typing import List
+from termcolor import colored
 
+from linkefl.common.error import DisconnectedError
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.crypto.base import CryptoSystem
@@ -24,7 +28,6 @@ from linkefl.vfl.tree.train_functions import (
     leaf_weight,
     leaf_weight_multi,
 )
-
 
 class _DecisionNode:
     def __init__(
@@ -67,6 +70,7 @@ class DecisionTree:
         other_rate: float = 0.5,
         colsample_bytree: float = 1,
         pool: Pool = None,
+        drop_protection: bool = False,
     ):
         """Decision Tree class to create a single tree
 
@@ -106,6 +110,7 @@ class DecisionTree:
         self.other_rate = other_rate
         self.colsample_bytree = colsample_bytree
         self.pool = pool
+        self.drop_protection = drop_protection
         self.feature_importance_info = {
             "split": defaultdict(int),
             "gain": defaultdict(float),
@@ -207,22 +212,35 @@ class DecisionTree:
             raise ValueError("No such task label.")
 
         self.logger.log("gh packed")
-        for messenger in self.messengers:
-            messenger.send(
-                wrap_message(
-                    "gh",
-                    content=(
-                        gh_send,
-                        self.compress,
-                        self.capacity,
-                        self.gh_length,
-                    ),
-                )
-            )
 
-        # start building tree
-        self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
-                                     current_depth=0)
+        while True:
+            try:
+                for messenger in self.messengers:
+                    messenger.send(
+                        wrap_message(
+                            "gh",
+                            content=(gh_send, self.compress, self.capacity, self.gh_length),
+                        )
+                    )
+
+                # start building tree
+                self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
+                                             current_depth=0)
+            except DisconnectedError as e:
+                print(colored(f"passive party {e.drop_party_id} is disconnected.", "red"))
+
+                self.logger.log(f"passive party {e.drop_party_id} is disconnected.")
+
+                if self.drop_protection:
+                    self.logger.log("start reconnect")
+
+                    reconnect = False
+                    while not reconnect:
+                        reconnect = self.messengers[e.drop_party_id].try_reconnect()
+                        time.sleep(10)      # Try to reconnect every 10s
+            else:
+                # if no exception occurs, break out of the loop
+                break
 
         return self.update_pred, self.feature_importance_info
 
@@ -287,7 +305,13 @@ class DecisionTree:
                             "record", content=(feature_id, split_id, sample_tag_selected, sample_tag_unselected)
                         )
                     )
-                    data = self.messengers[party_id - 1].recv()
+                    if self.drop_protection:
+                        data, passive_party_connected = self.messengers[party_id - 1].recv()
+                        if not passive_party_connected:
+                            raise DisconnectedError(party_id - 1)
+                    else:
+                        data = self.messengers[party_id - 1].recv()
+
                     assert data["name"] == "record"
 
                     # Get the selected feature index to the original feature index
@@ -428,7 +452,12 @@ class DecisionTree:
             self.messengers[tree_node.party_id - 1].send(
                 wrap_message("judge", content=(sample_id, tree_node.record_id))
             )
-            data = self.messengers[tree_node.party_id - 1].recv()
+
+            if self.drop_protection:
+                data, passive_party_connected = self.messengers[tree_node.party_id - 1].recv()
+            else:
+                data = self.messengers[tree_node.party_id - 1].recv()
+
             assert data["name"] == "judge"
 
             branch_tag = data["content"]
@@ -440,7 +469,13 @@ class DecisionTree:
             return self._predict_value(x_sample, sample_id, tree_node.left_branch)
 
     def _process_passive_hist(self, messenger, i, q: queue.Queue):
-        data = messenger.recv()
+        if self.drop_protection:
+            data, passive_party_connected = messenger.recv()
+            if not passive_party_connected:
+                raise DisconnectedError(i-1)
+        else:
+            data = messenger.recv()
+
         assert data["name"] == "hist"
 
         passive_hist = self._get_passive_hist(data)

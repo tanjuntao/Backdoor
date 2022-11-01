@@ -65,7 +65,12 @@ if __name__ == "__main__":
         messenger=messenger,
         saving_model=True,
     )
-    passive_party.train(passive_trainset, passive_testset)
+
+    # load temp model and retrain
+    load_model_path = "./models"
+    load_model_name = ""
+    passive_party.load_retrain(load_model_path, load_model_name, passive_trainset, passive_testset)
+
     # passive_party.online_inference(passive_testset, "xxx.model")
 
     # test

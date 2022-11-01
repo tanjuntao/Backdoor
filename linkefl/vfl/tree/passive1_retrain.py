@@ -16,9 +16,9 @@ if __name__ == "__main__":
     _crypto_type = Const.FAST_PAILLIER
 
     active_ip = "localhost"
-    active_port = 20002
+    active_port = 20001
     passive_ip = "localhost"
-    passive_port = 30002
+    passive_port = 30001
 
     # 1. Load datasets
     print("Loading dataset...")
@@ -36,8 +36,8 @@ if __name__ == "__main__":
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
-    _, passive_trainset = NumpyDataset.feature_split(passive_trainset, 2)
-    _, passive_testset = NumpyDataset.feature_split(passive_testset, 2)
+    passive_trainset, _ = NumpyDataset.feature_split(passive_trainset, 2)
+    passive_testset, _ = NumpyDataset.feature_split(passive_testset, 2)
     print("Done")
 
     # 2. Initialize messenger
@@ -65,7 +65,12 @@ if __name__ == "__main__":
         messenger=messenger,
         saving_model=True,
     )
-    passive_party.train(passive_trainset, passive_testset)
+
+    # load temp model and retrain
+    load_model_path = "./models"
+    load_model_name = ""
+    passive_party.load_retrain(load_model_path, load_model_name, passive_trainset, passive_testset)
+
     # passive_party.online_inference(passive_testset, "xxx.model")
 
     # test

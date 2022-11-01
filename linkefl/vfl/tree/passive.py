@@ -118,7 +118,15 @@ class PassiveTreeParty:
             elif data["name"] == "validate" and data["content"] is True:
                 # after training a tree, enter the evaluation stage
                 self._merge_tree_info()     # merge information from current tree
-                # Todo: store model
+
+                # store temp file
+                if self.saving_model:
+                    model_name = (
+                        f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    )
+                NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
+
+                self.logger.log("temp model saved")
                 self._validate(testset)
 
             elif data["name"] == "train finished" and data["content"] is True:
@@ -126,7 +134,7 @@ class PassiveTreeParty:
                     model_name = (
                         f"{self.model_name}-{trainset.n_samples}_samples.model"
                     )
-                    NumpyModelIO.save(self.record, self.model_path, model_name)
+                    NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
                 self.logger.log("train finished")
                 break
 
@@ -139,10 +147,11 @@ class PassiveTreeParty:
             )
         )
 
-    def load_retrain(self):
+    def load_retrain(self, load_model_path, load_model_name, trainset, testset):
         """breakpoint retraining function.
         """
-        pass
+        self.record, self.feature_importance_info = NumpyModelIO.load(load_model_path, load_model_name)
+        self.train(trainset, testset)
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
         feature_id_origin = self.feature_index_selected[feature_id]
@@ -231,7 +240,7 @@ class PassiveTreeParty:
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        self.record = NumpyModelIO.load(model_path, model_name)
+        self.record, self.feature_importance_info = NumpyModelIO.load(model_path, model_name)
 
         self._validate(dataset)
 

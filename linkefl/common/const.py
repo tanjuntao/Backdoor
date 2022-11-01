@@ -44,6 +44,7 @@ class Const:
 
     SOCKET = "socket"
     FAST_SOCKET = "fast_socket"
+    FAST_SOCKET_V1 = 'fast_socket_v1'
 
     DATALOADER = "dataloader"
     TRANSFORM = "transform"

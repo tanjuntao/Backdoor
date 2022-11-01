@@ -1,7 +1,7 @@
 import pandas as pd
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory
+from linkefl.common.factory import messenger_factory, messenger_factory_disconnection
 from linkefl.dataio import NumpyDataset
 from linkefl.vfl.tree import PassiveTreeParty
 
@@ -38,11 +38,21 @@ if __name__ == "__main__":
                                                    feat_perm_option=feat_perm_option)
     passive_trainset, _ = NumpyDataset.feature_split(passive_trainset, 2)
     passive_testset, _ = NumpyDataset.feature_split(passive_testset, 2)
+    # passive_trainset = NumpyDataset.feature_split(passive_trainset, 1)
+    # passive_testset = NumpyDataset.feature_split(passive_testset, 1)
     print("Done")
 
     # 2. Initialize messenger
-    messenger = messenger_factory(
-        messenger_type=Const.FAST_SOCKET,
+    # messenger = messenger_factory(
+    #     messenger_type=Const.FAST_SOCKET,
+    #     role=Const.PASSIVE_NAME,
+    #     active_ip=active_ip,
+    #     active_port=active_port,
+    #     passive_ip=passive_ip,
+    #     passive_port=passive_port,
+    # )
+    messenger = messenger_factory_disconnection(
+        messenger_type=Const.FAST_SOCKET_V1,
         role=Const.PASSIVE_NAME,
         active_ip=active_ip,
         active_port=active_port,

@@ -11,7 +11,8 @@ from collections import defaultdict
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+from linkefl.common.error import DisconnectedError
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory, messenger_factory_disconnection
 from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
@@ -48,6 +49,7 @@ class ActiveTreeParty:
         other_rate: float = 0.5,
         colsample_bytree: float = 1,
         n_processes: int = 1,
+        drop_protection: bool = False,
         saving_model: bool = False,
         model_path: str = "./models",
     ):
@@ -125,6 +127,7 @@ class ActiveTreeParty:
                 other_rate=other_rate,
                 colsample_bytree=colsample_bytree,
                 pool=self.pool,
+                drop_protection=drop_protection,
             )
             for _ in range(n_trees)
         ]
@@ -407,9 +410,22 @@ if __name__ == "__main__":
     )
 
     # 3. Initialize messenger
+    # messengers = [
+    #     messenger_factory(
+    #         messenger_type=Const.FAST_SOCKET,
+    #         role=Const.ACTIVE_NAME,
+    #         active_ip=active_ip,
+    #         active_port=active_port,
+    #         passive_ip=passive_ip,
+    #         passive_port=passive_port,
+    #     )
+    #     for active_ip, active_port, passive_ip, passive_port in zip(
+    #         active_ips, active_ports, passive_ips, passive_ports
+    #     )
+    # ]
     messengers = [
-        messenger_factory(
-            messenger_type=Const.FAST_SOCKET,
+        messenger_factory_disconnection(
+            messenger_type=Const.FAST_SOCKET_V1,
             role=Const.ACTIVE_NAME,
             active_ip=active_ip,
             active_port=active_port,
