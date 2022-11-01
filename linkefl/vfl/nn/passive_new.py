@@ -41,7 +41,8 @@ class PassiveNeuralNetwork:
                 out_nodes=self.models["cut"].out_nodes,
                 eta=learning_rate,
                 messenger=messenger,
-                cryptosystem=cryptosystem
+                cryptosystem=cryptosystem,
+                precision=precision
             )
         self._sync_pubkey()
 
@@ -80,11 +81,10 @@ class PassiveNeuralNetwork:
         for epoch in range(self.epochs):
             print('Epoch: {}'.format(epoch))
             for batch_idx, X in enumerate(train_dataloader):
-                print(f"batch: {batch_idx}")
+                # print(f"batch: {batch_idx}")
                 # 1. forward
                 bottom_outputs = self.models["bottom"](X)
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                    # TODO: whether using bottom_outputs.data
                     passive_repr = self.enc_layer.fed_forward(bottom_outputs)
                 else:
                     passive_repr = self.models["cut"](bottom_outputs)
@@ -106,7 +106,7 @@ class PassiveNeuralNetwork:
                     self.optimizers["cut"].step()
                     self.optimizers["bottom"].step()
 
-                break
+                # break
 
             scores = self.validate(testset, existing_loader=test_dataloader)
             is_best = self.messenger.recv()
@@ -149,7 +149,8 @@ if __name__ == '__main__':
     _epochs = 2
     _batch_size = 100
     _learning_rate = 0.01
-    _crypto_type = Const.FAST_PAILLIER
+    _passive_in_nodes = 10
+    _crypto_type = Const.PLAIN
     _key_size = 1024
     torch.manual_seed(1314)
 
@@ -179,11 +180,15 @@ if __name__ == '__main__':
     )
     # mnist & fashion_mnist
     bottom_nodes = [input_nodes, 256, 128]
-    cut_nodes = [128, 64]
+    cut_nodes = [_passive_in_nodes, 64]
 
     # criteo
     # bottom_nodes = [input_nodes, 15, 10]
     # cut_nodes = [10, 10]
+
+    # census
+    # bottom_nodes = [input_nodes, 20, 10]
+    # cut_nodes = [_passive_in_nodes, 8]
     bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
     cut_layer = CutLayer(*cut_nodes)
     _models = {"bottom": bottom_model, "cut": cut_layer}

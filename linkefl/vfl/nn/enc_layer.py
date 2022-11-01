@@ -1,14 +1,16 @@
 import numpy as np
+from phe import EncodedNumber
 import torch
 
 
 class PassiveEncLayer:
-    def __init__(self, in_nodes, out_nodes, eta, cryptosystem, messenger):
+    def __init__(self, in_nodes, out_nodes, eta, cryptosystem, messenger, precision=0.001):
         self.in_nodes = in_nodes
         self.out_nodes = out_nodes
         self.eta = eta
         self.cryptosystem = cryptosystem
         self.messenger = messenger
+        self.precision = precision
 
         self.w_acc = np.random.rand(in_nodes, out_nodes).astype(np.float32)
 
@@ -40,12 +42,13 @@ class PassiveEncLayer:
 
 
 class ActiveEncLayer:
-    def __init__(self, in_nodes, out_nodes, eta, cryptosystem, messenger):
+    def __init__(self, in_nodes, out_nodes, eta, cryptosystem, messenger, precision=0.001):
         self.in_nodes = in_nodes
         self.out_nodes = out_nodes
         self.eta = eta
         self.cryptosystem = cryptosystem
         self.messenger = messenger
+        self.precision = precision
 
         self.w_tilde = np.random.rand(in_nodes, out_nodes).astype(np.float32)
         self.curr_enc_a = None
@@ -53,19 +56,37 @@ class ActiveEncLayer:
     def fed_forward(self):
         enc_a = self.messenger.recv() # is a numpy array, shape: (bs, input_nodes)
         self.curr_enc_a = enc_a
-        # enc_z_tilde = np.matmul(enc_a, self.w_tilde.numpy())
-        enc_z_tilde = np.matmul(enc_a, self.w_tilde) # shape: (bs, output_nodes)
+        w_tilde_encode = ActiveEncLayer._encode(
+            self.w_tilde,
+            self.cryptosystem.pub_key,
+            self.precision
+        )
+        enc_z_tilde = np.matmul(enc_a, w_tilde_encode) # shape: (bs, output_nodes)
         self.messenger.send(enc_z_tilde)
 
     def fed_backward(self, grad):
         grad = grad.numpy()
-        enc_w_tilde_grad = np.matmul(self.curr_enc_a.transpose(), grad)
+        grad_encode = ActiveEncLayer._encode(
+            grad,
+            self.cryptosystem.pub_key,
+            self.precision
+        )
+        enc_w_tilde_grad = np.matmul(self.curr_enc_a.transpose(), grad_encode)
         self.messenger.send(enc_w_tilde_grad)
 
         w_tilde_grad, enc_w_acc = self.messenger.recv()
 
         enc_a_grad = np.matmul(grad, self.w_tilde.transpose()) \
-                     - np.matmul(grad, enc_w_acc.transpose())
+                     - np.matmul(grad_encode, enc_w_acc.transpose())
         self.w_tilde = self.w_tilde - self.eta * w_tilde_grad
 
         return enc_a_grad
+
+    @staticmethod
+    def _encode(data: np.ndarray, pub_key, precision):
+        data_flat = data.flatten()
+        # remember to use val.item(), otherwise,
+        # "TypeError('argument should be a string or a Rational instance'" will be raised
+        data_encode = [EncodedNumber.encode(pub_key, val.item(), precision=precision)
+                       for val in data_flat]
+        return np.array(data_encode).reshape(data.shape)
