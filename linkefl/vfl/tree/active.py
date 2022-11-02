@@ -2,12 +2,14 @@ import datetime
 import time
 import numpy as np
 import pandas as pd
+
 import matplotlib.pyplot as plt
 
 from multiprocessing import Pool
 from typing import List
 from scipy.special import softmax
 from collections import defaultdict
+from termcolor import colored
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from linkefl.common.const import Const
@@ -17,6 +19,7 @@ from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
 from linkefl.messenger.base import Messenger
+from linkefl.messenger.socket_disconnection import FastSocket_disconnection_v1
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
@@ -75,6 +78,11 @@ class ActiveTreeParty:
         """
 
         self._check_parameters(task, n_labels, compress, sampling_method)
+
+        if drop_protection is True:
+            assert isinstance(
+                messengers[0], FastSocket_disconnection_v1
+            )
 
         self.n_trees = n_trees
         self.task = task
@@ -183,6 +191,10 @@ class ActiveTreeParty:
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
+
+                if i == len(self.trees)-2:
+                    print(colored("sleep 60 s", "green"))
+                    time.sleep(60)      # to test drop-reconnect
 
                 update_pred, feature_importance_info_tree = tree.fit(gradient, hessian, bin_index, bin_split)
                 self._merge_tree_info(feature_importance_info_tree)
@@ -453,6 +465,8 @@ if __name__ == "__main__":
         colsample_bytree=1,
         saving_model=True,
         n_processes=n_processes,
+
+        drop_protection=True,
     )
     active_party.train(active_trainset, active_testset)
     # scores = active_party.online_inference(active_testset, "xxx.model")

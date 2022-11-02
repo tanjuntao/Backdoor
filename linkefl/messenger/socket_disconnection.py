@@ -11,7 +11,7 @@ from .base import Messenger
 from linkefl.config import BaseConfig
 from linkefl.common.const import Const
 
-socket.setdefaulttimeout(20)
+socket.setdefaulttimeout(120)
 
 class FastSocket_disconnection_v1(Messenger):
     def __init__(self,
@@ -46,7 +46,7 @@ class FastSocket_disconnection_v1(Messenger):
         else:
             self.sock_daemon.bind((active_ip, active_port))
 
-        self.sock_daemon.listen(10)
+        self.sock_daemon.listen(120)
 
     @classmethod
     def from_config(cls, config):
@@ -121,9 +121,8 @@ class FastSocket_disconnection_v1(Messenger):
         """Judge data integrity by looking at the first data
         """
         try:
-            # todo：验证数据的格式
-            print(type(data))
-            data[0]
+            # data[0]       # verify in NN or LR
+            data["name"]    # verify in decision tree
             return True
         except Exception:
             return False
