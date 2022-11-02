@@ -17,6 +17,7 @@ from linkefl.vfl.tree.hist import PassiveHist
 class PassiveTreeParty:
     def __init__(
         self,
+        client_name: str,
         task: str,
         crypto_type: str,
         messenger: Messenger,
@@ -32,7 +33,7 @@ class PassiveTreeParty:
             task: binary or multi
             max_bin: max bin number for a feature point
         """
-
+        self.client_name = client_name
         self.task = task
         self.crypto_type = crypto_type
         self.messenger = messenger
@@ -44,9 +45,10 @@ class PassiveTreeParty:
 
         self.logger = logger_factory(role=Const.PASSIVE_NAME)
 
-        self.model_name = "{time}-{role}-{model_type}".format(
+        self.model_name = "{time}-{role}-{client_name}-{model_type}".format(
             time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
             role=Const.PASSIVE_NAME,
+            client_name=self.client_name,
             model_type=Const.VERTICAL_SBT,
         )
 

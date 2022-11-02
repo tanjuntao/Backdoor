@@ -60,6 +60,7 @@ if __name__ == "__main__":
 
     # 3. Initialize passive tree party and start training
     passive_party = PassiveTreeParty(
+        client_name="1",
         task=task,
         crypto_type=_crypto_type,
         messenger=messenger,
@@ -68,7 +69,7 @@ if __name__ == "__main__":
 
     # load temp model and retrain
     load_model_path = "./models"
-    load_model_name = ""
+    load_model_name = "20221102_101454-passive_party-1-vertical_sbt-455_samples.model"
     passive_party.load_retrain(load_model_path, load_model_name, passive_trainset, passive_testset)
 
     # passive_party.online_inference(passive_testset, "xxx.model")

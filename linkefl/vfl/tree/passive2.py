@@ -60,6 +60,7 @@ if __name__ == "__main__":
 
     # 3. Initialize passive tree party and start training
     passive_party = PassiveTreeParty(
+        client_name="2",
         task=task,
         crypto_type=_crypto_type,
         messenger=messenger,
