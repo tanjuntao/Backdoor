@@ -233,11 +233,12 @@ class DecisionTree:
 
                 if self.drop_protection:
                     self.logger.log("start reconnect")
-
+                    self.messengers[e.drop_party_id].close_send()
                     reconnect = False
                     while not reconnect:
                         reconnect = self.messengers[e.drop_party_id].try_reconnect()
-                        time.sleep(10)      # Try to reconnect every 10s
+                        time.sleep(5)      # Try to reconnect every 10s
+                    print(colored(f"reconnected success.", "red"))
             else:
                 # if no exception occurs, break out of the loop
                 break
@@ -468,22 +469,6 @@ class DecisionTree:
         else:
             return self._predict_value(x_sample, sample_id, tree_node.left_branch)
 
-    def _process_passive_hist(self, messenger, i, q: queue.Queue):
-        if self.drop_protection:
-            data, passive_party_connected = messenger.recv()
-            if not passive_party_connected:
-                raise DisconnectedError(i-1)
-        else:
-            data = messenger.recv()
-
-        assert data["name"] == "hist"
-
-        passive_hist = self._get_passive_hist(data)
-        _, feature_id, split_id, max_gain = find_split(
-            [passive_hist], self.task, self.reg_lambda
-        )
-        q.put((i, passive_hist, feature_id, split_id, max_gain))
-
     def _get_hist_list(self, sample_tag):
         q = queue.Queue()
 
@@ -494,8 +479,9 @@ class DecisionTree:
         # 2. get passive party hist
         thread_list = []
         for i, messenger in enumerate(self.messengers, 1):
+            passive_hist = self._get_passive_hist(messenger=messenger, messenger_id=i-1)
             t = threading.Thread(
-                target=self._process_passive_hist, args=(messenger, i, q)
+                target=self._process_passive_hist, args=(passive_hist, i, q)
             )
             t.start()
             thread_list.append(t)
@@ -524,7 +510,23 @@ class DecisionTree:
 
         return hist_list, best[0], best[1], best[2], best[3]
 
-    def _get_passive_hist(self, data):
+
+    def _process_passive_hist(self, passive_hist, i, q: queue.Queue):
+        _, feature_id, split_id, max_gain = find_split(
+            [passive_hist], self.task, self.reg_lambda
+        )
+        q.put((i, passive_hist, feature_id, split_id, max_gain))
+
+    def _get_passive_hist(self, messenger, messenger_id):
+        if self.drop_protection:
+            data, passive_party_connected = messenger.recv()
+            if not passive_party_connected:
+                raise DisconnectedError(messenger_id)
+        else:
+            data = messenger.recv()
+
+        assert data["name"] == "hist"
+
         if self.task == "multi":
             if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 bin_gh_compress_multi = data["content"]

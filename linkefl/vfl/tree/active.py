@@ -193,8 +193,8 @@ class ActiveTreeParty:
                 hessian = self.loss.hessian(labels, outputs)
 
                 if i == len(self.trees)-2:
-                    print(colored("sleep 60 s", "green"))
-                    time.sleep(60)      # to test drop-reconnect
+                    print(colored("sleep 20 s", "green"))
+                    time.sleep(15)      # to test drop-reconnect
 
                 update_pred, feature_importance_info_tree = tree.fit(gradient, hessian, bin_index, bin_split)
                 self._merge_tree_info(feature_importance_info_tree)
