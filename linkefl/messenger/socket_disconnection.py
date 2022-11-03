@@ -16,6 +16,7 @@ socket.setdefaulttimeout(120)
 class FastSocket_disconnection_v1(Messenger):
     def __init__(self,
                  role,
+                 model,
                  active_ip,
                  active_port,
                  passive_ip,
@@ -30,6 +31,7 @@ class FastSocket_disconnection_v1(Messenger):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
 
         self.role = role
+        self.model = model
         self.active_ip = active_ip
         self.active_port = active_port
         self.passive_ip = passive_ip
@@ -103,13 +105,19 @@ class FastSocket_disconnection_v1(Messenger):
         self.sock_send.close()
         self.sock_daemon.close()
 
-    def close_send(self):
+    def _close_send(self):
         self.sock_send.close()
 
-    def try_reconnect(self):
+    def try_reconnect(self, reconnect_port):
         """Attempt to reconnect, return True if successful
         """
+        # preprocessing operation
+        self._close_send()
         self.sock_send = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.is_connected, self.is_accepted = False, False
+        self.passive_port = reconnect_port
+
+        # try to reconnect
         try:
             self.sock_send.connect((self.passive_ip, self.passive_port))
             self.is_connected = True
@@ -121,8 +129,10 @@ class FastSocket_disconnection_v1(Messenger):
         """Judge data integrity by looking at the first data
         """
         try:
-            # data[0]       # verify in NN or LR
-            data["name"]    # verify in decision tree
+            if self.model == 'Tree':
+                data["name"]    # verify in decision tree
+            else:
+                data[0]         # verify in NN or LR
             return True
         except Exception:
             return False

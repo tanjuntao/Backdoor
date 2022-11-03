@@ -19,6 +19,7 @@ if __name__ == "__main__":
     active_port = 20001
     passive_ip = "localhost"
     passive_port = 30001
+    drop_protection = True
 
     # 1. Load datasets
     print("Loading dataset...")
@@ -43,22 +44,25 @@ if __name__ == "__main__":
     print("Done")
 
     # 2. Initialize messenger
-    # messenger = messenger_factory(
-    #     messenger_type=Const.FAST_SOCKET,
-    #     role=Const.PASSIVE_NAME,
-    #     active_ip=active_ip,
-    #     active_port=active_port,
-    #     passive_ip=passive_ip,
-    #     passive_port=passive_port,
-    # )
-    messenger = messenger_factory_disconnection(
-        messenger_type=Const.FAST_SOCKET_V1,
-        role=Const.PASSIVE_NAME,
-        active_ip=active_ip,
-        active_port=active_port,
-        passive_ip=passive_ip,
-        passive_port=passive_port,
-    )
+    if not drop_protection:
+        messenger = messenger_factory(
+            messenger_type=Const.FAST_SOCKET,
+            role=Const.PASSIVE_NAME,
+            active_ip=active_ip,
+            active_port=active_port,
+            passive_ip=passive_ip,
+            passive_port=passive_port,
+        )
+    else:
+        messenger = messenger_factory_disconnection(
+            messenger_type=Const.FAST_SOCKET_V1,
+            role=Const.PASSIVE_NAME,
+            model="Tree",
+            active_ip=active_ip,
+            active_port=active_port,
+            passive_ip=passive_ip,
+            passive_port=passive_port,
+        )
 
     # 3. Initialize passive tree party and start training
     passive_party = PassiveTreeParty(
@@ -68,12 +72,13 @@ if __name__ == "__main__":
         messenger=messenger,
         saving_model=True,
     )
-    passive_party.train(passive_trainset, passive_testset)
-    # passive_party.online_inference(passive_testset, "xxx.model")
 
-    # test
+    passive_party.train(passive_trainset, passive_testset)
+
     feature_importance_info = pd.DataFrame(passive_party.feature_importances_(importance_type='cover'))
     print(feature_importance_info)
+
+    # passive_party.online_inference(passive_testset, "xxx.model")
 
     # 4. Close messenger, finish training
     messenger.close()

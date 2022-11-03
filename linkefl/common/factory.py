@@ -80,7 +80,8 @@ def messenger_factory_disconnection(messenger_type,
                       active_port,
                       passive_ip,
                       passive_port,
-                      verbose=False):
+                      verbose=False,
+                      model='',):
     if messenger_type == Const.SOCKET:
         messenger = Socket_disconnection(role=role,
                            active_ip=active_ip,
@@ -97,6 +98,7 @@ def messenger_factory_disconnection(messenger_type,
                                verbose=verbose)
     elif messenger_type == Const.FAST_SOCKET_V1:
         messenger = FastSocket_disconnection_v1(role=role,
+                                                model=model,
                                              active_ip=active_ip,
                                              active_port=active_port,
                                              passive_ip=passive_ip,

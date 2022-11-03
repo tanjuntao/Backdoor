@@ -52,9 +52,10 @@ class ActiveTreeParty:
         other_rate: float = 0.5,
         colsample_bytree: float = 1,
         n_processes: int = 1,
-        drop_protection: bool = False,
         saving_model: bool = False,
         model_path: str = "./models",
+        drop_protection: bool = False,
+        reconnect_ports: list = []
     ):
         """Active Tree Party class to train and validate dataset
 
@@ -136,6 +137,7 @@ class ActiveTreeParty:
                 colsample_bytree=colsample_bytree,
                 pool=self.pool,
                 drop_protection=drop_protection,
+                reconnect_ports=reconnect_ports
             )
             for _ in range(n_trees)
         ]
@@ -393,6 +395,9 @@ if __name__ == "__main__":
     passive_ips = ["localhost", "localhost"]
     passive_ports = [30001, 30002]
 
+    drop_protection = True
+    reconnect_ports = [30003, 30004]
+
     # 1. Load datasets
     print("Loading dataset...")
     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
@@ -422,32 +427,35 @@ if __name__ == "__main__":
     )
 
     # 3. Initialize messenger
-    # messengers = [
-    #     messenger_factory(
-    #         messenger_type=Const.FAST_SOCKET,
-    #         role=Const.ACTIVE_NAME,
-    #         active_ip=active_ip,
-    #         active_port=active_port,
-    #         passive_ip=passive_ip,
-    #         passive_port=passive_port,
-    #     )
-    #     for active_ip, active_port, passive_ip, passive_port in zip(
-    #         active_ips, active_ports, passive_ips, passive_ports
-    #     )
-    # ]
-    messengers = [
-        messenger_factory_disconnection(
-            messenger_type=Const.FAST_SOCKET_V1,
-            role=Const.ACTIVE_NAME,
-            active_ip=active_ip,
-            active_port=active_port,
-            passive_ip=passive_ip,
-            passive_port=passive_port,
-        )
-        for active_ip, active_port, passive_ip, passive_port in zip(
-            active_ips, active_ports, passive_ips, passive_ports
-        )
-    ]
+    if not drop_protection:
+        messengers = [
+            messenger_factory(
+                messenger_type=Const.FAST_SOCKET,
+                role=Const.ACTIVE_NAME,
+                active_ip=active_ip,
+                active_port=active_port,
+                passive_ip=passive_ip,
+                passive_port=passive_port,
+            )
+            for active_ip, active_port, passive_ip, passive_port in zip(
+                active_ips, active_ports, passive_ips, passive_ports
+            )
+        ]
+    else:
+        messengers = [
+            messenger_factory_disconnection(
+                messenger_type=Const.FAST_SOCKET_V1,
+                role=Const.ACTIVE_NAME,
+                model='Tree',                   # used as tag to verify data
+                active_ip=active_ip,
+                active_port=active_port,
+                passive_ip=passive_ip,
+                passive_port=passive_port,
+            )
+            for active_ip, active_port, passive_ip, passive_port in zip(
+                active_ips, active_ports, passive_ips, passive_ports
+            )
+        ]
 
     # 4. Initialize active tree party and start training
     active_party = ActiveTreeParty(
@@ -466,19 +474,22 @@ if __name__ == "__main__":
         saving_model=True,
         n_processes=n_processes,
 
-        drop_protection=True,
+        drop_protection=drop_protection,
+        reconnect_ports=reconnect_ports
     )
-    active_party.train(active_trainset, active_testset)
-    # scores = active_party.online_inference(active_testset, "xxx.model")
-    # print(scores)
 
-    # test
+    active_party.train(active_trainset, active_testset)
+
     feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
     print(feature_importance_info)
+
+    # ax = plot_importance(active_party, importance_type='split')
+    # plt.show()
+
+    # scores = active_party.online_inference(active_testset, "xxx.model")
+    # print(scores)
 
     # 5. Close messenger, finish training
     for messenger in messengers:
         messenger.close()
 
-    # ax = plot_importance(active_party, importance_type='split')
-    # plt.show()

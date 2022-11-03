@@ -18,7 +18,7 @@ if __name__ == "__main__":
     active_ip = "localhost"
     active_port = 20001
     passive_ip = "localhost"
-    passive_port = 30001
+    passive_port_reconnected = 30003
 
     # 1. Load datasets
     print("Loading dataset...")
@@ -41,21 +41,14 @@ if __name__ == "__main__":
     print("Done")
 
     # 2. Initialize messenger
-    # messenger = messenger_factory(
-    #     messenger_type=Const.FAST_SOCKET,
-    #     role=Const.PASSIVE_NAME,
-    #     active_ip=active_ip,
-    #     active_port=active_port,
-    #     passive_ip=passive_ip,
-    #     passive_port=passive_port,
-    # )
     messenger = messenger_factory_disconnection(
         messenger_type=Const.FAST_SOCKET_V1,
         role=Const.PASSIVE_NAME,
+        model='Tree',
         active_ip=active_ip,
         active_port=active_port,
         passive_ip=passive_ip,
-        passive_port=passive_port,
+        passive_port=passive_port_reconnected
     )
 
     # 3. Initialize passive tree party and start training
@@ -69,7 +62,7 @@ if __name__ == "__main__":
 
     # load temp model and retrain
     load_model_path = "./models"
-    load_model_name = "20221102_105131-passive_party-1-vertical_sbt-455_samples.model"
+    load_model_name = "20221103_171018-passive_party-1-vertical_sbt-455_samples.model"
     passive_party.load_retrain(load_model_path, load_model_name, passive_trainset, passive_testset)
 
     # passive_party.online_inference(passive_testset, "xxx.model")

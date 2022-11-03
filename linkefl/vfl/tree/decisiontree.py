@@ -71,6 +71,7 @@ class DecisionTree:
         colsample_bytree: float = 1,
         pool: Pool = None,
         drop_protection: bool = False,
+        reconnect_ports: list = []
     ):
         """Decision Tree class to create a single tree
 
@@ -110,12 +111,14 @@ class DecisionTree:
         self.other_rate = other_rate
         self.colsample_bytree = colsample_bytree
         self.pool = pool
-        self.drop_protection = drop_protection
         self.feature_importance_info = {
             "split": defaultdict(int),
             "gain": defaultdict(float),
             "cover": defaultdict(float)
         }
+
+        self.drop_protection = drop_protection
+        self.reconnect_ports = reconnect_ports
 
         # given when training starts
         self.bin_index_selected = None
@@ -227,18 +230,25 @@ class DecisionTree:
                 self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
                                              current_depth=0)
             except DisconnectedError as e:
+                self.logger.log(f"passive party {e.drop_party_id} is disconnected.")
                 print(colored(f"passive party {e.drop_party_id} is disconnected.", "red"))
 
-                self.logger.log(f"passive party {e.drop_party_id} is disconnected.")
-
                 if self.drop_protection:
+                    # clear message from other passive party
+                    for i in range(e.drop_party_id+1, len(self.messengers)):
+                        data, _ = self.messengers[i].recv()
+
+                    # TODO: add more processing way
+                    reconnect, count = False, 1
                     self.logger.log("start reconnect")
-                    self.messengers[e.drop_party_id].close_send()
-                    reconnect = False
                     while not reconnect:
-                        reconnect = self.messengers[e.drop_party_id].try_reconnect()
-                        time.sleep(5)      # Try to reconnect every 10s
-                    print(colored(f"reconnected success.", "red"))
+                        print(colored(f"try reconnected: {count} times.", "green"))
+                        reconnect = self.messengers[e.drop_party_id].try_reconnect(self.reconnect_ports[e.drop_party_id])
+                        time.sleep(15)      # Try to reconnect every 20s
+                        count += 1
+                    print(colored(f"reconnect success.", "red"))
+                else:
+                    raise RuntimeError(f"passive party {e.drop_party_id} is disconnected.")
             else:
                 # if no exception occurs, break out of the loop
                 break
@@ -313,6 +323,7 @@ class DecisionTree:
                     else:
                         data = self.messengers[party_id - 1].recv()
 
+                    # print(data)
                     assert data["name"] == "record"
 
                     # Get the selected feature index to the original feature index
