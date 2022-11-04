@@ -27,6 +27,7 @@ class ActiveNeuralNetwork:
                  messenger,
                  crypto_type,
                  *,
+                 passive_in_nodes=None,
                  precision=0.001,
                  random_state=None,
                  saving_model=False,
@@ -42,12 +43,16 @@ class ActiveNeuralNetwork:
         public_key = self._sync_pubkey()
         self.cryptosystem = partial_crypto_factory(crypto_type, public_key=public_key)
         if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
+            if passive_in_nodes is None:
+                raise ValueError("when using encrypted NN protocol, you should specify "
+                                 "the passive_in_nodes argument.")
             self.enc_layer = ActiveEncLayer(
-                in_nodes=self.models["cut"].in_nodes,
+                in_nodes=passive_in_nodes,
                 out_nodes=self.models["cut"].out_nodes,
                 eta=self.learning_rate,
                 messenger=self.messenger,
-                cryptosystem=self.cryptosystem
+                cryptosystem=self.cryptosystem,
+                precision=precision
             )
 
         self.precision = precision
@@ -86,7 +91,7 @@ class ActiveNeuralNetwork:
         for epoch in range(self.epochs):
             print('Epoch: {}'.format(epoch))
             for batch_idx, (X, y) in enumerate(train_dataloader):
-                print(f"batch: {batch_idx}")
+                # print(f"batch: {batch_idx}")
                 # 1. forward
                 active_repr = self.models["cut"](self.models["bottom"](X))
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
@@ -117,7 +122,7 @@ class ActiveNeuralNetwork:
                 if batch_idx % 100 == 0:
                     loss, current = loss.item(), batch_idx * len(X)
                     print(f"loss: {loss:>7f}  [{current:>5d}/{trainset.n_samples:>5d}]")
-                    break
+                    # break
 
             is_best = False
             scores = self.validate(testset, existing_loader=test_dataloader)
@@ -197,7 +202,8 @@ if __name__ == '__main__':
     _epochs = 2
     _batch_size = 100
     _learning_rate = 0.01
-    _crypto_type = Const.FAST_PAILLIER
+    _passive_in_nodes = 10
+    _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
     torch.manual_seed(1314)
 
@@ -234,6 +240,11 @@ if __name__ == '__main__':
     # bottom_nodes = [input_nodes, 15, 10]
     # cut_nodes = [10, 10]
     # top_nodes = [10, 2]
+
+    # census
+    # bottom_nodes = [input_nodes, 20, 10]
+    # cut_nodes = [10, 8]
+    # top_nodes = [8, 2]
     bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
     cut_layer = CutLayer(*cut_nodes)
     top_model = MLPModel(top_nodes, activate_input=True, activate_output=False)
@@ -258,7 +269,8 @@ if __name__ == '__main__':
                                        optimizers=_optimizers,
                                        loss_fn=_loss_fn,
                                        messenger=_messenger,
-                                       crypto_type=_crypto_type,)
+                                       crypto_type=_crypto_type,
+                                       passive_in_nodes=_passive_in_nodes)
     active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training

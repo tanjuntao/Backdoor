@@ -273,7 +273,7 @@ class FastSocket_disconnection_v1(Messenger):
             raw_data.extend(packet)
 
         return raw_data
-
+        
 
 class FastSocket_disconnection(Messenger):
     """Implement messenger using python socket
@@ -295,6 +295,7 @@ class FastSocket_disconnection(Messenger):
         After Initialzation, a daemon socket will run in backend at both RSAPSIPassive
         and RSAPSIActive's side.
         """
+        socket.setdefaulttimeout(20)
         super(FastSocket_disconnection, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role
@@ -501,6 +502,7 @@ class Socket_disconnection(Messenger):
                 because it's been run out. Default 800.
             verbose: Whether to print communication status, default False.
         """
+        socket.setdefaulttimeout(20)
         super(Socket_disconnection, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
         self.role = role

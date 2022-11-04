@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
 
+from linkefl.pipeline.base import TransformComponent
 
-class BaseTransform(ABC):
+
+class BaseTransform(TransformComponent, ABC):
     @abstractmethod
     def __call__(self, *args, **kwargs):
         pass
