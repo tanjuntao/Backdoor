@@ -89,7 +89,7 @@ class CM20PSIPassive(TransformComponent):
 
 if __name__ == "__main__":
     # 1. Get sample IDs
-    _ids = gen_dummy_ids(size=10_000_000, option=Const.SEQUENCE)
+    _ids = gen_dummy_ids(size=10_000, option=Const.SEQUENCE)
 
     # 2. Initialize messenger
     _messenger = FastSocket(
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     # 3. Start the CM20 protocol
     passive_party = CM20PSIPassive(_messenger, _logger)
     intersections_ = passive_party.run(_ids)
-    print(intersections_[:10])
+    print(len(intersections_))
 
     # 4. Close messenger
     _messenger.close()

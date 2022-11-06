@@ -69,7 +69,7 @@ if __name__ == "__main__":
     )
 
     # 2. Build pipeline
-    psi = CM20PSIActive(messenger, logger)
+    psi = CM20PSIActive([messenger], logger)
     transforms = Compose([ParseLabel()])
     model = ActiveTreeParty(
         n_trees=n_trees,
