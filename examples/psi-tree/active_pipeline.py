@@ -90,12 +90,12 @@ if __name__ == "__main__":
     psi = CM20PSIActive(
         messengers,
         logger,
-        # log_height=log_height,
-        # width=log_height,
-        # hash_length=hash_length,
-        # h1_length=h1_length,
-        # bucket1=bucket1,
-        # bucket2=bucket2,
+        log_height=log_height,
+        width=width,
+        hash_length=hash_length,
+        h1_length=h1_length,
+        bucket1=bucket1,
+        bucket2=bucket2,
     )
     transforms = Compose([ParseLabel()])
     model = ActiveTreeParty(
