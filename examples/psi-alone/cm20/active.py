@@ -10,13 +10,14 @@ if __name__ == '__main__':
     _ids = gen_dummy_ids(size=10_000_000, option=Const.SEQUENCE)
 
     # 2. Initialize messenger
-    _messenger = FastSocket(
+    _messenger1 = FastSocket(
         role=Const.ACTIVE_NAME,
         active_ip="127.0.0.1",
         active_port=20000,
         passive_ip="127.0.0.1",
         passive_port=30000,
     )
+    _messenger = [_messenger1]
     _logger = logger_factory(role=Const.ACTIVE_NAME)
 
     # 3. Start the CM20 protocol
@@ -25,4 +26,5 @@ if __name__ == '__main__':
     print(intersections_[:10])
 
     # 4. Close messenger
-    _messenger.close()
+    for msger in _messenger:
+        msger.close()

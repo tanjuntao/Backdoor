@@ -62,12 +62,11 @@ if __name__ == "__main__":
         passive_port=passive_port,
     )
     psi_crypto = RSACrypto()
-    active_psi = RSAPSIActive(active_trainset.ids,
-                              messenger,
+    active_psi = RSAPSIActive([messenger],
                               psi_crypto,
                               _logger,
                               num_workers=_n_processes)
-    common_ids = active_psi.run()
+    common_ids = active_psi.run(active_trainset.ids)
     active_trainset.filter(common_ids)
     print(colored("3. Finish psi protocol", "red"))
 

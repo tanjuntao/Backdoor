@@ -64,11 +64,19 @@ if __name__ == '__main__':
         progress=1.0
     )
 
+    # 3. Run PSI
+    print(colored('3. PSI protocol started, computing...', 'red'))
     messenger = FastSocket(role=Const.PASSIVE_NAME,
                            active_ip=active_ip,
                            active_port=active_port,
                            passive_ip=passive_ip,
                            passive_port=passive_port)
+    passive_psi = RSAPSIPassive(messenger, logger)
+    common_ids = passive_psi.run(passive_trainset.ids)
+    passive_trainset.filter(common_ids)
+    print(colored('3. Finish psi protocol', 'red'))
+    logger.log('3. Finish psi protocol')
+
     # 4. VFL training
     print(colored('4. Training protocol started, computing...', 'red'))
     start_time = time.time()
