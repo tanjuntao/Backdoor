@@ -447,7 +447,7 @@ if __name__ == "__main__":
             messenger_factory_disconnection(
                 messenger_type=Const.FAST_SOCKET_V1,
                 role=Const.ACTIVE_NAME,
-                model='Tree',                   # used as tag to verify data
+                model_tpye='Tree',                   # used as tag to verify data
                 active_ip=active_ip,
                 active_port=active_port,
                 passive_ip=passive_ip,

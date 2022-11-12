@@ -44,7 +44,7 @@ if __name__ == "__main__":
     messenger = messenger_factory_disconnection(
         messenger_type=Const.FAST_SOCKET_V1,
         role=Const.PASSIVE_NAME,
-        model='Tree',
+        model_tpye='Tree',
         active_ip=active_ip,
         active_port=active_port,
         passive_ip=passive_ip,
