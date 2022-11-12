@@ -2,20 +2,24 @@ import datetime
 import time
 import numpy as np
 import pandas as pd
+
 import matplotlib.pyplot as plt
 
 from multiprocessing import Pool
 from typing import List
 from scipy.special import softmax
 from collections import defaultdict
+from termcolor import colored
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+from linkefl.common.error import DisconnectedError
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory, messenger_factory_disconnection
 from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
 from linkefl.messenger.base import Messenger
+from linkefl.messenger.socket_disconnection import FastSocket_disconnection_v1
 from linkefl.modelio import NumpyModelIO
 from linkefl.pipeline.base import ModelComponent
 from linkefl.util import sigmoid
@@ -51,6 +55,8 @@ class ActiveTreeParty(ModelComponent):
         n_processes: int = 1,
         saving_model: bool = False,
         model_path: str = "./models",
+        drop_protection: bool = False,
+        reconnect_ports: list = []
     ):
         """Active Tree Party class to train and validate dataset
 
@@ -74,6 +80,11 @@ class ActiveTreeParty(ModelComponent):
         """
 
         self._check_parameters(task, n_labels, compress, sampling_method)
+
+        if drop_protection is True:
+            assert isinstance(
+                messengers[0], FastSocket_disconnection_v1
+            )
 
         self.n_trees = n_trees
         self.task = task
@@ -126,6 +137,8 @@ class ActiveTreeParty(ModelComponent):
                 other_rate=other_rate,
                 colsample_bytree=colsample_bytree,
                 pool=self.pool,
+                drop_protection=drop_protection,
+                reconnect_ports=reconnect_ports
             )
             for _ in range(n_trees)
         ]
@@ -181,9 +194,15 @@ class ActiveTreeParty(ModelComponent):
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
-                update_pred = tree.fit(gradient, hessian, bin_index, bin_split, self.feature_importance_info)
-                self.logger.log(f"tree {i} finished")
 
+                if i == len(self.trees)-2:
+                    print(colored("sleep 20 s", "green"))
+                    time.sleep(15)      # to test drop-reconnect
+
+                update_pred, feature_importance_info_tree = tree.fit(gradient, hessian, bin_index, bin_split)
+                self._merge_tree_info(feature_importance_info_tree)
+
+                self.logger.log(f"tree {i} finished")
                 for messenger in self.messengers:
                     messenger.send(wrap_message("validate", content=True))
 
@@ -212,9 +231,11 @@ class ActiveTreeParty(ModelComponent):
                 loss = self.loss.loss(labels_onehot, outputs)
                 gradient = self.loss.gradient(labels_onehot, outputs)
                 hessian = self.loss.hessian(labels_onehot, outputs)
-                update_pred = tree.fit(gradient, hessian, bin_index, bin_split, self.feature_importance_info)
-                self.logger.log(f"tree {i} finished")
 
+                update_pred, feature_importance_info_tree = tree.fit(gradient, hessian, bin_index, bin_split)
+                self._merge_tree_info(feature_importance_info_tree)
+
+                self.logger.log(f"tree {i} finished")
                 for messenger in self.messengers:
                     messenger.send(wrap_message("validate", content=True))
 
@@ -298,6 +319,17 @@ class ActiveTreeParty(ModelComponent):
 
         return scores
 
+    def _merge_tree_info(self, feature_importance_info_tree):
+        if feature_importance_info_tree is not None:
+            for key in feature_importance_info_tree["split"].keys():
+                self.feature_importance_info["split"][key] += feature_importance_info_tree["split"][key]
+            for key in feature_importance_info_tree["gain"].keys():
+                self.feature_importance_info["gain"][key] += feature_importance_info_tree["gain"][key]
+            for key in feature_importance_info_tree["cover"].keys():
+                self.feature_importance_info["cover"][key] += feature_importance_info_tree["cover"][key]
+
+        self.logger.log("merge tree information done")
+
     def score(self, testset, role=Const.ACTIVE_NAME):
         return self.predict(testset)
 
@@ -364,6 +396,9 @@ if __name__ == "__main__":
     passive_ips = ["localhost", "localhost"]
     passive_ports = [30001, 30002]
 
+    drop_protection = True
+    reconnect_ports = [30003, 30004]
+
     # 1. Load datasets
     print("Loading dataset...")
     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
@@ -393,19 +428,35 @@ if __name__ == "__main__":
     )
 
     # 3. Initialize messenger
-    messengers = [
-        messenger_factory(
-            messenger_type=Const.FAST_SOCKET,
-            role=Const.ACTIVE_NAME,
-            active_ip=active_ip,
-            active_port=active_port,
-            passive_ip=passive_ip,
-            passive_port=passive_port,
-        )
-        for active_ip, active_port, passive_ip, passive_port in zip(
-            active_ips, active_ports, passive_ips, passive_ports
-        )
-    ]
+    if not drop_protection:
+        messengers = [
+            messenger_factory(
+                messenger_type=Const.FAST_SOCKET,
+                role=Const.ACTIVE_NAME,
+                active_ip=active_ip,
+                active_port=active_port,
+                passive_ip=passive_ip,
+                passive_port=passive_port,
+            )
+            for active_ip, active_port, passive_ip, passive_port in zip(
+                active_ips, active_ports, passive_ips, passive_ports
+            )
+        ]
+    else:
+        messengers = [
+            messenger_factory_disconnection(
+                messenger_type=Const.FAST_SOCKET_V1,
+                role=Const.ACTIVE_NAME,
+                model='Tree',                   # used as tag to verify data
+                active_ip=active_ip,
+                active_port=active_port,
+                passive_ip=passive_ip,
+                passive_port=passive_port,
+            )
+            for active_ip, active_port, passive_ip, passive_port in zip(
+                active_ips, active_ports, passive_ips, passive_ports
+            )
+        ]
 
     # 4. Initialize active tree party and start training
     active_party = ActiveTreeParty(
@@ -423,18 +474,23 @@ if __name__ == "__main__":
         colsample_bytree=1,
         saving_model=True,
         n_processes=n_processes,
+
+        drop_protection=drop_protection,
+        reconnect_ports=reconnect_ports
     )
+
     active_party.train(active_trainset, active_testset)
+
+    feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
+    print(feature_importance_info)
+
+    # ax = plot_importance(active_party, importance_type='split')
+    # plt.show()
+
     # scores = active_party.online_inference(active_testset, "xxx.model")
     # print(scores)
-
-    # test
-    # feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
-    # print(feature_importance_info)
 
     # 5. Close messenger, finish training
     for messenger in messengers:
         messenger.close()
 
-    ax = plot_importance(active_party, importance_type='split')
-    plt.show()

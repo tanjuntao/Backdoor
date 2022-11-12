@@ -1,11 +1,16 @@
 import queue
 import random
 import threading
+import time
+
 import numpy as np
 
+from collections import defaultdict
 from multiprocessing import Pool
 from typing import List
+from termcolor import colored
 
+from linkefl.common.error import DisconnectedError
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.crypto.base import CryptoSystem
@@ -23,7 +28,6 @@ from linkefl.vfl.tree.train_functions import (
     leaf_weight,
     leaf_weight_multi,
 )
-
 
 class _DecisionNode:
     def __init__(
@@ -66,6 +70,8 @@ class DecisionTree:
         other_rate: float = 0.5,
         colsample_bytree: float = 1,
         pool: Pool = None,
+        drop_protection: bool = False,
+        reconnect_ports: list = []
     ):
         """Decision Tree class to create a single tree
 
@@ -105,6 +111,14 @@ class DecisionTree:
         self.other_rate = other_rate
         self.colsample_bytree = colsample_bytree
         self.pool = pool
+        self.feature_importance_info = {
+            "split": defaultdict(int),
+            "gain": defaultdict(float),
+            "cover": defaultdict(float)
+        }
+
+        self.drop_protection = drop_protection
+        self.reconnect_ports = reconnect_ports
 
         # given when training starts
         self.bin_index_selected = None
@@ -121,7 +135,7 @@ class DecisionTree:
         self.update_pred = None  # saving tree raw output
 
 
-    def fit(self, gradient, hessian, bin_index, bin_split, feature_importance_info):
+    def fit(self, gradient, hessian, bin_index, bin_split):
         """single tree training, return raw output"""
 
         sample_num, feature_num = bin_index.shape[0], bin_index.shape[1]
@@ -201,25 +215,45 @@ class DecisionTree:
             raise ValueError("No such task label.")
 
         self.logger.log("gh packed")
-        for messenger in self.messengers:
-            messenger.send(
-                wrap_message(
-                    "gh",
-                    content=(
-                        gh_send,
-                        self.compress,
-                        self.capacity,
-                        self.gh_length,
-                    ),
-                )
-            )
 
-        # start building tree
-        self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
-                                     current_depth=0,
-                                     feature_importance_info = feature_importance_info)
+        while True:
+            try:
+                for messenger in self.messengers:
+                    messenger.send(
+                        wrap_message(
+                            "gh",
+                            content=(gh_send, self.compress, self.capacity, self.gh_length),
+                        )
+                    )
 
-        return self.update_pred
+                # start building tree
+                self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
+                                             current_depth=0)
+            except DisconnectedError as e:
+                self.logger.log(f"passive party {e.drop_party_id} is disconnected.")
+                print(colored(f"passive party {e.drop_party_id} is disconnected.", "red"))
+
+                if self.drop_protection:
+                    # clear message from other passive party
+                    for i in range(e.drop_party_id+1, len(self.messengers)):
+                        data, _ = self.messengers[i].recv()
+
+                    # TODO: add more processing way
+                    reconnect, count = False, 1
+                    self.logger.log("start reconnect")
+                    while not reconnect:
+                        print(colored(f"try reconnected: {count} times.", "green"))
+                        reconnect = self.messengers[e.drop_party_id].try_reconnect(self.reconnect_ports[e.drop_party_id])
+                        time.sleep(15)      # Try to reconnect every 20s
+                        count += 1
+                    print(colored(f"reconnect success.", "red"))
+                else:
+                    raise RuntimeError(f"passive party {e.drop_party_id} is disconnected.")
+            else:
+                # if no exception occurs, break out of the loop
+                break
+
+        return self.update_pred, self.feature_importance_info
 
     def predict(self, x_test):
         """single tree predict"""
@@ -245,8 +279,7 @@ class DecisionTree:
         party_id=None,
         feature_id=None,
         split_id=None,
-        max_gain=None,
-        feature_importance_info=None,
+        max_gain=None
     ):
         # split only when conditions meet
         if (
@@ -283,16 +316,23 @@ class DecisionTree:
                             "record", content=(feature_id, split_id, sample_tag_selected, sample_tag_unselected)
                         )
                     )
-                    data = self.messengers[party_id - 1].recv()
+                    if self.drop_protection:
+                        data, passive_party_connected = self.messengers[party_id - 1].recv()
+                        if not passive_party_connected:
+                            raise DisconnectedError(party_id - 1)
+                    else:
+                        data = self.messengers[party_id - 1].recv()
+
+                    # print(data)
                     assert data["name"] == "record"
 
                     # Get the selected feature index to the original feature index
                     feature_id_origin, record_id, sample_tag_selected_left , sample_tag_unselected_left = data["content"]
 
                 # store feature split information
-                feature_importance_info['split'][f'client{party_id}_feature{feature_id_origin}'] += 1
-                feature_importance_info['gain'][f'client{party_id}_feature{feature_id_origin}'] += max_gain
-                feature_importance_info['cover'][f'client{party_id}_feature{feature_id_origin}'] += sum(
+                self.feature_importance_info['split'][f'client{party_id}_feature{feature_id_origin}'] += 1
+                self.feature_importance_info['gain'][f'client{party_id}_feature{feature_id_origin}'] += max_gain
+                self.feature_importance_info['cover'][f'client{party_id}_feature{feature_id_origin}'] += sum(
                     sample_tag_selected)
                 self.logger.log(f"store feature split information")
 
@@ -321,15 +361,13 @@ class DecisionTree:
                         party_id=party_id_left,
                         feature_id=feature_id_left,
                         split_id=split_id_left,
-                        max_gain=max_gain_left,
-                        feature_importance_info=feature_importance_info,
+                        max_gain=max_gain_left
                     )
                     right_node = self._build_tree(
                         sample_tag_selected_right,
                         sample_tag_unselected_right,
                         current_depth + 1,
-                        hist_list=hist_list_right,
-                        feature_importance_info=feature_importance_info
+                        hist_list=hist_list_right
                     )
                 else:
                     (
@@ -347,8 +385,7 @@ class DecisionTree:
                         sample_tag_selected_left,
                         sample_tag_unselected_left,
                         current_depth + 1,
-                        hist_list=hist_list_left,
-                        feature_importance_info = feature_importance_info
+                        hist_list=hist_list_left
                     )
                     right_node = self._build_tree(
                         sample_tag_selected_right,
@@ -358,8 +395,7 @@ class DecisionTree:
                         party_id=party_id_right,
                         feature_id=feature_id_right,
                         split_id=split_id_right,
-                        max_gain=max_gain_right,
-                        feature_importance_info=feature_importance_info
+                        max_gain=max_gain_right
                     )
 
                 return _DecisionNode(
@@ -428,7 +464,12 @@ class DecisionTree:
             self.messengers[tree_node.party_id - 1].send(
                 wrap_message("judge", content=(sample_id, tree_node.record_id))
             )
-            data = self.messengers[tree_node.party_id - 1].recv()
+
+            if self.drop_protection:
+                data, passive_party_connected = self.messengers[tree_node.party_id - 1].recv()
+            else:
+                data = self.messengers[tree_node.party_id - 1].recv()
+
             assert data["name"] == "judge"
 
             branch_tag = data["content"]
@@ -438,16 +479,6 @@ class DecisionTree:
             return self._predict_value(x_sample, sample_id, tree_node.right_branch)
         else:
             return self._predict_value(x_sample, sample_id, tree_node.left_branch)
-
-    def _process_passive_hist(self, messenger, i, q: queue.Queue):
-        data = messenger.recv()
-        assert data["name"] == "hist"
-
-        passive_hist = self._get_passive_hist(data)
-        _, feature_id, split_id, max_gain = find_split(
-            [passive_hist], self.task, self.reg_lambda
-        )
-        q.put((i, passive_hist, feature_id, split_id, max_gain))
 
     def _get_hist_list(self, sample_tag):
         q = queue.Queue()
@@ -459,8 +490,9 @@ class DecisionTree:
         # 2. get passive party hist
         thread_list = []
         for i, messenger in enumerate(self.messengers, 1):
+            passive_hist = self._get_passive_hist(messenger=messenger, messenger_id=i-1)
             t = threading.Thread(
-                target=self._process_passive_hist, args=(messenger, i, q)
+                target=self._process_passive_hist, args=(passive_hist, i, q)
             )
             t.start()
             thread_list.append(t)
@@ -489,7 +521,23 @@ class DecisionTree:
 
         return hist_list, best[0], best[1], best[2], best[3]
 
-    def _get_passive_hist(self, data):
+
+    def _process_passive_hist(self, passive_hist, i, q: queue.Queue):
+        _, feature_id, split_id, max_gain = find_split(
+            [passive_hist], self.task, self.reg_lambda
+        )
+        q.put((i, passive_hist, feature_id, split_id, max_gain))
+
+    def _get_passive_hist(self, messenger, messenger_id):
+        if self.drop_protection:
+            data, passive_party_connected = messenger.recv()
+            if not passive_party_connected:
+                raise DisconnectedError(messenger_id)
+        else:
+            data = messenger.recv()
+
+        assert data["name"] == "hist"
+
         if self.task == "multi":
             if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 bin_gh_compress_multi = data["content"]
