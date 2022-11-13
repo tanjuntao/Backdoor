@@ -111,12 +111,15 @@ class DecisionTree:
         self.other_rate = other_rate
         self.colsample_bytree = colsample_bytree
         self.pool = pool
+
+        # record feature importance
         self.feature_importance_info = {
             "split": defaultdict(int),
             "gain": defaultdict(float),
             "cover": defaultdict(float)
         }
-
+        self.messengers_validTag = [True for _ in range(len(self.messengers))]
+        self.model_phase = "online_inference"
         self.drop_protection = drop_protection
         self.reconnect_ports = reconnect_ports
 
@@ -137,6 +140,7 @@ class DecisionTree:
 
     def fit(self, gradient, hessian, bin_index, bin_split):
         """single tree training, return raw output"""
+        self.model_phase = "train"
 
         sample_num, feature_num = bin_index.shape[0], bin_index.shape[1]
 
@@ -218,42 +222,53 @@ class DecisionTree:
 
         while True:
             try:
-                for messenger in self.messengers:
-                    messenger.send(
-                        wrap_message(
-                            "gh",
-                            content=(gh_send, self.compress, self.capacity, self.gh_length),
+                for i, messenger in enumerate(self.messengers):
+                    if self.messengers_validTag[i]:
+                        messenger.send(
+                            wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length))
                         )
-                    )
-
                 # start building tree
-                self.root = self._build_tree(sample_tag_selected, sample_tag_unselected,
-                                             current_depth=0)
+                self.root = self._build_tree(sample_tag_selected, sample_tag_unselected, current_depth=0)
+
             except DisconnectedError as e:
-                self.logger.log(f"passive party {e.drop_party_id} is disconnected.")
-                print(colored(f"passive party {e.drop_party_id} is disconnected.", "red"))
+                self.logger.log(f"passive party {e.disconnect_party_id} is disconnected.")
+                print(e)
 
-                if self.drop_protection:
-                    # clear message from other passive party
-                    for i in range(e.drop_party_id+1, len(self.messengers)):
-                        data, _ = self.messengers[i].recv()
+                if e.disconnect_phase == "predict_online_inference":
+                    raise RuntimeError(f"Passive party {e.disconnect_party_id} disconnect.")
+                elif e.disconnect_phase == 'hist':
+                    # build histogram phase disconnected, need to clean up channels
+                    for i in range(e.disconnect_party_id+1, len(self.messengers)):
+                        data, _ = self.messengers[i].recv()     # clear message
 
-                    # TODO: add more processing way
-                    reconnect, count = False, 1
-                    self.logger.log("start reconnect")
-                    while not reconnect:
-                        print(colored(f"try reconnected: {count} times.", "green"))
-                        reconnect = self.messengers[e.drop_party_id].try_reconnect(self.reconnect_ports[e.drop_party_id])
-                        time.sleep(15)      # Try to reconnect every 20s
-                        count += 1
+                self.logger.log("start reconnect")
+                is_reconnect, reconnect_count = False, 1
+                reconnect_max_count, reconnect_gap = 10, 20
+
+                while not is_reconnect:
+                    if reconnect_count > reconnect_max_count:
+                        break
+
+                    print(colored(f"try to reconnect, reconnect count : {reconnect_count}", "red"))
+                    is_reconnect = self.messengers[e.disconnect_party_id].try_reconnect(self.reconnect_ports[e.disconnect_party_id])
+                    reconnect_count += 1
+                    time.sleep(reconnect_gap)
+
+                if is_reconnect:
                     print(colored(f"reconnect success.", "red"))
                 else:
-                    raise RuntimeError(f"passive party {e.drop_party_id} is disconnected.")
+                    # drop disconnected party
+                    self.messengers_validTag[e.disconnect_party_id] = False
             else:
                 # if no exception occurs, break out of the loop
                 break
 
-        return self.update_pred, self.feature_importance_info
+        data = {
+            "update_pred": self.update_pred,
+            "feature_importance_info": self.feature_importance_info,
+            "messengers_validTag": self.messengers_validTag
+        }
+        return data
 
     def predict(self, x_test):
         """single tree predict"""
@@ -319,7 +334,7 @@ class DecisionTree:
                     if self.drop_protection:
                         data, passive_party_connected = self.messengers[party_id - 1].recv()
                         if not passive_party_connected:
-                            raise DisconnectedError(party_id - 1)
+                            raise DisconnectedError(disconnect_phase='record', disconnect_party_id=party_id-1)
                     else:
                         data = self.messengers[party_id - 1].recv()
 
@@ -441,7 +456,8 @@ class DecisionTree:
 
         return feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left
 
-    def _predict_value(self, x_sample, sample_id, tree_node: _DecisionNode = None):
+    def _predict_value(self, x_sample, sample_id,
+                       tree_node: _DecisionNode = None):
         """predict a sample"""
 
         if tree_node is None:
@@ -467,6 +483,9 @@ class DecisionTree:
 
             if self.drop_protection:
                 data, passive_party_connected = self.messengers[tree_node.party_id - 1].recv()
+                if not passive_party_connected:
+                    raise DisconnectedError(
+                        disconnect_phase=f"predict_{self.model_phase}", disconnect_party_id=tree_node.party_id - 1)
             else:
                 data = self.messengers[tree_node.party_id - 1].recv()
 
@@ -484,12 +503,16 @@ class DecisionTree:
         q = queue.Queue()
 
         # 1. inform passive party to compute hist based on sample_tag
-        for messenger in self.messengers:
-            messenger.send(wrap_message("hist", content=sample_tag))
+        for i, messenger in enumerate(self.messengers):
+            if self.messengers_validTag[i]:
+                messenger.send(wrap_message("hist", content=sample_tag))
 
         # 2. get passive party hist
         thread_list = []
         for i, messenger in enumerate(self.messengers, 1):
+            if not self.messengers_validTag[i]:
+                continue
+
             passive_hist = self._get_passive_hist(messenger=messenger, messenger_id=i-1)
             t = threading.Thread(
                 target=self._process_passive_hist, args=(passive_hist, i, q)
@@ -532,7 +555,7 @@ class DecisionTree:
         if self.drop_protection:
             data, passive_party_connected = messenger.recv()
             if not passive_party_connected:
-                raise DisconnectedError(messenger_id)
+                raise DisconnectedError(disconnect_phase='hist',  disconnect_party_id=messenger_id)
         else:
             data = messenger.recv()
 
