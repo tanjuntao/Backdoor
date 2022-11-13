@@ -194,6 +194,8 @@ class ActiveTreeParty(ModelComponent):
             raw_outputs = np.zeros(len(labels))  # sum of tree raw outputs
             outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
 
+            raw_outputs_test = np.zeros(len(labels))
+
             for i, tree in enumerate(self.trees):
                 self.logger.log(f"tree {i} started...")
 
@@ -219,7 +221,8 @@ class ActiveTreeParty(ModelComponent):
                     if self.messengers_validTag[i]:
                         messenger.send(wrap_message("validate", content=True))
 
-                scores = self._validate(testset)
+                # scores = self._validate(testset)
+                scores = self._validate_tree(testset, tree, raw_outputs_test)
                 self.logger.log_metric(
                     epoch=i,
                     loss=loss.mean(),
@@ -235,6 +238,8 @@ class ActiveTreeParty(ModelComponent):
 
             raw_outputs = np.zeros((len(labels), self.n_labels))
             outputs = softmax(raw_outputs, axis=1)  # softmax of raw_outputs
+
+            raw_outputs_test = np.zeros((len(labels), self.n_labels))
 
             for i, tree in enumerate(self.trees):
                 self.logger.log(f"tree {i} started...")
@@ -257,7 +262,8 @@ class ActiveTreeParty(ModelComponent):
                     if self.messengers_validTag[i]:
                         messenger.send(wrap_message("validate", content=True))
 
-                scores = self._validate(testset)
+                # scores = self._validate(testset)
+                scores = self._validate_tree(testset, tree, raw_outputs_test)
                 self.logger.log_metric(
                     epoch=i,
                     loss=loss.mean(),
@@ -344,6 +350,54 @@ class ActiveTreeParty(ModelComponent):
 
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
+
+    def _validate_tree(self, testset, tree, raw_outputs=None):
+        assert isinstance(
+            testset, NumpyDataset
+        ), "testset should be an instance of NumpyDataset"
+
+        features = testset.features
+        labels = testset.labels
+
+        if raw_outputs_pre == None:
+            if self.task == "multi":
+                raw_outputs = np.zeros((len(labels), self.n_labels))
+            else:
+                raw_outputs = np.zeros(len(labels))
+
+        update_pred = tree.predict(features)
+        raw_outputs += self.learning_rate * update_pred
+
+        if self.task == "binary":
+            outputs = sigmoid(raw_outputs)
+            targets = np.round(outputs).astype(int)
+
+            acc = accuracy_score(labels, targets)
+            auc = roc_auc_score(labels, outputs)
+            f1 = f1_score(labels, targets, average="weighted")
+
+        elif self.task == "multi":
+            outputs = softmax(raw_outputs, axis=1)
+            targets = np.argmax(outputs, axis=1)
+
+            acc = accuracy_score(labels, targets)
+            auc = -1
+            f1 = -1
+
+        else:
+            raise ValueError("No such task label.")
+
+        scores = {"acc": acc, "auc": auc, "f1": f1}
+
+        for i, messenger in enumerate(self.messengers):
+            if self.messengers_validTag[i]:
+                messenger.send(wrap_message("validate finished", content=True))
+
+        self.logger.log("validate finished")
+
+        # TODO: test wheather need to return raw_outputs
+        # return raw_outputs, scores
+        return scores
 
     def _validate(self, testset):
         assert isinstance(
