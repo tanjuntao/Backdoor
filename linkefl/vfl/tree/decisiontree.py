@@ -352,7 +352,7 @@ class DecisionTree:
                         max_gain_left,
                     ) = self._get_hist_list(sample_tag_selected_left)
                     hist_list_right = [
-                        current - left
+                         None if current is None or left is None else current - left
                         for current, left in zip(hist_list, hist_list_left)
                     ]
                     left_node = self._build_tree(
@@ -380,7 +380,7 @@ class DecisionTree:
                         max_gain_right,
                     ) = self._get_hist_list(sample_tag_selected_right)
                     hist_list_left = [
-                        current - right
+                        None if current is None or right is None else current - right
                         for current, right in zip(hist_list, hist_list_right)
                     ]
                     left_node = self._build_tree(
@@ -523,10 +523,13 @@ class DecisionTree:
         )
         q.put((0, active_hist, feature_id, split_id, max_gain))
 
+        for t in thread_list:
+            t.join()
+
         # 4. get the best gain
         best = [None] * 4
         hist_list = [None] * (1 + len(self.messengers))
-        for i in range(1 + len(self.messengers)):
+        while not q.empty():
             party_id, hist, feature_id, split_id, max_gain = q.get()
             hist_list[party_id] = hist
             if best[3] is None or best[3] < max_gain:
@@ -616,7 +619,7 @@ class DecisionTree:
     def _reconnect_passiveParty(self, disconnect_party_id):
         self.logger.log(f"start reconnect to passive party {disconnect_party_id}")
         is_reconnect, reconnect_count = False, 1
-        reconnect_max_count, reconnect_gap = 10, 20
+        reconnect_max_count, reconnect_gap = 3, 5
 
         while not is_reconnect:
             if reconnect_count > reconnect_max_count:
