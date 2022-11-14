@@ -194,7 +194,7 @@ class ActiveTreeParty(ModelComponent):
             raw_outputs = np.zeros(len(labels))  # sum of tree raw outputs
             outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
 
-            raw_outputs_test = np.zeros(len(labels))
+            raw_outputs_test = np.zeros(len(testset.labels))
 
             for i, tree in enumerate(self.trees):
                 self.logger.log(f"tree {i} started...")
@@ -204,8 +204,8 @@ class ActiveTreeParty(ModelComponent):
                 hessian = self.loss.hessian(labels, outputs)
 
                 if i == len(self.trees)-2:                                  # to test drop-reconnect
-                    print(colored("sleep 15 s", "green"))
-                    time.sleep(15)
+                    print(colored("train, sleep 10 s", "green"))
+                    time.sleep(10)
 
                 while True:
                     try:
@@ -246,7 +246,7 @@ class ActiveTreeParty(ModelComponent):
             raw_outputs = np.zeros((len(labels), self.n_labels))
             outputs = softmax(raw_outputs, axis=1)  # softmax of raw_outputs
 
-            raw_outputs_test = np.zeros((len(labels), self.n_labels))
+            raw_outputs_test = np.zeros((len(testset.labels), self.n_labels))
 
             for i, tree in enumerate(self.trees):
                 self.logger.log(f"tree {i} started...")
@@ -366,7 +366,7 @@ class ActiveTreeParty(ModelComponent):
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
 
-    def _validate_tree(self, testset, tree, raw_outputs=None):
+    def _validate_tree(self, testset, tree, raw_outputs_test=None):
         assert isinstance(
             testset, NumpyDataset
         ), "testset should be an instance of NumpyDataset"
@@ -374,17 +374,17 @@ class ActiveTreeParty(ModelComponent):
         features = testset.features
         labels = testset.labels
 
-        if raw_outputs_pre == None:
+        if raw_outputs_test is None:
             if self.task == "multi":
-                raw_outputs = np.zeros((len(labels), self.n_labels))
+                raw_outputs_test = np.zeros((len(labels), self.n_labels))
             else:
-                raw_outputs = np.zeros(len(labels))
+                raw_outputs_test = np.zeros(len(labels))
 
         update_pred = tree.predict(features)
-        raw_outputs += self.learning_rate * update_pred
+        raw_outputs_test += self.learning_rate * update_pred
 
         if self.task == "binary":
-            outputs = sigmoid(raw_outputs)
+            outputs = sigmoid(raw_outputs_test)
             targets = np.round(outputs).astype(int)
 
             acc = accuracy_score(labels, targets)
@@ -392,7 +392,7 @@ class ActiveTreeParty(ModelComponent):
             f1 = f1_score(labels, targets, average="weighted")
 
         elif self.task == "multi":
-            outputs = softmax(raw_outputs, axis=1)
+            outputs = softmax(raw_outputs_test, axis=1)
             targets = np.argmax(outputs, axis=1)
 
             acc = accuracy_score(labels, targets)
@@ -411,7 +411,7 @@ class ActiveTreeParty(ModelComponent):
         self.logger.log("validate finished")
 
         # TODO: test wheather need to return raw_outputs
-        # return raw_outputs, scores
+        # return raw_outputs_test, scores
         return scores
 
     def _validate(self, testset):
@@ -475,7 +475,7 @@ class ActiveTreeParty(ModelComponent):
         self.logger.log("merge tree information done")
 
     def _save_model(self):
-        model_name = f"{self.model_name}-{trainset.n_samples}_samples.model"
+        model_name = f"{self.model_name}.model"
         model_params = [(tree.record, tree.root) for tree in self.trees]
         saved_data = [model_params, self.feature_importance_info]
         NumpyModelIO.save(saved_data, self.model_path, model_name)

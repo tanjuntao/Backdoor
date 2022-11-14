@@ -500,7 +500,7 @@ class DecisionTree:
         # 2. get passive party hist
         thread_list = []
         for i, messenger in enumerate(self.messengers, 1):
-            if not self.messengers_validTag[i]:
+            if not self.messengers_validTag[i-1]:
                 continue
 
             passive_hist = self._get_passive_hist(messenger=messenger, messenger_id=i-1)

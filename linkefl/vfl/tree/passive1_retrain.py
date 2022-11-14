@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     # load temp model and retrain
     load_model_path = "./models"
-    load_model_name = "20221103_171018-passive_party-1-vertical_sbt-455_samples.model"
+    load_model_name = "20221114_160804-passive_party-1-vertical_sbt-455_samples.model"
     passive_party.load_retrain(load_model_path, load_model_name, passive_trainset, passive_testset)
 
     # passive_party.online_inference(passive_testset, "xxx.model")
