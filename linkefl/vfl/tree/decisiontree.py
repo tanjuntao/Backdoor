@@ -166,6 +166,11 @@ class DecisionTree:
         sample_tag_selected[selected_idx] = 1
         sample_tag_unselected = np.ones(sample_num, dtype=int) - sample_tag_selected
 
+        # try to restore disconnect messengers
+        for party_id, validTag in enumerate(self.messengers_validTag):
+            if not validTag:
+                self._reconnect_passiveParty(party_id)
+
         # Implementation logic with sampling
         if self.task == "binary":
             self.gh = np.array([gradient, hessian]).T
@@ -242,23 +247,7 @@ class DecisionTree:
                         data, _ = self.messengers[i].recv()     # clear message
 
                 self.logger.log("start reconnect")
-                is_reconnect, reconnect_count = False, 1
-                reconnect_max_count, reconnect_gap = 10, 20
-
-                while not is_reconnect:
-                    if reconnect_count > reconnect_max_count:
-                        break
-
-                    print(colored(f"try to reconnect, reconnect count : {reconnect_count}", "red"))
-                    is_reconnect = self.messengers[e.disconnect_party_id].try_reconnect(self.reconnect_ports[e.disconnect_party_id])
-                    reconnect_count += 1
-                    time.sleep(reconnect_gap)
-
-                if is_reconnect:
-                    print(colored(f"reconnect success.", "red"))
-                else:
-                    # drop disconnected party
-                    self.messengers_validTag[e.disconnect_party_id] = False
+                self._reconnect_passiveParty(e.disconnect_party_id)
             else:
                 # if no exception occurs, break out of the loop
                 break
@@ -623,3 +612,23 @@ class DecisionTree:
             raise ValueError("No such task label.")
 
         return hist
+
+    def _reconnect_passiveParty(self, disconnect_party_id):
+        is_reconnect, reconnect_count = False, 1
+        reconnect_max_count, reconnect_gap = 10, 20
+
+        while not is_reconnect:
+            if reconnect_count > reconnect_max_count:
+                break
+
+            print(colored(f"try to reconnect, reconnect count : {reconnect_count}", "green"))
+            is_reconnect = self.messengers[disconnect_party_id].try_reconnect(self.reconnect_ports[disconnect_party_id])
+            reconnect_count += 1
+            time.sleep(reconnect_gap)
+
+        if is_reconnect:
+            print(colored(f"reconnect success.", "red"))
+            self.messengers_validTag[disconnect_party_id] = True
+        else:
+            # drop disconnected party
+            self.messengers_validTag[disconnect_party_id] = False
