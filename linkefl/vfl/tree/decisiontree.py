@@ -503,29 +503,20 @@ class DecisionTree:
 
         # 2. get passive party hist
         self.messengers_recvTag = [False for _ in range(len(self.messengers))]
-        self.mutex = threading.Lock()
+        self.mutex, self.disconnect_tag = threading.Lock(), False
 
-        thread_list = []
-        for i, messenger in enumerate(self.messengers, 1):
-            if not self.messengers_validTag[i - 1]:
-                continue
+        try:
+            thread_list = []
+            for i, messenger in enumerate(self.messengers, 1):
+                if not self.messengers_validTag[i-1]:
+                    continue
 
-            t = ExcThread(target=self._process_passive_hist, args=(messenger, i, q))
-            t.start()
-            thread_list.append(t)
-
-        # try:
-        #     thread_list = []
-        #     for i, messenger in enumerate(self.messengers, 1):
-        #         if not self.messengers_validTag[i-1]:
-        #             continue
-        #
-        #         t = ExcThread(target=self._process_passive_hist, args=(messenger, i, q))
-        #         t.start()
-        #         thread_list.append(t)
-        # except DisconnectedError as e:
-        #     self.mutex.release()
-        #     raise e
+                t = ExcThread(target=self._process_passive_hist, args=(messenger, i, q))
+                t.start()
+                thread_list.append(t)
+        except DisconnectedError as e:
+            self.mutex.release()    # free mutex
+            raise e
 
         # 3. active party computes hist
         active_hist = ActiveHist.compute_hist(
@@ -555,18 +546,20 @@ class DecisionTree:
         return hist_list, best[0], best[1], best[2], best[3]
 
     def _process_passive_hist(self, messenger, i, q: queue.Queue):
-        self.mutex.acquire()        # ensure that only one process is reading at a time
+        if not self.disconnect_tag:     # avoid always acquire mutex
+            self.mutex.acquire()        # ensure that only one process is reading at a time
 
-        if self.drop_protection:
-            data, passive_party_connected = messenger.recv()
-            if not passive_party_connected:
-                # self.mutex.release()
-                raise DisconnectedError(disconnect_phase='hist', disconnect_party_id=i-1)
-        else:
-            data = messenger.recv()
+            if self.drop_protection:
+                data, passive_party_connected = messenger.recv()
+                if not passive_party_connected:
+                    # self.mutex.release()
+                    self.disconnect_tag = True
+                    raise DisconnectedError(disconnect_phase='hist', disconnect_party_id=i-1)
+            else:
+                data = messenger.recv()
 
-        assert data["name"] == "hist"
-        self.messengers_recvTag[i-1] = True
+            assert data["name"] == "hist"
+            self.messengers_recvTag[i-1] = True
 
         self.mutex.release()
 
