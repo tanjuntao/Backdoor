@@ -10,12 +10,13 @@ from multiprocessing import Pool
 from typing import List
 from termcolor import colored
 
-from linkefl.common.error import DisconnectedError
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.crypto.base import CryptoSystem
 from linkefl.messenger.base import Messenger
 from linkefl.vfl.tree.hist import ActiveHist
+from linkefl.vfl.tree.error import DisconnectedError
+from linkefl.vfl.tree.exception_thread import ExcThread
 from linkefl.vfl.tree.data_functions import (
     wrap_message,
     random_sampling,
@@ -136,6 +137,7 @@ class DecisionTree:
         self.root = None
         self.record = None  # saving split thresholds determined by active party
         self.update_pred = None  # saving tree raw output
+        self.messengers_recvTag = None
 
 
     def fit(self, gradient, hessian, bin_index, bin_split):
@@ -241,7 +243,9 @@ class DecisionTree:
 
                 if e.disconnect_phase == 'hist':
                     # build histogram phase disconnected, need to clean up channels
-                    for passive_party_id in range(e.disconnect_party_id+1, len(self.messengers)):
+                    for passive_party_id, recv_tag in enumerate(self.messengers_recvTag):
+                        if recv_tag or passive_party_id==e.disconnect_party_id:
+                            continue
                         data, passive_party_connected = self.messengers[passive_party_id].recv()     # clear message
                         if not passive_party_connected:     # Multiple parties are disconnected at the same time
                             self._reconnect_passiveParty(passive_party_id)
@@ -498,17 +502,30 @@ class DecisionTree:
                 messenger.send(wrap_message("hist", content=sample_tag))
 
         # 2. get passive party hist
+        self.messengers_recvTag = [False for _ in range(len(self.messengers))]
+        self.mutex = threading.Lock()
+
         thread_list = []
         for i, messenger in enumerate(self.messengers, 1):
-            if not self.messengers_validTag[i-1]:
+            if not self.messengers_validTag[i - 1]:
                 continue
 
-            passive_hist = self._get_passive_hist(messenger=messenger, messenger_id=i-1)
-            t = threading.Thread(
-                target=self._process_passive_hist, args=(passive_hist, i, q)
-            )
+            t = ExcThread(target=self._process_passive_hist, args=(messenger, i, q))
             t.start()
             thread_list.append(t)
+
+        # try:
+        #     thread_list = []
+        #     for i, messenger in enumerate(self.messengers, 1):
+        #         if not self.messengers_validTag[i-1]:
+        #             continue
+        #
+        #         t = ExcThread(target=self._process_passive_hist, args=(messenger, i, q))
+        #         t.start()
+        #         thread_list.append(t)
+        # except DisconnectedError as e:
+        #     self.mutex.release()
+        #     raise e
 
         # 3. active party computes hist
         active_hist = ActiveHist.compute_hist(
@@ -537,22 +554,29 @@ class DecisionTree:
 
         return hist_list, best[0], best[1], best[2], best[3]
 
-    def _process_passive_hist(self, passive_hist, i, q: queue.Queue):
+    def _process_passive_hist(self, messenger, i, q: queue.Queue):
+        self.mutex.acquire()        # ensure that only one process is reading at a time
+
+        if self.drop_protection:
+            data, passive_party_connected = messenger.recv()
+            if not passive_party_connected:
+                # self.mutex.release()
+                raise DisconnectedError(disconnect_phase='hist', disconnect_party_id=i-1)
+        else:
+            data = messenger.recv()
+
+        assert data["name"] == "hist"
+        self.messengers_recvTag[i-1] = True
+
+        self.mutex.release()
+
+        passive_hist = self._get_passive_hist(data)
         _, feature_id, split_id, max_gain = find_split(
             [passive_hist], self.task, self.reg_lambda
         )
         q.put((i, passive_hist, feature_id, split_id, max_gain))
 
-    def _get_passive_hist(self, messenger, messenger_id):
-        if self.drop_protection:
-            data, passive_party_connected = messenger.recv()
-            if not passive_party_connected:
-                raise DisconnectedError(disconnect_phase='hist',  disconnect_party_id=messenger_id)
-        else:
-            data = messenger.recv()
-
-        assert data["name"] == "hist"
-
+    def _get_passive_hist(self, data):
         if self.task == "multi":
             if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 bin_gh_compress_multi = data["content"]
@@ -631,11 +655,11 @@ class DecisionTree:
             time.sleep(reconnect_gap)
 
         if is_reconnect:
-            print(colored(f"reconnect success.", "red"))
-            self.logger.log("reconnect success")
+            print(colored(f"reconnect to passive_party_{disconnect_party_id} success.", "red"))
+            self.logger.log(f"reconnect to passive_party_{disconnect_party_id} success")
             self.messengers_validTag[disconnect_party_id] = True
         else:
             # drop disconnected party
-            print(colored(f"reconnect failed.", "red"))
-            self.logger.log("reconnect failed")
+            print(colored(f"reconnect to passive_party_{disconnect_party_id} failed.", "red"))
+            self.logger.log(f"reconnect to passive_party_{disconnect_party_id} failed")
             self.messengers_validTag[disconnect_party_id] = False

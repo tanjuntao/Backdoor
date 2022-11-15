@@ -13,7 +13,6 @@ from termcolor import colored
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from linkefl.common.const import Const
-from linkefl.common.error import DisconnectedError
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory, messenger_factory_disconnection
 from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
@@ -24,6 +23,7 @@ from linkefl.modelio import NumpyModelIO
 from linkefl.pipeline.base import ModelComponent
 from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
+from linkefl.vfl.tree.error import DisconnectedError
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss
 from linkefl.vfl.tree.plotting import plot_importance
