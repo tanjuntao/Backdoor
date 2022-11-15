@@ -1,3 +1,12 @@
+"""This module implements the Paillier cryptosystem.
+
+The Paillier cryptosystem, invented by and named after Pascal Paillier in 1999, is a
+probabilistic asymmetric algorithm for public key cryptography.
+
+The scheme is an additive homomorphic cryptosystem; this means that, give only the
+public key and the encrpytion of m1 and m2, one can compute the encryption of m1 + m2.
+"""
+
 import functools
 import math
 import multiprocessing.pool
@@ -11,6 +20,7 @@ from multiprocessing.pool import Pool
 import gmpy2
 import numpy as np
 import torch
+import phe
 from phe import EncodedNumber, EncryptedNumber, paillier
 from phe.util import mulmod
 
@@ -20,7 +30,18 @@ from linkefl.crypto.base import CryptoSystem, PartialCryptoSystem
 
 
 def _cal_enc_zeros(public_key, num_enc_zeros, gen_from_set):
-    """Calculate pre-computed encrypted zeros for faster encryption later on"""
+    """Calculate pre-computed encrypted zeros for faster encryption later on
+
+    Parameters
+    ----------
+    public_key
+    num_enc_zeros
+    gen_from_set
+
+    Returns
+    -------
+
+    """
 
     def _subset(_base_set, _public_key, _n_squared):
         _backtrack(0, [], _base_set, _public_key, _n_squared)
@@ -58,7 +79,17 @@ def _cal_enc_zeros(public_key, num_enc_zeros, gen_from_set):
 
 
 class PaillierPublicKey:
-    def __init__(self, raw_pub_key):
+    """A wrapper for python-paillier's public key.
+
+    """
+    def __init__(self, raw_pub_key: phe.PaillierPublicKey):
+        """Initialize LinkeFL's paillier public key.
+
+        Parameters
+        ----------
+        raw_pub_key : `phe.PaillierPublicKey`
+            `python-paillier`'s public key object.
+        """
         self.raw_pub_key = raw_pub_key
 
     @staticmethod
@@ -95,6 +126,15 @@ class PaillierPublicKey:
         return plain_vector # always return a Python list
 
     def raw_encrypt(self, plaintext):
+        """Encrypte single plaintext message via naive Paillier cryptosystem.
+        Parameters
+        ----------
+        plaintext :
+
+        Returns
+        -------
+
+        """
         if type(plaintext) in (np.float16, np.float32):
             plaintext = float(plaintext)
         if type(plaintext) in (np.int8, np.int16, np.int32, np.int64):
@@ -107,6 +147,16 @@ class PaillierPublicKey:
         return self.raw_pub_key.encrypt(plaintext)
 
     def raw_fast_encrypt(self, plaintext):
+        """Encrypt single plaintext message via improved FastPaillier cryptosystem.
+
+        Parameters
+        ----------
+        plaintext
+
+        Returns
+        -------
+
+        """
         if not hasattr(self, 'enc_zeros'):
             raise AttributeError("enc_zeros attribute not found, please calculate it first.")
         if type(plaintext) in (np.float16, np.float32):
@@ -120,6 +170,19 @@ class PaillierPublicKey:
 
     def raw_encrypt_vector(self, plain_vector,
                            using_pool=False, n_workers=None, thread_pool=None):
+        """Encrypt a vector of plaintext message via naive Paillier cryptosystem.
+
+        Parameters
+        ----------
+        plain_vector
+        using_pool
+        n_workers
+        thread_pool
+
+        Returns
+        -------
+
+        """
         def _encrypt(val):
             # unlike self.raw_encrypt(), there's no need to judge the data type
             return self.raw_pub_key.encrypt(val)
@@ -154,7 +217,20 @@ class PaillierPublicKey:
         return plain_vector  # is a Python list
 
     def raw_fast_encrypt_vector(self, plain_vector,
-                                using_pool=False, n_workers=None, thread_pool=None):
+                                using_pool=False, n_workers=None, process_pool=None):
+        """Encrypt a vector of plaintext message via improved FastPaillier cryptosystem.
+
+        Parameters
+        ----------
+        plain_vector
+        using_pool
+        n_workers
+        process_pool
+
+        Returns
+        -------
+
+        """
         def _fast_encrypt(val):
             # unlike self.raw_fast_encrypt(), there's no need to judge the data type
             enc_zero = random.choice(getattr(self, 'enc_zeros'))
@@ -162,11 +238,38 @@ class PaillierPublicKey:
 
         plain_vector = PaillierPublicKey._convert_vector(plain_vector)
 
+        # sequentially
         if not using_pool:
             return [_fast_encrypt(val) for val in plain_vector]
-        else:
-            raise NotImplementedError('Using multiprocessing.Pool to accelarate fast encryption'
-                                      'process is not implemented yet.')
+
+        # sequentially
+        using_pool_thresh = 5000 # based on empirical evaluations on different machines
+        if len(plain_vector) < using_pool_thresh:
+            return [_fast_encrypt(val) for val in plain_vector]
+
+        # parallelly
+        if process_pool is None:
+            if n_workers is None:
+                n_workers = os.cpu_count()
+            process_pool = multiprocessing.pool.Pool(n_workers)
+        n_processes = process_pool._processes
+        data_size = len(plain_vector)
+        quotient = data_size // n_processes
+        remainder = data_size % n_processes
+        async_results = []
+        for idx in range(n_processes):
+            start = idx * quotient
+            end = (idx + 1) * quotient
+            if idx == n_processes - 1:
+                end += remainder
+            # target function will modify plain_vector in place
+            result = process_pool.apply_async(self._target_fast_enc_vector,
+                                              args=(plain_vector, start, end))
+            async_results.append(result)
+        for idx, result in enumerate(async_results):
+            assert result.get() is True, "worker thread did not finish " \
+                                         "within default timeout"
+        return plain_vector  # is a Python list
 
     def _target_enc_vector(self, plaintexts, start, end):
         n = self.raw_pub_key.n
@@ -185,7 +288,25 @@ class PaillierPublicKey:
             r_idx += 1
         return True
 
+    def _target_fast_enc_vector(self, plaintexts, start, end):
+        def _fast_encrypt(val):
+            # unlike self.raw_fast_encrypt(), there's no need to judge the data type
+            enc_zero = random.choice(getattr(self, 'enc_zeros'))
+            return enc_zero + val
+
+        for idx in range(start, end):
+            plaintexts[idx] = _fast_encrypt(plaintexts[idx])
+        return True
+
     def raw_encrypt_data(self, plain_data, pool: Pool = None):
+        target_func = self._target_enc_data
+        return self._base_encrypt_data(plain_data, pool, target_func)
+
+    def raw_fast_encrypt_data(self, plain_data, pool: Pool = None):
+        target_func = self._target_fast_enc_data
+        return self._base_encrypt_data(plain_data, pool, target_func)
+
+    def _base_encrypt_data(self, plain_data, pool, target_func):
         if type(plain_data) == torch.Tensor:
             plain_data = plain_data.numpy()
             data_type = "torch"
@@ -206,7 +327,7 @@ class PaillierPublicKey:
 
         if pool is None or len(flatten_data) < 10000:
             encrypted_data = flatten_data
-            assert self._target_enc_data(encrypted_data) is True
+            assert target_func(encrypted_data) is True
             encrypted_data = np.reshape(encrypted_data, shape)
         else:
             print("using pool to speed up")
@@ -216,7 +337,7 @@ class PaillierPublicKey:
 
             results = []
             for i in range(n_processes):
-                result = pool.apply_async(self._target_enc_data, (shared_data[i],))
+                result = pool.apply_async(target_func, (shared_data[i],))
                 results.append(result)
             for i in range(n_processes):
                 assert results[i].get() is True
@@ -233,21 +354,68 @@ class PaillierPublicKey:
         return encrypted_data
 
     def _target_enc_data(self, shared_vector):
-        assert len(shared_vector.shape) == 1
+        def _encrypt(val):
+            # unlike self.raw_encrypt(), there's no need to judge the data type
+            return self.raw_pub_key.encrypt(val)
 
+        assert len(shared_vector.shape) == 1
         for i in range(len(shared_vector)):
-            shared_vector[i] = self.raw_encrypt(shared_vector[i])
+            shared_vector[i] = _encrypt(shared_vector[i])
+        return True
+
+    def _target_fast_enc_data(self, shared_vector):
+        def _fast_encrypt(val):
+            # unlike self.raw_fast_encrypt(), there's no need to judge the data type
+            enc_zero = random.choice(getattr(self, 'enc_zeros'))
+            return enc_zero + val
+
+        assert len(shared_vector.shape) == 1
+        for i in range(len(shared_vector)):
+            shared_vector[i] = _fast_encrypt(shared_vector[i])
         return True
 
     def set_enc_zeros(self, enc_zeros):
+        """Set pre-computed encrypted zeros for later usage by FastPaillier cryptosystem.
+
+        Parameters
+        ----------
+        enc_zeros
+
+        Returns
+        -------
+
+        """
         setattr(self, 'enc_zeros', enc_zeros)
 
 
 class PaillierPrivateKey:
-    def __init__(self, raw_priv_key):
+    """A wrapper for python-paillier's private key.
+
+    Attributes
+    ----------
+        raw_priv_key: phe.PaillierPrivateKey
+            python-paillier's private key object.
+    """
+    def __init__(self, raw_priv_key: phe.PaillierPrivateKey):
+        """Construct LinkeFL's paillier private key.
+
+        Parameters
+        ----------
+        raw_priv_key
+        """
         self.raw_priv_key = raw_priv_key
 
     def raw_decrypt(self, ciphertext):
+        """Decrypt single ciphertext.
+
+        Parameters
+        ----------
+        ciphertext
+
+        Returns
+        -------
+
+        """
         if isinstance(ciphertext, EncryptedNumber):
             return self.raw_priv_key.decrypt(ciphertext)
         else:
@@ -255,6 +423,19 @@ class PaillierPrivateKey:
 
     def raw_decrypt_vector(self, cipher_vector,
                            using_pool=False, n_workers=None, thread_pool=None):
+        """Decrypt a vector of ciphertext.
+
+        Parameters
+        ----------
+        cipher_vector
+        using_pool
+        n_workers
+        thread_pool
+
+        Returns
+        -------
+
+        """
         assert type(cipher_vector) in (list, np.ndarray), \
             "cipher_vector's dtype can only be Python list or Numpy array."
         if not using_pool:
@@ -276,7 +457,7 @@ class PaillierPrivateKey:
         for idx in range(n_threads):
             start = idx * quotient
             end = (idx + 1) * quotient
-            if idx == n_workers - 1:
+            if idx == n_threads - 1:
                 end += remainder
             # target function will modify ciphertexts in-place
             result = thread_pool.apply_async(self._target_dec_vector,
@@ -389,12 +570,12 @@ class PartialFastPaillier(PartialCryptoSystem):
         return self.pub_key_obj.raw_fast_encrypt(plaintext)
 
     def encrypt_vector(self, plain_vector,
-                       using_pool=False, n_workers=None, thread_pool=None):
+                       using_pool=False, n_workers=None, process_pool=None):
         return self.pub_key_obj.raw_fast_encrypt_vector(
             plain_vector,
             using_pool,
             n_workers,
-            thread_pool
+            process_pool
         )
 
 
@@ -404,12 +585,44 @@ class Paillier(CryptoSystem):
     Paillier cryptosystem satisfies additive homomorphism,
     which means that:
 
-    - Enc(u) + Enc(v) = Enc(u+v) and Dec(Enc(u+v)) = u+v
-    - Enc(u) * v = Enc(u*v) and Dec(Enc(u*v)) = u*v
+    .. math::
+        E(u) + E(v) = E(u+v) \; and \; D(E(u+v)) = u + v
 
-    *note*: "+" and "*" in the above equations are not arithmetic symbols,
+    .. math::
+        E(u) * v = E(u * v) \; and \; D(E(u*v)) = u * v
+
+    See Also
+    --------
+    PartialPaillier : Paillier cryptosystem for passive party.
+    FastPaillier : A faster paillier cryptosystem constructed by pre-computed encrypted zeros.
+
+    Notes
+    ------
+    ``+`` and ``*`` in the above equations are not arithmetic symbols,
     but notations to represent addition and multiplication operations on
     encrypted data.
+
+    References
+    ----------
+    The Paillier cryptosystem is invented and named after Pascal Paillier in 1999,
+    the original paper is present in [1]_.
+
+    .. [1] Paillier, P. (1999, May). Public-key cryptosystems based on composite
+        degree residuosity classes. In International conference on the theory and
+        applications of cryptographic techniques (pp. 223-238). Springer, Berlin, Heidelberg.
+
+    Examples
+    --------
+    >>> from linkefl.crypto import Paillier
+    >>> paillier_crypto = Paillier(key_size=1024)
+    >>> a = 10.1
+    >>> enc_a = paillier_crypto.encrypt(a)
+    >>> enc_a
+    <phe.paillier.EncryptedNumber object at 0x112f2bca0>
+    >>> dec_a = paillier_crypto.decrypt(enc_a)
+    >>> dec_a
+    10.1
+
     """
 
     def __init__(self, key_size=1024):
@@ -515,12 +728,12 @@ class FastPaillier(CryptoSystem):
         self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(self, plain_vector,
-                       using_pool=False, n_workers=None, thread_pool=None):
+                       using_pool=False, n_workers=None, process_pool=None):
         return self.pub_key_obj.raw_fast_encrypt_vector(
             plain_vector,
             using_pool,
             n_workers,
-            thread_pool
+            process_pool
         )
 
     def decrypt_vector(self, cipher_vector,
@@ -533,7 +746,7 @@ class FastPaillier(CryptoSystem):
         )
 
     def encrypt_data(self, plain_data, pool: Pool = None):
-        return self.pub_key_obj.raw_encrypt_data(plain_data, pool)
+        return self.pub_key_obj.raw_fast_encrypt_data(plain_data, pool)
 
     def decrypt_data(self, encrypted_data, pool: Pool = None):
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
@@ -637,7 +850,7 @@ if __name__ == "__main__":
     # print(type(enc_zero_))
     # print(crypto_system.decrypt(enc_zero_ + 19))
 
-    crypto_system = Paillier(key_size=1024)
+    _crypto_system = Paillier(key_size=1024)
     # crypto_system = FastPaillier(num_enc_zeros=128, gen_from_set=True)
     # crypto_system = Plain()
     # item1 = 10
@@ -669,16 +882,16 @@ if __name__ == "__main__":
 
     start_ = time.time()
     pool_ = Pool(6)
-    encrypted_data_ = crypto_system.encrypt_data(plain_data_, pool_)
-    decrypted_data_ = crypto_system.decrypt_data(encrypted_data_, pool_)
+    encrypted_data_ = _crypto_system.encrypt_data(plain_data_, pool_)
+    decrypted_data_ = _crypto_system.decrypt_data(encrypted_data_, pool_)
     pool_.close()
     end_ = time.time()
     print(decrypted_data_)
     print(end_ - start_)
 
     start_ = time.time()
-    encrypted_data_ = crypto_system.encrypt_data(plain_data_)
-    decrypted_data_ = crypto_system.decrypt_data(encrypted_data_)
+    encrypted_data_ = _crypto_system.encrypt_data(plain_data_)
+    decrypted_data_ = _crypto_system.decrypt_data(encrypted_data_)
     end_ = time.time()
     print(decrypted_data_)
     print(end_ - start_)
