@@ -79,7 +79,7 @@ class ActiveTreeParty(ModelComponent):
             n_processes: number of processes in multiprocessing
         """
 
-        self._check_parameters(task, n_labels, compress, sampling_method, messengers[0], drop_protection)
+        self._check_parameters(task, n_labels, compress, sampling_method, messengers, drop_protection)
 
         self.n_trees = n_trees
         self.task = task
@@ -146,7 +146,7 @@ class ActiveTreeParty(ModelComponent):
             "cover": defaultdict(float)         # Total sample covered
         }
 
-    def _check_parameters(self, task, n_labels, compress, sampling_method, messenger, drop_protection):
+    def _check_parameters(self, task, n_labels, compress, sampling_method, messengers, drop_protection):
         assert task in ("binary", "multi"), "task should be binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
         assert sampling_method in ("uniform", "goss"), "sampling method not supported"
@@ -164,9 +164,10 @@ class ActiveTreeParty(ModelComponent):
                 )
 
         if drop_protection is True:
-            assert isinstance(
-                messenger, FastSocket_disconnection_v1
-            ), "current messenger type does not support drop protection."
+            for messenger in messengers:
+                assert isinstance(
+                    messenger, FastSocket_disconnection_v1
+                ), "current messenger type does not support drop protection."
 
     def fit(self, trainset, testset, role=Const.ACTIVE_NAME):
         """set for pipeline func.
@@ -202,10 +203,6 @@ class ActiveTreeParty(ModelComponent):
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
-
-                if i == len(self.trees)-2:                                  # to test drop-reconnect
-                    print(colored("train, sleep 10 s", "green"))
-                    time.sleep(10)
 
                 while True:
                     try:
@@ -553,7 +550,7 @@ if __name__ == "__main__":
             messenger_factory_disconnection(
                 messenger_type=Const.FAST_SOCKET_V1,
                 role=Const.ACTIVE_NAME,
-                model_tpye='Tree',                   # used as tag to verify data
+                model_type='Tree',                   # used as tag to verify data
                 active_ip=active_ip,
                 active_port=active_port,
                 passive_ip=passive_ip,

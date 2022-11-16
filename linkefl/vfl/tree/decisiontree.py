@@ -503,8 +503,7 @@ class DecisionTree:
 
         # 2. get passive party hist
         self.messengers_recvTag = [False for _ in range(len(self.messengers))]
-        self.mutex, self.disconnect_tag = threading.Lock(), False
-
+        self.mutex = threading.Lock()
         try:
             thread_list = []
             for i, messenger in enumerate(self.messengers, 1):
@@ -514,25 +513,26 @@ class DecisionTree:
                 t = ExcThread(target=self._process_passive_hist, args=(messenger, i, q))
                 t.start()
                 thread_list.append(t)
+
+                # 3. active party computes hist
+                active_hist = ActiveHist.compute_hist(
+                    task=self.task,
+                    n_labels=self.n_labels,
+                    sample_tag=sample_tag,
+                    bin_index=self.bin_index_selected,
+                    gh=self.gh,
+                )
+                _, feature_id, split_id, max_gain = find_split(
+                    [active_hist], self.task, self.reg_lambda
+                )
+                q.put((0, active_hist, feature_id, split_id, max_gain))
+
+                for t in thread_list:
+                    t.join()
+
         except DisconnectedError as e:
             self.mutex.release()    # free mutex
             raise e
-
-        # 3. active party computes hist
-        active_hist = ActiveHist.compute_hist(
-            task=self.task,
-            n_labels=self.n_labels,
-            sample_tag=sample_tag,
-            bin_index=self.bin_index_selected,
-            gh=self.gh,
-        )
-        _, feature_id, split_id, max_gain = find_split(
-            [active_hist], self.task, self.reg_lambda
-        )
-        q.put((0, active_hist, feature_id, split_id, max_gain))
-
-        for t in thread_list:
-            t.join()
 
         # 4. get the best gain
         best = [None] * 4
@@ -546,20 +546,18 @@ class DecisionTree:
         return hist_list, best[0], best[1], best[2], best[3]
 
     def _process_passive_hist(self, messenger, i, q: queue.Queue):
-        if not self.disconnect_tag:     # avoid always acquire mutex
-            self.mutex.acquire()        # ensure that only one process is reading at a time
+        self.mutex.acquire()        # ensure that only one process is reading at a time
 
-            if self.drop_protection:
-                data, passive_party_connected = messenger.recv()
-                if not passive_party_connected:
-                    # self.mutex.release()
-                    self.disconnect_tag = True
-                    raise DisconnectedError(disconnect_phase='hist', disconnect_party_id=i-1)
-            else:
-                data = messenger.recv()
+        if self.drop_protection:
+            data, passive_party_connected = messenger.recv()
+            if not passive_party_connected:
+                self.disconnect_tag = True
+                raise DisconnectedError(disconnect_phase='hist', disconnect_party_id=i-1)
+        else:
+            data = messenger.recv()
 
-            assert data["name"] == "hist"
-            self.messengers_recvTag[i-1] = True
+        assert data["name"] == "hist"
+        self.messengers_recvTag[i-1] = True
 
         self.mutex.release()
 
