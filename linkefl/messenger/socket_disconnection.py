@@ -15,7 +15,7 @@ from linkefl.common.const import Const
 class FastSocket_disconnection_v1(Messenger):
     def __init__(self,
                  role,
-                 model_tpye,
+                 model_type,
                  active_ip,
                  active_port,
                  passive_ip,
@@ -31,7 +31,7 @@ class FastSocket_disconnection_v1(Messenger):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
 
         self.role = role
-        self.model_tpye = model_tpye
+        self.model_type = model_type
         self.active_ip = active_ip
         self.active_port = active_port
         self.passive_ip = passive_ip
@@ -129,7 +129,7 @@ class FastSocket_disconnection_v1(Messenger):
         """Judge data integrity by looking at the first data
         """
         try:
-            if self.model_tpye == 'Tree':
+            if self.model_type == 'Tree':
                 data["name"]    # verify in decision tree
             else:
                 data[0]         # verify in NN or LR
