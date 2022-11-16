@@ -169,7 +169,9 @@ def find_split(hist_list, task, reg_lambda):
     for hist_id, hist in enumerate(hist_list):
         # hist.bin_gh: 3d array in binary，featureNum * binNum * 2
         #              4d array in multi，featureNum * binNum * config["train"]["classNum"] * 2
-
+        if hist is None:
+            continue
+            
         for feature_id, feature_bin_gh in enumerate(hist.bin_gh):
             for split_id in range(len(feature_bin_gh) - 1):
                 left_bin_gh, right_bin_gh = np.split(feature_bin_gh, [split_id + 1])
