@@ -7,14 +7,14 @@ from sklearn.metrics import log_loss, accuracy_score, roc_auc_score, f1_score
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory,messenger_factory_multi
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import add_intercept, scale, parse_label
 from linkefl.feature.transform import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid, save_params
-from linkefl.vfl.linear import BaseLinearActive
-
+# from linkefl.vfl.linear import BaseLinearActive
+from  linkefl.vfl.linear.base_multi import BaseLinearActive
 
 class ActiveLogReg(BaseLinearActive):
     def __init__(self,
@@ -36,7 +36,8 @@ class ActiveLogReg(BaseLinearActive):
                  saving_model=False,
                  model_path='./models',
                  positive_thresh=0.5,
-                 residue_precision=0.0001
+                 residue_precision=0.0001,
+                 world_size=1
     ):
         super(ActiveLogReg, self).__init__(
             epochs=epochs,
@@ -55,7 +56,8 @@ class ActiveLogReg(BaseLinearActive):
             val_freq=val_freq,
             saving_model=saving_model,
             model_path=model_path,
-            task='classification'
+            task='classification',
+            world_size=world_size
         )
         self.POSITIVE_THRESH = positive_thresh
         self.RESIDUE_PRECISION = len(str(residue_precision).split('.')[1])
@@ -137,9 +139,11 @@ class ActiveLogReg(BaseLinearActive):
                 # Active party calculates loss and residue
                 active_wx = np.matmul(getattr(self, 'x_train')[batch_idxes], getattr(self, 'params'))
                 full_wx = active_wx
-                for msger in self.messenger:
-                    passive_wx = msger.recv()
+
+                for id in range(1,self.world_size+1):
+                    passive_wx = self.messenger.recv(id)
                     full_wx += passive_wx
+
                 _begin = time.time()
                 if start_time is None:
                     start_time = time.time()
@@ -157,14 +161,24 @@ class ActiveLogReg(BaseLinearActive):
                 # Active party helps passive party to calcalate gradient
                 enc_residue = np.array(self.cryptosystem.encrypt_vector(residue))
                 compu_time += time.time() - _begin
-                for msger in self.messenger:
-                    msger.send(enc_residue)
-                for msger in self.messenger:
-                    enc_passive_grad = msger.recv()
+                # for msger in self.messenger:
+                #     msger.send(enc_residue)
+                for id in range(1,self.world_size+1):
+                    self.messenger.send(enc_residue,id)
+
+                # for msger in self.messenger:
+                #     enc_passive_grad = msger.recv()
+                #     _begin = time.time()
+                #     passive_grad = np.array(self.cryptosystem.decrypt_vector(enc_passive_grad))
+                #     compu_time += time.time() - _begin
+                #     msger.send(passive_grad)
+
+                for id in range(1,self.world_size+1):
+                    enc_passive_grad = self.messenger.recv(id)
                     _begin = time.time()
                     passive_grad = np.array(self.cryptosystem.decrypt_vector(enc_passive_grad))
                     compu_time += time.time() - _begin
-                    msger.send(passive_grad)
+                    self.messenger.send(passive_grad,id)
 
                 # Active party calculates its gradient and update model
                 active_grad = self._grad(residue, batch_idxes)
@@ -194,7 +208,7 @@ class ActiveLogReg(BaseLinearActive):
                         model_params = copy.deepcopy(getattr(self, 'params'))
                         model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
                         NumpyModelIO.save(model_params, self.model_path, model_name)
-                for msger in self.messenger: msger.send(is_best)
+                for id in range(1,self.world_size+1): self.messenger.send(is_best,id)
             print(colored('epoch time: {}'.format(time.time() - epoch_start_time), 'red'))
 
         # close ThreadPool if it exists
@@ -217,8 +231,12 @@ class ActiveLogReg(BaseLinearActive):
                                                  'of NumpyDataset'
         active_wx = np.matmul(valset.features, getattr(self, 'params'))
         full_wx = active_wx
-        for msger in self.messenger:
-            passive_wx = msger.recv()
+
+        # for msger in self.messenger:
+        #     passive_wx = msger.recv()
+        #     full_wx += passive_wx
+        for id in range(1,self.world_size+1):
+            passive_wx = self.messenger.recv(id)
             full_wx += passive_wx
         probs = sigmoid(full_wx)
         preds = (probs > self.POSITIVE_THRESH).astype(np.int32)
@@ -268,6 +286,7 @@ if __name__ == '__main__':
     active_port = [20000, 30000]
     passive_ip = ['localhost', 'localhost']
     passive_port = [20001, 30001]
+    world_size = 2
     _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
@@ -277,6 +296,7 @@ if __name__ == '__main__':
     _random_state = 3347
     _key_size = 1024
     _using_pool = False
+
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
@@ -334,18 +354,26 @@ if __name__ == '__main__':
                              gen_from_set=False)
 
     # 4. Initialize messenger
-    _messenger = [
-        messenger_factory(messenger_type=Const.FAST_SOCKET,
-                          role=Const.ACTIVE_NAME,
-                          active_ip=ac_ip,
-                          active_port=ac_port,
-                          passive_ip=pass_ip,
-                          passive_port=pass_port,
-        )
-        for ac_ip, ac_port, pass_ip, pass_port in
-            zip(active_ip, active_port, passive_ip, passive_port)
-    ]
-    print('ACTIVE PARTY started, listening...')
+    # _messenger = [
+    #     messenger_factory(messenger_type=Const.FAST_SOCKET,
+    #                       role=Const.ACTIVE_NAME,
+    #                       active_ip=ac_ip,
+    #                       active_port=ac_port,
+    #                       passive_ip=pass_ip,
+    #                       passive_port=pass_port,
+    #     )
+    #     for ac_ip, ac_port, pass_ip, pass_port in
+    #         zip(active_ip, active_port, passive_ip, passive_port)
+    # ]
+    _messenger = messenger_factory_multi(messenger_type=Const.FAST_SOCKET,
+                                   role=Const.ACTIVE_NAME,
+                                   active_ip=active_ip,
+                                   active_port=active_port,
+                                   passive_ip=passive_ip,
+                                   passive_port=passive_port,
+                                   world_size=world_size)
+
+    print('ACTIVE PARTY started, connecting...')
 
     # 5. Initialize model and start training
     _logger = logger_factory(role=Const.ACTIVE_NAME)
@@ -359,13 +387,15 @@ if __name__ == '__main__':
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
                                 using_pool=_using_pool,
-                                saving_model=False)
+                                saving_model=False,
+                                world_size=world_size)
 
     active_party.train(active_trainset, active_testset)
 
     # 6. Close messenger, finish training.
-    for msger_ in _messenger:
-        msger_.close()
+    # for msger_ in _messenger:
+    #     msger_.close()
+    _messenger.close()
 
     # For online inference, you just need to substitute the model_name
     # scores = ActiveLogReg.online_inference(

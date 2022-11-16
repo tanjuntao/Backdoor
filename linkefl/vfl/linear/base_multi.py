@@ -345,6 +345,7 @@ class BaseLinearPassive(BaseLinear):
                 _begin = time.time()
                 self.messenger.send(wx)
 
+
                 # Receive encrypted residue and calculate masked encrypted gradients
                 enc_residue = self.messenger.recv()
                 commu_plus_compu_time += time.time() - _begin
@@ -430,6 +431,7 @@ class BaseLinearActive(BaseLinear):
                  saving_model=False,
                  model_path='./models',
                  task='classification',
+                 world_size=1
     ):
         super(BaseLinearActive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -444,6 +446,8 @@ class BaseLinearActive(BaseLinear):
         self.precision = precision
         self.random_state = random_state
         self.using_pool = using_pool
+        self.world_size = world_size
+
         if using_pool:
             if num_workers == -1:
                 num_workers = os.cpu_count()
@@ -495,13 +499,12 @@ class BaseLinearActive(BaseLinear):
                    is_multi_thread=config.IS_MULTI_THREAD)
 
     def _sync_pubkey(self):
-        for msger in self.messenger:
-            signal = msger.recv()
+        for id in range(1,self.world_size+1):
+            signal = self.messenger.recv(id)
             if signal == Const.START_SIGNAL:
                 print('Training protocol started.')
                 print('[ACTIVE] Sending public key to passive party...')
-                msger.send(self.cryptosystem.pub_key)
-
+                self.messenger.send(self.cryptosystem.pub_key,id)
             else:
                 raise ValueError('Invalid signal, exit.')
         print('[ACTIVE] Sending public key done!')
