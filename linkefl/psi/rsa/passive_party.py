@@ -15,7 +15,7 @@ from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
-from linkefl.crypto import PartialRSACrypto
+from linkefl.crypto import PartialRSA
 from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
 from linkefl.messenger import FastSocket
 from linkefl.pipeline.base import TransformComponent
@@ -50,7 +50,7 @@ class RSAPSIPassive(TransformComponent):
     def run(self, ids):
         # sync RSA public key
         public_key = self._sync_pubkey()
-        self.cryptosystem = PartialRSACrypto(pub_key=public_key)
+        self.cryptosystem = PartialRSA(raw_public_key=public_key)
         start = time.time()
 
         # 1. generate random factors
@@ -129,7 +129,7 @@ class RSAPSIPassive(TransformComponent):
     def run_online(self, ids):
         start_time = time.time()
         public_key = self._sync_pubkey()
-        self.cryptosystem = PartialRSACrypto(pub_key=public_key)
+        self.cryptosystem = PartialRSA(raw_public_key=public_key)
 
         # generate random factors and blind ids
         begin = time.time()
@@ -195,7 +195,11 @@ class RSAPSIPassive(TransformComponent):
 
         n = self.cryptosystem.pub_key.n
         r_invs = [gmpy2.invert(r, n) for r in randoms]
-        r_encs = self.cryptosystem.encrypt_set_thread(randoms, n_threads=n_threads)
+        r_encs = self.cryptosystem.encrypt_vector(
+            randoms,
+            using_pool=True,
+            n_workers=n_threads
+        )
         random_factors = list(zip(r_invs, r_encs))
 
         return random_factors

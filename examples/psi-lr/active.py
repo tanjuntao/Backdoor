@@ -4,7 +4,7 @@ from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
-from linkefl.crypto import RSACrypto
+from linkefl.crypto import RSA
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import scale, add_intercept
 from linkefl.psi.rsa import RSAPSIActive
@@ -78,7 +78,7 @@ if __name__ == '__main__':
         for ac_ip, ac_port, pass_ip, pass_port in
             zip(active_ip, active_port, passive_ip, passive_port)
     ]
-    psi_crypto = RSACrypto()
+    psi_crypto = RSA()
     active_psi = RSAPSIActive(messenger, psi_crypto, logger)
     common_ids = active_psi.run(active_trainset.ids)
     active_trainset.filter(common_ids)

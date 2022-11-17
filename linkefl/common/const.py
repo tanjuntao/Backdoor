@@ -10,6 +10,7 @@ class Const:
     IMPORTANCE = "importance"
 
     START_SIGNAL = "start"
+    PROJECT_CACHE_DIR = '.linkefl'
 
     BUILDIN_DATASETS = [
         "cancer",
@@ -37,6 +38,7 @@ class Const:
     PLAIN = "plain"
     PAILLIER = "paillier"
     FAST_PAILLIER = "fast_paillier"
+    RSA = 'rsa'
 
     L1 = "l1"
     L2 = "l2"

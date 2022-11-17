@@ -7,7 +7,7 @@ import gmpy2
 from Crypto.PublicKey import RSA
 from phe.paillier import generate_paillier_keypair, PaillierPublicKey, PaillierPrivateKey
 
-from linkefl.crypto import RSACrypto    
+from linkefl.crypto import RSA
 
 BASE_URL = 'http://10.7.7.150:10310/isafeidms'
 AUTH_TOKEN_SDK = 'sOslPLw84gJC0BoMjHUf9tcmEmWOdyX8tyHwt6xBnRo='
@@ -136,13 +136,13 @@ if __name__ == '__main__':
     n = int(secret_key['n'])
     d = int(secret_key['d'])
 
-    rsa_crypto = RSACrypto(key_size=1024, e=e)
+    rsa_crypto = RSA(key_size=1024, e=e)
     data = [random.randint(1, 10000) for _ in range(1000)]
     start_time = time.time()
-    rsa_crypto.sign_set_thread(data)
+    rsa_crypto.sign_vector(data, using_pool=True)
     print('multi-threading elapsed time: {}'.format(time.time() - start_time))
     start_time = time.time()
-    rsa_crypto.sign_set(data)
+    rsa_crypto.sign_vector(data, using_pool=True)
     print('single thread elapsed time: {}'.format(time.time() - start_time))
 
     # priv_key = RSA.generate(key_size, e=e)

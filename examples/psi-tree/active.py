@@ -2,7 +2,7 @@ from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory
-from linkefl.crypto import RSACrypto
+from linkefl.crypto import RSA
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import parse_label
 from linkefl.messenger import FastSocket
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         passive_ip=passive_ip,
         passive_port=passive_port,
     )
-    psi_crypto = RSACrypto()
+    psi_crypto = RSA()
     active_psi = RSAPSIActive([messenger],
                               psi_crypto,
                               _logger,

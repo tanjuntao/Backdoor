@@ -5,7 +5,7 @@ from linkefl.pipeline.base import TransformComponent, ModelComponent
 
 
 class PipeLine:
-    def __init__(self, components: List[Union[TransformComponent, ModelComponent]], role):
+    def __init__(self, components, role):
         self._check_params(components)
 
         self.components = components
