@@ -44,7 +44,7 @@ if __name__ == "__main__":
     messenger = messenger_factory_disconnection(
         messenger_type=Const.FAST_SOCKET_V1,
         role=Const.PASSIVE_NAME,
-        model='Tree',
+        model_type='Tree',
         active_ip=active_ip,
         active_port=active_port,
         passive_ip=passive_ip,
@@ -62,7 +62,7 @@ if __name__ == "__main__":
 
     # load temp model and retrain
     load_model_path = "./models"
-    load_model_name = "20221103_171018-passive_party-1-vertical_sbt-455_samples.model"
+    load_model_name = "20221115_165528-passive_party-1-vertical_sbt-455_samples.model"
     passive_party.load_retrain(load_model_path, load_model_name, passive_trainset, passive_testset)
 
     # passive_party.online_inference(passive_testset, "xxx.model")

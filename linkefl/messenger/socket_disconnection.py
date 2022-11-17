@@ -11,12 +11,11 @@ from .base import Messenger
 from linkefl.config import BaseConfig
 from linkefl.common.const import Const
 
-socket.setdefaulttimeout(120)
 
 class FastSocket_disconnection_v1(Messenger):
     def __init__(self,
                  role,
-                 model,
+                 model_type,
                  active_ip,
                  active_port,
                  passive_ip,
@@ -27,11 +26,12 @@ class FastSocket_disconnection_v1(Messenger):
         After Initialzation, a daemon socket will run in backend at both RSAPSIPassive
         and RSAPSIActive's side.
         """
+        socket.setdefaulttimeout(120)
         super(FastSocket_disconnection_v1, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
 
         self.role = role
-        self.model = model
+        self.model_type = model_type
         self.active_ip = active_ip
         self.active_port = active_port
         self.passive_ip = passive_ip
@@ -129,7 +129,7 @@ class FastSocket_disconnection_v1(Messenger):
         """Judge data integrity by looking at the first data
         """
         try:
-            if self.model == 'Tree':
+            if self.model_type == 'Tree':
                 data["name"]    # verify in decision tree
             else:
                 data[0]         # verify in NN or LR

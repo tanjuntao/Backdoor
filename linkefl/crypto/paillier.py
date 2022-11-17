@@ -243,7 +243,7 @@ class PaillierPublicKey:
             return [_fast_encrypt(val) for val in plain_vector]
 
         # sequentially
-        using_pool_thresh = 5000 # based on empirical evaluations on different machines
+        using_pool_thresh = 10000 # based on empirical evaluations on different machines
         if len(plain_vector) < using_pool_thresh:
             return [_fast_encrypt(val) for val in plain_vector]
 
@@ -253,23 +253,30 @@ class PaillierPublicKey:
                 n_workers = os.cpu_count()
             process_pool = multiprocessing.pool.Pool(n_workers)
         n_processes = process_pool._processes
-        data_size = len(plain_vector)
-        quotient = data_size // n_processes
-        remainder = data_size % n_processes
+        manager = Manager()
+        # important: convert it to object dtype
+        plain_vector = np.array(plain_vector).astype(object)
+        shared_data = manager.list(np.array_split(plain_vector, n_processes))
         async_results = []
-        for idx in range(n_processes):
-            start = idx * quotient
-            end = (idx + 1) * quotient
-            if idx == n_processes - 1:
-                end += remainder
-            # target function will modify plain_vector in place
-            result = process_pool.apply_async(self._target_fast_enc_vector,
-                                              args=(plain_vector, start, end))
+        for i in range(n_processes):
+            # this will modify shared_data in place
+            result = process_pool.apply_async(
+                self._target_fast_enc_vector,
+                # all parameters in args will be pickled and passed to child processes,
+                # which may be time-consuming
+                args=(shared_data[i],)
+            )
             async_results.append(result)
-        for idx, result in enumerate(async_results):
-            assert result.get() is True, "worker thread did not finish " \
-                                         "within default timeout"
-        return plain_vector  # is a Python list
+        for i in range(n_processes):
+            assert async_results[i].get() is True, \
+                "worker thread did not finish within default timeout"
+        # concat the split sub-arrays into one array and then convert it to Python list
+        encrypted_data = functools.reduce(
+            lambda a, b: np.concatenate((a, b)),
+            shared_data
+        ).tolist()
+
+        return encrypted_data # always return a Python list
 
     def _target_enc_vector(self, plaintexts, start, end):
         n = self.raw_pub_key.n
@@ -288,25 +295,26 @@ class PaillierPublicKey:
             r_idx += 1
         return True
 
-    def _target_fast_enc_vector(self, plaintexts, start, end):
+    def _target_fast_enc_vector(self, plaintexts):
         def _fast_encrypt(val):
             # unlike self.raw_fast_encrypt(), there's no need to judge the data type
             enc_zero = random.choice(getattr(self, 'enc_zeros'))
             return enc_zero + val
 
-        for idx in range(start, end):
+        for idx in range(len(plaintexts)):
             plaintexts[idx] = _fast_encrypt(plaintexts[idx])
         return True
 
     def raw_encrypt_data(self, plain_data, pool: Pool = None):
         target_func = self._target_enc_data
-        return self._base_encrypt_data(plain_data, pool, target_func)
+        return PaillierPublicKey._base_encrypt_data(plain_data, pool, target_func)
 
     def raw_fast_encrypt_data(self, plain_data, pool: Pool = None):
         target_func = self._target_fast_enc_data
-        return self._base_encrypt_data(plain_data, pool, target_func)
+        return PaillierPublicKey._base_encrypt_data(plain_data, pool, target_func)
 
-    def _base_encrypt_data(self, plain_data, pool, target_func):
+    @staticmethod
+    def _base_encrypt_data(plain_data, pool, target_func):
         if type(plain_data) == torch.Tensor:
             plain_data = plain_data.numpy()
             data_type = "torch"
@@ -725,7 +733,7 @@ class FastPaillier(CryptoSystem):
         return self.pub_key_obj.raw_fast_encrypt(plaintext)
 
     def decrypt(self, ciphertext):
-        self.priv_key_obj.raw_decrypt(ciphertext)
+        return self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(self, plain_vector,
                        using_pool=False, n_workers=None, process_pool=None):
