@@ -127,7 +127,7 @@ class PassiveTreeParty(ModelComponent):
                     model_name = (
                         f"{self.model_name}-{trainset.n_samples}_samples.model"
                     )
-                NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
+                    NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
 
                 self.logger.log("temp model saved")
                 self._validate(testset)
