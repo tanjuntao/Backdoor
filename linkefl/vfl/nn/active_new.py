@@ -18,11 +18,11 @@ from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 class ActiveNeuralNetwork:
     def __init__(self,
-                 epochs,
-                 batch_size,
-                 learning_rate,
-                 models,
-                 optimizers,
+                 epochs : int,
+                 batch_size : int,
+                 learning_rate : float,
+                 models : dict,
+                 optimizers : dict,
                  loss_fn,
                  messenger,
                  crypto_type,
@@ -52,6 +52,7 @@ class ActiveNeuralNetwork:
                 eta=self.learning_rate,
                 messenger=self.messenger,
                 cryptosystem=self.cryptosystem,
+                random_state=random_state,
                 precision=precision
             )
 
@@ -75,7 +76,7 @@ class ActiveNeuralNetwork:
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle)
         return dataloader
 
-    def train(self, trainset, testset):
+    def train(self, trainset : TorchDataset, testset : TorchDataset):
         assert isinstance(trainset, TorchDataset), \
             'trainset should be an instance of TorchDataset'
         assert isinstance(testset, TorchDataset), \
@@ -122,7 +123,9 @@ class ActiveNeuralNetwork:
                 if batch_idx % 100 == 0:
                     loss, current = loss.item(), batch_idx * len(X)
                     print(f"loss: {loss:>7f}  [{current:>5d}/{trainset.n_samples:>5d}]")
-                    # break
+
+                # if batch_idx == 1:
+                #     break
 
             is_best = False
             scores = self.validate(testset, existing_loader=test_dataloader)
@@ -141,6 +144,10 @@ class ActiveNeuralNetwork:
                 if curr_acc > best_acc:
                     best_acc = curr_acc
             self.messenger.send(is_best)
+
+        # close pool
+        if hasattr(self, 'enc_layer'):
+            self.enc_layer.close_pool()
 
         print(colored('Total training and validation time: {:.4f}'
                       .format(time.time() - start_time), 'red'))
@@ -192,20 +199,21 @@ class ActiveNeuralNetwork:
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'fashion_mnist'
+    dataset_name = 'mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 2
+    _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
-    _passive_in_nodes = 10
+    _passive_in_nodes = 128
     _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
-    torch.manual_seed(1314)
+    _random_state = 1314
+    torch.manual_seed(_random_state)
 
     # 1. Load datasets
     print('Loading dataset...')
@@ -215,14 +223,16 @@ if __name__ == '__main__':
                                                    train=True,
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+                                                   feat_perm_option=feat_perm_option,
+                                                   seed=_random_state)
     active_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
                                                   role=Const.ACTIVE_NAME,
                                                   root='../data',
                                                   train=False,
                                                   download=True,
                                                   passive_feat_frac=passive_feat_frac,
-                                                  feat_perm_option=feat_perm_option)
+                                                  feat_perm_option=feat_perm_option,
+                                                  seed=_random_state)
     print('Done.')
 
     # 2. Create PyTorch models and optimizers
@@ -245,6 +255,11 @@ if __name__ == '__main__':
     # bottom_nodes = [input_nodes, 20, 10]
     # cut_nodes = [10, 8]
     # top_nodes = [8, 2]
+
+    # epsilon
+    # bottom_nodes = [input_nodes, 25, 10]
+    # cut_nodes = [10, 10]
+    # top_nodes = [10, 2]
     bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
     cut_layer = CutLayer(*cut_nodes)
     top_model = MLPModel(top_nodes, activate_input=True, activate_output=False)

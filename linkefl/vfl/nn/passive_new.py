@@ -15,11 +15,11 @@ from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 class PassiveNeuralNetwork:
     def __init__(self,
-                 epochs,
-                 batch_size,
-                 learning_rate,
-                 models,
-                 optimizers,
+                 epochs : int,
+                 batch_size : int,
+                 learning_rate : float,
+                 models : dict,
+                 optimizers : dict,
                  messenger,
                  cryptosystem,
                  *,
@@ -42,6 +42,7 @@ class PassiveNeuralNetwork:
                 eta=learning_rate,
                 messenger=messenger,
                 cryptosystem=cryptosystem,
+                random_state=random_state,
                 precision=precision
             )
         self._sync_pubkey()
@@ -66,7 +67,7 @@ class PassiveNeuralNetwork:
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle)
         return dataloader
 
-    def train(self, trainset, testset):
+    def train(self, trainset : TorchDataset, testset : TorchDataset):
         assert isinstance(trainset, TorchDataset), \
             'trainset should be an instance of TorchDataset'
         assert isinstance(testset, TorchDataset), \
@@ -106,12 +107,17 @@ class PassiveNeuralNetwork:
                     self.optimizers["cut"].step()
                     self.optimizers["bottom"].step()
 
-                # break
+                # if batch_idx == 1:
+                #     break
 
             scores = self.validate(testset, existing_loader=test_dataloader)
             is_best = self.messenger.recv()
             if is_best:
                 print(colored('Best model updated.', 'red'))
+
+        # close pool
+        if hasattr(self, 'enc_layer'):
+            self.enc_layer.close_pool()
 
         print(colored('Total training and validation time: {}'
                       .format(time.time() - start_time), 'red'))
@@ -139,20 +145,21 @@ class PassiveNeuralNetwork:
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'fashion_mnist'
+    dataset_name = 'mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 2
+    _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
-    _passive_in_nodes = 10
+    _passive_in_nodes = 128
     _crypto_type = Const.PLAIN
     _key_size = 1024
-    torch.manual_seed(1314)
+    _random_state = 1314
+    torch.manual_seed(_random_state)
 
     # 1. Load datasets
     print('Loading dataset...')
@@ -162,14 +169,16 @@ if __name__ == '__main__':
                                                     train=True,
                                                     download=True,
                                                     passive_feat_frac=passive_feat_frac,
-                                                    feat_perm_option=feat_perm_option)
+                                                    feat_perm_option=feat_perm_option,
+                                                    seed=_random_state)
     passive_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
                                                    role=Const.PASSIVE_NAME,
                                                    root='../data',
                                                    train=False,
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+                                                   feat_perm_option=feat_perm_option,
+                                                   seed=_random_state)
     print('Done.')
 
     # 2. Create PyTorch models and optimizers
@@ -189,6 +198,10 @@ if __name__ == '__main__':
     # census
     # bottom_nodes = [input_nodes, 20, 10]
     # cut_nodes = [_passive_in_nodes, 8]
+
+    # epsilon
+    # bottom_nodes = [input_nodes, 25, 10]
+    # cut_nodes = [10, 10]
     bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
     cut_layer = CutLayer(*cut_nodes)
     _models = {"bottom": bottom_model, "cut": cut_layer}
