@@ -256,7 +256,9 @@ class PaillierPublicKey:
         manager = Manager()
         # important: convert it to object dtype
         plain_vector = np.array(plain_vector).astype(object)
-        shared_data = manager.list(np.array_split(plain_vector, n_processes))
+        shared_data = manager.list(
+            list(map(manager.list, np.array_split(plain_vector, n_processes)))
+        )
         async_results = []
         for i in range(n_processes):
             # this will modify shared_data in place
@@ -341,7 +343,9 @@ class PaillierPublicKey:
             print("using pool to speed up")
             n_processes = pool._processes
             manager = Manager()
-            shared_data = manager.list(np.array_split(flatten_data, n_processes))
+            shared_data = manager.list(
+                list(map(manager.list, np.array_split(flatten_data, n_processes)))
+            )
 
             results = []
             for i in range(n_processes):
@@ -366,7 +370,6 @@ class PaillierPublicKey:
             # unlike self.raw_encrypt(), there's no need to judge the data type
             return self.raw_pub_key.encrypt(val)
 
-        assert len(shared_vector.shape) == 1
         for i in range(len(shared_vector)):
             shared_vector[i] = _encrypt(shared_vector[i])
         return True
@@ -377,7 +380,6 @@ class PaillierPublicKey:
             enc_zero = random.choice(getattr(self, 'enc_zeros'))
             return enc_zero + val
 
-        assert len(shared_vector.shape) == 1
         for i in range(len(shared_vector)):
             shared_vector[i] = _fast_encrypt(shared_vector[i])
         return True
@@ -513,7 +515,9 @@ class PaillierPrivateKey:
             print("using pool to speed up")
             n_processes = pool._processes
             manager = Manager()
-            shared_data = manager.list(np.array_split(flatten_data, n_processes))
+            shared_data = manager.list(
+                list(map(manager.list, np.array_split(flatten_data, n_processes)))
+            )
 
             results = []
             for i in range(n_processes):
@@ -535,8 +539,6 @@ class PaillierPrivateKey:
         return plain_data
 
     def _target_dec_data(self, shared_vector):
-        assert len(shared_vector.shape) == 1
-
         for i in range(len(shared_vector)):
             shared_vector[i] = self.raw_decrypt(shared_vector[i])
         return True
