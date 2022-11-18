@@ -1,7 +1,6 @@
 import copy
 import time
 
-from line_profiler_pycharm import profile
 import numpy as np
 from sklearn.metrics import log_loss, accuracy_score, roc_auc_score, f1_score
 from termcolor import colored
@@ -243,8 +242,11 @@ class ActiveLogReg(BaseLinearActive):
                                                   'instance of NumpyDataset'
         model_params = NumpyModelIO.load(model_path, model_name)
         active_wx = np.matmul(dataset.features, model_params)
-        passive_wx = messenger.recv()
-        probs = sigmoid(active_wx + passive_wx)
+        total_wx = active_wx
+        for msger in messenger:
+            curr_wx = msger.recv()
+            total_wx += curr_wx
+        probs = sigmoid(total_wx)
         preds = (probs > POSITIVE_THRESH).astype(np.int32)
         accuracy = accuracy_score(dataset.labels, preds)
         f1 = f1_score(dataset.labels, preds)
@@ -255,13 +257,14 @@ class ActiveLogReg(BaseLinearActive):
             "auc": auc,
             "f1": f1
         }
-        messenger.send(scores)
+        for msger in messenger:
+            msger.send(scores)
         return scores
 
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'census'
+    _dataset_name = 'census'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = ['localhost', 'localhost']
@@ -282,14 +285,14 @@ if __name__ == '__main__':
     # Option 1: Scikit-Learn style
     print('Loading dataset...')
     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                   dataset_name=dataset_name,
+                                                   dataset_name=_dataset_name,
                                                    root='../../data',
                                                    train=True,
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
     active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                  dataset_name=dataset_name,
+                                                  dataset_name=_dataset_name,
                                                   root='../../data',
                                                   train=False,
                                                   download=True,
