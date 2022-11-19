@@ -167,9 +167,10 @@ class CommonDataset(BaseDataset):
                       transform=None, seed=None
     ):
         if seed is not None:
-            np.random.seed(seed)
+            random.seed(seed)
         _ids = np.arange(n_samples)
-        _feats = np.random.rand(n_samples, n_features)
+        _feats = [random.random() for _ in range(n_samples * n_features)]
+        _feats = np.array(_feats).reshape(n_samples, n_features)
 
         num_passive_feats = int(passive_feat_frac * n_features)
         if role == Const.PASSIVE_NAME:
@@ -179,9 +180,9 @@ class CommonDataset(BaseDataset):
             )
         else:
             if dataset_type == Const.CLASSIFICATION:
-                _labels = np.random.choice([0, 1], size=n_samples, replace=True)
+                _labels = np.array([random.choice([0, 1]) for _ in range(n_samples)])
             else:
-                _labels = np.random.rand(n_samples)
+                _labels = np.array([random.random() for _ in range(n_samples)])
             np_dataset = np.concatenate(
                 (_ids[:, np.newaxis], _labels[:, np.newaxis], _feats[:, num_passive_feats:]),
                 axis=1
@@ -611,8 +612,10 @@ class CommonDataset(BaseDataset):
             permuted_feats = _feats
         elif perm_option == Const.RANDOM:
             if seed is not None:
-                np.random.seed(seed)
-            permuted_feats = _feats[:, np.random.permutation(_feats.shape[1])]
+                random.seed(seed)
+            perm = list(range(_feats.shape[1]))
+            random.shuffle(perm)
+            permuted_feats = _feats[:, perm]
             del _feats  # save memory
         elif perm_option == Const.IMPORTANCE:
             rankings = cal_importance_ranking(name, _feats, _labels)

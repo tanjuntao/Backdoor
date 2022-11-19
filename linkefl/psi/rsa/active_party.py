@@ -35,7 +35,7 @@ class RSAPSIActive(TransformComponent):
         self.HASHED_IDS_FILENAME = 'hashed_signed_ids.pkl'
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
-    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role: str):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.ACTIVE_NAME):
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)

@@ -40,7 +40,7 @@ class RSAPSIPassive(TransformComponent):
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
-    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role: str):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.PASSIVE_NAME):
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)

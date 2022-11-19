@@ -10,10 +10,11 @@ from linkefl.common.factory import crypto_factory, logger_factory, messenger_fac
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import add_intercept, AddIntercept
 from linkefl.modelio import NumpyModelIO
+from linkefl.pipeline.base import ModelComponent
 from linkefl.vfl.linear import BaseLinearActive
 
 
-class ActiveLinReg(BaseLinearActive):
+class ActiveLinReg(BaseLinearActive, ModelComponent):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -194,6 +195,12 @@ class ActiveLinReg(BaseLinearActive):
 
     def predict(self, testset):
         return self.validate(testset)
+
+    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+        self.train(trainset, validset)
+
+    def score(self, testset, role=Const.ACTIVE_NAME):
+        return self.predict(testset)
 
     @staticmethod
     def online_inference(dataset, model_name, messenger, model_path='./models'):

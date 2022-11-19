@@ -32,7 +32,7 @@ class BaseLinear(ABC):
         if self.random_state is not None:
             np.random.seed(self.random_state)
         else:
-            np.random.seed(None)
+            np.random.seed(None) # explicitly set the seed to None
         params = np.random.normal(0, 1.0, size)
         return params
 

@@ -8,12 +8,13 @@ from torch.utils.data import DataLoader
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.dataio import TorchDataset
+from linkefl.pipeline.base import ModelComponent
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.enc_layer import PassiveEncLayer
 from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 
-class PassiveNeuralNetwork:
+class PassiveNeuralNetwork(ModelComponent):
     def __init__(self,
                  epochs : int,
                  batch_size : int,
@@ -143,6 +144,12 @@ class PassiveNeuralNetwork:
                 self.messenger.send(passive_repr)
             scores = self.messenger.recv()
             return scores
+
+    def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
+        self.train(trainset, validset)
+
+    def score(self, testset, role=Const.PASSIVE_NAME):
+        return self.validate(testset)
 
 
 if __name__ == '__main__':

@@ -11,12 +11,13 @@ from torch.utils.data import DataLoader
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, partial_crypto_factory
 from linkefl.dataio import TorchDataset
+from linkefl.pipeline.base import ModelComponent
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 
-class ActiveNeuralNetwork:
+class ActiveNeuralNetwork(ModelComponent):
     def __init__(self,
                  epochs : int,
                  batch_size : int,
@@ -199,6 +200,12 @@ class ActiveNeuralNetwork:
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
             self.messenger.send(scores)
             return scores
+
+    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+        self.train(trainset, validset)
+
+    def score(self, testset, role=Const.ACTIVE_NAME):
+        return self.validate(testset)
 
     def train_alone(self, trainset: TorchDataset, testset: TorchDataset):
         assert isinstance(trainset, TorchDataset), \
