@@ -45,7 +45,6 @@ class PassiveNeuralNetwork:
                 random_state=random_state,
                 precision=precision
             )
-        self._sync_pubkey()
 
         self.precision = precision
         self.random_state = random_state
@@ -74,6 +73,8 @@ class PassiveNeuralNetwork:
             'testset should be an instance of TorchDataset'
         train_dataloader = self._init_dataloader(trainset)
         test_dataloader = self._init_dataloader(testset)
+
+        self._sync_pubkey()
 
         for model in self.models.values():
             model.train()

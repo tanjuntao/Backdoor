@@ -40,22 +40,8 @@ class ActiveNeuralNetwork:
         self.optimizers = optimizers
         self.loss_fn = loss_fn
         self.messenger = messenger
-        public_key = self._sync_pubkey()
-        self.cryptosystem = partial_crypto_factory(crypto_type, public_key=public_key)
-        if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            if passive_in_nodes is None:
-                raise ValueError("when using encrypted NN protocol, you should specify "
-                                 "the passive_in_nodes argument.")
-            self.enc_layer = ActiveEncLayer(
-                in_nodes=passive_in_nodes,
-                out_nodes=self.models["cut"].out_nodes,
-                eta=self.learning_rate,
-                messenger=self.messenger,
-                cryptosystem=self.cryptosystem,
-                random_state=random_state,
-                precision=precision
-            )
-
+        self.crypto_type = crypto_type
+        self.passive_in_nodes = passive_in_nodes
         self.precision = precision
         self.random_state = random_state
         self.saving_model = saving_model
@@ -83,6 +69,22 @@ class ActiveNeuralNetwork:
             'testset should be an instance of TorchDataset'
         train_dataloader = self._init_dataloader(trainset)
         test_dataloader = self._init_dataloader(testset)
+
+        public_key = self._sync_pubkey()
+        self.cryptosystem = partial_crypto_factory(self.crypto_type, public_key=public_key)
+        if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
+            if self.passive_in_nodes is None:
+                raise ValueError("when using encrypted NN protocol, you should specify "
+                                 "the passive_in_nodes argument.")
+            self.enc_layer = ActiveEncLayer(
+                in_nodes=self.passive_in_nodes,
+                out_nodes=self.models["cut"].out_nodes,
+                eta=self.learning_rate,
+                messenger=self.messenger,
+                cryptosystem=self.cryptosystem,
+                random_state=self.random_state,
+                precision=self.precision
+            )
 
         for model in self.models.values():
             model.train()
@@ -194,6 +196,96 @@ class ActiveNeuralNetwork:
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
             self.messenger.send(scores)
+            return scores
+
+    def train_alone(self, trainset: TorchDataset, testset: TorchDataset):
+        assert isinstance(trainset, TorchDataset), \
+            'trainset should be an instance of TorchDataset'
+        assert isinstance(testset, TorchDataset), \
+            'testset should be an instance of TorchDataset'
+        train_dataloader = self._init_dataloader(trainset)
+        test_dataloader = self._init_dataloader(testset)
+
+        for model in self.models.values():
+            model.train()
+
+        start_time = time.time()
+        best_acc, best_auc = 0, 0
+        for epoch in range(self.epochs):
+            print('Epoch: {}'.format(epoch))
+            for batch_idx, (X, y) in enumerate(train_dataloader):
+                # forward
+                logits = self.models["top"](
+                    self.models["cut"](
+                        self.models["bottom"](X)
+                    )
+                )
+                loss = self.loss_fn(logits, y)
+
+                # backward
+                for optmizer in self.optimizers.values():
+                    optmizer.zero_grad()
+                loss.backward()
+                for optmizer in self.optimizers.values():
+                    optmizer.step()
+                if batch_idx % 100 == 0:
+                    loss, current = loss.item(), batch_idx * len(X)
+                    print(f"loss: {loss:>7f}  [{current:>5d}/{trainset.n_samples:>5d}]")
+
+            scores = self.validate_alone(testset, existing_loader=test_dataloader)
+            curr_acc, curr_auc = scores['acc'], scores['auc']
+            if curr_auc == 0:  # multi-class
+                if curr_acc > best_acc:
+                    best_acc = curr_acc
+                    print(colored('Best model updated.', 'red'))
+                # no need to update best_auc here, because it always equals zero.
+            else:  # binary-class
+                if curr_auc > best_auc:
+                    best_auc = curr_auc
+                    print(colored('Best model updated.', 'red'))
+                if curr_acc > best_acc:
+                    best_acc = curr_acc
+
+        print(colored('Total training and validation time: {:.4f}'
+                      .format(time.time() - start_time), 'red'))
+        print(colored('Best testing accuracy: {:.5f}'.format(best_acc), 'red'))
+        print(colored('Best testing auc: {:.5f}'.format(best_auc), 'red'))
+
+    def validate_alone(self, testset: TorchDataset, existing_loader=None):
+        if existing_loader is None:
+            dataloader = DataLoader(testset, batch_size=self.batch_size, shuffle=False)
+        else:
+            dataloader = existing_loader
+
+        for model in self.models.values():
+            model.eval()
+
+        n_batches = len(dataloader)
+        test_loss, correct = 0.0, 0
+        labels, probs = np.array([]), np.array([])
+        with torch.no_grad():
+            for batch, (X, y) in enumerate(dataloader):
+                logits = self.models["top"](
+                    self.models["cut"](
+                        self.models["bottom"](X)
+                    )
+                )
+                labels = np.append(labels, y.numpy().astype(np.int32))
+                probs = np.append(probs, torch.sigmoid(logits[:, 1]).numpy())
+                test_loss += self.loss_fn(logits, y).item()
+                correct += (logits.argmax(1) == y).type(torch.float).sum().item()
+            test_loss /= n_batches
+            acc = correct / testset.n_samples
+            n_classes = len(torch.unique(testset.labels))
+            if n_classes == 2:
+                auc = roc_auc_score(labels, probs)
+            else:
+                auc = 0
+            print(f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
+                  f" Auc: {(100 * auc):>0.2f}%,"
+                  f" Avg loss: {test_loss:>8f}")
+
+            scores = {"acc": acc, "auc": auc, "loss": test_loss}
             return scores
 
 
