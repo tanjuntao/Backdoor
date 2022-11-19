@@ -35,19 +35,10 @@ class PassiveNeuralNetwork:
         self.optimizers = optimizers
         self.messenger = messenger
         self.cryptosystem = cryptosystem
-        if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            self.enc_layer = PassiveEncLayer(
-                in_nodes=self.models["cut"].in_nodes,
-                out_nodes=self.models["cut"].out_nodes,
-                eta=learning_rate,
-                messenger=messenger,
-                cryptosystem=cryptosystem,
-                random_state=random_state,
-                precision=precision
-            )
-
         self.precision = precision
         self.random_state = random_state
+        if random_state is not None:
+            torch.random.manual_seed(random_state)
         self.saving_model = saving_model
         self.model_path = model_path
         self.model_name = "{time}-{role}-{model_type}".format(
@@ -75,6 +66,16 @@ class PassiveNeuralNetwork:
         test_dataloader = self._init_dataloader(testset)
 
         self._sync_pubkey()
+        if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
+            self.enc_layer = PassiveEncLayer(
+                in_nodes=self.models["cut"].in_nodes,
+                out_nodes=self.models["cut"].out_nodes,
+                eta=self.learning_rate,
+                messenger=self.messenger,
+                cryptosystem=self.cryptosystem,
+                random_state=self.random_state,
+                precision=self.precision
+            )
 
         for model in self.models.values():
             model.train()
@@ -160,7 +161,6 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
     _key_size = 1024
     _random_state = 1314
-    torch.manual_seed(_random_state)
 
     # 1. Load datasets
     print('Loading dataset...')
@@ -203,8 +203,11 @@ if __name__ == '__main__':
     # epsilon
     # bottom_nodes = [input_nodes, 25, 10]
     # cut_nodes = [10, 10]
-    bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
-    cut_layer = CutLayer(*cut_nodes)
+    bottom_model = MLPModel(bottom_nodes,
+                            activate_input=False,
+                            activate_output=True,
+                            random_state=_random_state)
+    cut_layer = CutLayer(*cut_nodes, random_state=_random_state)
     _models = {"bottom": bottom_model, "cut": cut_layer}
     _optimizers = {name: torch.optim.SGD(model.parameters(), lr=_learning_rate)
                    for name, model in _models.items()}
@@ -228,7 +231,8 @@ if __name__ == '__main__':
                                          models=_models,
                                          optimizers=_optimizers,
                                          messenger=_messenger,
-                                         cryptosystem=_crypto,)
+                                         cryptosystem=_crypto,
+                                         random_state=_random_state)
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training

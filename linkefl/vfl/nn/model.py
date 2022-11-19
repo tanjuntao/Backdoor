@@ -1,3 +1,4 @@
+import torch.random
 from torch import nn
 
 
@@ -6,10 +7,13 @@ class MLPModel(nn.Module):
                  num_nodes,
                  activation='relu',
                  activate_input=False,
-                 activate_output=False
+                 activate_output=False,
+                 random_state=None
         ):
         super(MLPModel, self).__init__()
         assert activation in ('relu',), f"{activation} is not supported now."
+        if random_state is not None:
+            torch.random.manual_seed(random_state)
         modules = []
         n_layers = len(num_nodes) - 1
         for i in range(n_layers):
@@ -27,10 +31,12 @@ class MLPModel(nn.Module):
 
 
 class CutLayer(nn.Module):
-    def __init__(self, in_nodes, out_nodes):
+    def __init__(self, in_nodes, out_nodes, random_state=None):
         super(CutLayer, self).__init__()
         self.in_nodes = in_nodes
         self.out_nodes = out_nodes
+        if random_state is not None:
+            torch.random.manual_seed(random_state)
         self.linear = nn.Linear(in_nodes, out_nodes) # no activation
 
     def forward(self, x):

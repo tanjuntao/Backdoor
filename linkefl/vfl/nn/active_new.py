@@ -44,6 +44,8 @@ class ActiveNeuralNetwork:
         self.passive_in_nodes = passive_in_nodes
         self.precision = precision
         self.random_state = random_state
+        if random_state is not None:
+            torch.random.manual_seed(random_state)
         self.saving_model = saving_model
         self.model_path = model_path
         self.model_name = "{time}-{role}-{model_type}".format(
@@ -305,7 +307,6 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
     _random_state = 1314
-    torch.manual_seed(_random_state)
 
     # 1. Load datasets
     print('Loading dataset...')
@@ -352,9 +353,15 @@ if __name__ == '__main__':
     # bottom_nodes = [input_nodes, 25, 10]
     # cut_nodes = [10, 10]
     # top_nodes = [10, 2]
-    bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
-    cut_layer = CutLayer(*cut_nodes)
-    top_model = MLPModel(top_nodes, activate_input=True, activate_output=False)
+    bottom_model = MLPModel(bottom_nodes,
+                            activate_input=False,
+                            activate_output=True,
+                            random_state=_random_state)
+    cut_layer = CutLayer(*cut_nodes, random_state=_random_state)
+    top_model = MLPModel(top_nodes,
+                         activate_input=True,
+                         activate_output=False,
+                         random_state=_random_state)
     _models = {"bottom": bottom_model, "cut": cut_layer, "top": top_model}
     _optimizers = {name: torch.optim.SGD(model.parameters(), lr=_learning_rate)
                    for name, model in _models.items()}
@@ -377,7 +384,8 @@ if __name__ == '__main__':
                                        loss_fn=_loss_fn,
                                        messenger=_messenger,
                                        crypto_type=_crypto_type,
-                                       passive_in_nodes=_passive_in_nodes)
+                                       passive_in_nodes=_passive_in_nodes,
+                                       random_state=_random_state)
     active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training
