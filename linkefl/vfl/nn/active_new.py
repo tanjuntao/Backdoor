@@ -300,18 +300,18 @@ class ActiveNeuralNetwork(ModelComponent):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'mnist'
+    dataset_name = 'epsilon'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 100
+    _epochs = 1
     _batch_size = 100
     _learning_rate = 0.01
-    _passive_in_nodes = 128
-    _crypto_type = Const.PLAIN
+    _passive_in_nodes = 10
+    _crypto_type = Const.FAST_PAILLIER
     _loss_fn = nn.CrossEntropyLoss()
     _random_state = 1314
 
@@ -357,9 +357,9 @@ if __name__ == '__main__':
     # top_nodes = [8, 2]
 
     # epsilon
-    # bottom_nodes = [input_nodes, 25, 10]
-    # cut_nodes = [10, 10]
-    # top_nodes = [10, 2]
+    bottom_nodes = [input_nodes, 25, 10]
+    cut_nodes = [10, 10]
+    top_nodes = [10, 2]
     bottom_model = MLPModel(bottom_nodes,
                             activate_input=False,
                             activate_output=True,

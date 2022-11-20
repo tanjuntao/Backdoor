@@ -53,21 +53,21 @@ class PassiveLogReg(BaseLinearPassive, ModelComponent):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    _dataset_name = 'census'
+    _dataset_name = 'epsilon'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 20001
-    _epochs = 100
-    _batch_size = 100
+    _epochs = 10
+    _batch_size = -1
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
     _random_state = 3347
-    _crypto_type = Const.PLAIN
-    _using_pool = False
+    _crypto_type = Const.FAST_PAILLIER
+    _using_pool = True
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style

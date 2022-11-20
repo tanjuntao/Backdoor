@@ -762,7 +762,122 @@ class FastPaillier(CryptoSystem):
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
+def cipher_matmul(
+        cipher_matrix: np.ndarray,
+        plain_matrix: np.ndarray,
+        executor_pool: multiprocessing.pool.ThreadPool,
+        scheduler_pool: multiprocessing.pool.ThreadPool
+):
+    """
+
+    Parameters
+    ----------
+    cipher_matrix
+    plain_matrix
+    executor_pool
+    scheduler_pool
+
+    Returns
+    -------
+
+    """
+    assert cipher_matrix.shape[1] == plain_matrix.shape[0], \
+        "Matrix shape dismatch error. cipher_matrix shape is {}, plain_matrix shape is {}" \
+            .format(cipher_matrix.shape, plain_matrix.shape)
+
+    result_matrix = []
+    for i in range(len(cipher_matrix)):
+        curr_result = _cipher_mat_vec_product(
+            cipher_vector=cipher_matrix[i],
+            plain_matrix=plain_matrix,
+            executor_pool=executor_pool,
+            scheduler_pool=scheduler_pool
+        )
+        result_matrix.append(curr_result)
+
+    return np.array(result_matrix)
+
+def _cipher_mat_vec_product(cipher_vector, plain_matrix, executor_pool, scheduler_pool):
+    height, width = plain_matrix.shape
+
+    # 1. multiply each raw of plain_matrix with its corresponding enc value
+    enc_result = [None] * height
+    data_size = height
+    n_schedulers = scheduler_pool._processes
+    quotient = data_size // n_schedulers
+    remainder = data_size % n_schedulers
+    async_results = []
+    for idx in range(n_schedulers):
+        start = idx * quotient
+        end = (idx + 1) * quotient
+        if idx == n_schedulers - 1:
+            end += remainder
+        # this will modify enc_result in place
+        result = scheduler_pool.apply_async(
+            _target_row_mul,
+            args=(cipher_vector, plain_matrix, enc_result, start, end, executor_pool)
+        )
+        async_results.append(result)
+    for result in async_results:
+        assert result.get() is True
+
+    # 2. transpose enc_result
+    enc_result = np.array(enc_result).transpose()
+
+    # 3. average enc_result
+    avg_result = [None] * width
+    data_size = width
+    n_schedulers = scheduler_pool._processes
+    quotient = data_size // n_schedulers
+    remainder = data_size % n_schedulers
+    async_results = []
+    for idx in range(n_schedulers):
+        start = idx * quotient
+        end = (idx + 1) * quotient
+        if idx == n_schedulers - 1:
+            end += remainder
+        # this will modify avg_result in place
+        result = scheduler_pool.apply_async(
+            _target_row_add,
+            args=(enc_result, avg_result, start, end, executor_pool)
+        )
+        async_results.append(result)
+    for result in async_results:
+        assert result.get() is True
+
+    return np.array(avg_result)
+
+def _target_row_mul(enc_vector, plain_matrix, enc_result,
+                    start, end, executor_pool):
+    for k in range(start, end):
+        enc_row = fast_mul_ciphers(
+            plain_matrix[k],
+            enc_vector[k],
+            executor_pool
+        )
+        enc_result[k] = enc_row
+    return True
+
+def _target_row_add(enc_result, avg_result,
+                    start, end, executor_pool):
+    for k in range(start, end):
+        row_sum = fast_add_ciphers(enc_result[k], executor_pool)
+        avg_result[k] = row_sum
+    return True
+
+
 def fast_add_ciphers(cipher_vector, thread_pool=None):
+    """
+
+    Parameters
+    ----------
+    cipher_vector
+    thread_pool
+
+    Returns
+    -------
+
+    """
     assert type(cipher_vector) in (list, np.ndarray), \
         "cipher_vector's dtype can only be Python list or Numpy array."
     exp2cipher = {}
@@ -807,6 +922,18 @@ def _target_add_ciphers(ciphertexts, curr_exp, min_exp, base, nsquare):
 
 
 def fast_mul_ciphers(plain_vector, cipher, thread_pool=None):
+    """
+
+    Parameters
+    ----------
+    plain_vector
+    cipher
+    thread_pool
+
+    Returns
+    -------
+
+    """
     assert type(plain_vector) in (list, np.ndarray), \
         "plain_vector's dtype can only be Python list or Numpy array."
     if thread_pool is None:
@@ -852,6 +979,31 @@ def fast_mul_ciphers(plain_vector, cipher, thread_pool=None):
 
 def _target_mul_ciphers(base, exps, nsquare):
     return gmpy2.powmod_exp_list(base, exps, nsquare)
+
+
+def encode(
+        raw_data: np.ndarray,
+        raw_pub_key: phe.PaillierPublicKey,
+        precision: float = 0.001
+):
+    """
+
+    Parameters
+    ----------
+    raw_data
+    raw_pub_key
+    precision
+
+    Returns
+    -------
+
+    """
+    data_flat = raw_data.flatten()
+    # remember to use val.item(), otherwise,
+    # "TypeError('argument should be a string or a Rational instance'" will be raised
+    data_encode = [EncodedNumber.encode(raw_pub_key, val.item(), precision=precision)
+                   for val in data_flat]
+    return np.array(data_encode).reshape(raw_data.shape)
 
 
 if __name__ == "__main__":
