@@ -38,6 +38,7 @@ class ActiveTreeParty(ModelComponent):
         crypto_type: str,
         crypto_system: CryptoSystem,
         messengers: List[Messenger],
+        logger,
         *,
         learning_rate: float = 0.3,
         compress: bool = False,
@@ -87,6 +88,7 @@ class ActiveTreeParty(ModelComponent):
         self.messengers = messengers
         self.messengers_validTag = [True for _ in range(len(self.messengers))]
         self.model_phase = "online_inference"
+        self.logger = logger
 
         self.learning_rate = learning_rate
         self.max_bin = max_bin
@@ -103,8 +105,6 @@ class ActiveTreeParty(ModelComponent):
             role=Const.ACTIVE_NAME,
             model_type=Const.VERTICAL_SBT,
         )
-
-        self.logger = logger_factory(Const.ACTIVE_NAME)
 
         # 初始化 loss
         if task == "binary":
@@ -214,7 +214,7 @@ class ActiveTreeParty(ModelComponent):
                         outputs = sigmoid(raw_outputs)
 
                         self._merge_tree_info(fit_result["feature_importance_info"])
-                        self.logger.log(f"tree {i} finished")
+                        self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
                             if self.messengers_validTag[messenger_id]:
@@ -228,7 +228,7 @@ class ActiveTreeParty(ModelComponent):
                         break
 
                 self.logger.log_metric(
-                    epoch=i,
+                    epoch=tree_id,
                     loss=loss.mean(),
                     acc=scores["acc"],
                     auc=scores["auc"],
@@ -262,7 +262,7 @@ class ActiveTreeParty(ModelComponent):
 
                         self.messengers_validTag = tree.messengers_validTag  # update messengers tag
                         self._merge_tree_info(fit_result["feature_importance_info"])
-                        self.logger.log(f"tree {i} finished")
+                        self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
                             if self.messengers_validTag[messenger_id]:
@@ -277,7 +277,7 @@ class ActiveTreeParty(ModelComponent):
                         break
 
                 self.logger.log_metric(
-                    epoch=i,
+                    epoch=tree_id,
                     loss=loss.mean(),
                     acc=scores["acc"],
                     auc=scores["auc"],

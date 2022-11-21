@@ -105,6 +105,7 @@ if __name__ == "__main__":
         crypto_type=crypto_type,
         crypto_system=crypto_system,
         messengers=messengers,
+        logger=logger,
         learning_rate=learning_rate,
         compress=compress,
         max_bin=max_bin,

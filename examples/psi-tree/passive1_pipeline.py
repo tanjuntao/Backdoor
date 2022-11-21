@@ -76,6 +76,7 @@ if __name__ == "__main__":
         task=task,
         crypto_type=crypto_type,
         messenger=messenger,
+        logger=logger,
         max_bin=max_bin,
         colsample_bytree=colsample_bytree,
     )
