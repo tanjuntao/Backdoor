@@ -197,8 +197,8 @@ class ActiveTreeParty(ModelComponent):
 
             raw_outputs_test = np.zeros(len(testset.labels))
 
-            for i, tree in enumerate(self.trees):
-                self.logger.log(f"tree {i} started...")
+            for tree_id, tree in enumerate(self.trees):
+                self.logger.log(f"tree {tree_id} started...")
 
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
@@ -216,8 +216,8 @@ class ActiveTreeParty(ModelComponent):
                         self._merge_tree_info(fit_result["feature_importance_info"])
                         self.logger.log(f"tree {i} finished")
 
-                        for i, messenger in enumerate(self.messengers):
-                            if self.messengers_validTag[i]:
+                        for messenger_id, messenger in enumerate(self.messengers):
+                            if self.messengers_validTag[messenger_id]:
                                 messenger.send(wrap_message("validate", content=True))
                         # scores = self._validate(testset)
                         scores = self._validate_tree(testset, tree, raw_outputs_test)
@@ -245,8 +245,8 @@ class ActiveTreeParty(ModelComponent):
 
             raw_outputs_test = np.zeros((len(testset.labels), self.n_labels))
 
-            for i, tree in enumerate(self.trees):
-                self.logger.log(f"tree {i} started...")
+            for tree_id, tree in enumerate(self.trees):
+                self.logger.log(f"tree {tree_id} started...")
 
                 loss = self.loss.loss(labels_onehot, outputs)
                 gradient = self.loss.gradient(labels_onehot, outputs)
@@ -264,8 +264,8 @@ class ActiveTreeParty(ModelComponent):
                         self._merge_tree_info(fit_result["feature_importance_info"])
                         self.logger.log(f"tree {i} finished")
 
-                        for messenger in self.messengers:
-                            if self.messengers_validTag[i]:
+                        for messenger_id, messenger in enumerate(self.messengers):
+                            if self.messengers_validTag[messenger_id]:
                                 messenger.send(wrap_message("validate", content=True))
 
                         # scores = self._validate(testset)
@@ -285,8 +285,8 @@ class ActiveTreeParty(ModelComponent):
                     total_epoch=self.n_trees,
                 )
 
-        for i, messenger in enumerate(self.messengers):
-            if self.messengers_validTag[i]:
+        for messenger_id, messenger in enumerate(self.messengers):
+            if self.messengers_validTag[messenger_id]:
                 messenger.send(wrap_message("train finished", content=True))
 
         self.logger.log("train finished")
@@ -345,11 +345,11 @@ class ActiveTreeParty(ModelComponent):
         if len(self.trees) != len(model_params):
             self.trees = [
                 DecisionTree(
-                    task=task,
-                    n_labels=n_labels,
-                    crypto_type=crypto_type,
-                    crypto_system=crypto_system,
-                    messengers=messengers,
+                    task=self.task,
+                    n_labels=self.n_labels,
+                    crypto_type=self.crypto_type,
+                    crypto_system=self.crypto_system,
+                    messengers=self.messengers,
                     logger=self.logger
                 )
                 for _ in range(len(model_params))
