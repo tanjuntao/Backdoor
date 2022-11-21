@@ -44,8 +44,6 @@ class PassiveTreeParty(ModelComponent):
         self.saving_model = saving_model
         self.model_path = model_path
 
-        self.logger = logger_factory(role=Const.PASSIVE_NAME)
-
         self.model_name = "{time}-{role}-{model_type}".format(
             time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
             role=Const.PASSIVE_NAME,
