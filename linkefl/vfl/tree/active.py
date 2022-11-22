@@ -562,12 +562,14 @@ if __name__ == "__main__":
         ]
 
     # 4. Initialize active tree party and start training
+    logger = logger_factory(role=Const.ACTIVE_NAME)
     active_party = ActiveTreeParty(
         n_trees=n_trees,
         task=task,
         n_labels=n_labels,
         crypto_type=_crypto_type,
         crypto_system=crypto_system,
+        logger=logger,
 
         messengers=messengers,
         sampling_method='goss',
