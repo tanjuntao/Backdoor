@@ -214,7 +214,7 @@ class ActiveTreeParty(ModelComponent):
                         outputs = sigmoid(raw_outputs)
 
                         self._merge_tree_info(fit_result["feature_importance_info"])
-                        self.logger.log(f"tree {i} finished")
+                        self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
                             if self.messengers_validTag[messenger_id]:
@@ -228,7 +228,7 @@ class ActiveTreeParty(ModelComponent):
                         break
 
                 self.logger.log_metric(
-                    epoch=i,
+                    epoch=tree_id,
                     loss=loss.mean(),
                     acc=scores["acc"],
                     auc=scores["auc"],
@@ -262,7 +262,7 @@ class ActiveTreeParty(ModelComponent):
 
                         self.messengers_validTag = tree.messengers_validTag  # update messengers tag
                         self._merge_tree_info(fit_result["feature_importance_info"])
-                        self.logger.log(f"tree {i} finished")
+                        self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
                             if self.messengers_validTag[messenger_id]:
@@ -277,7 +277,7 @@ class ActiveTreeParty(ModelComponent):
                         break
 
                 self.logger.log_metric(
-                    epoch=i,
+                    epoch=tree_id,
                     loss=loss.mean(),
                     acc=scores["acc"],
                     auc=scores["auc"],
