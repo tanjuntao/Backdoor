@@ -38,6 +38,7 @@ class ActiveTreeParty(ModelComponent):
         crypto_type: str,
         crypto_system: CryptoSystem,
         messengers: List[Messenger],
+        logger,
         *,
         learning_rate: float = 0.3,
         compress: bool = False,
@@ -87,6 +88,7 @@ class ActiveTreeParty(ModelComponent):
         self.messengers = messengers
         self.messengers_validTag = [True for _ in range(len(self.messengers))]
         self.model_phase = "online_inference"
+        self.logger = logger
 
         self.learning_rate = learning_rate
         self.max_bin = max_bin
@@ -103,8 +105,6 @@ class ActiveTreeParty(ModelComponent):
             role=Const.ACTIVE_NAME,
             model_type=Const.VERTICAL_SBT,
         )
-
-        self.logger = logger_factory(Const.ACTIVE_NAME)
 
         # 初始化 loss
         if task == "binary":

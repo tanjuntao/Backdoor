@@ -21,6 +21,7 @@ class PassiveTreeParty(ModelComponent):
         task: str,
         crypto_type: str,
         messenger: Messenger,
+        logger,
         *,
         max_bin: int = 16,
         colsample_bytree = 1,
@@ -36,13 +37,12 @@ class PassiveTreeParty(ModelComponent):
         self.task = task
         self.crypto_type = crypto_type
         self.messenger = messenger
+        self.logger = logger
 
         self.max_bin = max_bin
         self.colsample_bytree = colsample_bytree
         self.saving_model = saving_model
         self.model_path = model_path
-
-        self.logger = logger_factory(role=Const.PASSIVE_NAME)
 
         self.model_name = "{time}-{role}-{model_type}".format(
             time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
