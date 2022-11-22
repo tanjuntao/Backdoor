@@ -58,7 +58,7 @@ class CrossEntropyLoss(Loss):
         Returns:
             gradient : float, the gradient of binary cross entropy loss
         """
-        return np.array(y - y_prob)
+        return np.array(y_prob - y)
 
     def hessian(self, y, y_prob):
         """"
