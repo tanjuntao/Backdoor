@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from linkefl.common.const import Const
 from linkefl.common.factory import messenger_factory, partial_crypto_factory
 from linkefl.dataio import TorchDataset
+from linkefl.feature.transform import scale
 from linkefl.pipeline.base import ModelComponent
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
@@ -300,18 +301,18 @@ class ActiveNeuralNetwork(ModelComponent):
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'epsilon'
+    dataset_name = 'mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 1
+    _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
-    _passive_in_nodes = 10
-    _crypto_type = Const.FAST_PAILLIER
+    _passive_in_nodes = 128
+    _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
     _random_state = 1314
 
@@ -353,13 +354,23 @@ if __name__ == '__main__':
 
     # census
     # bottom_nodes = [input_nodes, 20, 10]
-    # cut_nodes = [10, 8]
-    # top_nodes = [8, 2]
+    # cut_nodes = [10, 10]
+    # top_nodes = [10, 2]
 
     # epsilon
-    bottom_nodes = [input_nodes, 25, 10]
-    cut_nodes = [10, 10]
-    top_nodes = [10, 2]
+    # bottom_nodes = [input_nodes, 25, 10]
+    # cut_nodes = [10, 10]
+    # top_nodes = [10, 2]
+
+    # credit
+    # bottom_nodes = [input_nodes, 3, 3]
+    # cut_nodes = [3, 3]
+    # top_nodes = [3, 2]
+
+    # default_credit
+    # bottom_nodes = [input_nodes, 8, 5]
+    # cut_nodes = [5, 5]
+    # top_nodes = [5, 2]
     bottom_model = MLPModel(bottom_nodes,
                             activate_input=False,
                             activate_output=True,
