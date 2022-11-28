@@ -1,21 +1,17 @@
 import datetime
 import time
 
-from termcolor import colored
 import torch
+from termcolor import colored
 from torch.utils.data import DataLoader
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.dataio import TorchDataset
-from linkefl.feature.transform import scale
-from linkefl.pipeline.base import ModelComponent
-from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.enc_layer import PassiveEncLayer
-from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 
-class PassiveNeuralNetwork(ModelComponent):
+class PassiveNeuralNetwork(BaseModelComponent):
     def __init__(self,
                  epochs : int,
                  batch_size : int,
@@ -154,6 +150,10 @@ class PassiveNeuralNetwork(ModelComponent):
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import crypto_factory, messenger_factory
+    from linkefl.util import num_input_nodes
+    from linkefl.vfl.nn.model import MLPModel, CutLayer
+
     # 0. Set parameters
     dataset_name = 'mnist'
     passive_feat_frac = 0.5

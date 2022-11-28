@@ -2,21 +2,15 @@ import datetime
 import time
 
 import numpy as np
-import pandas as pd
+import torch
 from sklearn.metrics import roc_auc_score
 from termcolor import colored
-import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory_v1, crypto_factory
 from linkefl.dataio import TorchDataset
-from linkefl.feature.transform import ParseLabel, Scale, AddIntercept, Compose, OneHot
-from linkefl.feature.transform import parse_label, scale
 from linkefl.modelio import TorchModelIO
-from linkefl.util import num_input_nodes
-from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
 
 
 class ActiveNeuralNetwork:
@@ -242,6 +236,10 @@ class ActiveNeuralNetwork:
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import messenger_factory_v1
+    from linkefl.util import num_input_nodes
+    from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
+
     # 0. Set parameters
     dataset_name = 'census'
     passive_feat_frac = 0.5

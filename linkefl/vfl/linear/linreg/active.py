@@ -5,16 +5,14 @@ import numpy as np
 from sklearn.metrics import r2_score
 from termcolor import colored
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform import add_intercept, AddIntercept
 from linkefl.modelio import NumpyModelIO
-from linkefl.pipeline.base import ModelComponent
 from linkefl.vfl.linear import BaseLinearActive
 
 
-class ActiveLinReg(BaseLinearActive, ModelComponent):
+class ActiveLinReg(BaseLinearActive, BaseModelComponent):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -224,6 +222,9 @@ class ActiveLinReg(BaseLinearActive, ModelComponent):
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+    from linkefl.feature.transform import add_intercept
+
     # 0. Set parameters
     dataset_name = 'diabetes'
     passive_feat_frac = 0.5

@@ -1,40 +1,44 @@
-from __future__ import annotations  # python >= 3.7, give type hint before definition
-
 import copy
-from typing import Union, TYPE_CHECKING
+from typing import Union
 
 import pandas as pd
 import torch
 
 from linkefl.common.const import Const
-from linkefl.feature.transform.transform import Scale, Normalize, ParseLabel, AddIntercept, OneHot
-
-if TYPE_CHECKING:
-    # Only import in 3rd party static type checkers (e.g. vscode pycharm)
-    from linkefl.dataio import NumpyDataset, TorchDataset
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 
 def scale(dataset: Union[NumpyDataset, TorchDataset]):
+    from linkefl.feature.transform.transform import Scale
+
     dataset = Scale().fit(dataset, role=dataset.role)
     return dataset
 
 
 def normalize(dataset: Union[NumpyDataset, TorchDataset], norm=Const.L2):
+    from linkefl.feature.transform.transform import Normalize
+
     dataset = Normalize(norm=norm).fit(dataset, role=dataset.role)
     return dataset
 
 
 def parse_label(dataset: Union[NumpyDataset, TorchDataset], neg_label=0):
+    from linkefl.feature.transform.transform import ParseLabel
+
     dataset = ParseLabel(neg_label=neg_label).fit(dataset, role=dataset.role)
     return dataset
 
 
 def add_intercept(dataset: Union[NumpyDataset, TorchDataset]):
+    from linkefl.feature.transform.transform import AddIntercept
+
     dataset = AddIntercept().fit(dataset, role=dataset.role)
     return dataset
 
 
 def one_hot(dataset: Union[NumpyDataset, TorchDataset], idxes=None):
+    from linkefl.feature.transform.transform import OneHot
+
     dataset = OneHot(idxes=idxes).fit(dataset, role=dataset.role)
     return dataset
 

@@ -1,43 +1,34 @@
 import datetime
 import time
-import numpy as np
-import pandas as pd
-
-import matplotlib.pyplot as plt
-
+from collections import defaultdict
 from multiprocessing import Pool
 from typing import List
+
+import numpy as np
 from scipy.special import softmax
-from collections import defaultdict
-from termcolor import colored
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
+from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory, messenger_factory_disconnection
-from linkefl.crypto.base import CryptoSystem
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform import parse_label
-from linkefl.messenger.base import Messenger
 from linkefl.messenger.socket_disconnection import FastSocket_disconnection_v1
 from linkefl.modelio import NumpyModelIO
-from linkefl.pipeline.base import ModelComponent
 from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
-from linkefl.vfl.tree.error import DisconnectedError
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
+from linkefl.vfl.tree.error import DisconnectedError
 from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss
-from linkefl.vfl.tree.plotting import plot_importance
 
 
-class ActiveTreeParty(ModelComponent):
+class ActiveTreeParty(BaseModelComponent):
     def __init__(
         self,
         n_trees: int,
         task: str,
         n_labels: int,
         crypto_type: str,
-        crypto_system: CryptoSystem,
-        messengers: List[Messenger],
+        crypto_system: BaseCryptoSystem,
+        messengers: List[BaseMessenger],
         logger,
         *,
         learning_rate: float = 0.3,
@@ -480,6 +471,11 @@ class ActiveTreeParty(ModelComponent):
         self.logger.log(f"Save model {model_name} success.")
 
 if __name__ == "__main__":
+    import pandas as pd
+
+    from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory, messenger_factory_disconnection
+    from linkefl.feature.transform import parse_label
+
     # 0. Set parameters
     # cancer, digits, epsilon, census, credit, default_credit, criteo
     dataset_name = "cancer"

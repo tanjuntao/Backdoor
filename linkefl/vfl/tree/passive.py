@@ -1,26 +1,24 @@
 import datetime
 import random
 import time
-
-import numpy as np
 from collections import defaultdict
 
+import numpy as np
+
+from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.messenger.base import Messenger
 from linkefl.modelio import NumpyModelIO
-from linkefl.pipeline.base import ModelComponent
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.hist import PassiveHist
 
 
-class PassiveTreeParty(ModelComponent):
+class PassiveTreeParty(BaseModelComponent):
     def __init__(
         self,
         task: str,
         crypto_type: str,
-        messenger: Messenger,
+        messenger: BaseMessenger,
         logger,
         *,
         max_bin: int = 16,

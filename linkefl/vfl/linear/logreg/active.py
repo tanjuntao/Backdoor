@@ -5,18 +5,15 @@ import numpy as np
 from sklearn.metrics import log_loss, accuracy_score, roc_auc_score, f1_score
 from termcolor import colored
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform import add_intercept, scale, parse_label
-from linkefl.feature.transform import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.modelio import NumpyModelIO
-from linkefl.pipeline.base import ModelComponent
-from linkefl.util import sigmoid, save_params
+from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
 
 
-class ActiveLogReg(BaseLinearActive, ModelComponent):
+class ActiveLogReg(BaseLinearActive, BaseModelComponent):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -270,6 +267,9 @@ class ActiveLogReg(BaseLinearActive, ModelComponent):
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+    from linkefl.feature.transform import add_intercept, scale, parse_label
+
     # 0. Set parameters
     _dataset_name = 'epsilon'
     passive_feat_frac = 0.5

@@ -19,14 +19,14 @@ from multiprocessing.pool import Pool
 
 import gmpy2
 import numpy as np
-import torch
 import phe
+import torch
 from phe import EncodedNumber, EncryptedNumber, paillier
 from phe.util import mulmod
 
+from linkefl.base import BasePartialCryptoSystem, BaseCryptoSystem
 from linkefl.common.const import Const
 from linkefl.config import BaseConfig
-from linkefl.crypto.base import CryptoSystem, PartialCryptoSystem
 
 
 def _cal_enc_zeros(public_key, num_enc_zeros, gen_from_set):
@@ -544,7 +544,7 @@ class PaillierPrivateKey:
         return True
 
 
-class PartialPaillier(PartialCryptoSystem):
+class PartialPaillier(BasePartialCryptoSystem):
     def __init__(self, raw_public_key):
         super(PartialPaillier, self).__init__()
         self.pub_key = raw_public_key # for API consistency
@@ -564,7 +564,7 @@ class PartialPaillier(PartialCryptoSystem):
         )
 
 
-class PartialFastPaillier(PartialCryptoSystem):
+class PartialFastPaillier(BasePartialCryptoSystem):
     def __init__(self, raw_public_key, num_enc_zeros=10000, gen_from_set=True):
         super(PartialFastPaillier, self).__init__()
         self.pub_key = raw_public_key
@@ -589,7 +589,7 @@ class PartialFastPaillier(PartialCryptoSystem):
         )
 
 
-class Paillier(CryptoSystem):
+class Paillier(BaseCryptoSystem):
     """Paillier additive homomorphic cryptosystem.
 
     Paillier cryptosystem satisfies additive homomorphism,
@@ -685,7 +685,7 @@ class Paillier(CryptoSystem):
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
-class FastPaillier(CryptoSystem):
+class FastPaillier(BaseCryptoSystem):
     """
     Faster paillier encryption using pre-computed encrypted zeros.
     """

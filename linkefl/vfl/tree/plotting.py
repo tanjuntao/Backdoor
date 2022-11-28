@@ -1,7 +1,8 @@
+from typing import Optional, Any
+
 import matplotlib.pyplot as plt
 import numpy as np
 
-from typing import Optional, Any, Tuple
 # TODO：fix ereor "circular import"
 # import linkefl
 

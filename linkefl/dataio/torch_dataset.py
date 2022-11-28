@@ -5,10 +5,9 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from linkefl.dataio.common_dataset import CommonDataset
+from linkefl.base import BaseTransformComponent
 from linkefl.common.const import Const
-# avoid circular importing
-# from linkefl.feature.transform import BaseTransform
+from linkefl.dataio.common_dataset import CommonDataset
 
 
 class TorchDataset(CommonDataset, Dataset):
@@ -16,8 +15,7 @@ class TorchDataset(CommonDataset, Dataset):
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
                  dataset_type: str,
-                 # transform: BaseTransform = None
-                 transform=None
+                 transform: BaseTransformComponent = None,
     ):
         if isinstance(raw_dataset, np.ndarray):
             # PyTorch forward() function expects tensor type of Float rather Double,

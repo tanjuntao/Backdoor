@@ -1,10 +1,9 @@
 import pandas as pd
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory, messenger_factory_disconnection
+from linkefl.common.factory import messenger_factory_disconnection
 from linkefl.dataio import NumpyDataset
 from linkefl.vfl.tree import PassiveTreeParty
-
 
 if __name__ == "__main__":
     # 0. Set parameters

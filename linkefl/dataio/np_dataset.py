@@ -1,10 +1,7 @@
-from __future__ import annotations  # python >= 3.7, give type hint before definition
-
 import numpy as np
 
+from linkefl.base import BaseTransformComponent
 from linkefl.dataio.common_dataset import CommonDataset
-# avoid circular importing
-# from linkefl.feature.transform import BaseTransform
 
 
 class NumpyDataset(CommonDataset):
@@ -12,8 +9,7 @@ class NumpyDataset(CommonDataset):
                  role: str,
                  raw_dataset: np.ndarray,
                  dataset_type: str,
-                 # transform: BaseTransform = None
-                 transform=None,
+                 transform: BaseTransformComponent = None,
     ):
         super(NumpyDataset, self).__init__(
             role=role,
