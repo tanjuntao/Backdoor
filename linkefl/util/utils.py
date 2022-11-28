@@ -6,10 +6,10 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+import linkefl.vfl
 from linkefl.common.const import Const
 from linkefl.config import LinearConfig
 from linkefl.config import NNConfig
-import linkefl.vfl
 
 
 def sigmoid(x):

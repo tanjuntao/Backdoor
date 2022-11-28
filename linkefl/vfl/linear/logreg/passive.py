@@ -1,12 +1,9 @@
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory, messenger_factory
-from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform import scale, Scale
-from linkefl.pipeline.base import ModelComponent
 from linkefl.vfl.linear import BaseLinearPassive
 
 
-class PassiveLogReg(BaseLinearPassive, ModelComponent):
+class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -52,6 +49,10 @@ class PassiveLogReg(BaseLinearPassive, ModelComponent):
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import logger_factory, messenger_factory
+    from linkefl.dataio import NumpyDataset
+    from linkefl.feature.transform import scale
+
     # 0. Set parameters
     _dataset_name = 'epsilon'
     passive_feat_frac = 0.5

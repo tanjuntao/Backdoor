@@ -2,23 +2,19 @@ import datetime
 import time
 
 import numpy as np
+import torch
 from sklearn.metrics import roc_auc_score
 from termcolor import colored
-import torch
-from torch import nn
 from torch.utils.data import DataLoader
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory, partial_crypto_factory
+from linkefl.common.factory import partial_crypto_factory
 from linkefl.dataio import TorchDataset
-from linkefl.feature.transform import scale
-from linkefl.pipeline.base import ModelComponent
-from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
-from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 
-class ActiveNeuralNetwork(ModelComponent):
+class ActiveNeuralNetwork(BaseModelComponent):
     def __init__(self,
                  epochs : int,
                  batch_size : int,
@@ -300,6 +296,12 @@ class ActiveNeuralNetwork(ModelComponent):
 
 
 if __name__ == '__main__':
+    from torch import nn
+
+    from linkefl.common.factory import messenger_factory
+    from linkefl.util import num_input_nodes
+    from linkefl.vfl.nn.model import MLPModel, CutLayer
+
     # 0. Set parameters
     dataset_name = 'mnist'
     passive_feat_frac = 0.5

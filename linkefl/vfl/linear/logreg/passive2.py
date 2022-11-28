@@ -1,7 +1,7 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform import scale, Scale
+from linkefl.feature.transform import scale
 from linkefl.vfl.linear import PassiveLogReg
 
 

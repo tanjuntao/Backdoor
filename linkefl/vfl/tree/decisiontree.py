@@ -10,10 +10,9 @@ from multiprocessing import Pool
 from typing import List
 from termcolor import colored
 
+from linkefl.base import BaseCryptoSystem, BaseMessenger
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
-from linkefl.crypto.base import CryptoSystem
-from linkefl.messenger.base import Messenger
 from linkefl.vfl.tree.hist import ActiveHist
 from linkefl.vfl.tree.error import DisconnectedError
 from linkefl.vfl.tree.exception_thread import ExcThread
@@ -55,8 +54,8 @@ class DecisionTree:
         task: str,
         n_labels: int,
         crypto_type: str,
-        crypto_system: CryptoSystem,
-        messengers: List[Messenger],
+        crypto_system: BaseCryptoSystem,
+        messengers: List[BaseMessenger],
         logger: GlobalLogger,
         *,
         compress: bool = False,

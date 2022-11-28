@@ -7,13 +7,11 @@ import numpy as np
 import pandas as pd
 import torch
 
+from linkefl.base import BaseTransformComponent
 from linkefl.common.const import Const
-from linkefl.dataio import BaseDataset
-# avoid circular importing
-# from linkefl.feature.transform import BaseTransform
 
 
-class CommonDataset(BaseDataset):
+class CommonDataset:
     """Common Dataset"""
     mappings = None  # mappings for pandas non-numeric columns
 
@@ -21,9 +19,9 @@ class CommonDataset(BaseDataset):
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
                  dataset_type: str,
-                 # transform: BaseTransform = None
-                 transform=None
+                 transform: BaseTransformComponent = None,
     ):
+        super(CommonDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
         self.role = role
         self.dataset_type = dataset_type
@@ -668,7 +666,6 @@ class CommonDataset(BaseDataset):
 
 
 if __name__ == "__main__":
-    import pickle
     from linkefl.feature.transform import OneHot
 
     print("the first df_dataset")

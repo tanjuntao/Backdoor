@@ -3,14 +3,14 @@ import pandas as pd
 import torch
 from sklearn import preprocessing
 
+from linkefl.base import BaseTransformComponent
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset, TorchDataset
-from linkefl.feature.transform.base import BaseTransform
 
 
 def wrapper_for_dataset(func):
     def wrapper(self, dataset, role):
-        if isinstance(dataset, NumpyDataset) or isinstance(dataset, TorchDataset):
+        if isinstance(dataset, (NumpyDataset, TorchDataset)):
             raw_dataset = dataset.get_dataset()
             raw_dataset = func(self, raw_dataset, role)
             dataset.set_dataset(raw_dataset)
@@ -20,7 +20,7 @@ def wrapper_for_dataset(func):
     return wrapper
 
 
-class Scale(BaseTransform):
+class Scale(BaseTransformComponent):
     @wrapper_for_dataset
     def __call__(self, dataset, role):
         start_col = 2 if role == Const.ACTIVE_NAME else 1
@@ -37,7 +37,7 @@ class Scale(BaseTransform):
         return dataset
 
 
-class Normalize(BaseTransform):
+class Normalize(BaseTransformComponent):
     def __init__(self, norm=Const.L2):
         self.norm = norm
 
@@ -61,7 +61,7 @@ class Normalize(BaseTransform):
         return dataset
 
 
-class ParseLabel(BaseTransform):
+class ParseLabel(BaseTransformComponent):
     def __init__(self, neg_label=0):
         self.neg_label = neg_label
 
@@ -88,7 +88,7 @@ class ParseLabel(BaseTransform):
         return dataset
 
 
-class AddIntercept(BaseTransform):
+class AddIntercept(BaseTransformComponent):
     @wrapper_for_dataset
     def __call__(self, dataset, role):
         has_label = True if role == Const.ACTIVE_NAME else False
@@ -108,7 +108,7 @@ class AddIntercept(BaseTransform):
         return dataset
 
 
-class OneHot(BaseTransform):
+class OneHot(BaseTransformComponent):
     def __init__(self, idxes=None):
         if idxes is None:
             idxes = []
@@ -141,7 +141,7 @@ class OneHot(BaseTransform):
         return new_dataset
 
 
-class Bin(BaseTransform):
+class Bin(BaseTransformComponent):
     def __init__(self, bin_features=None, bin_methods=None, para=None):
         self.bin_features = bin_features if bin_features is not None else []
         self.bin_methods = bin_methods if bin_methods is not None else []
@@ -185,13 +185,13 @@ class Bin(BaseTransform):
         return dataset, self.split
 
 
-class Compose(BaseTransform):
+class Compose(BaseTransformComponent):
     def __init__(self, transforms):
         super(Compose, self).__init__()
         assert type(transforms) == list, 'the type of Compose object should be a Python list'
         for transform in transforms:
-            assert isinstance(transform, BaseTransform), \
-                'each element in Compose should be an instance of BaseTransform'
+            assert isinstance(transform, BaseTransformComponent), \
+                'each element in Compose should be an instance of BaseTransformComponent'
 
         self.transforms = transforms
 

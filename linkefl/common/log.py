@@ -1,11 +1,11 @@
 import datetime
 import json
 import logging
-from logging.handlers import HTTPHandler, QueueHandler, QueueListener
 import os
 import pathlib
 import queue
 import time
+from logging.handlers import HTTPHandler, QueueHandler, QueueListener
 
 from linkefl.common.const import Const
 

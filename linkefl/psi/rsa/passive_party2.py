@@ -6,7 +6,6 @@ from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
 from linkefl.psi import RSAPSIPassive
 
-
 if __name__ == '__main__':
     ######   Option 1: split the protocol   ######
     # Initialize command line arguments parser

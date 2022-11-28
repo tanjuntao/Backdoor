@@ -1,8 +1,8 @@
 import os
 import random
-import datetime
 
 import numpy as np
+
 
 def _find_bin(vec, max_bin):
     shape = vec.shape

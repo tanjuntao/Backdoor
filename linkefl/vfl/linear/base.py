@@ -1,22 +1,15 @@
-from abc import ABC, abstractmethod
 import copy
 import datetime
 import multiprocessing
 import multiprocessing.pool
 import os
-import random
 import time
+from abc import ABC, abstractmethod
 
 import numpy as np
-from phe import EncodedNumber
-from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import (
-    crypto_factory,
-    messenger_factory,
-    partial_crypto_factory,
-)
+from linkefl.common.factory import crypto_factory, messenger_factory, partial_crypto_factory
 from linkefl.config import BaseConfig
 from linkefl.crypto.paillier import cipher_matmul, encode
 from linkefl.dataio import NumpyDataset

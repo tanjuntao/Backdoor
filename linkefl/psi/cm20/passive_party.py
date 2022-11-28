@@ -1,10 +1,9 @@
 import time
+from typing import Union
 
+from linkefl.base import BasePSIComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
-from linkefl.dataio import gen_dummy_ids, NumpyDataset
-from linkefl.messenger import FastSocket
-from linkefl.pipeline.base import TransformComponent
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 try:
     from linkefl.psi.cm20.PsiPython import PsiSender
@@ -12,7 +11,7 @@ except ImportError:
     raise RuntimeError("Script launching order error. You should launch active party first.")
 
 
-class CM20PSIPassive(TransformComponent):
+class CM20PSIPassive(BasePSIComponent):
     def __init__(
         self,
         messenger,
@@ -34,7 +33,7 @@ class CM20PSIPassive(TransformComponent):
         self.bucket1 = bucket1
         self.bucket2 = bucket2
 
-    def fit(self, dataset: NumpyDataset, role=Const.PASSIVE_NAME):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.PASSIVE_NAME):
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
@@ -88,6 +87,10 @@ class CM20PSIPassive(TransformComponent):
 
 
 if __name__ == "__main__":
+    from linkefl.common.factory import logger_factory
+    from linkefl.dataio import gen_dummy_ids
+    from linkefl.messenger import FastSocket
+
     # 1. Get sample IDs
     _ids = gen_dummy_ids(size=10_000, option=Const.SEQUENCE)
 

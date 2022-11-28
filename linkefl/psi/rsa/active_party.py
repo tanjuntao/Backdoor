@@ -1,26 +1,23 @@
-import argparse
 import hashlib
 import os
-from pathlib import Path
 import pickle
 import time
-from typing import Union, List
+from pathlib import Path
+from typing import List, Union
 
 from termcolor import colored
 
+from linkefl.base import BaseMessenger, BasePSIComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.common.log import GlobalLogger
 from linkefl.crypto import RSA
-from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
-from linkefl.messenger import FastSocket
-from linkefl.messenger.base import Messenger
-from linkefl.pipeline.base import TransformComponent
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 
-class RSAPSIActive(TransformComponent):
+class RSAPSIActive(BasePSIComponent):
     def __init__(self,
-                 messenger: List[Messenger],
+                 messenger: List[BaseMessenger],
                  cryptosystem: RSA,
                  logger: GlobalLogger,
                  num_workers: int = -1
@@ -221,6 +218,11 @@ class RSAPSIActive(TransformComponent):
 
 
 if __name__ == '__main__':
+    import argparse
+
+    from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
+    from linkefl.messenger import FastSocket
+
     ######   Option 1: split the protocol   ######
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()

@@ -3,16 +3,16 @@ import socket
 import struct
 import time
 import zlib
-import blosc
 
+import blosc
 from termcolor import colored
 
-from .base import Messenger
-from linkefl.config import BaseConfig
+from linkefl.base import BaseMessenger
 from linkefl.common.const import Const
+from linkefl.config import BaseConfig
 
 
-class FastSocket_disconnection_v1(Messenger):
+class FastSocket_disconnection_v1(BaseMessenger):
     def __init__(self,
                  role,
                  model_type,
@@ -275,7 +275,7 @@ class FastSocket_disconnection_v1(Messenger):
         return raw_data
         
 
-class FastSocket_disconnection(Messenger):
+class FastSocket_disconnection(BaseMessenger):
     """Implement messenger using python socket
 
     RSAPSIPassive and RSAPSIActive will only need to maintain two pair sockets, one for RSAPSIPassive
@@ -477,7 +477,7 @@ class FastSocket_disconnection(Messenger):
         return raw_data
 
 
-class Socket_disconnection(Messenger):
+class Socket_disconnection(BaseMessenger):
     """Using python socket to implement messenger."""
 
     def __init__(self,

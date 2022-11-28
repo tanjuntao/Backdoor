@@ -2,15 +2,15 @@ import copy
 import functools
 import multiprocessing
 import os
-from pathlib import Path
 import threading
+from pathlib import Path
 
-from Crypto.PublicKey import RSA as CryptoRSA
 import gmpy2
+from Crypto.PublicKey import RSA as CryptoRSA
 
+from linkefl.base import BasePartialCryptoSystem, BaseCryptoSystem
 from linkefl.common.const import Const
 from linkefl.config import BaseConfig
-from linkefl.crypto.base import CryptoSystem, PartialCryptoSystem
 
 
 class RSAPublicKey:
@@ -162,7 +162,7 @@ class RSAPrivateKey:
         return gmpy2.powmod(ciphertext, d, n)
 
 
-class PartialRSA(PartialCryptoSystem):
+class PartialRSA(BasePartialCryptoSystem):
     def __init__(self, raw_public_key):
         super(PartialRSA, self).__init__()
         self.pub_key = raw_public_key # for API consistency
@@ -188,7 +188,7 @@ class PartialRSA(PartialCryptoSystem):
         return self.pub_key_obj.raw_mulmod(x, y, z)
 
 
-class RSA(CryptoSystem):
+class RSA(BaseCryptoSystem):
     PRIV_KEY_NAME = 'rsa_priv_key.bin'
 
     def __init__(self, key_size=1024, e=0x10001, private_key=None):
