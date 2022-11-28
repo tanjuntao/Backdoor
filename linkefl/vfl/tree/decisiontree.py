@@ -71,7 +71,7 @@ class DecisionTree:
         colsample_bytree: float = 1,
         pool: Pool = None,
         drop_protection: bool = False,
-        reconnect_ports: list = []
+        reconnect_ports: List[int] = None,
     ):
         """Decision Tree class to create a single tree
 

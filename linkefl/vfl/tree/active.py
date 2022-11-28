@@ -48,7 +48,7 @@ class ActiveTreeParty(BaseModelComponent):
         saving_model: bool = False,
         model_path: str = "./models",
         drop_protection: bool = False,
-        reconnect_ports: list = []
+        reconnect_ports: List[int] = None,
     ):
         """Active Tree Party class to train and validate dataset
 
@@ -76,6 +76,8 @@ class ActiveTreeParty(BaseModelComponent):
         self.n_trees = n_trees
         self.task = task
         self.n_labels = n_labels
+        self.crypto_type = crypto_type
+        self.crypto_system = crypto_system
         self.messengers = messengers
         self.messengers_validTag = [True for _ in range(len(self.messengers))]
         self.model_phase = "online_inference"
