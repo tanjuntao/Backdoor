@@ -215,9 +215,9 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
             "loss": loss,
             "r2": r2
         }
-        messenger.send(scores)
+        messenger.send([scores, y_pred])
 
-        return scores
+        return scores, y_pred
 
 
 

@@ -66,6 +66,7 @@ class BaseLinearPassive(BaseLinear):
                  crypto_type,
                  logger,
                  *,
+                 rank=1,
                  penalty=Const.L2,
                  reg_lambda=0.01,
                  precision=0.001,
@@ -103,7 +104,7 @@ class BaseLinearPassive(BaseLinear):
         model_type = Const.VERTICAL_LOGREG if task=='classification' else Const.VERTICAL_LINREG
         self.model_name = "{time}-{role}-{model_type}".format(
             time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.PASSIVE_NAME,
+            role=Const.PASSIVE_NAME + str(rank),
             model_type=model_type
         )
         self.logger = logger
@@ -326,8 +327,8 @@ class BaseLinearPassive(BaseLinear):
         model_params = NumpyModelIO.load(model_path, model_name)
         wx = np.matmul(dataset.features, model_params)
         messenger.send(wx)
-        scores = messenger.recv()
-        return scores
+        scores, preds = messenger.recv()
+        return scores, preds
 
 
 class BaseLinearActive(BaseLinear):

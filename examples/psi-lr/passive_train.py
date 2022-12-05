@@ -13,12 +13,12 @@ from linkefl.vfl.linear import PassiveLogReg
 
 if __name__ == '__main__':
     # 0. Set parameters
-    trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive2-train.csv"
-    testset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive2-test.csv"
+    trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive1-train.csv"
+    testset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive1-test.csv"
     active_ip = 'localhost'
-    active_port = 30000
+    active_port = 20000
     passive_ip = 'localhost'
-    passive_port = 30001
+    passive_port = 20001
     _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
@@ -86,11 +86,12 @@ if __name__ == '__main__':
                                 messenger=messenger,
                                 crypto_type=_crypto_type,
                                 logger=logger,
+                                rank=1,
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
                                 using_pool=False,
-                                saving_model=False)
+                                saving_model=True)
     passive_vfl.train(passive_trainset, passive_testset)
     print(colored('4. Finish collaborative model training', 'red'))
     logger.log('4. Finish collaborative model training')

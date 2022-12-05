@@ -262,8 +262,8 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
             "f1": f1
         }
         for msger in messenger:
-            msger.send(scores)
-        return scores
+            msger.send([scores, preds])
+        return scores, preds
 
 
 if __name__ == '__main__':
