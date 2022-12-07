@@ -1,22 +1,21 @@
-import argparse
 import functools
 import hashlib
 import multiprocessing
 import os
-from pathlib import Path
 import pickle
-from secrets import randbelow
 import time
+from pathlib import Path
+from secrets import randbelow
+from typing import Union
 
-from Crypto.PublicKey import RSA
 import gmpy2
+from Crypto.PublicKey import RSA
 from termcolor import colored
 
+from linkefl.base import BasePSIComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
-from linkefl.crypto import PartialRSACrypto
-from linkefl.dataio import gen_dummy_ids
-from linkefl.messenger import FastSocket
+from linkefl.crypto import PartialRSA
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 
 def _target_mp_pool(r, e, n):
@@ -26,25 +25,145 @@ def _target_mp_pool(r, e, n):
     return r_inv, r_encrypted
 
 
-class RSAPSIPassive:
-    def __init__(self, ids, messenger, logger, num_workers=-1):
-        self.ids = ids
+class RSAPSIPassive(BasePSIComponent):
+    def __init__(self, messenger, logger, num_workers=-1):
         self.messenger = messenger
+        self.logger = logger
         if num_workers == -1:
             num_workers = os.cpu_count()
         self.num_workers = num_workers
+
         self.RANDOMS_FILENAME = 'randoms.pkl'
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
-        self.logger = logger
 
-    def _get_pub_key(self):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.PASSIVE_NAME):
+        ids = dataset.ids
+        intersections = self.run(ids)
+        dataset.filter(intersections)
+
+        return dataset
+
+    def run(self, ids):
+        # sync RSA public key
+        public_key = self._sync_pubkey()
+        self.cryptosystem = PartialRSA(raw_public_key=public_key)
+        start = time.time()
+
+        # 1. generate random factors
+        randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(len(ids))]
+        random_factors = self._random_factors_mp_pool(
+            randoms,
+            n_processes=self.num_workers
+        )
+        self.logger.log('Passive party finished genrating random factors.')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.1
+        )
+
+        # 2. blind ids
+        blinded_ids = self._blind_set(ids, random_factors)
+        self.messenger.send(blinded_ids)
+        self.logger.log('Passive party finished sending blinded ids to active party.')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.2
+        )
+
+        # 3. unblind then hash signed ids
+        signed_blined_ids = self.messenger.recv()
+        signed_ids = self._unblind_set(signed_blined_ids, random_factors)
+        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
+        self.messenger.send(hashed_signed_ids)
+        self.logger.log('Passive party finished sending hashed signed ids to active party')
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.RUNNING,
+            begin=start,
+            end=None,
+            duration=time.time() - start,
+            progress=0.6
+        )
+
+        # 4. receive intersection
+        intersections = self.messenger.recv()
+        self.logger.log('Size of intersection: {}'.format(len(intersections)))
+
+        self.logger.log('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        self.logger.log_component(
+            name=Const.RSA_PSI,
+            status=Const.SUCCESS,
+            begin=start,
+            end=time.time(),
+            duration=time.time() - start,
+            progress=1.0
+        )
+        return intersections
+
+    def run_offline(self, ids):
+        print('[PASSIVE] Start the offline protocol...')
+        n_elements = len(ids)
+        begin = time.time()
+        randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(n_elements)]
+        print('Generating random numbers time: {:.5f}'.format(time.time() - begin))
+        target_dir = os.path.join(Path.home(), '.linkefl')
+        if not os.path.exists(target_dir):
+            os.mkdir(target_dir)
+        full_path = os.path.join(target_dir, self.RANDOMS_FILENAME)
+        with open(full_path, 'wb') as f:
+            pickle.dump(randoms, f)
+        print('[PASSIVE] Finish the offline protocol.')
+
+    def run_online(self, ids):
+        start_time = time.time()
+        public_key = self._sync_pubkey()
+        self.cryptosystem = PartialRSA(raw_public_key=public_key)
+
+        # generate random factors and blind ids
+        begin = time.time()
+        full_path = os.path.join(Path.home(), '.linkefl', self.RANDOMS_FILENAME)
+        with open(full_path, 'rb') as f:
+            randoms = pickle.load(f)
+        random_factors = self._random_factors_mp_pool(
+            randoms,
+            n_processes=self.num_workers
+        )
+        print('Only random factors time: {:.5f}'.format(time.time() - begin))
+        begin = time.time()
+        blinded_ids = self._blind_set(ids, random_factors)
+        print('Only blind set time: {:.5f}'.format(time.time() - begin))
+        self.messenger.send(blinded_ids)
+
+        signed_blined_ids = self.messenger.recv()
+        begin = time.time()
+        signed_ids = self._unblind_set(signed_blined_ids, random_factors)
+        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
+        print('Unblind set and hash set time: {:.5f}'.format(time.time() - begin))
+        self.messenger.send(hashed_signed_ids)
+
+        os.remove(full_path)
+        intersection = self.messenger.recv()
+        print(colored('Size of intersection: {}'.format(len(intersection)), 'red'))
+        print('Total time: {}'.format(time.time() - start_time))
+
+        return intersection
+
+    def _sync_pubkey(self):
         self.logger.log('[PASSIVE] Requesting RSA public key...')
         self.messenger.send(Const.START_SIGNAL)
         n, e = self.messenger.recv()
         pub_key = RSA.construct((n, e))
-        self.cryptosystem = PartialRSACrypto(pub_key=pub_key)
         self.logger.log('[PASSIVE] Receive RSA public key successfully.')
+        return pub_key
 
     def _random_factors(self, randoms):
         random_factors = []
@@ -73,7 +192,11 @@ class RSAPSIPassive:
 
         n = self.cryptosystem.pub_key.n
         r_invs = [gmpy2.invert(r, n) for r in randoms]
-        r_encs = self.cryptosystem.encrypt_set_thread(randoms, n_threads=n_threads)
+        r_encs = self.cryptosystem.encrypt_vector(
+            randoms,
+            using_pool=True,
+            n_workers=n_threads
+        )
         random_factors = list(zip(r_invs, r_encs))
 
         return random_factors
@@ -116,115 +239,14 @@ class RSAPSIPassive:
         return [hashlib.sha256(str(item).encode()).hexdigest()
                 for item in signed_set]
 
-    def run_offline(self):
-        print('[PASSIVE] Start the offline protocol...')
-        n_elements = len(self.ids)
-        begin = time.time()
-        randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(n_elements)]
-        print('Generating random numbers time: {:.5f}'.format(time.time() - begin))
-        target_dir = os.path.join(Path.home(), '.linkefl')
-        if not os.path.exists(target_dir):
-            os.mkdir(target_dir)
-        full_path = os.path.join(target_dir, self.RANDOMS_FILENAME)
-        with open(full_path, 'wb') as f:
-            pickle.dump(randoms, f)
-        print('[PASSIVE] Finish the offline protocol.')
-
-    def run_online(self):
-        start_time = time.time()
-        self._get_pub_key()
-
-        # generate random factors and blind ids
-        begin = time.time()
-        full_path = os.path.join(Path.home(), '.linkefl', self.RANDOMS_FILENAME)
-        with open(full_path, 'rb') as f:
-            randoms = pickle.load(f)
-        random_factors = self._random_factors_mp_pool(randoms,
-                                                      n_processes=self.num_workers)
-        print('Only random factors time: {:.5f}'.format(time.time() - begin))
-        begin = time.time()
-        blinded_ids = self._blind_set(self.ids, random_factors)
-        print('Only blind set time: {:.5f}'.format(time.time() - begin))
-        self.messenger.send(blinded_ids)
-
-        signed_blined_ids = self.messenger.recv()
-        begin = time.time()
-        signed_ids = self._unblind_set(signed_blined_ids, random_factors)
-        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
-        print('Unblind set and hash set time: {:.5f}'.format(time.time() - begin))
-        self.messenger.send(hashed_signed_ids)
-
-        os.remove(full_path)
-        intersection = self.messenger.recv()
-        print(colored('Size of intersection: {}'.format(len(intersection)), 'red'))
-        print('Total time: {}'.format(time.time() - start_time))
-
-        return intersection
-
-    def run(self):
-        # sync RSA public key
-        self._get_pub_key()
-        start = time.time()
-
-        # 1. generate random factors
-        randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(len(self.ids))]
-        random_factors = self._random_factors_mp_pool(randoms,
-                                                      n_processes=self.num_workers)
-        self.logger.log('Passive party finished genrating random factors.')
-        self.logger.log_component(
-            name=Const.RSA_PSI,
-            status=Const.RUNNING,
-            begin=start,
-            end=None,
-            duration=time.time() - start,
-            progress=0.1
-        )
-
-        # 2. blind ids
-        blinded_ids = self._blind_set(self.ids, random_factors)
-        self.messenger.send(blinded_ids)
-        self.logger.log('Passive party finished sending blinded ids to active party.')
-        self.logger.log_component(
-            name=Const.RSA_PSI,
-            status=Const.RUNNING,
-            begin=start,
-            end=None,
-            duration=time.time() - start,
-            progress=0.2
-        )
-
-        # 3. unblind then hash signed ids
-        signed_blined_ids = self.messenger.recv()
-        signed_ids = self._unblind_set(signed_blined_ids, random_factors)
-        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
-        self.messenger.send(hashed_signed_ids)
-        self.logger.log('Passive party finished sending hashed signed ids to active party')
-        self.logger.log_component(
-            name=Const.RSA_PSI,
-            status=Const.RUNNING,
-            begin=start,
-            end=None,
-            duration=time.time() - start,
-            progress=0.6
-        )
-
-        # 4. receive intersection
-        intersections = self.messenger.recv()
-        self.logger.log('Size of intersection: {}'.format(len(intersections)))
-
-        self.logger.log('Total protocol execution time: {:.5f}'.format(time.time() - start))
-        self.logger.log_component(
-            name=Const.RSA_PSI,
-            status=Const.SUCCESS,
-            begin=start,
-            end=time.time(),
-            duration=time.time() - start,
-            progress=1.0
-        )
-        return intersections
-
 
 if __name__ == '__main__':
+    import argparse
+
+    from linkefl.common.factory import logger_factory
+    from linkefl.dataio import gen_dummy_ids
+    from linkefl.messenger import FastSocket
+
     ######   Option 1: split the protocol   ######
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()
@@ -243,11 +265,11 @@ if __name__ == '__main__':
     # _logger = logger_factory(role=Const.ACTIVE_NAME)
     #
     # # 3. Start the RSA-Blind-Signature protocol
-    # alice = RSAPSIPassive(_ids, _messenger, _logger)
+    # alice = RSAPSIPassive(_messenger, _logger)
     # if args.phase == 'offline':
-    #     alice.run_offline()
+    #     alice.run_offline(_ids)
     # elif args.phase == 'online':
-    #     alice.run_online()
+    #     alice.run_online(_ids)
     # else:
     #     raise ValueError(f"command line argument `--phase` can only"
     #                      f"take `offline` and `online`, "
@@ -269,8 +291,8 @@ if __name__ == '__main__':
                             passive_port=30000)
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     # 3. Start the RSA-Blind-Signature protocol
-    passive_party = RSAPSIPassive(_ids, _messenger, _logger)
-    intersections_ = passive_party.run()
+    passive_party = RSAPSIPassive(_messenger, _logger)
+    intersections_ = passive_party.run(_ids)
 
     # 4. Close messenger
     _messenger.close()

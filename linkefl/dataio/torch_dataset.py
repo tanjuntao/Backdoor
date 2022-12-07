@@ -1,13 +1,13 @@
+import random
 from typing import Union
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from linkefl.dataio.common_dataset import CommonDataset
+from linkefl.base import BaseTransformComponent
 from linkefl.common.const import Const
-# avoid circular importing
-# from linkefl.feature.transform import BaseTransform
+from linkefl.dataio.common_dataset import CommonDataset
 
 
 class TorchDataset(CommonDataset, Dataset):
@@ -15,8 +15,7 @@ class TorchDataset(CommonDataset, Dataset):
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
                  dataset_type: str,
-                 # transform: BaseTransform = None
-                 transform=None
+                 transform: BaseTransformComponent = None,
     ):
         if isinstance(raw_dataset, np.ndarray):
             # PyTorch forward() function expects tensor type of Float rather Double,
@@ -144,9 +143,11 @@ class TorchDataset(CommonDataset, Dataset):
         if perm_option == Const.SEQUENCE:
             _feats = _feats
         elif perm_option == Const.RANDOM:
-            torch.random.manual_seed(seed)
-            n_feats = _feats.shape[1]
-            _feats = _feats[:, torch.randperm(n_feats)]
+            if seed is not None:
+                random.seed(seed)
+            perm = list(range(_feats.shape[1]))
+            random.shuffle(perm)
+            _feats = _feats[:, perm]
         elif perm_option == Const.IMPORTANCE:
             rankings = cal_importance_ranking(name, _feats.numpy(), _labels.numpy())
             rankings = torch.from_numpy(rankings)

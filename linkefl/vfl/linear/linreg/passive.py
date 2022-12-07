@@ -1,10 +1,9 @@
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory, messenger_factory
-from linkefl.dataio import NumpyDataset
 from linkefl.vfl.linear import BaseLinearPassive
 
 
-class PassiveLinReg(BaseLinearPassive):
+class PassiveLinReg(BaseLinearPassive, BaseModelComponent):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -42,8 +41,17 @@ class PassiveLinReg(BaseLinearPassive):
             task='regression'
         )
 
+    def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
+        self.train(trainset, validset)
+
+    def score(self, testset, role=Const.PASSIVE_NAME):
+        return self.predict(testset)
+
 
 if __name__ == '__main__':
+    from linkefl.common.factory import logger_factory, messenger_factory
+    from linkefl.dataio import NumpyDataset
+
     # 0. Set parameters
     dataset_name = 'diabetes'
     passive_feat_frac = 0.5

@@ -1,12 +1,11 @@
-from .base import CryptoSystem, PartialCryptoSystem
-
 import numpy as np
 import torch
 
+from linkefl.base import BasePartialCryptoSystem, BaseCryptoSystem
 from linkefl.common.const import Const
 
 
-class PartialPlain(PartialCryptoSystem):
+class PartialPlain(BasePartialCryptoSystem):
     def __init__(self, raw_public_key=None):
         super(PartialPlain, self).__init__()
         self.pub_key = raw_public_key
@@ -28,7 +27,7 @@ class PartialPlain(PartialCryptoSystem):
                             " passed to this method.")
 
 
-class Plain(CryptoSystem):
+class Plain(BaseCryptoSystem):
     """Pseudo cryptosystem."""
     def __init__(self, key_size=0):
         super(Plain, self).__init__(key_size)

@@ -1,11 +1,11 @@
-from typing import List, Union
+from typing import Union
 
+from linkefl.base import BasePSIComponent, BaseTransformComponent, BaseModelComponent
 from linkefl.dataio import NumpyDataset, TorchDataset
-from linkefl.pipeline.base import TransformComponent, ModelComponent
 
 
 class PipeLine:
-    def __init__(self, components: List[Union[TransformComponent, ModelComponent]], role):
+    def __init__(self, components, role):
         self._check_params(components)
 
         self.components = components
@@ -13,9 +13,10 @@ class PipeLine:
 
     @staticmethod
     def _check_params(components):
-        for component in components[:-1]:
-            assert isinstance(component, TransformComponent)
-        assert isinstance(components[-1], ModelComponent)
+        assert isinstance(components[0], BasePSIComponent)
+        for component in components[1:-1]:
+            assert isinstance(component, BaseTransformComponent)
+        assert isinstance(components[-1], BaseModelComponent)
 
     def fit(self, trainset: Union[NumpyDataset, TorchDataset], validset: Union[NumpyDataset, TorchDataset]):
         for component in self.components[:-1]:

@@ -2,20 +2,20 @@ import os
 import random
 import sys
 import time
+from typing import Union
 from urllib.error import URLError
 
 import numpy as np
 
+from linkefl.base import BasePSIComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
-from linkefl.dataio import gen_dummy_ids, NumpyDataset
-from linkefl.messenger import FastSocket
-from linkefl.pipeline.base import TransformComponent
-from linkefl.util import urlretrive
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 try:
     from linkefl.psi.cm20.PsiPython import PsiReceiver
 except ImportError:
+    from linkefl.util import urlretrive
+
     resources = {
         "37-darwin": "PsiPython.cpython-37m-darwin.so",
         "37-linux": "PsiPython.cpython-37m-x86_64-linux-gnu.so",
@@ -50,10 +50,10 @@ except ImportError:
     print('Done!')
 
 
-class CM20PSIActive(TransformComponent):
+class CM20PSIActive(BasePSIComponent):
     def __init__(
         self,
-        messenger,
+        messengers,
         logger,
         *,
         log_height=8,
@@ -63,7 +63,7 @@ class CM20PSIActive(TransformComponent):
         bucket1=1 << 8,
         bucket2=1 << 8,
     ):
-        self.messenger = messenger
+        self.messengers = messengers
         self.logger = logger
         self.log_height = log_height
         self.width = width
@@ -72,7 +72,7 @@ class CM20PSIActive(TransformComponent):
         self.bucket1 = bucket1
         self.bucket2 = bucket2
 
-    def fit(self, dataset: NumpyDataset, role=Const.ACTIVE_NAME):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.ACTIVE_NAME):
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
@@ -80,41 +80,46 @@ class CM20PSIActive(TransformComponent):
         return dataset
 
     def run(self, ids):
-        active_ids_len = len(ids)
-
-        # self.logger.log('Active party starts CM20 PSI, listening...')
-        signal = self.messenger.recv()
-        if signal != Const.START_SIGNAL:
-            raise RuntimeError("Invalid start signal from passive party.")
-
         start = time.time()
-        # 1. sync seed and number of ids
-        seed = random.randint(0, 1 << 32)
-        self.logger.log(f"Common seed: {seed}")
-        self.messenger.send(seed)
-        self.messenger.send(active_ids_len)
-        passive_ids_len = self.messenger.recv()
 
-        # 2. compute common ids and return indexes
-        time.sleep(2)
-        common_indexes = PsiReceiver().run(
-            self.messenger.passive_ip,
-            seed,
-            passive_ids_len,
-            active_ids_len,
-            1 << self.log_height,
-            self.log_height,
-            self.width,
-            ids,
-            self.hash_length,
-            self.h1_length,
-            self.bucket1,
-            self.bucket1,
-        )
+        for messenger in self.messengers:
+            active_ids_len = len(ids)
+
+            # self.logger.log('Active party starts CM20 PSI, listening...')
+            signal = messenger.recv()
+            if signal != Const.START_SIGNAL:
+                raise RuntimeError("Invalid start signal from passive party.")
+
+            # 1. sync seed and number of ids
+            seed = random.randint(0, 1 << 32)
+            self.logger.log(f"Common seed: {seed}")
+            messenger.send(seed)
+            messenger.send(active_ids_len)
+            passive_ids_len = messenger.recv()
+
+            # 2. compute common ids and return indexes
+            time.sleep(2)
+            common_indexes = PsiReceiver().run(
+                messenger.passive_ip,
+                seed,
+                passive_ids_len,
+                active_ids_len,
+                1 << self.log_height,
+                self.log_height,
+                self.width,
+                ids,
+                self.hash_length,
+                self.h1_length,
+                self.bucket1,
+                self.bucket1,
+            )
+
+            ids = np.array(ids)[np.array(common_indexes)].tolist()
 
         # 3. find the intersection
-        intersections = np.array(ids)[np.array(common_indexes)]
-        self.messenger.send(intersections)
+        intersections = ids
+        for messenger in self.messengers:
+            messenger.send(intersections)
 
         self.logger.log("Size of intersection: {}".format(len(intersections)))
 
@@ -134,23 +139,35 @@ class CM20PSIActive(TransformComponent):
 
 
 if __name__ == "__main__":
+    from linkefl.common.factory import logger_factory
+    from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
+    from linkefl.messenger import FastSocket
+
     # 1. get sample IDs
-    _ids = gen_dummy_ids(size=10_000_000, option=Const.SEQUENCE)
+    _ids = gen_dummy_ids(size=50_000, option=Const.SEQUENCE)
 
     # 2. Initialize messenger
-    _messenger = FastSocket(
+    _messenger1 = FastSocket(
         role=Const.ACTIVE_NAME,
         active_ip="127.0.0.1",
         active_port=20000,
         passive_ip="127.0.0.1",
         passive_port=30000,
     )
+    _messenger2 = FastSocket(
+        role=Const.ACTIVE_NAME,
+        active_ip="127.0.0.1",
+        active_port=20001,
+        passive_ip="127.0.0.1",
+        passive_port=30001,
+    )
     _logger = logger_factory(role=Const.ACTIVE_NAME)
 
     # 3. Start the CM20 protocol
-    active_party = CM20PSIActive(_messenger, _logger)
+    active_party = CM20PSIActive([_messenger1, _messenger2], _logger)
     intersections_ = active_party.run(_ids)
-    print(intersections_[:10])
+    print(len(intersections_))
 
     # 4. Close messenger
-    _messenger.close()
+    _messenger1.close()
+    _messenger2.close()

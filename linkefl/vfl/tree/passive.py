@@ -1,26 +1,25 @@
 import datetime
 import random
 import time
-
-import numpy as np
 from collections import defaultdict
 
+import numpy as np
+
+from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.messenger.base import Messenger
 from linkefl.modelio import NumpyModelIO
-from linkefl.pipeline.base import ModelComponent
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.hist import PassiveHist
 
 
-class PassiveTreeParty(ModelComponent):
+class PassiveTreeParty(BaseModelComponent):
     def __init__(
         self,
         task: str,
         crypto_type: str,
-        messenger: Messenger,
+        messenger: BaseMessenger,
+        logger,
         *,
         max_bin: int = 16,
         colsample_bytree = 1,
@@ -33,17 +32,15 @@ class PassiveTreeParty(ModelComponent):
             task: binary or multi
             max_bin: max bin number for a feature point
         """
-
         self.task = task
         self.crypto_type = crypto_type
         self.messenger = messenger
+        self.logger = logger
 
         self.max_bin = max_bin
         self.colsample_bytree = colsample_bytree
         self.saving_model = saving_model
         self.model_path = model_path
-
-        self.logger = logger_factory(role=Const.PASSIVE_NAME)
 
         self.model_name = "{time}-{role}-{model_type}".format(
             time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
@@ -93,26 +90,17 @@ class PassiveTreeParty(ModelComponent):
         while True:
             # ready to receive instructions from active party
             data = self.messenger.recv()
-            if data["name"] == "train finished" and data["content"] is True:
-                if self.saving_model:
-                    model_name = (
-                        f"{self.model_name}-{trainset.n_samples}_samples.model"
-                    )
-                    NumpyModelIO.save(self.record, self.model_path, model_name)
-                self.logger.log("train finished")
-                break
-            elif data["name"] == "gh":
-                self.gh_recv, self.compress, self.capacity, self.padding = data[
-                    "content"
-                ]
+
+            if data["name"] == "gh":
+                self.gh_recv, self.compress, self.capacity, self.padding = data["content"]
+                self._init_tree_info()      # information for building a new tree
                 self.logger.log("start a new tree")
 
-                # perform feature selection
-                feature_num = self.bin_index.shape[1]
-                self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
-                self.bin_index_selected = np.array(self.bin_index.copy())
-                self.bin_index_selected = self.bin_index_selected[:, self.feature_index_selected]
-                self.logger.log("complete feature selection")
+            elif data["name"] == "hist":
+                sample_tag = data["content"]
+                bin_gh_data = self._get_hist(sample_tag)
+                self.logger.log("bin_gh computed")
+                self.messenger.send(wrap_message("hist", content=bin_gh_data))
 
             elif data["name"] == "record":
                 feature_id, split_id, sample_tag_selected, sample_tag_unselected = data["content"]
@@ -124,13 +112,30 @@ class PassiveTreeParty(ModelComponent):
                 self.messenger.send(
                     wrap_message("record", content=(feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left))
                 )
-            elif data["name"] == "hist":
-                sample_tag = data["content"]
-                bin_gh_data = self._get_hist(sample_tag)
-                # self.logger.log("bin_gh computed")
-                self.messenger.send(wrap_message("hist", content=bin_gh_data))
+
             elif data["name"] == "validate" and data["content"] is True:
+                # after training a tree, enter the evaluation stage
+                self._merge_tree_info()     # merge information from current tree
+
+                # store temp file
+                if self.saving_model:
+                    model_name = (
+                        f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    )
+                    NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
+
+                self.logger.log("temp model saved")
                 self._validate(testset)
+
+            elif data["name"] == "train finished" and data["content"] is True:
+                if self.saving_model:
+                    model_name = (
+                        f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    )
+                    NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
+                self.logger.log("train finished")
+                break
+
             else:
                 raise KeyError
 
@@ -140,12 +145,18 @@ class PassiveTreeParty(ModelComponent):
             )
         )
 
+    def load_retrain(self, load_model_path, load_model_name, trainset, testset):
+        """breakpoint retraining function.
+        """
+        self.record, self.feature_importance_info = NumpyModelIO.load(load_model_path, load_model_name)
+        self.train(trainset, testset)
+
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
         feature_id_origin = self.feature_index_selected[feature_id]
 
         # store feature split information
-        self.feature_importance_info['split'][f'feature{feature_id_origin}'] += 1
-        self.feature_importance_info['cover'][f'feature{feature_id_origin}'] += sum(sample_tag_selected)
+        self.feature_importance_info_tree['split'][f'feature{feature_id_origin}'] += 1
+        self.feature_importance_info_tree['cover'][f'feature{feature_id_origin}'] += sum(sample_tag_selected)
         self.logger.log(f"store feature split information")
 
         # update record
@@ -153,11 +164,15 @@ class PassiveTreeParty(ModelComponent):
             [feature_id_origin, self.bin_split[feature_id_origin][split_id]]
         ).reshape(1, 2)
 
-        if self.record is None:
-            self.record = record
+        if self.record_tree is None:
+            self.record_tree = record
         else:
-            self.record = np.concatenate((self.record, record), axis=0)
-        record_id = len(self.record) - 1
+            self.record_tree = np.concatenate((self.record_tree, record), axis=0)
+
+        if self.record is None:
+            record_id = len(self.record_tree) - 1
+        else:
+            record_id = len(self.record) + len(self.record_tree) - 1
 
         # update sample_tag
         sample_tag_selected_left = sample_tag_selected
@@ -223,9 +238,48 @@ class PassiveTreeParty(ModelComponent):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        self.record = NumpyModelIO.load(model_path, model_name)
+        self.record, self.feature_importance_info = NumpyModelIO.load(model_path, model_name)
 
         self._validate(dataset)
+
+    def _init_tree_info(self):
+        """Initialize the tree-level information store
+        """
+        self.record_tree = None
+        self.feature_importance_info_tree = {
+            "split": defaultdict(int),        # Total number of splits
+            "cover": defaultdict(float)       # Total sample covered
+        }
+
+        # perform feature selection
+        feature_num = self.bin_index.shape[1]
+        self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
+        self.bin_index_selected = np.array(self.bin_index.copy())
+        self.bin_index_selected = self.bin_index_selected[:, self.feature_index_selected]
+
+        self.logger.log("init tree information and feature selection done")
+
+    def _merge_tree_info(self):
+        """Merge information from a single tree
+        """
+        # merge record message
+        if self.record is None:
+            self.record = self.record_tree
+        elif self.record_tree is None:
+            self.record = self.record
+        else:
+            self.record = np.concatenate((self.record, self.record_tree), axis=0)
+
+        # merge feature importance info
+        if self.feature_importance_info_tree is not None:
+            for key in self.feature_importance_info_tree["split"].keys():
+                self.feature_importance_info["split"][key] += self.feature_importance_info_tree["split"][key]
+            for key in self.feature_importance_info_tree["cover"].keys():
+                self.feature_importance_info["cover"][key] += self.feature_importance_info_tree["cover"][key]
+
+        # clear temporary information
+        self.record_tree, self.feature_importance_info_tree = None, None
+        self.logger.log("merge tree information done")
 
     def feature_importances_(self, importance_type="split"):
         assert importance_type in ("split", "cover"), "Not support importance type"

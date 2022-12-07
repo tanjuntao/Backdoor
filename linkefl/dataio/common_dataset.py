@@ -7,21 +7,21 @@ import numpy as np
 import pandas as pd
 import torch
 
+from linkefl.base import BaseTransformComponent
 from linkefl.common.const import Const
-from linkefl.dataio import BaseDataset
-# avoid circular importing
-# from linkefl.feature.transform import BaseTransform
 
 
-class CommonDataset(BaseDataset):
+class CommonDataset:
     """Common Dataset"""
+    mappings = None  # mappings for pandas non-numeric columns
+
     def __init__(self,
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
                  dataset_type: str,
-                 # transform: BaseTransform = None
-                 transform=None
+                 transform: BaseTransformComponent = None,
     ):
+        super(CommonDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
         self.role = role
         self.dataset_type = dataset_type
@@ -128,7 +128,8 @@ class CommonDataset(BaseDataset):
     @classmethod
     def buildin_dataset(cls, role, dataset_name, root, train,
                         passive_feat_frac, feat_perm_option,
-                        download=False, transform=None, seed=None):
+                        download=False, transform=None, seed=None
+    ):
         def _check_params():
             assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
             assert dataset_name in Const.BUILDIN_DATASETS, "not supported dataset right now"
@@ -164,9 +165,10 @@ class CommonDataset(BaseDataset):
                       transform=None, seed=None
     ):
         if seed is not None:
-            np.random.seed(seed)
+            random.seed(seed)
         _ids = np.arange(n_samples)
-        _feats = np.random.rand(n_samples, n_features)
+        _feats = [random.random() for _ in range(n_samples * n_features)]
+        _feats = np.array(_feats).reshape(n_samples, n_features)
 
         num_passive_feats = int(passive_feat_frac * n_features)
         if role == Const.PASSIVE_NAME:
@@ -176,9 +178,9 @@ class CommonDataset(BaseDataset):
             )
         else:
             if dataset_type == Const.CLASSIFICATION:
-                _labels = np.random.choice([0, 1], size=n_samples, replace=True)
+                _labels = np.array([random.choice([0, 1]) for _ in range(n_samples)])
             else:
-                _labels = np.random.rand(n_samples)
+                _labels = np.array([random.random() for _ in range(n_samples)])
             np_dataset = np.concatenate(
                 (_ids[:, np.newaxis], _labels[:, np.newaxis], _feats[:, num_passive_feats:]),
                 axis=1
@@ -195,7 +197,7 @@ class CommonDataset(BaseDataset):
     def from_mysql(cls, role, dataset_type,
                    host, user, password, database, table,
                    *,
-                   transform=None, port=3306
+                   mappings=None, transform=None, port=3306
     ):
         """Load dataset from MySQL database."""
         import pymysql
@@ -212,7 +214,7 @@ class CommonDataset(BaseDataset):
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
-        np_dataset = cls._pandas2numpy(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
             role=role,
@@ -225,7 +227,7 @@ class CommonDataset(BaseDataset):
     def from_oracle(cls, role, dataset_type,
                     host, user, password, database, table,
                     *,
-                    transform=None, port=1521
+                    mappings=None, transform=None, port=1521
     ):
         import cx_Oracle
 
@@ -241,7 +243,7 @@ class CommonDataset(BaseDataset):
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
-        np_dataset = cls._pandas2numpy(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
             role=role,
@@ -254,7 +256,7 @@ class CommonDataset(BaseDataset):
     def from_gaussdb(cls, role, dataset_type,
                      host, user, password, database, table,
                      *,
-                     transform=None, port=6789
+                     mappings=None, transform=None, port=6789
     ):
         """Load dataset from Gaussdb database."""
         # Note that Python is a dynamic programming language, so this error message can
@@ -279,7 +281,7 @@ class CommonDataset(BaseDataset):
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
-        np_dataset = cls._pandas2numpy(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
             role=role,
@@ -292,7 +294,7 @@ class CommonDataset(BaseDataset):
     def from_gbase8a(cls, role, dataset_type,
                      host, user, password, database, table,
                      *,
-                     transform=None, port=6789
+                     mappings=None, transform=None, port=6789
     ):
         """Load dataset from gbase8a database."""
         import pymysql
@@ -308,7 +310,7 @@ class CommonDataset(BaseDataset):
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
-        np_dataset = cls._pandas2numpy(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
             role=role,
@@ -318,10 +320,10 @@ class CommonDataset(BaseDataset):
         )
 
     @classmethod
-    def from_csv(cls, role, abs_path, dataset_type, transform=None):
+    def from_csv(cls, role, abs_path, dataset_type, mappings=None, transform=None):
         df_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
 
-        np_dataset = cls._pandas2numpy(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
             role=role,
@@ -331,13 +333,13 @@ class CommonDataset(BaseDataset):
         )
 
     @classmethod
-    def from_excel(cls, role, abs_path, dataset_type, transform=None):
+    def from_excel(cls, role, abs_path, dataset_type, mappings=None, transform=None):
         """ Load dataset from excel.
         need dependency package openpyxl, support .xls .xlsx
         """
         df_dataset = pd.read_excel("{}".format(abs_path), index_col=False)
 
-        np_dataset = cls._pandas2numpy(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
             role=role,
@@ -608,8 +610,10 @@ class CommonDataset(BaseDataset):
             permuted_feats = _feats
         elif perm_option == Const.RANDOM:
             if seed is not None:
-                np.random.seed(seed)
-            permuted_feats = _feats[:, np.random.permutation(_feats.shape[1])]
+                random.seed(seed)
+            perm = list(range(_feats.shape[1]))
+            random.shuffle(perm)
+            permuted_feats = _feats[:, perm]
             del _feats  # save memory
         elif perm_option == Const.IMPORTANCE:
             rankings = cal_importance_ranking(name, _feats, _labels)
@@ -635,13 +639,60 @@ class CommonDataset(BaseDataset):
         return np_dataset
 
     @staticmethod
-    def _pandas2numpy(df_dataset: pd.DataFrame):
+    def _pandas2numpy(df_dataset: pd.DataFrame, mappings: dict = None):
         """Transform a pandas DataFrame into Numpy Array"""
         from pandas.core.dtypes.common import is_numeric_dtype
 
+        if mappings is None:
+            create_mappings_flag = True
+            mappings = dict()
+        else:
+            create_mappings_flag = False
+            mappings = mappings
+
         for i, dtype in enumerate(df_dataset.dtypes):
             if not is_numeric_dtype(dtype):
-                df_dataset[df_dataset.columns[i]], _ = pd.factorize(df_dataset.iloc[:, i])
+                if create_mappings_flag is True:
+                    df_dataset[df_dataset.columns[i]], uniques = pd.factorize(df_dataset.iloc[:, i])
+                    mapping = dict(zip(uniques, range(len(uniques))))
+                    mappings[i] = mapping
+                else:
+                    df_dataset[df_dataset.columns[i]] = df_dataset.iloc[:, i].replace(mappings[i])
+
+        CommonDataset.mappings = mappings
 
         np_dataset = df_dataset.to_numpy()
         return np_dataset
+
+
+if __name__ == "__main__":
+    from linkefl.feature.transform import OneHot
+
+    print("the first df_dataset")
+    _df_dataset = pd.DataFrame(
+        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["aaa", "bbb", "ccc"], "b": ["aa", "bb", "cc"]}
+    )
+    print(_df_dataset)
+    _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
+    mappings = CommonDataset.mappings
+    # you can save these mappings and load it back when loading testset at inference pahse
+    # with open('train_mappings.pkl', 'wb') as f:
+    #     pickle.dump(mappings, f)
+    print(_np_dataset)
+    _np_dataset = OneHot([1, 2]).fit(_np_dataset, Const.PASSIVE_NAME)
+    print(_np_dataset)
+
+    print()
+
+    print("the second df_dataset")
+    another_df_dataset = pd.DataFrame(
+        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["bbb", "ccc", "aaa"], "b": ["cc", "aa", "bb"]}
+    )
+    print(another_df_dataset)
+    # you can load the mappings back and apply it to testset
+    # with open('train_mappings.pkl', 'rb') as f:
+    #     mappings = pickle.load(f)
+    another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset, mappings=mappings)
+    print(another_np_dataset)
+    another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
+    print(another_np_dataset)

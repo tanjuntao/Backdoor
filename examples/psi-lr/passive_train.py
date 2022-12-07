@@ -13,12 +13,12 @@ from linkefl.vfl.linear import PassiveLogReg
 
 if __name__ == '__main__':
     # 0. Set parameters
-    trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive2-train.csv"
-    testset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive2-test.csv"
+    trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive1-train.csv"
+    testset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive1-test.csv"
     active_ip = 'localhost'
-    active_port = 30000
+    active_port = 20000
     passive_ip = 'localhost'
-    passive_port = 30001
+    passive_port = 20001
     _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
@@ -64,11 +64,19 @@ if __name__ == '__main__':
         progress=1.0
     )
 
+    # 3. Run PSI
+    print(colored('3. PSI protocol started, computing...', 'red'))
     messenger = FastSocket(role=Const.PASSIVE_NAME,
                            active_ip=active_ip,
                            active_port=active_port,
                            passive_ip=passive_ip,
                            passive_port=passive_port)
+    passive_psi = RSAPSIPassive(messenger, logger)
+    common_ids = passive_psi.run(passive_trainset.ids)
+    passive_trainset.filter(common_ids)
+    print(colored('3. Finish psi protocol', 'red'))
+    logger.log('3. Finish psi protocol')
+
     # 4. VFL training
     print(colored('4. Training protocol started, computing...', 'red'))
     start_time = time.time()
@@ -78,11 +86,12 @@ if __name__ == '__main__':
                                 messenger=messenger,
                                 crypto_type=_crypto_type,
                                 logger=logger,
+                                rank=1,
                                 penalty=_penalty,
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
                                 using_pool=False,
-                                saving_model=False)
+                                saving_model=True)
     passive_vfl.train(passive_trainset, passive_testset)
     print(colored('4. Finish collaborative model training', 'red'))
     logger.log('4. Finish collaborative model training')

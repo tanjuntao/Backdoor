@@ -1,6 +1,6 @@
 import numpy as np
 
-from linkefl.crypto.base import CryptoSystem
+from linkefl.base import BaseCryptoSystem
 
 
 class ActiveHist:
@@ -35,7 +35,7 @@ class ActiveHist:
         return cls(task, n_labels, bin_gh)
 
     @classmethod
-    def decrypt_hist(cls, task, n_labels, bin_gh_enc, h_length, r, crypto_system: CryptoSystem, pool):
+    def decrypt_hist(cls, task, n_labels, bin_gh_enc, h_length, r, crypto_system: BaseCryptoSystem, pool):
         """decrypt hist received from passive party, binary only"""
 
         bin_gh_int = crypto_system.decrypt_data(bin_gh_enc, pool)
