@@ -1,25 +1,23 @@
 import datetime
 import time
 
-from termcolor import colored
 import torch
+from termcolor import colored
 from torch.utils.data import DataLoader
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, messenger_factory
 from linkefl.dataio import TorchDataset
-from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.enc_layer import PassiveEncLayer
-from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 
-class PassiveNeuralNetwork:
+class PassiveNeuralNetwork(BaseModelComponent):
     def __init__(self,
-                 epochs,
-                 batch_size,
-                 learning_rate,
-                 models,
-                 optimizers,
+                 epochs : int,
+                 batch_size : int,
+                 learning_rate : float,
+                 models : dict,
+                 optimizers : dict,
                  messenger,
                  cryptosystem,
                  *,
@@ -35,18 +33,10 @@ class PassiveNeuralNetwork:
         self.optimizers = optimizers
         self.messenger = messenger
         self.cryptosystem = cryptosystem
-        if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            self.enc_layer = PassiveEncLayer(
-                in_nodes=self.models["cut"].in_nodes,
-                out_nodes=self.models["cut"].out_nodes,
-                eta=learning_rate,
-                messenger=messenger,
-                cryptosystem=cryptosystem
-            )
-        self._sync_pubkey()
-
         self.precision = precision
         self.random_state = random_state
+        if random_state is not None:
+            torch.random.manual_seed(random_state)
         self.saving_model = saving_model
         self.model_path = model_path
         self.model_name = "{time}-{role}-{model_type}".format(
@@ -65,13 +55,25 @@ class PassiveNeuralNetwork:
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle)
         return dataloader
 
-    def train(self, trainset, testset):
+    def train(self, trainset : TorchDataset, testset : TorchDataset):
         assert isinstance(trainset, TorchDataset), \
             'trainset should be an instance of TorchDataset'
         assert isinstance(testset, TorchDataset), \
             'testset should be an instance of TorchDataset'
         train_dataloader = self._init_dataloader(trainset)
         test_dataloader = self._init_dataloader(testset)
+
+        self._sync_pubkey()
+        if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
+            self.enc_layer = PassiveEncLayer(
+                in_nodes=self.models["cut"].in_nodes,
+                out_nodes=self.models["cut"].out_nodes,
+                eta=self.learning_rate,
+                messenger=self.messenger,
+                cryptosystem=self.cryptosystem,
+                random_state=self.random_state,
+                precision=self.precision
+            )
 
         for model in self.models.values():
             model.train()
@@ -80,11 +82,10 @@ class PassiveNeuralNetwork:
         for epoch in range(self.epochs):
             print('Epoch: {}'.format(epoch))
             for batch_idx, X in enumerate(train_dataloader):
-                print(f"batch: {batch_idx}")
+                # print(f"batch: {batch_idx}")
                 # 1. forward
                 bottom_outputs = self.models["bottom"](X)
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                    # TODO: whether using bottom_outputs.data
                     passive_repr = self.enc_layer.fed_forward(bottom_outputs)
                 else:
                     passive_repr = self.models["cut"](bottom_outputs)
@@ -106,12 +107,17 @@ class PassiveNeuralNetwork:
                     self.optimizers["cut"].step()
                     self.optimizers["bottom"].step()
 
-                break
+                # if batch_idx == 1:
+                #     break
 
             scores = self.validate(testset, existing_loader=test_dataloader)
             is_best = self.messenger.recv()
             if is_best:
                 print(colored('Best model updated.', 'red'))
+
+        # close pool
+        if hasattr(self, 'enc_layer'):
+            self.enc_layer.close_pool()
 
         print(colored('Total training and validation time: {}'
                       .format(time.time() - start_time), 'red'))
@@ -136,22 +142,33 @@ class PassiveNeuralNetwork:
             scores = self.messenger.recv()
             return scores
 
+    def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
+        self.train(trainset, validset)
+
+    def score(self, testset, role=Const.PASSIVE_NAME):
+        return self.validate(testset)
+
 
 if __name__ == '__main__':
+    from linkefl.common.factory import crypto_factory, messenger_factory
+    from linkefl.util import num_input_nodes
+    from linkefl.vfl.nn.model import MLPModel, CutLayer
+
     # 0. Set parameters
-    dataset_name = 'fashion_mnist'
+    dataset_name = 'mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 2
+    _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
-    _crypto_type = Const.FAST_PAILLIER
+    _passive_in_nodes = 128
+    _crypto_type = Const.PLAIN
     _key_size = 1024
-    torch.manual_seed(1314)
+    _random_state = 1314
 
     # 1. Load datasets
     print('Loading dataset...')
@@ -161,14 +178,16 @@ if __name__ == '__main__':
                                                     train=True,
                                                     download=True,
                                                     passive_feat_frac=passive_feat_frac,
-                                                    feat_perm_option=feat_perm_option)
+                                                    feat_perm_option=feat_perm_option,
+                                                    seed=_random_state)
     passive_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
                                                    role=Const.PASSIVE_NAME,
                                                    root='../data',
                                                    train=False,
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+                                                   feat_perm_option=feat_perm_option,
+                                                   seed=_random_state)
     print('Done.')
 
     # 2. Create PyTorch models and optimizers
@@ -179,13 +198,32 @@ if __name__ == '__main__':
     )
     # mnist & fashion_mnist
     bottom_nodes = [input_nodes, 256, 128]
-    cut_nodes = [128, 64]
+    cut_nodes = [_passive_in_nodes, 64]
 
     # criteo
     # bottom_nodes = [input_nodes, 15, 10]
     # cut_nodes = [10, 10]
-    bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
-    cut_layer = CutLayer(*cut_nodes)
+
+    # census
+    # bottom_nodes = [input_nodes, 20, 10]
+    # cut_nodes = [_passive_in_nodes, 10]
+
+    # epsilon
+    # bottom_nodes = [input_nodes, 25, 10]
+    # cut_nodes = [10, 10]
+
+    # credit
+    # bottom_nodes = [input_nodes, 3, 3]
+    # cut_nodes = [3, 3]
+
+    # default_credit
+    # bottom_nodes = [input_nodes, 8, 5]
+    # cut_nodes = [5, 5]
+    bottom_model = MLPModel(bottom_nodes,
+                            activate_input=False,
+                            activate_output=True,
+                            random_state=_random_state)
+    cut_layer = CutLayer(*cut_nodes, random_state=_random_state)
     _models = {"bottom": bottom_model, "cut": cut_layer}
     _optimizers = {name: torch.optim.SGD(model.parameters(), lr=_learning_rate)
                    for name, model in _models.items()}
@@ -209,7 +247,8 @@ if __name__ == '__main__':
                                          models=_models,
                                          optimizers=_optimizers,
                                          messenger=_messenger,
-                                         cryptosystem=_crypto,)
+                                         cryptosystem=_crypto,
+                                         random_state=_random_state)
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training

@@ -1,11 +1,10 @@
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
-from linkefl.crypto import Plain, Paillier, FastPaillier
 from linkefl.crypto import PartialPlain, PartialPaillier, PartialFastPaillier
-from linkefl.messenger import Socket, FastSocket
+from linkefl.crypto import Plain, Paillier, FastPaillier
+from linkefl.messenger.socket import Socket, FastSocket, FastSocket_v1
+from linkefl.messenger.socket_disconnection import Socket_disconnection, FastSocket_disconnection, FastSocket_disconnection_v1
 
-from linkefl.messenger.socket import Socket, FastSocket,FastSocket_v1
-from linkefl.messenger.socket_disconnection import Socket_disconnection, FastSocket_disconnection
 
 def crypto_factory(crypto_type,
                    *,
@@ -80,7 +79,8 @@ def messenger_factory_disconnection(messenger_type,
                       active_port,
                       passive_ip,
                       passive_port,
-                      verbose=False):
+                      verbose=False,
+                      model_type='Tree',):
     if messenger_type == Const.SOCKET:
         messenger = Socket_disconnection(role=role,
                            active_ip=active_ip,
@@ -95,6 +95,14 @@ def messenger_factory_disconnection(messenger_type,
                                passive_ip=passive_ip,
                                passive_port=passive_port,
                                verbose=verbose)
+    elif messenger_type == Const.FAST_SOCKET_V1:
+        messenger = FastSocket_disconnection_v1(role=role,
+                                                model_type=model_type,
+                                             active_ip=active_ip,
+                                             active_port=active_port,
+                                             passive_ip=passive_ip,
+                                             passive_port=passive_port,
+                                             verbose=verbose)
     else:
         raise ValueError('Unrecoginized messenger type.')
 

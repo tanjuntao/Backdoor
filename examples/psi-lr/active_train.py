@@ -4,7 +4,7 @@ from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
-from linkefl.crypto import RSACrypto
+from linkefl.crypto import RSA
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import scale, add_intercept
 from linkefl.psi.rsa import RSAPSIActive
@@ -78,9 +78,9 @@ if __name__ == '__main__':
         for ac_ip, ac_port, pass_ip, pass_port in
             zip(active_ip, active_port, passive_ip, passive_port)
     ]
-    psi_crypto = RSACrypto()
-    active_psi = RSAPSIActive(active_trainset.ids, messenger[0], psi_crypto, logger)
-    common_ids = active_psi.run()
+    psi_crypto = RSA()
+    active_psi = RSAPSIActive(messenger, psi_crypto, logger)
+    common_ids = active_psi.run(active_trainset.ids)
     active_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))
     logger.log('3. Finish psi protocol')
@@ -102,7 +102,7 @@ if __name__ == '__main__':
                               reg_lambda=_reg_lambda,
                               random_state=_random_state,
                               using_pool=False,
-                              saving_model=False)
+                              saving_model=True)
     active_vfl.train(active_trainset, active_testset)
     print(colored('4. Finish collaborative model training', 'red'))
     logger.log('4. Finish collaborative model training')
@@ -155,5 +155,3 @@ if __name__ == '__main__':
     # )
     #
     # print(scores)
-
-

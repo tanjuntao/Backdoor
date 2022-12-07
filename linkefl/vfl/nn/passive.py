@@ -1,17 +1,13 @@
 import datetime
 import time
 
-from termcolor import colored
 import torch
+from termcolor import colored
 from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory,messenger_factory_v1
 from linkefl.dataio import TorchDataset
-from linkefl.feature.transform import scale
 from linkefl.modelio import TorchModelIO
-from linkefl.util import num_input_nodes
-from linkefl.vfl.nn.model import PassiveBottomModel
 
 
 class PassiveNeuralNetwork:
@@ -149,6 +145,10 @@ class PassiveNeuralNetwork:
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import messenger_factory_v1
+    from linkefl.util import num_input_nodes
+    from linkefl.vfl.nn.model import PassiveBottomModel
+
     # 0. Set parameters
     dataset_name = 'census'
     passive_feat_frac = 0.5

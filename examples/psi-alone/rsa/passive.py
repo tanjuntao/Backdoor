@@ -2,6 +2,7 @@
 import argparse
 
 from linkefl.common.const import Const
+from linkefl.common.factory import logger_factory
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIPassive
@@ -24,19 +25,20 @@ if __name__ == '__main__':
     # 1. Get sample IDs
     _ids = gen_dummy_ids(size=100000, option=Const.SEQUENCE)
 
-    # 2. Initialize messenger
+    # 2. Initialize messenger and logger
     _messenger = FastSocket(role=Const.PASSIVE_NAME,
                             active_ip='127.0.0.1',
                             active_port=20001,
                             passive_ip='127.0.0.1',
                             passive_port=30001)
+    _logger = logger_factory(role=Const.PASSIVE_NAME)
 
     # 3. Start the RSA-Blind-Signature protocol
-    alice = RSAPSIPassive(_ids, _messenger)
+    alice = RSAPSIPassive(_messenger, _logger)
     if args.phase == 'offline':
-        alice.run_offline()
+        alice.run_offline(_ids)
     elif args.phase == 'online':
-        alice.run_online()
+        alice.run_online(_ids)
     else:
         raise ValueError(f"command line argument `--phase` can only"
                          f"take `offline` and `online`, "

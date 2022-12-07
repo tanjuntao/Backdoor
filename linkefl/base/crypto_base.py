@@ -1,10 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class PartialCryptoSystem(ABC):
-    def __init__(self):
-        pass
-
+class BasePartialCryptoSystem(ABC):
     @abstractmethod
     def encrypt(self, plaintext):
         pass
@@ -15,7 +12,7 @@ class PartialCryptoSystem(ABC):
         pass
 
 
-class CryptoSystem(ABC):
+class BaseCryptoSystem(ABC):
     """Base class of cryptosystem"""
     def __init__(self, key_size=1024):
         """Initialize a cryptosystem.

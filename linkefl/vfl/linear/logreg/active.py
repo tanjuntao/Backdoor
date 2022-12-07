@@ -1,22 +1,19 @@
 import copy
 import time
 
-from line_profiler_pycharm import profile
 import numpy as np
 from sklearn.metrics import log_loss, accuracy_score, roc_auc_score, f1_score
 from termcolor import colored
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform import add_intercept, scale, parse_label
-from linkefl.feature.transform import ParseLabel, Scale, AddIntercept, Compose
 from linkefl.modelio import NumpyModelIO
-from linkefl.util import sigmoid, save_params
+from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
 
 
-class ActiveLogReg(BaseLinearActive):
+class ActiveLogReg(BaseLinearActive, BaseModelComponent):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -236,6 +233,12 @@ class ActiveLogReg(BaseLinearActive):
     def predict(self, testset):
         return self.validate(testset)
 
+    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+        self.train(trainset, validset)
+
+    def score(self, testset, role=Const.ACTIVE_NAME):
+        return self.predict(testset)
+
     @staticmethod
     def online_inference(dataset, model_name, messenger,
                          model_path='./models', POSITIVE_THRESH=0.5):
@@ -243,8 +246,11 @@ class ActiveLogReg(BaseLinearActive):
                                                   'instance of NumpyDataset'
         model_params = NumpyModelIO.load(model_path, model_name)
         active_wx = np.matmul(dataset.features, model_params)
-        passive_wx = messenger.recv()
-        probs = sigmoid(active_wx + passive_wx)
+        total_wx = active_wx
+        for msger in messenger:
+            curr_wx = msger.recv()
+            total_wx += curr_wx
+        probs = sigmoid(total_wx)
         preds = (probs > POSITIVE_THRESH).astype(np.int32)
         accuracy = accuracy_score(dataset.labels, preds)
         f1 = f1_score(dataset.labels, preds)
@@ -255,41 +261,45 @@ class ActiveLogReg(BaseLinearActive):
             "auc": auc,
             "f1": f1
         }
-        messenger.send(scores)
-        return scores
+        for msger in messenger:
+            msger.send([scores, preds])
+        return scores, preds
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+    from linkefl.feature.transform import add_intercept, scale, parse_label
+
     # 0. Set parameters
-    dataset_name = 'census'
+    _dataset_name = 'epsilon'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
-    active_ip = ['localhost', 'localhost']
-    active_port = [20000, 30000]
-    passive_ip = ['localhost', 'localhost']
-    passive_port = [20001, 30001]
-    _epochs = 100
-    _batch_size = 100
+    active_ip = ['localhost', ]
+    active_port = [20000, ]
+    passive_ip = ['localhost', ]
+    passive_port = [20001, ]
+    _epochs = 10
+    _batch_size = -1
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
-    _crypto_type = Const.PLAIN
+    _crypto_type = Const.FAST_PAILLIER
     _random_state = 3347
     _key_size = 1024
-    _using_pool = False
+    _using_pool = True
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
     print('Loading dataset...')
     active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                   dataset_name=dataset_name,
+                                                   dataset_name=_dataset_name,
                                                    root='../../data',
                                                    train=True,
                                                    download=True,
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
     active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                  dataset_name=dataset_name,
+                                                  dataset_name=_dataset_name,
                                                   root='../../data',
                                                   train=False,
                                                   download=True,

@@ -4,7 +4,7 @@ from torch import nn
 
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory
-from linkefl.crypto import RSACrypto
+from linkefl.crypto import RSA
 from linkefl.dataio import TorchDataset
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIActive
@@ -59,9 +59,9 @@ if __name__ == '__main__':
                            active_port=active_port,
                            passive_ip=passive_ip,
                            passive_port=passive_port)
-    psi_crypto = RSACrypto()
-    active_psi = RSAPSIActive(active_trainset.ids, messenger, psi_crypto, _logger)
-    common_ids = active_psi.run()
+    psi_crypto = RSA()
+    active_psi = RSAPSIActive([messenger], psi_crypto, _logger)
+    common_ids = active_psi.run(active_trainset.ids)
     active_trainset.filter(common_ids)
     print(colored('3. Finish psi protocol', 'red'))
 
