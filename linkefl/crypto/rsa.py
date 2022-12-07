@@ -60,7 +60,7 @@ class RSAPublicKey:
     @staticmethod
     def _target_enc_vector(plaintexts, start, end, e, n):
         sub_list = plaintexts[start:end]
-        plaintexts[start:end] = gmpy2.powmod_list(sub_list, e, n)
+        plaintexts[start:end] = gmpy2.powmod_base_list(sub_list, e, n)
 
     def raw_inverse(self, x):
         return gmpy2.invert(x, self.n)
@@ -128,7 +128,7 @@ class RSAPrivateKey:
     @staticmethod
     def _target_dec_vector(ciphertexts, start, end, d, n):
         sub_list = ciphertexts[start:end]
-        ciphertexts[start:end] = gmpy2.powmod_list(sub_list, d, n)
+        ciphertexts[start:end] = gmpy2.powmod_base_list(sub_list, d, n)
 
     def _raw_decrypt_vector_pool(self, cipher_vector,
                                  using_pool=False, n_workers=None, process_pool=None):

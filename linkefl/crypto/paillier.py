@@ -284,7 +284,7 @@ class PaillierPublicKey:
         n = self.raw_pub_key.n
         nsquare = self.raw_pub_key.nsquare
         r_values = [random.SystemRandom().randrange(1, n) for _ in range(end - start)]
-        obfuscators = gmpy2.powmod_list(r_values, n, nsquare)
+        obfuscators = gmpy2.powmod_base_list(r_values, n, nsquare)
 
         r_idx = 0
         for k in range(start, end):
@@ -482,8 +482,8 @@ class PaillierPrivateKey:
     def _target_dec_vector(self, ciphertexts, exponents, start, end):
         p, psquare, hp = self.raw_priv_key.p, self.raw_priv_key.psquare, self.raw_priv_key.hp
         q, qsquare, hq = self.raw_priv_key.q, self.raw_priv_key.qsquare, self.raw_priv_key.hq
-        powmod_p = gmpy2.powmod_list(ciphertexts[start:end], p - 1, psquare) # multi thread
-        powmod_q = gmpy2.powmod_list(ciphertexts[start:end], q - 1, qsquare) # multi thread
+        powmod_p = gmpy2.powmod_base_list(ciphertexts[start:end], p - 1, psquare) # multi thread
+        powmod_q = gmpy2.powmod_base_list(ciphertexts[start:end], q - 1, qsquare) # multi thread
         public_key = self.raw_priv_key.public_key
         sublist_idx = 0
         for k in range(start, end):
@@ -914,7 +914,7 @@ def fast_add_ciphers(cipher_vector, thread_pool=None):
 
 def _target_add_ciphers(ciphertexts, curr_exp, min_exp, base, nsquare):
     multiplier = pow(base, curr_exp - min_exp)
-    aligned_ciphers = gmpy2.powmod_list(ciphertexts, multiplier, nsquare)
+    aligned_ciphers = gmpy2.powmod_base_list(ciphertexts, multiplier, nsquare)
     result = gmpy2.mpz(1)
     for ciphertext in aligned_ciphers:
         result = gmpy2.mod(gmpy2.mul(result, ciphertext), nsquare)
