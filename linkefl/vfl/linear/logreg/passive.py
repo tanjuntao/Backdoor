@@ -22,6 +22,7 @@ class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
                  val_freq=1,
                  saving_model=False,
                  model_path='./models',
+                 model_name=None,
     ):
         super(PassiveLogReg, self).__init__(
             epochs=epochs,
@@ -40,6 +41,7 @@ class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
             val_freq=val_freq,
             saving_model=saving_model,
             model_path=model_path,
+            model_name=model_name,
             task='classification'
         )
 
