@@ -79,6 +79,7 @@ if __name__ == "__main__":
         logger=logger,
         max_bin=max_bin,
         colsample_bytree=colsample_bytree,
+        saving_model=True,
     )
 
     pipeline = PipeLine([psi, transforms, model], role=Const.PASSIVE_NAME)

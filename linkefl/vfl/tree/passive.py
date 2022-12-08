@@ -251,13 +251,36 @@ class PassiveTreeParty(BaseModelComponent):
     def predict(self, testset):
         self._validate(testset)
 
-    def online_inference(self, dataset, model_name, model_path="./models"):
+    @staticmethod
+    def online_inference(dataset, messenger, logger, model_name, model_path="./models"):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        self.record, self.feature_importance_info = NumpyModelIO.load(model_path, model_name)
+        record, feature_importance_info = NumpyModelIO.load(model_path, model_name)
 
-        self._validate(dataset)
+        features = dataset.features
+
+        while True:
+            # ready to receive instructions from active party
+            data = messenger.recv()
+            if data["name"] == "validate finished" and data["content"] is True:
+                logger.log("validate finished")
+                break
+            elif data["name"] == "judge":
+                sample_id, record_id = data["content"]
+
+                feature_id, threshold = record[record_id]
+                # feature_id is float thanks to threshold...
+                result = (
+                    True if features[sample_id][int(feature_id)] > threshold else False
+                )  # avoid numpy bool
+
+                messenger.send(wrap_message("judge", content=result))
+            else:
+                raise KeyError
+
+        scores, preds = messenger.recv()
+        return scores, preds
 
     def _init_tree_info(self):
         """Initialize the tree-level information store

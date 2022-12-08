@@ -322,14 +322,74 @@ class ActiveTreeParty(BaseModelComponent):
         """
         return self._validate(testset)
 
-    def online_inference(self, dataset, model_name, model_path="./models"):
-        assert isinstance(
-            dataset, NumpyDataset
-        ), "inference dataset should be an instance of NumpyDataset"
+    @staticmethod
+    def online_inference(dataset, task, n_labels, messengers, logger,
+                         model_name, model_path='./models'):
+        assert isinstance(dataset, NumpyDataset), 'inference dataset should be an ' \
+                                                  'instance of NumpyDataset'
+        model_params, feature_importance_info, learning_rate = NumpyModelIO.load(model_path, model_name)
 
-        self.load_model(model_name, model_path)
+        trees = [
+            DecisionTree(
+                task=task,
+                n_labels=n_labels,
+                crypto_type=None,
+                crypto_system=None,
+                messengers=messengers,
+                logger=logger
+            )
+            for _ in range(len(model_params))
+        ]
 
-        return self._validate(dataset)
+        for i, (record, root) in enumerate(model_params):
+            tree = trees[i]
+            tree.record = record
+            tree.root = root
+
+        features = dataset.features
+        labels = dataset.labels
+
+        if task == "multi":
+            raw_outputs = np.zeros((len(labels), n_labels))
+        else:
+            raw_outputs = np.zeros(len(labels))
+
+        for tree in trees:
+            update_pred = tree.predict(features)
+            if update_pred is None:
+                # the trees after are not trained
+                break
+            raw_outputs += learning_rate * update_pred
+
+        if task == "binary":
+            outputs = sigmoid(raw_outputs)
+            targets = np.round(outputs).astype(int)
+
+            acc = accuracy_score(labels, targets)
+            auc = roc_auc_score(labels, outputs)
+            f1 = f1_score(labels, targets, average="weighted")
+
+        elif task == "multi":
+            outputs = softmax(raw_outputs, axis=1)
+            targets = np.argmax(outputs, axis=1)
+
+            acc = accuracy_score(labels, targets)
+            auc = -1
+            f1 = -1
+
+        else:
+            raise ValueError("No such task label.")
+
+        scores = {"acc": acc, "auc": auc, "f1": f1}
+
+        for i, messenger in enumerate(messengers):
+            messenger.send(wrap_message("validate finished", content=True))
+
+        logger.log("validate finished")
+
+        for messenger in messengers:
+            messenger.send([scores, targets])
+        return scores, targets
 
     def feature_importances_(self, importance_type="split"):
         """
@@ -493,7 +553,7 @@ class ActiveTreeParty(BaseModelComponent):
     def _save_model(self):
         model_name = f"{self.model_name}.model"
         model_params = [(tree.record, tree.root) for tree in self.trees]
-        saved_data = [model_params, self.feature_importance_info]
+        saved_data = [model_params, self.feature_importance_info, self.learning_rate]
         NumpyModelIO.save(saved_data, self.model_path, model_name)
 
         self.logger.log(f"Save model {model_name} success.")

@@ -120,6 +120,7 @@ if __name__ == "__main__":
         other_rate=other_rate,
         colsample_bytree=colsample_bytree,
         n_processes=n_processes,
+        saving_model=True,
     )
 
     pipeline = PipeLine([psi, transforms, model], role=Const.ACTIVE_NAME)
