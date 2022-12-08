@@ -193,6 +193,15 @@ class ActiveTreeParty(BaseModelComponent):
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
 
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.RUNNING,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=tree_id / len(self.trees)
+                )
+
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
@@ -241,6 +250,15 @@ class ActiveTreeParty(BaseModelComponent):
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
 
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.RUNNING,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=tree_id / len(self.trees)
+                )
+
                 loss = self.loss.loss(labels_onehot, outputs)
                 gradient = self.loss.gradient(labels_onehot, outputs)
                 hessian = self.loss.hessian(labels_onehot, outputs)
@@ -282,6 +300,14 @@ class ActiveTreeParty(BaseModelComponent):
             if self.messengers_validTag[messenger_id]:
                 messenger.send(wrap_message("train finished", content=True))
 
+        self.logger.log_component(
+            name=Const.VERTICAL_SBT,
+            status=Const.SUCCESS,
+            begin=start_time,
+            end=time.time(),
+            duration=time.time() - start_time,
+            progress=1.0
+        )
         self.logger.log("train finished")
         self.logger.log("Total training and validation time: {:.4f}".format(time.time() - start_time))
 

@@ -96,6 +96,15 @@ class PassiveTreeParty(BaseModelComponent):
                 self._init_tree_info()      # information for building a new tree
                 self.logger.log("start a new tree")
 
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.RUNNING,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=0.5  # passive party does not know the total tree number
+                )
+
             elif data["name"] == "hist":
                 sample_tag = data["content"]
                 bin_gh_data = self._get_hist(sample_tag)
@@ -133,6 +142,14 @@ class PassiveTreeParty(BaseModelComponent):
                         f"{self.model_name}-{trainset.n_samples}_samples.model"
                     )
                     NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.SUCCESS,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=1.0
+                )
                 self.logger.log("train finished")
                 break
 
