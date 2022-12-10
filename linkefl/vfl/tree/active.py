@@ -47,6 +47,7 @@ class ActiveTreeParty(BaseModelComponent):
         n_processes: int = 1,
         saving_model: bool = False,
         model_path: str = "./models",
+        model_name=None,
         drop_protection: bool = False,
         reconnect_ports: List[int] = None,
     ):
@@ -93,11 +94,14 @@ class ActiveTreeParty(BaseModelComponent):
         else:
             self.pool = None
 
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.ACTIVE_NAME,
-            model_type=Const.VERTICAL_SBT,
-        )
+        if model_name is None:
+            self.model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.ACTIVE_NAME,
+                model_type=Const.VERTICAL_SBT,
+            )
+        else:
+            self.model_name = model_name
 
         # 初始化 loss
         if task == "binary":

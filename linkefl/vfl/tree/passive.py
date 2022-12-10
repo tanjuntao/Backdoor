@@ -25,6 +25,7 @@ class PassiveTreeParty(BaseModelComponent):
         colsample_bytree = 1,
         saving_model: bool = False,
         model_path: str = "./models",
+        model_name=None,
     ):
         """Passive Tree Party class to train and validate dataset
 
@@ -42,11 +43,14 @@ class PassiveTreeParty(BaseModelComponent):
         self.saving_model = saving_model
         self.model_path = model_path
 
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.PASSIVE_NAME,
-            model_type=Const.VERTICAL_SBT,
-        )
+        if model_name is None:
+            self.model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.PASSIVE_NAME,
+                model_type=Const.VERTICAL_SBT,
+            )
+        else:
+            self.model_name = model_name
 
         self.feature_importance_info = {
             "split": defaultdict(int),      # Total number of splits
