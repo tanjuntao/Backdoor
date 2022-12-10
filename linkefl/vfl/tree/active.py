@@ -555,7 +555,8 @@ class ActiveTreeParty(BaseModelComponent):
         self.logger.log("merge tree information done")
 
     def _save_model(self):
-        model_name = f"{self.model_name}.model"
+        # model_name = f"{self.model_name}.model"
+        model_name = self.model_name
         model_params = [(tree.record, tree.root) for tree in self.trees]
         saved_data = [model_params, self.feature_importance_info, self.learning_rate]
         NumpyModelIO.save(saved_data, self.model_path, model_name)

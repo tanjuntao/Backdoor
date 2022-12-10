@@ -132,9 +132,10 @@ class PassiveTreeParty(BaseModelComponent):
 
                 # store temp file
                 if self.saving_model:
-                    model_name = (
-                        f"{self.model_name}-{trainset.n_samples}_samples.model"
-                    )
+                    # model_name = (
+                    #     f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    # )
+                    model_name = self.model_name
                     NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
 
                 self.logger.log("temp model saved")
@@ -142,9 +143,10 @@ class PassiveTreeParty(BaseModelComponent):
 
             elif data["name"] == "train finished" and data["content"] is True:
                 if self.saving_model:
-                    model_name = (
-                        f"{self.model_name}-{trainset.n_samples}_samples.model"
-                    )
+                    # model_name = (
+                    #     f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    # )
+                    model_name = self.model_name
                     NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
                 self.logger.log_component(
                     name=Const.VERTICAL_SBT,
