@@ -13,27 +13,28 @@ class Const:
     PROJECT_CACHE_DIR = '.linkefl'
 
     BUILDIN_DATASETS = [
+        "avazu",
         "cancer",
+        "census",
+        "cifar10",
+        "covertype",
+        "credit",
+        "criteo",
+        "default_credit",
+        "diabetes",
         "digits",
         "epsilon",
-        "census",
-        "credit",
-        "default_credit",
-        "covertype",
-        "higgs",
-        "criteo",
-        "diabetes",
-        "year",
-        "nyc_taxi",
-        "iris",
-        "wine",
-        "mnist",
         "fashion_mnist",
-        "cifar",
+        "higgs",
+        "iris",
+        "mnist",
+        "nyc_taxi",
         "svhn",
-        "avazu",
+        "tab_fashion_mnist",
+        "tab_mnist",
+        "wine",
+        "year",
     ]
-    REGRESSION_DATASETS = ["diabetes", "year", "nyc_taxi"]
 
     PLAIN = "plain"
     PAILLIER = "paillier"
@@ -69,26 +70,18 @@ class Const:
 
     REGRESSION = "regression"
     CLASSIFICATION = "classification"
+    PYTORCH_DATASET = [
+        "cifar10",
+        "fashion_mnist",
+        "mnist",
+        "svhn",
+        "tab_mnist",
+        "tab_fashion_mnist",
+    ]
+    REGRESSION_DATASETS = ["diabetes", "nyc_taxi", "year",]
     DATA_TYPE_DICT = {
-        REGRESSION: ["diabetes", "year", "nyc_taxi"],
-        CLASSIFICATION: [
-            "cancer",
-            "digits",
-            "epsilon",
-            "census",
-            "credit",
-            "criteo",
-            "default_credit",
-            "covertype",
-            "higgs",
-            "iris",
-            "wine",
-            "mnist",
-            "fashion_mnist",
-            "cifar",
-            "svhn",
-            "avazu",
-        ],
+        REGRESSION: ["diabetes", "nyc_taxi", "year",],
+        CLASSIFICATION: list(set(BUILDIN_DATASETS) - set(REGRESSION_DATASETS))
     }
 
     BLOSC = "blosc"
