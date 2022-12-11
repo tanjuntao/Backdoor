@@ -6,7 +6,7 @@ from sklearn.metrics import r2_score
 from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory,messenger_factory_multi
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory_multi
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import add_intercept, AddIntercept
 from linkefl.modelio import NumpyModelIO
@@ -122,7 +122,7 @@ class ActiveLinReg(BaseLinearActive):
                 # for msger in self.messenger:
                 #     passive_wx = msger.recv()
                 #     full_wx += passive_wx
-                for id in range(1,self.world_size+1):
+                for id in range(self.world_size):
                     passive_wx = self.messenger.recv(id)
                     full_wx += passive_wx
                     
@@ -137,10 +137,10 @@ class ActiveLinReg(BaseLinearActive):
                 enc_residue = np.array(self.cryptosystem.encrypt_vector(residue))
                 compu_time += time.time() - _begin
 
-                for id in range(1,self.world_size+1):
+                for id in range(self.world_size):
                     self.messenger.send(enc_residue,id)
 
-                for id in range(1,self.world_size+1):
+                for id in range(self.world_size):
                     enc_passive_grad = self.messenger.recv(id)
                     _begin = time.time()
                     passive_grad = np.array(self.cryptosystem.decrypt_vector(enc_passive_grad))
@@ -173,7 +173,7 @@ class ActiveLinReg(BaseLinearActive):
 
                 # for msger in self.messenger:
                 #     msger.send(is_best)
-                for id in range(1,self.world_size+1): self.messenger.send(is_best,id)
+                for id in range(self.world_size): self.messenger.send(is_best,id)
 
         self.logger.log('Finish model training.')
         self.logger.log('Best validation loss: {:.5f}'.format(best_loss))
@@ -191,7 +191,7 @@ class ActiveLinReg(BaseLinearActive):
         active_wx = np.matmul(valset.features, getattr(self, 'params'))
         full_wx = active_wx
 
-        for id in range(1, self.world_size + 1):
+        for id in range(self.world_size ):
             passive_wx = self.messenger.recv(id)
             full_wx += passive_wx
         y_pred = full_wx

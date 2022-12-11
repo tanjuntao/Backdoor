@@ -140,7 +140,7 @@ class ActiveLogReg(BaseLinearActive):
                 active_wx = np.matmul(getattr(self, 'x_train')[batch_idxes], getattr(self, 'params'))
                 full_wx = active_wx
 
-                for id in range(1,self.world_size+1):
+                for id in range(self.world_size):
                     passive_wx = self.messenger.recv(id)
                     full_wx += passive_wx
 
@@ -161,10 +161,10 @@ class ActiveLogReg(BaseLinearActive):
                 # Active party helps passive party to calcalate gradient
                 enc_residue = np.array(self.cryptosystem.encrypt_vector(residue))
 
-                for id in range(1,self.world_size+1):
+                for id in range(self.world_size):
                     self.messenger.send(enc_residue,id)
 
-                for id in range(1,self.world_size+1):
+                for id in range(self.world_size):
                     enc_passive_grad = self.messenger.recv(id)
                     _begin = time.time()
                     passive_grad = np.array(self.cryptosystem.decrypt_vector(enc_passive_grad))
@@ -199,7 +199,7 @@ class ActiveLogReg(BaseLinearActive):
                         model_params = copy.deepcopy(getattr(self, 'params'))
                         model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
                         NumpyModelIO.save(model_params, self.model_path, model_name)
-                for id in range(1,self.world_size+1): self.messenger.send(is_best,id)
+                for id in range(self.world_size): self.messenger.send(is_best,id)
             print(colored('epoch time: {}'.format(time.time() - epoch_start_time), 'red'))
 
         # close ThreadPool if it exists
@@ -226,7 +226,7 @@ class ActiveLogReg(BaseLinearActive):
         # for msger in self.messenger:
         #     passive_wx = msger.recv()
         #     full_wx += passive_wx
-        for id in range(1,self.world_size+1):
+        for id in range(self.world_size):
             passive_wx = self.messenger.recv(id)
             full_wx += passive_wx
         probs = sigmoid(full_wx)

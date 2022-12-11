@@ -4,6 +4,8 @@ import struct
 import time
 import os
 import platform
+from termcolor import colored
+
 
 from .base import Messenger
 from linkefl.config import BaseConfig
@@ -75,7 +77,9 @@ class FastSocket_multi_v1(Messenger):
         self.tcpCliSocks = []
         for i in range(self.world_size):
             ip = self.passive_ip[i]
+            # print(self.passive_port[i])
             port = self.passive_port[i]
+
             addr = (ip,port)
             self.sock_daemon = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock_daemon.connect(addr)
@@ -117,7 +121,7 @@ class FastSocket_multi_v1(Messenger):
 
     def _active_send(self,msg,id):
         try:
-            Sock = self.tcpCliSocks[id-1]
+            Sock = self.tcpCliSocks[id]
             msg_pickled = pickle.dumps(msg)
             prefix = self._msg_prefix(len(msg_pickled))
             msg_send = prefix + msg_pickled
@@ -141,11 +145,11 @@ class FastSocket_multi_v1(Messenger):
         return pickle.loads(raw_data)
 
     def _active_recv(self,id):
-        raw_msglen = self._recvall(self.tcpCliSocks[id-1], 4)
+        raw_msglen = self._recvall(self.tcpCliSocks[id], 4)
         if not raw_msglen:
             return None
         msglen = struct.unpack('>I', raw_msglen)[0]
-        raw_data = self._recvall(self.tcpCliSocks[id-1], msglen)
+        raw_data = self._recvall(self.tcpCliSocks[id], msglen)
         if self.verbose:
             print('[SOCKET-ACTIVE]: Receive message from passive party.')
 
@@ -183,4 +187,100 @@ class FastSocket_multi_v1(Messenger):
             raw_data.extend(packet)
 
         return raw_data
+
+
+class FastSocket_multi_disconnection_v1(FastSocket_multi_v1):
+    """Implement messenger using python socket
+
+    RSAPSIPassive and RSAPSIActive will only need to maintain two pair sockets, one for RSAPSIPassive
+    sending and bob receiving, the other for RSAPSIPassive receiving and RSAPSIActive sending.
+    It is much more efficient than `Socket`.
+    """
+    def __init__(self,
+                 role,
+                 model_type,
+                 active_ip,
+                 active_port,
+                 passive_ip,
+                 passive_port,
+                 verbose=False,
+                 world_size=1):
+        """Initialize socket messenger.
+
+        After Initialzation, a daemon socket will run in backend at both RSAPSIPassive
+        and RSAPSIActive's side.
+        """
+        super(FastSocket_multi_disconnection_v1, self).__init__(role,
+                 active_ip=active_ip,
+                 active_port=active_port,
+                 passive_ip=passive_ip,
+                 passive_port=passive_port,
+                 verbose=verbose,
+                 world_size=world_size)
+        assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), 'Invalid role'
+        self.model_type = model_type
+
+    def send(self, msg, id=0,passive_party=True):
+        if self.role == Const.PASSIVE_NAME:
+            self._passive_send(msg)
+        else:
+            if passive_party:
+                try:
+                    self._active_send(msg,id)
+                    return True
+                except Exception:
+                    print(colored("Passive party {} is disconnected", 'red').format(id))
+                    return False
+            else:
+                return False
+
+    def recv(self,id=0,passive_party=True):
+        if self.role == Const.PASSIVE_NAME:
+            return self._passive_recv()
+        else:
+            if passive_party:
+                try:
+                    rec_data = self._active_recv(id)
+                except Exception:
+                    print(colored("Passive party {} is disconnected", 'red').format(id))
+                    return None, False
+                passive_party = self._verify_data_integrtiy(rec_data)
+                if not passive_party:
+                    print(colored("Passive party {} has been disconnected", 'red').format(id))
+                return rec_data, passive_party
+            else:
+                return None, False
+            # return self._active_recv()
+
+    def _verify_data_integrtiy(self, data):
+        """Judge data integrity by looking at the first data
+        """
+        try:
+            if self.model_type == 'Tree':
+                data["name"]  # verify in decision tree
+            else:
+                data[0]  # verify in NN or LR
+            return True
+        except Exception:
+            return False
+
+    def _close_client(self,id):
+        self.tcpCliSocks[id].close()
+
+    def try_reconnect(self, reconnection_port,id=0):
+
+        """Attempt to reconnect, return True if successful
+        """
+        self._close_client(id)
+        try:
+            ip = self.passive_ip[id]
+            port = reconnection_port[id]
+            addr = (ip,port)
+            self.sock_daemon = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock_daemon.connect(addr)
+            self.tcpCliSocks[id] = self.sock_daemon
+            return True
+        except Exception:
+            return False
+
 

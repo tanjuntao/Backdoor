@@ -447,7 +447,6 @@ class BaseLinearActive(BaseLinear):
         self.random_state = random_state
         self.using_pool = using_pool
         self.world_size = world_size
-
         if using_pool:
             if num_workers == -1:
                 num_workers = os.cpu_count()
@@ -499,8 +498,10 @@ class BaseLinearActive(BaseLinear):
                    is_multi_thread=config.IS_MULTI_THREAD)
 
     def _sync_pubkey(self):
-        for id in range(1,self.world_size+1):
-            signal = self.messenger.recv(id)
+        for id in range(self.world_size):
+            print(id)
+            print(self.world_size)
+            signal = self.messenger.recv(id=id)
             if signal == Const.START_SIGNAL:
                 print('Training protocol started.')
                 print('[ACTIVE] Sending public key to passive party...')
@@ -531,6 +532,7 @@ class BaseLinearActive(BaseLinear):
 
         return train_grad + reg_grad
 
+
     def train(self, trainset, testset):
         raise NotImplementedError('should not call this method within base class')
 
@@ -539,3 +541,71 @@ class BaseLinearActive(BaseLinear):
 
     def predict(self, testset):
         raise NotImplementedError('should not call this method within base class')
+
+
+
+
+
+class BaseLinearActive_disconnection(BaseLinearActive):
+    def __init__(self,
+                 epochs,
+                 batch_size,
+                 learning_rate,
+                 messenger,
+                 cryptosystem,
+                 logger,
+                 *,
+                 penalty=Const.L2,
+                 reg_lambda=0.01,
+                 crypto_type=Const.PAILLIER,
+                 precision=0.001,
+                 random_state=None,
+                 using_pool=False,
+                 num_workers=-1,
+                 val_freq=1,
+                 saving_model=False,
+                 model_path='./models',
+                 task='classification',
+                 world_size=1
+    ):
+        super(BaseLinearActive_disconnection, self).__init__(epochs=epochs,
+                 batch_size=batch_size,
+                 learning_rate=learning_rate,
+                 messenger=messenger,
+                 cryptosystem=cryptosystem,
+                 logger=logger,
+                 penalty=penalty,
+                 reg_lambda=reg_lambda,
+                 crypto_type=crypto_type,
+                 precision=precision,
+                 random_state=random_state,
+                 using_pool=using_pool,
+                 num_workers=num_workers,
+                 val_freq=val_freq,
+                 saving_model=saving_model,
+                 model_path=model_path,
+                 task=task,
+                 world_size=world_size)
+        pass
+
+
+    def _sync_pubkey(self):
+        for id in range(self.world_size):
+            signal,_ = self.messenger.recv(id=id)
+            if signal == Const.START_SIGNAL:
+                print('Training protocol started.')
+                print('[ACTIVE] Sending public key to passive party...')
+                self.messenger.send(self.cryptosystem.pub_key,id)
+            else:
+                raise ValueError('Invalid signal, exit.')
+        print('[ACTIVE] Sending public key done!')
+
+    def _sync_pubkey_client(self,id):
+        signal,_ = self.messenger.recv(id=id)
+        if signal == Const.START_SIGNAL:
+            print('Training protocol started.')
+            print('[ACTIVE] Sending public key to passive party...')
+            self.messenger.send(self.cryptosystem.pub_key,id)
+        else:
+            raise ValueError('Invalid signal, exit.')
+        print('[ACTIVE] Sending public key done!')

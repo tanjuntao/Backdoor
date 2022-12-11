@@ -9,14 +9,14 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory, partial_crypto_factory
+from linkefl.common.factory import messenger_factory, partial_crypto_factory,messenger_factory_multi_disconnection
 from linkefl.dataio import TorchDataset
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 from linkefl.vfl.nn.model import MLPModel, CutLayer
 
 
-class ActiveNeuralNetwork:
+class ActiveNeuralNetwork_disconnection:
     def __init__(self,
                  epochs,
                  batch_size,
@@ -27,11 +27,14 @@ class ActiveNeuralNetwork:
                  messenger,
                  crypto_type,
                  *,
+                 world_size=1,
                  passive_in_nodes=None,
                  precision=0.001,
                  random_state=None,
                  saving_model=False,
-                 model_path='./models'
+                 model_path='./models',
+                 reconnection = False,
+                 reconnect_port = ["30001"]
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -40,7 +43,11 @@ class ActiveNeuralNetwork:
         self.optimizers = optimizers
         self.loss_fn = loss_fn
         self.messenger = messenger
+        self.world_size=1
+        self.reconnection = reconnection
+        self.reconnect_port = reconnect_port
         public_key = self._sync_pubkey()
+        self.crypto_type = crypto_type
         self.cryptosystem = partial_crypto_factory(crypto_type, public_key=public_key)
         if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
             if passive_in_nodes is None:
@@ -67,6 +74,7 @@ class ActiveNeuralNetwork:
 
     def _sync_pubkey(self):
         print('Waiting for public key...')
+        # 暂时只支持两方
         public_key = self.messenger.recv()
         print('Done!')
         return public_key
@@ -74,6 +82,24 @@ class ActiveNeuralNetwork:
     def _init_dataloader(self, dataset, shuffle=False):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle)
         return dataloader
+
+    def get_init_output(self, passive_party):
+
+        init_output, passive_party = self.messenger.recv(passive_party=passive_party)
+        return init_output, passive_party
+
+    def try_to_connection(self,reconnect_port):
+        print(colored("Try To Connection",'red'))
+        passive_party = self.messenger.try_reconnect(reconnect_port)
+        if passive_party:
+            public_key = self._sync_pubkey()
+            self.cryptosystem = partial_crypto_factory(self.crypto_type, public_key=public_key)
+        if passive_party:
+            print(colored("Reconnection Successfully!!!", 'red'))
+        else:
+            print(colored("Reconnection Failed!!!", 'red'))
+
+        return passive_party
 
     def train(self, trainset, testset):
         assert isinstance(trainset, TorchDataset), \
@@ -85,21 +111,58 @@ class ActiveNeuralNetwork:
 
         for model in self.models.values():
             model.train()
+        print("begin train...")
+
+        passive_party = True
+
+        init_output_train, passive_party = self.get_init_output(passive_party=passive_party)
+        init_output_test, passive_party = self.get_init_output(passive_party=passive_party)
+
+        if passive_party:
+            print("[ACTIVE] Init Done!")
+        else:
+            print(colored("Initialization failed, please restart training!!!",'red'))
+            return 0
 
         start_time = time.time()
         best_acc, best_auc = 0, 0
+        out_temp = init_output_train
+        output_temp_test = init_output_test
+
         for epoch in range(self.epochs):
-            print('Epoch: {}'.format(epoch))
+
+            if self.reconnection and passive_party == False:
+                passive_party = self.try_to_connection(self.reconnect_port)
+                self.messenger.send(epoch,passive_party=passive_party)
+
+
+            print('Epoch: {}'.format(epoch + 1))
+            if passive_party == True:
+                print(colored('passive_party status: connection', 'red'))
+            else:
+                print(colored('passive_party status: disconnection', 'red'))
+
+
             for batch_idx, (X, y) in enumerate(train_dataloader):
-                # print(f"batch: {batch_idx}")
-                # 1. forward
+
+                #1.forward
                 active_repr = self.models["cut"](self.models["bottom"](X))
+
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     self.enc_layer.fed_forward()
-                    passive_repr = self.messenger.recv()
+                    passive_repr,passive_party = self.messenger.recv(passive_party=passive_party)
                 else:
-                    passive_repr = self.messenger.recv()
-                top_input = active_repr.data + passive_repr
+                    passive_repr,passive_party = self.messenger.recv(passive_party=passive_party)
+
+                if passive_party:
+                    passive_data = passive_repr
+                    out_temp[batch_idx] = passive_data
+                else:
+                    passive_data = out_temp[batch_idx]
+
+
+                top_input = active_repr.data + passive_data
+
                 top_input = top_input.requires_grad_()
                 logits = self.models["top"](top_input)
                 loss = self.loss_fn(logits, y)
@@ -113,11 +176,12 @@ class ActiveNeuralNetwork:
                 for optmizer in self.optimizers.values():
                     optmizer.step()
                 # send back passive party's gradient
+
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     passive_grad = self.enc_layer.fed_backward(top_input.grad)
-                    self.messenger.send(passive_grad)
+                    passive_party = self.messenger.send(passive_grad,passive_party=passive_party)
                 else:
-                    self.messenger.send(top_input.grad)
+                    passive_party = self.messenger.send(top_input.grad,passive_party=passive_party)
 
                 if batch_idx % 100 == 0:
                     loss, current = loss.item(), batch_idx * len(X)
@@ -125,7 +189,9 @@ class ActiveNeuralNetwork:
                     # break
 
             is_best = False
-            scores = self.validate(testset, existing_loader=test_dataloader)
+            scores, passive_party, output_temp_test = self.validate(testset, existing_loader=test_dataloader,
+                                                                    output_temp_test=output_temp_test,
+                                                                    passive_party=passive_party)
             curr_acc, curr_auc = scores['acc'], scores['auc']
             if curr_auc == 0: # multi-class
                 if curr_acc > best_acc:
@@ -140,14 +206,14 @@ class ActiveNeuralNetwork:
                     print(colored('Best model updated.', 'red'))
                 if curr_acc > best_acc:
                     best_acc = curr_acc
-            self.messenger.send(is_best)
+            passive_party = self.messenger.send(is_best,passive_party=passive_party)
 
         print(colored('Total training and validation time: {:.4f}'
                       .format(time.time() - start_time), 'red'))
         print(colored('Best testing accuracy: {:.5f}'.format(best_acc), 'red'))
         print(colored('Best testing auc: {:.5f}'.format(best_auc), 'red'))
 
-    def validate(self, testset, existing_loader=None):
+    def validate(self, testset,output_temp_test,passive_party,existing_loader=None):
         if existing_loader is None:
             dataloader = DataLoader(testset, batch_size=self.batch_size, shuffle=False)
         else:
@@ -162,12 +228,20 @@ class ActiveNeuralNetwork:
         with torch.no_grad():
             for batch, (X, y) in enumerate(dataloader):
                 active_repr = self.models["cut"](self.models["bottom"](X))
+
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     self.enc_layer.fed_forward()
-                    passive_repr = self.messenger.recv()
+                    passive_repr,passive_party = self.messenger.recv(passive_party=passive_party)
                 else:
-                    passive_repr = self.messenger.recv()
-                top_input = active_repr + passive_repr
+                    passive_repr,passive_party = self.messenger.recv(passive_party=passive_party)
+
+                if passive_party:
+                    passive_data = passive_repr
+                    output_temp_test[batch] = passive_data.data
+                else:
+                    passive_data = output_temp_test[batch]
+
+                top_input = active_repr + passive_data
                 logits = self.models["top"](top_input)
                 labels = np.append(labels, y.numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).numpy())
@@ -186,27 +260,29 @@ class ActiveNeuralNetwork:
                   f" Avg loss: {test_loss:>8f}")
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
-            self.messenger.send(scores)
-            return scores
+            passive_party = self.messenger.send(scores,passive_party=passive_party)
+            return scores,passive_party, output_temp_test
 
 
 if __name__ == '__main__':
     # 0. Set parameters
-    dataset_name = 'fashion_mnist'
+    dataset_name = 'census'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
     active_port = 20000
-    passive_ip = 'localhost'
-    passive_port = 30000
-    _epochs = 2
+    passive_ip = ['localhost']
+    passive_port = [30000]
+    reconnect_port = [30001]
+    _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
     _passive_in_nodes = 10
     _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
     torch.manual_seed(1314)
-
+    world_size=1
+    reconnection = True
     # 1. Load datasets
     print('Loading dataset...')
     active_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
@@ -232,9 +308,9 @@ if __name__ == '__main__':
         passive_feat_frac=passive_feat_frac
     )
     # mnist & fashion_mnist
-    bottom_nodes = [input_nodes, 256, 128]
-    cut_nodes = [128, 64]
-    top_nodes = [64, 10]
+    # bottom_nodes = [input_nodes, 256, 128]
+    # cut_nodes = [128, 64]
+    # top_nodes = [64, 10]
 
     # criteo
     # bottom_nodes = [input_nodes, 15, 10]
@@ -242,9 +318,9 @@ if __name__ == '__main__':
     # top_nodes = [10, 2]
 
     # census
-    # bottom_nodes = [input_nodes, 20, 10]
-    # cut_nodes = [10, 8]
-    # top_nodes = [8, 2]
+    bottom_nodes = [input_nodes, 20, 10]
+    cut_nodes = [10, 8]
+    top_nodes = [8, 2]
     bottom_model = MLPModel(bottom_nodes, activate_input=False, activate_output=True)
     cut_layer = CutLayer(*cut_nodes)
     top_model = MLPModel(top_nodes, activate_input=True, activate_output=False)
@@ -253,8 +329,9 @@ if __name__ == '__main__':
                    for name, model in _models.items()}
 
     # 3. Initialize messenger
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
+    _messenger = messenger_factory_multi_disconnection(messenger_type=Const.FAST_SOCKET,
                                    role=Const.ACTIVE_NAME,
+                                   model_type="NN",
                                    active_ip=active_ip,
                                    active_port=active_port,
                                    passive_ip=passive_ip,
@@ -262,7 +339,7 @@ if __name__ == '__main__':
     print('Active party started, listening...')
 
     # 4. Initialize vertical NN protocol and start training
-    active_party = ActiveNeuralNetwork(epochs=_epochs,
+    active_party = ActiveNeuralNetwork_disconnection(epochs=_epochs,
                                        batch_size=_batch_size,
                                        learning_rate=_learning_rate,
                                        models=_models,
@@ -270,7 +347,9 @@ if __name__ == '__main__':
                                        loss_fn=_loss_fn,
                                        messenger=_messenger,
                                        crypto_type=_crypto_type,
-                                       passive_in_nodes=_passive_in_nodes)
+                                       passive_in_nodes=_passive_in_nodes,
+                                       reconnection=reconnection,
+                                       reconnect_port=reconnect_port)
     active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training
