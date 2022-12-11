@@ -39,7 +39,7 @@ class TorchDataset(CommonDataset, Dataset):
                               frac, perm_option,
                               seed=None
     ):
-        if name not in ('mnist', 'fashion_mnist', 'svhn'):
+        if name not in Const.PYTORCH_DATASET:
             # the following answer shows how to call staticmethod in superclass:
             # ref: https://stackoverflow.com/a/26807879/8418540
             np_dataset = super(TorchDataset, TorchDataset)._load_buildin_dataset(
@@ -55,7 +55,7 @@ class TorchDataset(CommonDataset, Dataset):
 
         from linkefl.feature import cal_importance_ranking
 
-        if name == 'mnist':
+        if name == 'tab_mnist':
             transform = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((0.1307,), (0.3081,))
@@ -100,7 +100,7 @@ class TorchDataset(CommonDataset, Dataset):
             #     img = image.view(1, -1)
             #     _feats.index_copy_(0, torch.tensor([i], dtype=torch.long), img)
 
-        elif name == 'fashion_mnist':
+        elif name == 'tab_fashion_mnist':
             transform = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((0.5,), (0.5,))
@@ -178,3 +178,105 @@ class TorchDataset(CommonDataset, Dataset):
             return self.features[idx], self.labels[idx]
         else:
             return self.features[idx]
+
+
+class MediaDataset(TorchDataset, Dataset):
+    def __init__(self,
+                 role,
+                 dataset_name,
+                 root,
+                 train,
+                 download=False,
+    ):
+        assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
+        assert dataset_name in ("cifar10", "mnist", "fashion_mnist"), "not supported dataset"
+
+        self.role = role
+        self._prepare_data(
+            role=role,
+            name=dataset_name,
+            root=root,
+            train=train,
+            download=download
+        )
+
+    def __len__(self):
+        return getattr(self, '_features').shape[0]
+
+    def __getitem__(self, idx):
+        if self.role == Const.ACTIVE_NAME:
+            return getattr(self, '_features')[idx], getattr(self, '_labels')[idx]
+        else:
+            return getattr(self, '_features')[idx]
+
+    def _prepare_data(self, role, name, root, train, download):
+        from torchvision import datasets, transforms
+        from tqdm import trange
+
+        if name == 'cifar10':
+            if train:
+                transform = transforms.Compose([
+                    transforms.Resize((64, 32)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                ])
+            else:
+                transform = transforms.Compose([
+                    transforms.Resize((64, 32)),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                ])
+            buildin_dataset = datasets.CIFAR10(
+                root=root,
+                train=train,
+                download=download,
+                transform=transform
+            )
+
+            n_samples = len(buildin_dataset)
+            imgs = []
+            for i in range(n_samples):
+                image, _ = buildin_dataset[i]
+                if role == Const.PASSIVE_NAME:
+                    image = image[:, :32, :]  # the first half
+                else:
+                    image = image[:, 32:, :]  # the second half
+                imgs.append(image)
+            _feats = torch.stack(imgs)  # stack() will create a new dimension
+            _labels = buildin_dataset.targets
+
+            if role == Const.ACTIVE_NAME:
+                setattr(self, '_features', _feats)
+                setattr(self, '_labels', _labels)
+            else:
+                setattr(self, '_features', _feats)
+
+
+if __name__ == '__main__':
+    # from torchvision import datasets, transforms
+    #
+    # _transform = transforms.Compose([
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.5,), (0.5,))
+    # ])
+    # _buildin_dataset = datasets.CIFAR10(root='data',
+    #                                         train=True,
+    #                                         download=True,
+    #                                         transform=_transform)
+    # _image, label = _buildin_dataset[0]
+    # print(type(_image), type(label))
+    # print(_image.shape)
+    # print(_buildin_dataset.data.shape)
+    # print(_buildin_dataset.data[0].shape)
+
+    cifar_dataset = MediaDataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name='cifar10',
+        root='data',
+        train=False,
+        download=True
+    )
+    _image, _label = cifar_dataset[0]
+    print(type(_image), type(_label))
+    print(_image.shape)
