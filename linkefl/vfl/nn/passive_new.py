@@ -87,7 +87,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
             for batch_idx, X in enumerate(train_dataloader):
                 # print(f"batch: {batch_idx}")
                 # 1. forward
-                X = X.to(device)
+                X = X.to(self.device)
                 bottom_outputs = self.models["bottom"](X)
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     passive_repr = self.enc_layer.fed_forward(bottom_outputs)
