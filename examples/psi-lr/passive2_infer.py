@@ -13,7 +13,11 @@ from linkefl.vfl.linear import PassiveLogReg
 
 if __name__ == '__main__':
     # 0. Set parameters
-    inferset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive2-test.csv"
+    db_host = 'localhost'
+    db_user = 'tiger'
+    db_name = 'hello_db'
+    db_table_name = 'hello_table'
+    db_password = 'hello_pw'
     active_ip = 'localhost'
     active_port = 30000
     passive_ip = 'localhost'
@@ -21,9 +25,16 @@ if __name__ == '__main__':
     logger = logger_factory(role=Const.PASSIVE_NAME)
 
     # 1. Load dataset
-    passive_inferset = NumpyDataset.from_csv(role=Const.PASSIVE_NAME,
-                                             abs_path=inferset_path,
-                                             dataset_type=Const.CLASSIFICATION)
+    passive_inferset = NumpyDataset.from_mysql(
+        role=Const.ACTIVE_NAME,
+        dataset_type=Const.CLASSIFICATION,
+        host=db_host,
+        user=db_user,
+        password=db_password,
+        database=db_name,
+        table=db_table_name,
+        port=3306,
+    )
     print(colored('1. Finish loading dataset.', 'red'))
     logger.log('1. Finish loading dataset.')
 

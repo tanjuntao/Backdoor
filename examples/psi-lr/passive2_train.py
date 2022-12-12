@@ -13,8 +13,11 @@ from linkefl.vfl.linear import PassiveLogReg
 
 if __name__ == '__main__':
     # 0. Set parameters
-    trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive2-train.csv"
-    testset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive2-test.csv"
+    db_host = 'localhost'
+    db_user = 'tiger'
+    db_name = 'hello_db'
+    db_table_name = 'hello_table'
+    db_password = 'hello_pw'
     active_ip = 'localhost'
     active_port = 30000
     passive_ip = 'localhost'
@@ -32,12 +35,16 @@ if __name__ == '__main__':
 
     # 1. Load dataset
     start_time = time.time()
-    passive_trainset = NumpyDataset.from_csv(role=Const.PASSIVE_NAME,
-                                             abs_path=trainset_path,
-                                             dataset_type=Const.CLASSIFICATION)
-    passive_testset = NumpyDataset.from_csv(role=Const.PASSIVE_NAME,
-                                            abs_path=testset_path,
-                                            dataset_type=Const.CLASSIFICATION)
+    passive_whole_dataset = NumpyDataset.from_mysql(
+        role=Const.ACTIVE_NAME,
+        dataset_type=Const.CLASSIFICATION,
+        host=db_host,
+        user=db_user,
+        password=db_password,
+        database=db_name,
+        table=db_table_name,
+        port=3306,
+    )
     print(colored('1. Finish loading dataset.', 'red'))
     logger.log('1. Finish loading dataset.')
     logger.log_component(
@@ -51,8 +58,7 @@ if __name__ == '__main__':
 
     # 2. Feature transformation
     start_time = time.time()
-    passive_trainset = scale(passive_trainset)
-    passive_testset = scale(passive_testset)
+    passive_whole_dataset = scale(passive_whole_dataset)
     print(colored('2. Finish transforming features', 'red'))
     logger.log('2. Finish transforming features')
     logger.log_component(
@@ -72,8 +78,12 @@ if __name__ == '__main__':
                            passive_ip=passive_ip,
                            passive_port=passive_port)
     passive_psi = RSAPSIPassive(messenger, logger)
-    common_ids = passive_psi.run(passive_trainset.ids)
-    passive_trainset.filter(common_ids)
+    common_ids = passive_psi.run(passive_whole_dataset.ids)
+    passive_whole_dataset.filter(common_ids)
+    passive_trainset, passive_testset = NumpyDataset.train_test_split(
+        dataset=passive_whole_dataset,
+        test_size=0.2
+    )
     print(colored('3. Finish psi protocol', 'red'))
     logger.log('3. Finish psi protocol')
 
