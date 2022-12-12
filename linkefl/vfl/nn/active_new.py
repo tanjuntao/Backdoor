@@ -10,7 +10,8 @@ from torch.utils.data import DataLoader
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import partial_crypto_factory
-from linkefl.dataio import TorchDataset
+from linkefl.dataio import TorchDataset, MediaDataset
+from linkefl.modelzoo import ResNet18
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 
 
@@ -25,11 +26,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
                  messenger,
                  crypto_type,
                  *,
+                 device='cpu',
                  passive_in_nodes=None,
                  precision=0.001,
                  random_state=None,
                  saving_model=False,
-                 model_path='./models'
+                 model_path='./models',
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -39,6 +41,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.loss_fn = loss_fn
         self.messenger = messenger
         self.crypto_type = crypto_type
+        self.device = device
         self.passive_in_nodes = passive_in_nodes
         self.precision = precision
         self.random_state = random_state
@@ -96,6 +99,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
             for batch_idx, (X, y) in enumerate(train_dataloader):
                 # print(f"batch: {batch_idx}")
                 # 1. forward
+                X = X.to(self.device)
+                y = y.to(self.device)
                 active_repr = self.models["cut"](self.models["bottom"](X))
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     self.enc_layer.fed_forward()
@@ -170,6 +175,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
         labels, probs = np.array([]), np.array([])
         with torch.no_grad():
             for batch, (X, y) in enumerate(dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
                 active_repr = self.models["cut"](self.models["bottom"](X))
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     self.enc_layer.fed_forward()
@@ -178,8 +185,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     passive_repr = self.messenger.recv()
                 top_input = active_repr + passive_repr
                 logits = self.models["top"](top_input)
-                labels = np.append(labels, y.numpy().astype(np.int32))
-                probs = np.append(probs, torch.sigmoid(logits[:, 1]).numpy())
+                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
+                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
                 correct += (logits.argmax(1) == y).type(torch.float).sum().item()
 
@@ -303,7 +310,7 @@ if __name__ == '__main__':
     from linkefl.vfl.nn.model import MLPModel, CutLayer
 
     # 0. Set parameters
-    dataset_name = 'mnist'
+    dataset_name = 'cifar10'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -313,41 +320,56 @@ if __name__ == '__main__':
     _epochs = 100
     _batch_size = 100
     _learning_rate = 0.01
-    _passive_in_nodes = 128
+    _passive_in_nodes = 10
     _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
-    _random_state = 1314
+    _random_state = None
+    _device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     # 1. Load datasets
     print('Loading dataset...')
-    active_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                                   role=Const.ACTIVE_NAME,
-                                                   root='../data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option,
-                                                   seed=_random_state)
-    active_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                                  role=Const.ACTIVE_NAME,
-                                                  root='../data',
-                                                  train=False,
-                                                  download=True,
-                                                  passive_feat_frac=passive_feat_frac,
-                                                  feat_perm_option=feat_perm_option,
-                                                  seed=_random_state)
+    # active_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
+    #                                                role=Const.ACTIVE_NAME,
+    #                                                root='../data',
+    #                                                train=True,
+    #                                                download=True,
+    #                                                passive_feat_frac=passive_feat_frac,
+    #                                                feat_perm_option=feat_perm_option,
+    #                                                seed=_random_state)
+    # active_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
+    #                                               role=Const.ACTIVE_NAME,
+    #                                               root='../data',
+    #                                               train=False,
+    #                                               download=True,
+    #                                               passive_feat_frac=passive_feat_frac,
+    #                                               feat_perm_option=feat_perm_option,
+    #                                               seed=_random_state)
+    active_trainset = MediaDataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root='../data',
+        train=True,
+        download=True,
+    )
+    active_testset = MediaDataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root='../data',
+        train=False,
+        download=True,
+    )
     print('Done.')
 
     # 2. Create PyTorch models and optimizers
-    input_nodes = num_input_nodes(
-        dataset_name=dataset_name,
-        role=Const.ACTIVE_NAME,
-        passive_feat_frac=passive_feat_frac
-    )
-    # mnist & fashion_mnist
-    bottom_nodes = [input_nodes, 256, 128]
-    cut_nodes = [128, 64]
-    top_nodes = [64, 10]
+    # input_nodes = num_input_nodes(
+    #     dataset_name=dataset_name,
+    #     role=Const.ACTIVE_NAME,
+    #     passive_feat_frac=passive_feat_frac
+    # )
+    # # mnist & fashion_mnist
+    # bottom_nodes = [input_nodes, 256, 128]
+    cut_nodes = [10, 10]
+    top_nodes = [10, 10]
 
     # criteo
     # bottom_nodes = [input_nodes, 15, 10]
@@ -373,18 +395,26 @@ if __name__ == '__main__':
     # bottom_nodes = [input_nodes, 8, 5]
     # cut_nodes = [5, 5]
     # top_nodes = [5, 2]
-    bottom_model = MLPModel(bottom_nodes,
-                            activate_input=False,
-                            activate_output=True,
-                            random_state=_random_state)
-    cut_layer = CutLayer(*cut_nodes, random_state=_random_state)
+    # bottom_model = MLPModel(bottom_nodes,
+    #                         activate_input=False,
+    #                         activate_output=True,
+    #                         random_state=_random_state)
+    bottom_model = ResNet18(in_channel=3).to(_device)
+    cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
     top_model = MLPModel(top_nodes,
                          activate_input=True,
                          activate_output=False,
-                         random_state=_random_state)
+                         random_state=_random_state).to(_device)
     _models = {"bottom": bottom_model, "cut": cut_layer, "top": top_model}
-    _optimizers = {name: torch.optim.SGD(model.parameters(), lr=_learning_rate)
-                   for name, model in _models.items()}
+    _optimizers = {
+        name:
+            torch.optim.SGD(
+                model.parameters(),
+                lr=_learning_rate,
+                momentum=0.9,
+                weight_decay=5e-4
+            ) for name, model in _models.items()
+    }
 
     # 3. Initialize messenger
     _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
@@ -404,8 +434,9 @@ if __name__ == '__main__':
                                        loss_fn=_loss_fn,
                                        messenger=_messenger,
                                        crypto_type=_crypto_type,
+                                       device=_device,
                                        passive_in_nodes=_passive_in_nodes,
-                                       random_state=_random_state)
+                                       random_state=_random_state,)
     active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training

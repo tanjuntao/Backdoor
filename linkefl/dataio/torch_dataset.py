@@ -52,6 +52,7 @@ class TorchDataset(CommonDataset, Dataset):
 
         # 1. Load PyTorch datasets
         from torchvision import datasets, transforms
+        from tqdm import trange
 
         from linkefl.feature import cal_importance_ranking
 
@@ -84,7 +85,7 @@ class TorchDataset(CommonDataset, Dataset):
 
             # solution 1: use torch.cat()
             imgs = []
-            for i in range(n_samples):
+            for i in trange(n_samples):
                 # this will trigger the __getitem__ method and the images will be
                 # normalized. The return type is a tuple composed of (PILImage, label)
                 image, _ = buildin_dataset[i]  # image shape: [1, 28, 28]
@@ -115,7 +116,7 @@ class TorchDataset(CommonDataset, Dataset):
             _labels = buildin_dataset.targets
 
             imgs = []
-            for i in range(n_samples):
+            for i in trange(n_samples):
                 # this will trigger the __getitem__ method
                 # the return type is a tuple composed of (PILImage, label)
                 image, _ = buildin_dataset[i]  # image shape: [1, 28, 28]
@@ -123,18 +124,6 @@ class TorchDataset(CommonDataset, Dataset):
                 imgs.append(img)
             _feats = torch.Tensor(n_samples, n_features)
             torch.cat(imgs, out=_feats)
-
-        elif name == 'svhn':
-            # TODO: add SVHN specific transforms here
-            split = 'train' if train else 'test'
-            buildin_dataset = datasets.SVHN(root=root,
-                                            split=split,
-                                            download=download,
-                                            transform=transforms.ToTensor())
-            n_samples = buildin_dataset.data.shape[0]
-            _ids = torch.arange(n_samples)
-            _labels = buildin_dataset.labels
-            _feats = buildin_dataset.data.view(n_samples, -1)
 
         else:
             raise ValueError('not supported right now')
@@ -209,6 +198,10 @@ class MediaDataset(TorchDataset, Dataset):
         else:
             return getattr(self, '_features')[idx]
 
+    @property
+    def labels(self):
+        return getattr(self, '_labels')
+
     def _prepare_data(self, role, name, root, train, download):
         from torchvision import datasets, transforms
         from tqdm import trange
@@ -236,21 +229,55 @@ class MediaDataset(TorchDataset, Dataset):
 
             n_samples = len(buildin_dataset)
             imgs = []
-            for i in range(n_samples):
+            for i in trange(n_samples):
                 image, _ = buildin_dataset[i]
                 if role == Const.PASSIVE_NAME:
                     image = image[:, :32, :]  # the first half
                 else:
                     image = image[:, 32:, :]  # the second half
                 imgs.append(image)
-            _feats = torch.stack(imgs)  # stack() will create a new dimension
-            _labels = buildin_dataset.targets
 
-            if role == Const.ACTIVE_NAME:
-                setattr(self, '_features', _feats)
-                setattr(self, '_labels', _labels)
+        elif name == 'mnist':
+            if train:
+                transform = transforms.Compose([
+                    transforms.Resize((64, 32)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,)),
+                ])
             else:
-                setattr(self, '_features', _feats)
+                transform = transforms.Compose([
+                    transforms.Resize((64, 32)),
+                    transforms.ToTensor(),
+                    transforms.Normalize((0.1307,), (0.3081,)),
+                ])
+            buildin_dataset = datasets.MNIST(
+                root=root,
+                train=train,
+                download=download,
+                transform=transform
+            )
+
+            n_samples = len(buildin_dataset)
+            imgs = []
+            for i in trange(n_samples):
+                image, _ = buildin_dataset[i]
+                if role == Const.PASSIVE_NAME:
+                    image = image[:, :32, :]  # the first half
+                else:
+                    image = image[:, 32:, :]  # the second half
+                imgs.append(image)
+
+        else:
+            raise ValueError("not suported now.")
+
+        _feats = torch.stack(imgs)  # stack() will create a new dimension
+        _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
+        if role == Const.ACTIVE_NAME:
+            setattr(self, '_features', _feats)
+            setattr(self, '_labels', _labels)
+        else:
+            setattr(self, '_features', _feats)
 
 
 if __name__ == '__main__':
