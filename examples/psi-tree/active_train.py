@@ -8,8 +8,7 @@ from linkefl.crypto import RSA
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import scale, add_intercept
 from linkefl.psi.rsa import RSAPSIActive
-from linkefl.vfl.linear import ActiveLogReg
-
+from linkefl.vfl.tree import ActiveTreeParty
 
 if __name__ == '__main__':
     # 0. Set parameters
@@ -22,14 +21,25 @@ if __name__ == '__main__':
     active_port = [20000, 30000]
     passive_ip = ['localhost', 'localhost']
     passive_port = [20001, 30001]
-    _epochs = 100
-    _batch_size = 100
-    _learning_rate = 0.01
-    _penalty = Const.L2
-    _reg_lambda = 0.001
-    _crypto_type = Const.PLAIN
-    _random_state = None
-    _key_size = 1024
+    n_trees = 1
+    task = "binary"
+    n_labels = 2
+    crypto_type = Const.FAST_PAILLIER
+    learning_rate = 0.3
+    compress = False
+    max_bin = 16
+    max_depth = 4
+    reg_lambda = 0.1
+    min_split_samples = 3
+    min_split_gain = 1e-7
+    fix_point_precision = 53
+    sampling_method = "uniform"
+    subsample = 1
+    top_rate = 0.5
+    other_rate = 0.5
+    colsample_bytree = 1
+    n_processes = 6
+    key_size = 1024
     logger = logger_factory(role=Const.ACTIVE_NAME)
 
     task_start_time = time.time()
@@ -73,7 +83,7 @@ if __name__ == '__main__':
 
     # 3. Run PSI
     print(colored('3. PSI protocol started, computing...', 'red'))
-    messenger = [
+    messengers = [
         messenger_factory(messenger_type=Const.FAST_SOCKET,
                           role=Const.ACTIVE_NAME,
                           active_ip=ac_ip,
@@ -85,7 +95,7 @@ if __name__ == '__main__':
             zip(active_ip, active_port, passive_ip, passive_port)
     ]
     psi_crypto = RSA()
-    active_psi = RSAPSIActive(messenger, psi_crypto, logger)
+    active_psi = RSAPSIActive(messengers, psi_crypto, logger)
     common_ids = active_psi.run(active_whole_dataset.ids)
     active_whole_dataset.filter(common_ids)
     active_trainset, active_testset = NumpyDataset.train_test_split(
@@ -98,22 +108,35 @@ if __name__ == '__main__':
     # 4. VFL training
     print(colored('4. Training protocol started, computing...', 'red'))
     start_time = time.time()
-    vfl_crypto = crypto_factory(crypto_type=_crypto_type,
-                                key_size=_key_size,
+    vfl_crypto = crypto_factory(crypto_type=crypto_type,
+                                key_size=key_size,
                                 num_enc_zeros=10000,
                                 gen_from_set=False)
-    active_vfl = ActiveLogReg(epochs=_epochs,
-                              batch_size=_batch_size,
-                              learning_rate=_learning_rate,
-                              messenger=messenger,
-                              cryptosystem=vfl_crypto,
-                              logger=logger,
-                              penalty=_penalty,
-                              reg_lambda=_reg_lambda,
-                              random_state=_random_state,
-                              using_pool=False,
-                              saving_model=True,
-                              model_name='active_lr_model.model')
+    active_vfl = ActiveTreeParty(
+        n_trees=n_trees,
+        task=task,
+        n_labels=n_labels,
+        crypto_type=crypto_type,
+        crypto_system=vfl_crypto,
+        messengers=messengers,
+        logger=logger,
+        learning_rate=learning_rate,
+        compress=compress,
+        max_bin=max_bin,
+        max_depth=max_depth,
+        reg_lambda=reg_lambda,
+        min_split_samples=min_split_samples,
+        min_split_gain=min_split_gain,
+        fix_point_precision=fix_point_precision,
+        sampling_method=sampling_method,
+        subsample=subsample,
+        top_rate=top_rate,
+        other_rate=other_rate,
+        colsample_bytree=colsample_bytree,
+        n_processes=n_processes,
+        saving_model=True,
+        model_name='active_tree_model.model',
+    )
     active_vfl.train(active_trainset, active_testset)
     print(colored('4. Finish collaborative model training', 'red'))
     logger.log('4. Finish collaborative model training')
@@ -128,7 +151,7 @@ if __name__ == '__main__':
 
     # 5. VFL inference
     start_time = time.time()
-    scores = active_vfl.predict(active_testset)
+    scores = active_vfl.score(active_testset)
     print('Acc: {:.5f} \nAuc: {:.5f} \nf1: {:.5f}'.format(scores['acc'],
                                                           scores['auc'],
                                                           scores['f1']))
@@ -147,8 +170,8 @@ if __name__ == '__main__':
     )
 
     # 6. Finish the whole pipeline
-    for msger in messenger:
-        msger.close()
+    for messenger in messengers:
+        messenger.close()
     print(colored('All Done.', 'red'))
     logger.log('All Done.')
     logger.log_task(
@@ -156,13 +179,3 @@ if __name__ == '__main__':
         end=time.time(),
         status=Const.SUCCESS
     )
-
-
-    # #For online inference, you just need to substitute the model_name
-    # scores = ActiveLogReg.online_inference(
-    #     active_testset,
-    #     model_name='20220831_185054-active_party-vertical_logreg-455_samples.model',
-    #     messenger=messenger
-    # )
-    #
-    # print(scores)

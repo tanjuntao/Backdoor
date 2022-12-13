@@ -8,8 +8,7 @@ from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import scale
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIPassive
-from linkefl.vfl.linear import PassiveLogReg
-
+from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == '__main__':
     # 0. Set parameters
@@ -22,13 +21,10 @@ if __name__ == '__main__':
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 20001
-    _epochs = 100
-    _batch_size = 100
-    _learning_rate = 0.01
-    _penalty = Const.L2
-    _reg_lambda = 0.001
-    _crypto_type = Const.PLAIN
-    _random_state = None
+    task = "binary"
+    crypto_type = Const.FAST_PAILLIER
+    max_bin = 16
+    colsample_bytree = 1
     logger = logger_factory(role=Const.PASSIVE_NAME)
 
     task_start_time = time.time()
@@ -90,19 +86,16 @@ if __name__ == '__main__':
     # 4. VFL training
     print(colored('4. Training protocol started, computing...', 'red'))
     start_time = time.time()
-    passive_vfl = PassiveLogReg(epochs=_epochs,
-                                batch_size=_batch_size,
-                                learning_rate=_learning_rate,
-                                messenger=messenger,
-                                crypto_type=_crypto_type,
-                                logger=logger,
-                                rank=1,
-                                penalty=_penalty,
-                                reg_lambda=_reg_lambda,
-                                random_state=_random_state,
-                                using_pool=False,
-                                saving_model=True,
-                                model_name='passive1_lr_model.model')
+    passive_vfl = PassiveTreeParty(
+        task=task,
+        crypto_type=crypto_type,
+        messenger=messenger,
+        logger=logger,
+        max_bin=max_bin,
+        colsample_bytree=colsample_bytree,
+        saving_model=True,
+        model_name='passive1_tree_model.model',
+    )
     passive_vfl.train(passive_trainset, passive_testset)
     print(colored('4. Finish collaborative model training', 'red'))
     logger.log('4. Finish collaborative model training')
@@ -138,11 +131,3 @@ if __name__ == '__main__':
         end=time.time(),
         status=Const.SUCCESS
     )
-
-    # For online inference, you just need to substitute the model_name
-    # scores = PassiveLogReg.online_inference(
-    #     passive_testset,
-    #     model_name='20220831_185109-passive_party-vertical_logreg-455_samples.model',
-    #     messenger=messenger
-    # )
-    # print(scores)
