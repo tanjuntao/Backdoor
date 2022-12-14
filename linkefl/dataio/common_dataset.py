@@ -360,6 +360,25 @@ class CommonDataset:
             setattr(self, '_ids', py_ids)
         return getattr(self, '_ids')
 
+    def obfuscated_ids(self, option='md5'):
+        import hashlib
+
+        assert option in ('md5', 'sha256'), \
+            "ids obfuscation option can only take from md5 or sha256"
+        if option == 'md5':
+            obfuscate_func = hashlib.md5
+        else:
+            obfuscate_func = hashlib.sha256
+
+        raw_ids = self.ids
+        obfuscated_ids = []
+        for _id in raw_ids:
+            _id_encode = str(_id).encode()
+            _id_hash = obfuscate_func(_id_encode).hexdigest()
+            _id_int = int(_id_hash, 16)
+            obfuscated_ids.append(_id_int)
+        return obfuscated_ids
+
     @property
     def features(self):  # read only
         if not hasattr(self, '_features'):
