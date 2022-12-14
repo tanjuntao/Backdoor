@@ -1,5 +1,6 @@
 from __future__ import annotations  # python >= 3.7, give type hint before definition
 
+import io
 import random
 from typing import Union
 
@@ -320,8 +321,8 @@ class CommonDataset:
         )
 
     @classmethod
-    def from_csv(cls, role, abs_path, dataset_type, mappings=None, transform=None):
-        df_dataset = pd.read_csv(abs_path, delimiter=',', header=None)
+    def from_csv(cls, role, abs_path, dataset_type, delimiter=',', mappings=None, transform=None):
+        df_dataset = pd.read_csv(abs_path, delimiter=delimiter, header=None)
 
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -338,6 +339,25 @@ class CommonDataset:
         need dependency package openpyxl, support .xls .xlsx
         """
         df_dataset = pd.read_excel("{}".format(abs_path), index_col=False)
+
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
+
+        return cls(
+            role=role,
+            raw_dataset=np_dataset,
+            dataset_type=dataset_type,
+            transform=transform
+        )
+
+    @classmethod
+    def from_url(cls, role, url, dataset_type, delimiter=',', mappings=None, transform=None):
+        import requests
+
+        # do not directly use pd.read_csv(url),
+        # because it will fail if it requires authentication
+        data_raw = requests.get(url).content
+        data_byte = io.StringIO(data_raw.decode('utf-8'))
+        df_dataset = pd.read_csv(data_byte, delimiter=delimiter, header=None)
 
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -693,7 +713,7 @@ if __name__ == "__main__":
     )
     print(_df_dataset)
     _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
-    mappings = CommonDataset.mappings
+    _mappings = CommonDataset.mappings
     # you can save these mappings and load it back when loading testset at inference pahse
     # with open('train_mappings.pkl', 'wb') as f:
     #     pickle.dump(mappings, f)
@@ -711,7 +731,7 @@ if __name__ == "__main__":
     # you can load the mappings back and apply it to testset
     # with open('train_mappings.pkl', 'rb') as f:
     #     mappings = pickle.load(f)
-    another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset, mappings=mappings)
+    another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset, mappings=_mappings)
     print(another_np_dataset)
     another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
     print(another_np_dataset)
