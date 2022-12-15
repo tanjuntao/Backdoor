@@ -322,7 +322,12 @@ class CommonDataset:
 
     @classmethod
     def from_csv(cls, role, abs_path, dataset_type, delimiter=',', mappings=None, transform=None):
-        df_dataset = pd.read_csv(abs_path, delimiter=delimiter, header=None)
+        df_dataset = pd.read_csv(
+            abs_path,
+            delimiter=delimiter,
+            header=None,
+            skipinitialspace=True, # skip spaces after delimiter
+        )
 
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -357,7 +362,12 @@ class CommonDataset:
         # because it will fail if it requires authentication
         data_raw = requests.get(url).content
         data_byte = io.StringIO(data_raw.decode('utf-8'))
-        df_dataset = pd.read_csv(data_byte, delimiter=delimiter, header=None)
+        df_dataset = pd.read_csv(
+            data_byte,
+            delimiter=delimiter,
+            header=None,
+            skipinitialspace=True, # skip spaces after delimiter
+        )
 
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -367,6 +377,39 @@ class CommonDataset:
             dataset_type=dataset_type,
             transform=transform
         )
+
+    @classmethod
+    def from_anyfile(cls, role, abs_path, dataset_type, mappings=None, transform=None):
+        extension = abs_path.split('.')[-1]
+        if extension in ('csv', 'txt', 'dat'):
+            # read first two lines to determine the delimiter
+            with open(abs_path) as f:
+                first_line = f.readline()
+                second_line = f.readline()
+            if "," in first_line or "," in second_line:
+                delimiter = ","
+            else:
+                delimiter = "\s+" # regular expression, indicating one or more whitespace
+            return cls.from_csv(
+                role=role,
+                abs_path=abs_path,
+                dataset_type=dataset_type,
+                delimiter=delimiter,
+                mappings=mappings,
+                transform=transform
+            )
+
+        elif extension in ('xls', 'xlsx'):
+            return cls.from_excel(
+                role=role,
+                abs_path=abs_path,
+                dataset_type=dataset_type,
+                mappings=mappings,
+                transform=transform
+            )
+
+        else:
+            raise RuntimeError("file type {} is not supported.".format(extension))
 
     @property
     def ids(self):  # read only
