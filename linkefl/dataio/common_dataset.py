@@ -198,6 +198,7 @@ class CommonDataset:
     def from_mysql(cls, role, dataset_type,
                    host, user, password, database, table,
                    *,
+                   target_fields=None, excluding_fields=False,
                    mappings=None, transform=None, port=3306
     ):
         """Load dataset from MySQL database."""
@@ -211,7 +212,15 @@ class CommonDataset:
                                      cursorclass=pymysql.cursors.DictCursor)
         with connection:
             with connection.cursor() as cursor:
-                cursor.execute("select * from {}".format(table))
+                selected_fields = cls._get_selected_fields(
+                    db_type='mysql',
+                    cursor=cursor,
+                    table=table,
+                    target_fields=target_fields,
+                    excluding_fields=excluding_fields
+                )
+                sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
+                cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
@@ -228,6 +237,7 @@ class CommonDataset:
     def from_oracle(cls, role, dataset_type,
                     host, user, password, database, table,
                     *,
+                    target_fields=None, excluding_fields=False,
                     mappings=None, transform=None, port=1521
     ):
         import cx_Oracle
@@ -240,7 +250,15 @@ class CommonDataset:
                                        encoding="UTF-8")
         with connection:
             with connection.cursor() as cursor:
-                cursor.execute("select * from {}".format(table))
+                selected_fields = cls._get_selected_fields(
+                    db_type='oracle',
+                    cursor=cursor,
+                    table=table,
+                    target_fields=target_fields,
+                    excluding_fields=excluding_fields
+                )
+                sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
+                cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
@@ -257,6 +275,7 @@ class CommonDataset:
     def from_gaussdb(cls, role, dataset_type,
                      host, user, password, database, table,
                      *,
+                     target_fields=None, excluding_fields=False,
                      mappings=None, transform=None, port=6789
     ):
         """Load dataset from Gaussdb database."""
@@ -278,7 +297,15 @@ class CommonDataset:
                                       port=port)
         with connection:
             with connection.cursor() as cursor:
-                cursor.execute("select * from {}".format(table))
+                selected_fields = cls._get_selected_fields(
+                    db_type='gaussdb',
+                    cursor=cursor,
+                    table=table,
+                    target_fields=target_fields,
+                    excluding_fields=excluding_fields
+                )
+                sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
+                cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
@@ -295,6 +322,7 @@ class CommonDataset:
     def from_gbase8a(cls, role, dataset_type,
                      host, user, password, database, table,
                      *,
+                     target_fields=None, excluding_fields=False,
                      mappings=None, transform=None, port=6789
     ):
         """Load dataset from gbase8a database."""
@@ -307,7 +335,15 @@ class CommonDataset:
                                      port=port)
         with connection:
             with connection.cursor() as cursor:
-                cursor.execute("select * from {}".format(table))
+                selected_fields = cls._get_selected_fields(
+                    db_type='gbase8a',
+                    cursor=cursor,
+                    table=table,
+                    target_fields=target_fields,
+                    excluding_fields=excluding_fields
+                )
+                sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
+                cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
@@ -745,6 +781,27 @@ class CommonDataset:
 
         np_dataset = df_dataset.to_numpy()
         return np_dataset
+
+    @staticmethod
+    def _get_selected_fields(db_type, cursor, table, target_fields, excluding_fields):
+        if db_type == "oracle":
+            sql = "select * from {} fetch first 1 rows only".format(table)
+        else:
+            sql = "select * from {} limit 1".format(table)
+        cursor.execute(sql)
+        # description is a tuple of tuple,
+        # the first position of tuple element is the field name
+        all_fields = [tuple_[0] for tuple_ in cursor.description]
+
+        if target_fields is None:
+            selected_fields = all_fields
+        else:
+            if not excluding_fields:
+                selected_fields = target_fields
+            else:
+                selected_fields = list(set(all_fields) - set(target_fields))
+
+        return selected_fields
 
 
 if __name__ == "__main__":
