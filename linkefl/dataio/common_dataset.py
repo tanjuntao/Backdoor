@@ -620,6 +620,35 @@ class CommonDataset:
         new_raw_dataset = self._raw_dataset[idxes]
         self.set_dataset(new_raw_dataset)
 
+    def filter_fields(self, target_fields, excluding_fields=False):
+        offset = 1 if self.role == Const.PASSIVE_NAME else 2
+        feats_header = self._header[offset:]
+        all_idxes = list(range(len(feats_header)))
+        if isinstance(target_fields[0], str):
+            selected_idxes = []
+            for field in target_fields:
+                idx = feats_header.index(field)
+                selected_idxes.append(idx)
+            if excluding_fields:
+                selected_idxes = list(set(all_idxes) - set(selected_idxes))
+        elif isinstance(target_fields[0], int):
+            selected_idxes = target_fields
+            if excluding_fields:
+                selected_idxes = list(set(all_idxes) - set(selected_idxes))
+        else:
+            raise TypeError("each element in target_fields should be a str or an int, "
+                            "but got {} instead.".format(type(target_fields[0])))
+
+        if self.role == Const.PASSIVE_NAME:
+            column_idxes = [0] + (np.array(selected_idxes) + offset).tolist()
+        else:
+            column_idxes = [0, 1] + (np.array(selected_idxes) + offset).tolist()
+
+        new_raw_dataset = self._raw_dataset[:, column_idxes]
+        new_header = (np.array(self._header)[column_idxes]).tolist()
+        self.set_dataset(new_raw_dataset)
+        self._header = new_header
+
     def describe(self):
         import seaborn as sns
 
