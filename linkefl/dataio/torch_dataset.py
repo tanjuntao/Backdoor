@@ -14,6 +14,7 @@ class TorchDataset(CommonDataset, Dataset):
     def __init__(self,
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
+                 header: list[str],
                  dataset_type: str,
                  transform: BaseTransformComponent = None,
     ):
@@ -29,6 +30,7 @@ class TorchDataset(CommonDataset, Dataset):
         super(TorchDataset, self).__init__(
             role=role,
             raw_dataset=raw_dataset,
+            header=header,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -42,13 +44,13 @@ class TorchDataset(CommonDataset, Dataset):
         if name not in Const.PYTORCH_DATASET:
             # the following answer shows how to call staticmethod in superclass:
             # ref: https://stackoverflow.com/a/26807879/8418540
-            np_dataset = super(TorchDataset, TorchDataset)._load_buildin_dataset(
+            np_dataset, header = super(TorchDataset, TorchDataset)._load_buildin_dataset(
                 role=role, name=name,
                 root=root, train=train, download=download,
                 frac=frac, perm_option=perm_option,
                 seed=seed
             )
-            return np_dataset
+            return np_dataset, header
 
         # 1. Load PyTorch datasets
         from torchvision import datasets, transforms
@@ -92,6 +94,7 @@ class TorchDataset(CommonDataset, Dataset):
                 img = image.view(1, -1)
                 imgs.append(img)
             _feats = torch.Tensor(n_samples, n_features)
+            _feats_header = ['x{}'.format(i) for i in range(n_features)]
             torch.cat(imgs, out=_feats)
 
             # solution 2: use tensor.index_copy_()
@@ -123,6 +126,7 @@ class TorchDataset(CommonDataset, Dataset):
                 img = image.view(1, -1)
                 imgs.append(img)
             _feats = torch.Tensor(n_samples, n_features)
+            _feats_header = ['x{}'.format(i) for i in range(n_features)]
             torch.cat(imgs, out=_feats)
 
         else:
@@ -131,33 +135,38 @@ class TorchDataset(CommonDataset, Dataset):
         # 2. Apply feature permutation to the train features or validate features
         if perm_option == Const.SEQUENCE:
             _feats = _feats
+            _feats_header = _feats_header
         elif perm_option == Const.RANDOM:
             if seed is not None:
                 random.seed(seed)
             perm = list(range(_feats.shape[1]))
             random.shuffle(perm)
             _feats = _feats[:, perm]
+            _feats_header = np.array(_feats_header)[perm].tolist()
         elif perm_option == Const.IMPORTANCE:
-            rankings = cal_importance_ranking(name, _feats.numpy(), _labels.numpy())
-            rankings = torch.from_numpy(rankings)
+            rankings_np = cal_importance_ranking(name, _feats.numpy(), _labels.numpy())
+            rankings = torch.from_numpy(rankings_np)
             _feats = _feats[:, rankings]
+            _feats_header = np.array(_feats_header)[rankings_np].tolist()
 
         # 3. Split the features into active party and passive party
         num_passive_feats = int(frac * _feats.shape[1])
         if role == Const.PASSIVE_NAME:
             _feats = _feats[:, :num_passive_feats]
+            header = ['id'] + _feats_header
             torch_dataset = torch.cat(
                 (torch.unsqueeze(_ids, 1), _feats),
                 dim=1
             )
         else:
             _feats = _feats[:, num_passive_feats:]
+            header = ['id'] + ['y'] + _feats_header
             torch_dataset = torch.cat(
                 (torch.unsqueeze(_ids, 1), torch.unsqueeze(_labels, 1), _feats),
                 dim=1
             )
 
-        return torch_dataset
+        return torch_dataset, header
 
     def __len__(self):
         return self.n_samples

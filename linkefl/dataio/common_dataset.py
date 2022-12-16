@@ -19,12 +19,14 @@ class CommonDataset:
     def __init__(self,
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
+                 header: list[str],
                  dataset_type: str,
                  transform: BaseTransformComponent = None,
     ):
         super(CommonDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
         self.role = role
+        self._header = header
         self.dataset_type = dataset_type
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
@@ -65,9 +67,11 @@ class CommonDataset:
 
         trainset = cls(role=dataset.role,
                        raw_dataset=raw_trainset,
+                       header=dataset.header,
                        dataset_type=dataset.dataset_type)
         testset = cls(role=dataset.role,
                       raw_dataset=raw_testset,
+                      header=dataset.header,
                       dataset_type=dataset.dataset_type)
 
         return trainset, testset
@@ -95,6 +99,7 @@ class CommonDataset:
             )
 
         permed_features = dataset.features[:, perm]
+        permed_header = np.array(dataset.header)[perm].tolist()
         ids = dataset.ids # is a Python list
         step = dataset.n_features // n_splits
 
@@ -107,6 +112,7 @@ class CommonDataset:
                 end_idx = dataset.n_features
 
             splitted_feats = permed_features[:, begin_idx:end_idx]
+            splitted_header = permed_header[begin_idx:end_idx]
             if isinstance(splitted_feats, np.ndarray): # NumPy Array
                 raw_dataset = np.concatenate(
                     (np.array(ids)[:, np.newaxis], splitted_feats),
@@ -120,6 +126,7 @@ class CommonDataset:
             curr_dataset = cls(
                 role=dataset.role,
                 raw_dataset=raw_dataset,
+                header=splitted_header,
                 dataset_type=dataset.dataset_type
             )
             splitted_datasets.append(curr_dataset)
@@ -142,7 +149,7 @@ class CommonDataset:
 
         # function body
         _check_params()
-        np_dataset = cls._load_buildin_dataset(
+        np_dataset, header = cls._load_buildin_dataset(
             role=role, name=dataset_name,
             root=root, train=train, download=download,
             frac=passive_feat_frac, perm_option=feat_perm_option,
@@ -156,6 +163,7 @@ class CommonDataset:
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=header,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -170,6 +178,7 @@ class CommonDataset:
         _ids = np.arange(n_samples)
         _feats = [random.random() for _ in range(n_samples * n_features)]
         _feats = np.array(_feats).reshape(n_samples, n_features)
+        _feats_header = ['x{}'.format(i) for i in range(n_features)]
 
         num_passive_feats = int(passive_feat_frac * n_features)
         if role == Const.PASSIVE_NAME:
@@ -177,6 +186,7 @@ class CommonDataset:
                 (_ids[:, np.newaxis], _feats[:, :num_passive_feats]),
                 axis=1
             )
+            header = ['id'] + _feats_header[:num_passive_feats]
         else:
             if dataset_type == Const.CLASSIFICATION:
                 _labels = np.array([random.choice([0, 1]) for _ in range(n_samples)])
@@ -186,10 +196,13 @@ class CommonDataset:
                 (_ids[:, np.newaxis], _labels[:, np.newaxis], _feats[:, num_passive_feats:]),
                 axis=1
             )
+            header = ['id'] + ['y'] + _feats_header[num_passive_feats:]
+
 
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=header,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -229,6 +242,7 @@ class CommonDataset:
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=selected_fields,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -267,6 +281,7 @@ class CommonDataset:
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=selected_fields,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -314,6 +329,7 @@ class CommonDataset:
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=selected_fields,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -352,70 +368,114 @@ class CommonDataset:
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=selected_fields,
             dataset_type=dataset_type,
             transform=transform
         )
 
     @classmethod
-    def from_csv(cls, role, abs_path, dataset_type, delimiter=',', mappings=None, transform=None):
+    def from_csv(cls, role, abs_path, dataset_type,
+                 delimiter=',', has_header=False,
+                 mappings=None, transform=None
+    ):
+        header_arg = 0 if has_header else None
         df_dataset = pd.read_csv(
             abs_path,
             delimiter=delimiter,
-            header=None,
+            header=header_arg,
             skipinitialspace=True, # skip spaces after delimiter
         )
 
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
+        if has_header:
+            header = df_dataset.columns.values.tolist()
+        else:
+            offset = 1 if role == Const.PASSIVE_NAME else 2
+            n_feats = np_dataset.shape[1] - offset
+            header = cls._gen_header(role, n_feats)
+
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=header,
             dataset_type=dataset_type,
             transform=transform
         )
 
     @classmethod
-    def from_excel(cls, role, abs_path, dataset_type, mappings=None, transform=None):
+    def from_excel(cls, role, abs_path, dataset_type,
+                   has_header=False,
+                   mappings=None, transform=None
+    ):
         """ Load dataset from excel.
         need dependency package openpyxl, support .xls .xlsx
         """
-        df_dataset = pd.read_excel("{}".format(abs_path), index_col=False)
+        header_arg = 0 if has_header else None
+        df_dataset = pd.read_excel(
+            "{}".format(abs_path),
+            header=header_arg,
+            index_col=False
+        )
 
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
+
+        if has_header:
+            header = df_dataset.columns.values.tolist()
+        else:
+            offset = 1 if role == Const.PASSIVE_NAME else 2
+            n_feats = np_dataset.shape[1] - offset
+            header = cls._gen_header(role, n_feats)
 
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=header,
             dataset_type=dataset_type,
             transform=transform
         )
 
     @classmethod
-    def from_url(cls, role, url, dataset_type, delimiter=',', mappings=None, transform=None):
+    def from_url(cls, role, url, dataset_type,
+                 delimiter=',', has_header=False,
+                 mappings=None, transform=None
+    ):
         import requests
 
         # do not directly use pd.read_csv(url),
         # because it will fail if it requires authentication
         data_raw = requests.get(url).content
         data_byte = io.StringIO(data_raw.decode('utf-8'))
+        header_arg = 0 if has_header else None
         df_dataset = pd.read_csv(
             data_byte,
             delimiter=delimiter,
-            header=None,
+            header=header_arg,
             skipinitialspace=True, # skip spaces after delimiter
         )
 
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
+        if has_header:
+            header = df_dataset.columns.values.tolist()
+        else:
+            offset = 1 if role == Const.PASSIVE_NAME else 2
+            n_feats = np_dataset.shape[1] - offset
+            header = cls._gen_header(role, n_feats)
+
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header = header,
             dataset_type=dataset_type,
             transform=transform
         )
 
     @classmethod
-    def from_anyfile(cls, role, abs_path, dataset_type, mappings=None, transform=None):
+    def from_anyfile(cls, role, abs_path, dataset_type,
+                     has_header=False,
+                     mappings=None, transform=None
+    ):
         extension = abs_path.split('.')[-1]
         if extension in ('csv', 'txt', 'dat'):
             # read first two lines to determine the delimiter
@@ -431,6 +491,7 @@ class CommonDataset:
                 abs_path=abs_path,
                 dataset_type=dataset_type,
                 delimiter=delimiter,
+                has_header=has_header,
                 mappings=mappings,
                 transform=transform
             )
@@ -440,12 +501,24 @@ class CommonDataset:
                 role=role,
                 abs_path=abs_path,
                 dataset_type=dataset_type,
+                has_header=has_header,
                 mappings=mappings,
                 transform=transform
             )
 
         else:
             raise RuntimeError("file type {} is not supported.".format(extension))
+
+    @property
+    def header(self):
+        return self._header
+
+    @header.setter
+    def header(self, value: list[str]):
+        assert len(value) == len(self._header), \
+            "the length of the new header is {}, which does not match the length" \
+            "of the older header".format(len(value))
+        self._header = value
 
     @property
     def ids(self):  # read only
@@ -722,20 +795,24 @@ class CommonDataset:
         _ids = np_csv[:, 0] # no need to convert to integers here
         _labels = np_csv[:, 1] # no need to convert to integers here
         _feats = np_csv[:, 2:]
+        _feats_header = ['x{}'.format(i) for i in range(_feats.shape[1])]
 
         # ===== 2. Apply feature permutation =====
         if perm_option == Const.SEQUENCE:
             permuted_feats = _feats
+            permuted_header = _feats_header
         elif perm_option == Const.RANDOM:
             if seed is not None:
                 random.seed(seed)
             perm = list(range(_feats.shape[1]))
             random.shuffle(perm)
             permuted_feats = _feats[:, perm]
+            permuted_header = np.array(_feats_header)[perm].tolist()
             del _feats  # save memory
         elif perm_option == Const.IMPORTANCE:
             rankings = cal_importance_ranking(name, _feats, _labels)
             permuted_feats = _feats[:, rankings]
+            permuted_header = np.array(_feats_header)[rankings].tolist()
         else:
             raise ValueError('Invalid permutation option.')
 
@@ -743,18 +820,20 @@ class CommonDataset:
         num_passive_feats = int(frac * permuted_feats.shape[1])
         if role == Const.PASSIVE_NAME:
             splitted_feats = permuted_feats[:, :num_passive_feats]
+            header = ['id'] + permuted_header[:num_passive_feats]
             np_dataset = np.concatenate(
                 (_ids[:, np.newaxis], splitted_feats),
                 axis=1
             )
         else:
             splitted_feats = permuted_feats[:, num_passive_feats:]
+            header = ['id'] + ['y'] + permuted_header[num_passive_feats:]
             np_dataset = np.concatenate(
                 (_ids[:, np.newaxis], _labels[:, np.newaxis], splitted_feats),
                 axis=1
             )
 
-        return np_dataset
+        return np_dataset, header
 
     @staticmethod
     def _pandas2numpy(df_dataset: pd.DataFrame, mappings: dict = None):
@@ -803,6 +882,15 @@ class CommonDataset:
 
         return selected_fields
 
+    @staticmethod
+    def _gen_header(role, n_feats):
+        feats_header = ['x{}'.format(i) for i in range(n_feats)]
+        if role == Const.ACTIVE_NAME:
+            header = ['id'] + ['y'] + feats_header
+        else:
+            header = ['id'] + feats_header
+
+        return header
 
 if __name__ == "__main__":
     from linkefl.feature.transform import OneHot
