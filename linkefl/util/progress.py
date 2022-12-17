@@ -1,3 +1,4 @@
+"""
 import os
 import sys
 import time
@@ -90,3 +91,4 @@ if __name__ == '__main__':
     # for the usage of progress bar, please refer to
     # https://github.com/kuangliu/pytorch-cifar/blob/49b7aa97b0c12fe0d4054e670403a16b6b834ddd/main.py#L133
     pass
+"""
