@@ -105,6 +105,23 @@ class GlobalLogger:
         log_func = GlobalLogger._loglevel_dict[level]
         log_func(json_msg)
 
+    def log_metric_regression(self, epoch, loss, mae, mse, sse, r2, total_epoch, level='info'):
+        json_msg = json.dumps({
+            'metricLog': {
+                'epoch': epoch + 1,
+                'loss': round(loss, GlobalLogger.FLOAT_PRECISION),
+                'mae': round(mae, GlobalLogger.FLOAT_PRECISION),
+                'mse': round(mse, GlobalLogger.FLOAT_PRECISION),
+                'sse': round(sse, GlobalLogger.FLOAT_PRECISION),
+                'r2': round(r2, GlobalLogger.FLOAT_PRECISION),
+                'time': self.time_formatter(time.time()),
+                'progress': (epoch + 1) / total_epoch,
+                'role': self.role,
+            }
+        })
+        log_func = GlobalLogger._loglevel_dict[level]
+        log_func(json_msg)
+
     def log_component(self, name, status,
                       begin, end, duration, progress,
                       failure_reason=None, level='info'):

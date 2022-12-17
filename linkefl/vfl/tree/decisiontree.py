@@ -173,7 +173,7 @@ class DecisionTree:
                 self._reconnect_passiveParty(party_id)
 
         # Implementation logic with sampling
-        if self.task == "binary":
+        if self.task == "binary" or self.task == "regression":
             self.gh = np.array([gradient, hessian]).T
             self.update_pred = np.zeros(sample_num, dtype=float)
 
@@ -585,7 +585,7 @@ class DecisionTree:
             else:
                 raise ValueError("No such encoding type!")
 
-        elif self.task == "binary":
+        elif self.task == "binary" or self.task == "regression":
             if self.crypto_type == Const.PLAIN:
                 bin_gh_plain = data["content"]
                 hist = ActiveHist.splitgh_hist(

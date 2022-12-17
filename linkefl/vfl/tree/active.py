@@ -7,6 +7,7 @@ from typing import List
 import numpy as np
 from scipy.special import softmax
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
@@ -17,7 +18,7 @@ from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.error import DisconnectedError
-from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss
+from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss, MeanSquaredErrorLoss
 
 
 class ActiveTreeParty(BaseModelComponent):
@@ -108,6 +109,8 @@ class ActiveTreeParty(BaseModelComponent):
             self.loss = CrossEntropyLoss()
         elif task == "multi":
             self.loss = MultiCrossEntropyLoss()
+        elif task == "regression":
+            self.loss = MeanSquaredErrorLoss()
         else:
             raise ValueError("No such task label.")
 
@@ -144,7 +147,7 @@ class ActiveTreeParty(BaseModelComponent):
         }
 
     def _check_parameters(self, task, n_labels, compress, sampling_method, messengers, drop_protection):
-        assert task in ("binary", "multi"), "task should be binary or multi"
+        assert task in ("regression", "binary", "multi"), "task should be regression or binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
         assert sampling_method in ("uniform", "goss"), "sampling method not supported"
 
@@ -159,6 +162,11 @@ class ActiveTreeParty(BaseModelComponent):
                     "compress should be set only when task is binary",
                     level=Const.WARNING,
                 )
+
+        if task == "regression":
+            assert (
+                    task == "regression" and n_labels == 2
+            ), "regression task should set n_labels as 2"
 
         if drop_protection is True:
             for messenger in messengers:
@@ -188,9 +196,13 @@ class ActiveTreeParty(BaseModelComponent):
         bin_index, bin_split = get_bin_info(trainset.features, self.max_bin)
         self.logger.log("Done")
 
-        if self.task == "binary":
+        if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(labels))  # sum of tree raw outputs
-            outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
+
+            if self.task == "binary":
+                outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
+            else:
+                outputs = raw_outputs
 
             raw_outputs_test = np.zeros(len(testset.labels))
 
@@ -217,7 +229,12 @@ class ActiveTreeParty(BaseModelComponent):
                         self.messengers_validTag = tree.messengers_validTag         # update messengers tag
 
                         raw_outputs += self.learning_rate * fit_result["update_pred"]
-                        outputs = sigmoid(raw_outputs)
+
+                        if self.task == "binary":
+                            outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
+                        else:
+                            outputs = raw_outputs
+                        # outputs = sigmoid(raw_outputs)
 
                         self._merge_tree_info(fit_result["feature_importance_info"])
                         self.logger.log(f"tree {tree_id} finished")
@@ -233,14 +250,26 @@ class ActiveTreeParty(BaseModelComponent):
                     else:
                         break
 
-                self.logger.log_metric(
-                    epoch=tree_id,
-                    loss=loss.mean(),
-                    acc=scores["acc"],
-                    auc=scores["auc"],
-                    f1=scores["f1"],
-                    total_epoch=self.n_trees,
-                )
+                # TODO: fix log bug here.
+                if self.task == "binary":
+                    self.logger.log_metric(
+                        epoch=tree_id,
+                        loss=loss.mean(),
+                        acc=scores["acc"],
+                        auc=scores["auc"],
+                        f1=scores["f1"],
+                        total_epoch=self.n_trees,
+                    )
+                else:
+                    self.logger.log_metric_regression(
+                        epoch=tree_id,
+                        loss=loss.mean(),
+                        mae=scores["mae"],
+                        mse=scores["mse"],
+                        sse=scores["sse"],
+                        r2=scores["r2"],
+                        total_epoch=self.n_trees,
+                    )
 
         elif self.task == "multi":
             labels_onehot = np.zeros((len(labels), self.n_labels))
@@ -365,13 +394,26 @@ class ActiveTreeParty(BaseModelComponent):
                 break
             raw_outputs += learning_rate * update_pred
 
-        if task == "binary":
+        if task == "regression":
+            outputs = raw_outputs
+            targets = outputs
+
+            mae = mean_absolute_error(labels, outputs)
+            mse = mean_squared_error(labels, outputs)
+            sse = mse * len(labels)
+            r2 = r2_score(labels, outputs)
+
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
+
+        elif task == "binary":
             outputs = sigmoid(raw_outputs)
             targets = np.round(outputs).astype(int)
 
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
+
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         elif task == "multi":
             outputs = softmax(raw_outputs, axis=1)
@@ -381,10 +423,10 @@ class ActiveTreeParty(BaseModelComponent):
             auc = -1
             f1 = -1
 
+            scores = {"acc": acc, "auc": auc, "f1": f1}
+
         else:
             raise ValueError("No such task label.")
-
-        scores = {"acc": acc, "auc": auc, "f1": f1}
 
         for i, messenger in enumerate(messengers):
             messenger.send(wrap_message("validate finished", content=True))
@@ -393,6 +435,7 @@ class ActiveTreeParty(BaseModelComponent):
 
         for messenger in messengers:
             messenger.send([scores, targets])
+
         return scores, targets
 
     def feature_importances_(self, importance_type="split"):
@@ -463,13 +506,24 @@ class ActiveTreeParty(BaseModelComponent):
         update_pred = tree.predict(features)
         raw_outputs_test += self.learning_rate * update_pred
 
-        if self.task == "binary":
+        if task == "regression":
+            outputs = raw_outputs_test
+            targets = raw_outputs_test
+
+            mae = mean_absolute_error(labels, outputs)
+            mse = mean_squared_error(labels, outputs)
+            sse = mse * len(labels)
+            r2 = r2_score(labels, outputs)
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
+
+        elif self.task == "binary":
             outputs = sigmoid(raw_outputs_test)
             targets = np.round(outputs).astype(int)
 
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs_test, axis=1)
@@ -478,11 +532,10 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = -1
             f1 = -1
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         else:
             raise ValueError("No such task label.")
-
-        scores = {"acc": acc, "auc": auc, "f1": f1}
 
         for i, messenger in enumerate(self.messengers):
             if self.messengers_validTag[i]:
@@ -514,13 +567,24 @@ class ActiveTreeParty(BaseModelComponent):
                 break
             raw_outputs += self.learning_rate * update_pred
 
-        if self.task == "binary":
+        if task == "regression":
+            outputs = raw_outputs
+            targets = raw_outputs
+
+            mae = mean_absolute_error(labels, outputs)
+            mse = mean_squared_error(labels, outputs)
+            sse = mse * len(labels)
+            r2 = r2_score(labels, outputs)
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
+
+        elif self.task == "binary":
             outputs = sigmoid(raw_outputs)
             targets = np.round(outputs).astype(int)
 
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs, axis=1)
@@ -529,11 +593,10 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = -1
             f1 = -1
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         else:
             raise ValueError("No such task label.")
-
-        scores = {"acc": acc, "auc": auc, "f1": f1}
 
         for i, messenger in enumerate(self.messengers):
             if self.messengers_validTag[i]:
@@ -570,13 +633,14 @@ if __name__ == "__main__":
     from linkefl.feature.transform import parse_label
 
     # 0. Set parameters
-    # cancer, digits, epsilon, census, credit, default_credit, criteo
-    dataset_name = "cancer"
+    #  binary: cancer, digits, epsilon, census, credit, default_credit, criteo
+    #  regression: diabetes
+    dataset_name = "diabetes"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
     n_trees = 5
-    task = "binary"     # multi, binary
+    task = "regression"     # multi, binary, regression
     n_labels = 2
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
@@ -584,9 +648,9 @@ if __name__ == "__main__":
     n_processes = 6
 
     active_ips = ["localhost", "localhost"]
-    active_ports = [20001, 20002]
+    active_ports = [21001, 21002]
     passive_ips = ["localhost", "localhost"]
-    passive_ports = [30001, 30002]
+    passive_ports = [20001, 20002]
 
     drop_protection = True
     reconnect_ports = [30003, 30004]

@@ -176,7 +176,7 @@ def find_split(hist_list, task, reg_lambda):
             for split_id in range(len(feature_bin_gh) - 1):
                 left_bin_gh, right_bin_gh = np.split(feature_bin_gh, [split_id + 1])
 
-                if task == "binary":
+                if task == "binary" or task == "regression":
                     gain = _split_gain(feature_bin_gh, left_bin_gh, right_bin_gh, reg_lambda)
                 elif task == "multi":
                     gain = _split_gain_multi(feature_bin_gh, left_bin_gh, right_bin_gh, reg_lambda)

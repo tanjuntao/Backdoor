@@ -14,7 +14,7 @@ class TorchDataset(CommonDataset, Dataset):
     def __init__(self,
                  role: str,
                  raw_dataset: Union[np.ndarray, torch.Tensor],
-                 header: list[str],
+                 header: list,
                  dataset_type: str,
                  transform: BaseTransformComponent = None,
     ):

@@ -514,7 +514,7 @@ class CommonDataset:
         return self._header
 
     @header.setter
-    def header(self, value: list[str]):
+    def header(self, value: list):
         assert len(value) == len(self._header), \
             "the length of the new header is {}, which does not match the length" \
             "of the older header".format(len(value))
