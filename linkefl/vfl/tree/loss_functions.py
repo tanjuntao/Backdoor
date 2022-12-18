@@ -262,9 +262,9 @@ class MeanSquaredErrorLoss(Loss):
         """Calculate hessian of MSE loss"""
         if isinstance(y, np.ndarray) or isinstance(y_pred, np.ndarray):
             shape = (y - y_pred).shape
-            return np.full(shape, 2)
+            return np.full(shape, 2.0)
         else:
-            return 2
+            return 2.0
 
 
 class LeastAbsoluteErrorLoss(Loss):
@@ -278,26 +278,26 @@ class LeastAbsoluteErrorLoss(Loss):
     def gradient(self, y, y_pred):
         if isinstance(y, np.ndarray) or isinstance(y_pred, np.ndarray):
             diff = y_pred - y
-            diff[diff > FLOAT_ZERO] = 1
-            diff[diff < FLOAT_ZERO] = -1
-            diff[np.abs(diff) <= FLOAT_ZERO] = 0
+            diff[diff > FLOAT_ZERO] = 1.0
+            diff[diff < FLOAT_ZERO] = -1.0
+            diff[np.abs(diff) <= FLOAT_ZERO] = 0.0
 
             return diff
         else:
             diff = y_pred - y
             if diff > FLOAT_ZERO:
-                return 1
+                return 1.0
             elif diff < FLOAT_ZERO:
-                return -1
+                return -1.0
             else:
-                return 0
+                return 0.0
 
     def hessian(self, y, y_pred):
         if isinstance(y, np.ndarray) or isinstance(y_pred, np.ndarray):
             shape = (y-y_pred).shape
-            return np.full(shape, 1)
+            return np.full(shape, 1.0)
         else:
-            return 1
+            return 1.0
 
 
 class HubelLoss(Loss):

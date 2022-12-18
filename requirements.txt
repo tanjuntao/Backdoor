@@ -8,6 +8,7 @@ pandas
 phe>=1.5.0
 pycryptodome
 PyMySQL
+requests
 scikit-learn>=1.1.0
 scipy
 seaborn

@@ -76,6 +76,7 @@ class BaseLinearPassive(BaseLinear):
                  val_freq=1,
                  saving_model=False,
                  model_path='./models',
+                 model_name=None,
                  task='classification',
     ):
         super(BaseLinearPassive, self).__init__(learning_rate, random_state)
@@ -102,11 +103,13 @@ class BaseLinearPassive(BaseLinear):
         self.saving_model = saving_model
         self.model_path = model_path
         model_type = Const.VERTICAL_LOGREG if task=='classification' else Const.VERTICAL_LINREG
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.PASSIVE_NAME + str(rank),
-            model_type=model_type
-        )
+        if model_name is None:
+            model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.PASSIVE_NAME + str(rank),
+                model_type=model_type
+            )
+        self.model_name = model_name
         self.logger = logger
 
     @classmethod
@@ -295,7 +298,8 @@ class BaseLinearPassive(BaseLinear):
                     if self.saving_model:
                         # the use of deepcopy here is to avoid saving other self attrbiutes
                         model_params = copy.deepcopy(getattr(self, 'params'))
-                        model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                        # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                        model_name = self.model_name
                         NumpyModelIO.save(model_params, self.model_path, model_name)
 
         # after training release the multiprocessing pool
@@ -350,6 +354,7 @@ class BaseLinearActive(BaseLinear):
                  val_freq=1,
                  saving_model=False,
                  model_path='./models',
+                 model_name=None,
                  task='classification',
     ):
         super(BaseLinearActive, self).__init__(learning_rate, random_state)
@@ -378,11 +383,13 @@ class BaseLinearActive(BaseLinear):
         self.saving_model = saving_model
         self.model_path = model_path
         model_type = Const.VERTICAL_LOGREG if task == 'classification' else Const.VERTICAL_LINREG
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.ACTIVE_NAME,
-            model_type=model_type
-        )
+        if model_name is None:
+            model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.ACTIVE_NAME,
+                model_type=model_type
+            )
+        self.model_name = model_name
         self.logger = logger
 
     @classmethod

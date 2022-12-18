@@ -16,9 +16,9 @@ if __name__ == "__main__":
     _crypto_type = Const.FAST_PAILLIER
 
     active_ip = "localhost"
-    active_port = 20001
+    active_port = 21001
     passive_ip = "localhost"
-    passive_port = 30001
+    passive_port = 20001
     drop_protection = True
 
     # 1. Load datasets

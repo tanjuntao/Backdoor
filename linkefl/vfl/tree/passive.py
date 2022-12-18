@@ -25,6 +25,7 @@ class PassiveTreeParty(BaseModelComponent):
         colsample_bytree = 1,
         saving_model: bool = False,
         model_path: str = "./models",
+        model_name=None,
     ):
         """Passive Tree Party class to train and validate dataset
 
@@ -42,11 +43,14 @@ class PassiveTreeParty(BaseModelComponent):
         self.saving_model = saving_model
         self.model_path = model_path
 
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.PASSIVE_NAME,
-            model_type=Const.VERTICAL_SBT,
-        )
+        if model_name is None:
+            self.model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.PASSIVE_NAME,
+                model_type=Const.VERTICAL_SBT,
+            )
+        else:
+            self.model_name = model_name
 
         self.feature_importance_info = {
             "split": defaultdict(int),      # Total number of splits
@@ -96,6 +100,15 @@ class PassiveTreeParty(BaseModelComponent):
                 self._init_tree_info()      # information for building a new tree
                 self.logger.log("start a new tree")
 
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.RUNNING,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=0.5  # passive party does not know the total tree number
+                )
+
             elif data["name"] == "hist":
                 sample_tag = data["content"]
                 bin_gh_data = self._get_hist(sample_tag)
@@ -119,9 +132,10 @@ class PassiveTreeParty(BaseModelComponent):
 
                 # store temp file
                 if self.saving_model:
-                    model_name = (
-                        f"{self.model_name}-{trainset.n_samples}_samples.model"
-                    )
+                    # model_name = (
+                    #     f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    # )
+                    model_name = self.model_name
                     NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
 
                 self.logger.log("temp model saved")
@@ -129,10 +143,19 @@ class PassiveTreeParty(BaseModelComponent):
 
             elif data["name"] == "train finished" and data["content"] is True:
                 if self.saving_model:
-                    model_name = (
-                        f"{self.model_name}-{trainset.n_samples}_samples.model"
-                    )
+                    # model_name = (
+                    #     f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    # )
+                    model_name = self.model_name
                     NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.SUCCESS,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=1.0
+                )
                 self.logger.log("train finished")
                 break
 
@@ -234,13 +257,36 @@ class PassiveTreeParty(BaseModelComponent):
     def predict(self, testset):
         self._validate(testset)
 
-    def online_inference(self, dataset, model_name, model_path="./models"):
+    @staticmethod
+    def online_inference(dataset, messenger, logger, model_name, model_path="./models"):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        self.record, self.feature_importance_info = NumpyModelIO.load(model_path, model_name)
+        record, feature_importance_info = NumpyModelIO.load(model_path, model_name)
 
-        self._validate(dataset)
+        features = dataset.features
+
+        while True:
+            # ready to receive instructions from active party
+            data = messenger.recv()
+            if data["name"] == "validate finished" and data["content"] is True:
+                logger.log("validate finished")
+                break
+            elif data["name"] == "judge":
+                sample_id, record_id = data["content"]
+
+                feature_id, threshold = record[record_id]
+                # feature_id is float thanks to threshold...
+                result = (
+                    True if features[sample_id][int(feature_id)] > threshold else False
+                )  # avoid numpy bool
+
+                messenger.send(wrap_message("judge", content=result))
+            else:
+                raise KeyError
+
+        scores, preds = messenger.recv()
+        return scores, preds
 
     def _init_tree_info(self):
         """Initialize the tree-level information store

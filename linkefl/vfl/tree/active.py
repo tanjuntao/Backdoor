@@ -7,6 +7,7 @@ from typing import List
 import numpy as np
 from scipy.special import softmax
 from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
@@ -17,7 +18,7 @@ from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.error import DisconnectedError
-from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss
+from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss, MeanSquaredErrorLoss
 
 
 class ActiveTreeParty(BaseModelComponent):
@@ -47,6 +48,7 @@ class ActiveTreeParty(BaseModelComponent):
         n_processes: int = 1,
         saving_model: bool = False,
         model_path: str = "./models",
+        model_name=None,
         drop_protection: bool = False,
         reconnect_ports: List[int] = None,
     ):
@@ -93,17 +95,22 @@ class ActiveTreeParty(BaseModelComponent):
         else:
             self.pool = None
 
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.ACTIVE_NAME,
-            model_type=Const.VERTICAL_SBT,
-        )
+        if model_name is None:
+            self.model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.ACTIVE_NAME,
+                model_type=Const.VERTICAL_SBT,
+            )
+        else:
+            self.model_name = model_name
 
         # 初始化 loss
         if task == "binary":
             self.loss = CrossEntropyLoss()
         elif task == "multi":
             self.loss = MultiCrossEntropyLoss()
+        elif task == "regression":
+            self.loss = MeanSquaredErrorLoss()
         else:
             raise ValueError("No such task label.")
 
@@ -140,7 +147,7 @@ class ActiveTreeParty(BaseModelComponent):
         }
 
     def _check_parameters(self, task, n_labels, compress, sampling_method, messengers, drop_protection):
-        assert task in ("binary", "multi"), "task should be binary or multi"
+        assert task in ("regression", "binary", "multi"), "task should be regression or binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
         assert sampling_method in ("uniform", "goss"), "sampling method not supported"
 
@@ -155,6 +162,11 @@ class ActiveTreeParty(BaseModelComponent):
                     "compress should be set only when task is binary",
                     level=Const.WARNING,
                 )
+
+        if task == "regression":
+            assert (
+                    task == "regression" and n_labels == 2
+            ), "regression task should set n_labels as 2"
 
         if drop_protection is True:
             for messenger in messengers:
@@ -184,14 +196,27 @@ class ActiveTreeParty(BaseModelComponent):
         bin_index, bin_split = get_bin_info(trainset.features, self.max_bin)
         self.logger.log("Done")
 
-        if self.task == "binary":
+        if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(labels))  # sum of tree raw outputs
-            outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
+
+            if self.task == "binary":
+                outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
+            else:
+                outputs = raw_outputs
 
             raw_outputs_test = np.zeros(len(testset.labels))
 
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
+
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.RUNNING,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=tree_id / len(self.trees)
+                )
 
                 loss = self.loss.loss(labels, outputs)
                 gradient = self.loss.gradient(labels, outputs)
@@ -204,7 +229,12 @@ class ActiveTreeParty(BaseModelComponent):
                         self.messengers_validTag = tree.messengers_validTag         # update messengers tag
 
                         raw_outputs += self.learning_rate * fit_result["update_pred"]
-                        outputs = sigmoid(raw_outputs)
+
+                        if self.task == "binary":
+                            outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
+                        else:
+                            outputs = raw_outputs
+                        # outputs = sigmoid(raw_outputs)
 
                         self._merge_tree_info(fit_result["feature_importance_info"])
                         self.logger.log(f"tree {tree_id} finished")
@@ -220,14 +250,25 @@ class ActiveTreeParty(BaseModelComponent):
                     else:
                         break
 
-                self.logger.log_metric(
-                    epoch=tree_id,
-                    loss=loss.mean(),
-                    acc=scores["acc"],
-                    auc=scores["auc"],
-                    f1=scores["f1"],
-                    total_epoch=self.n_trees,
-                )
+                if self.task == "binary":
+                    self.logger.log_metric(
+                        epoch=tree_id,
+                        loss=loss.mean(),
+                        acc=scores["acc"],
+                        auc=scores["auc"],
+                        f1=scores["f1"],
+                        total_epoch=self.n_trees,
+                    )
+                else:
+                    self.logger.log_metric_regression(
+                        epoch=tree_id,
+                        loss=loss.mean(),
+                        mae=scores["mae"],
+                        mse=scores["mse"],
+                        sse=scores["sse"],
+                        r2=scores["r2"],
+                        total_epoch=self.n_trees,
+                    )
 
         elif self.task == "multi":
             labels_onehot = np.zeros((len(labels), self.n_labels))
@@ -240,6 +281,15 @@ class ActiveTreeParty(BaseModelComponent):
 
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
+
+                self.logger.log_component(
+                    name=Const.VERTICAL_SBT,
+                    status=Const.RUNNING,
+                    begin=start_time,
+                    end=time.time(),
+                    duration=time.time() - start_time,
+                    progress=tree_id / len(self.trees)
+                )
 
                 loss = self.loss.loss(labels_onehot, outputs)
                 gradient = self.loss.gradient(labels_onehot, outputs)
@@ -282,6 +332,14 @@ class ActiveTreeParty(BaseModelComponent):
             if self.messengers_validTag[messenger_id]:
                 messenger.send(wrap_message("train finished", content=True))
 
+        self.logger.log_component(
+            name=Const.VERTICAL_SBT,
+            status=Const.SUCCESS,
+            begin=start_time,
+            end=time.time(),
+            duration=time.time() - start_time,
+            progress=1.0
+        )
         self.logger.log("train finished")
         self.logger.log("Total training and validation time: {:.4f}".format(time.time() - start_time))
 
@@ -296,14 +354,88 @@ class ActiveTreeParty(BaseModelComponent):
         """
         return self._validate(testset)
 
-    def online_inference(self, dataset, model_name, model_path="./models"):
-        assert isinstance(
-            dataset, NumpyDataset
-        ), "inference dataset should be an instance of NumpyDataset"
+    @staticmethod
+    def online_inference(dataset, task, n_labels, messengers, logger,
+                         model_name, model_path='./models'):
+        assert isinstance(dataset, NumpyDataset), 'inference dataset should be an ' \
+                                                  'instance of NumpyDataset'
+        model_params, feature_importance_info, learning_rate = NumpyModelIO.load(model_path, model_name)
 
-        self.load_model(model_name, model_path)
+        trees = [
+            DecisionTree(
+                task=task,
+                n_labels=n_labels,
+                crypto_type=None,
+                crypto_system=None,
+                messengers=messengers,
+                logger=logger
+            )
+            for _ in range(len(model_params))
+        ]
 
-        return self._validate(dataset)
+        for i, (record, root) in enumerate(model_params):
+            tree = trees[i]
+            tree.record = record
+            tree.root = root
+
+        features = dataset.features
+        labels = dataset.labels
+
+        if task == "multi":
+            raw_outputs = np.zeros((len(labels), n_labels))
+        else:
+            raw_outputs = np.zeros(len(labels))
+
+        for tree in trees:
+            update_pred = tree.predict(features)
+            if update_pred is None:
+                # the trees after are not trained
+                break
+            raw_outputs += learning_rate * update_pred
+
+        if task == "regression":
+            outputs = raw_outputs
+            targets = outputs
+
+            mae = mean_absolute_error(labels, outputs)
+            mse = mean_squared_error(labels, outputs)
+            sse = mse * len(labels)
+            r2 = r2_score(labels, outputs)
+
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
+
+        elif task == "binary":
+            outputs = sigmoid(raw_outputs)
+            targets = np.round(outputs).astype(int)
+
+            acc = accuracy_score(labels, targets)
+            auc = roc_auc_score(labels, outputs)
+            f1 = f1_score(labels, targets, average="weighted")
+
+            scores = {"acc": acc, "auc": auc, "f1": f1}
+
+        elif task == "multi":
+            outputs = softmax(raw_outputs, axis=1)
+            targets = np.argmax(outputs, axis=1)
+
+            acc = accuracy_score(labels, targets)
+            auc = -1
+            f1 = -1
+
+            scores = {"acc": acc, "auc": auc, "f1": f1}
+
+        else:
+            raise ValueError("No such task label.")
+
+        for i, messenger in enumerate(messengers):
+            messenger.send(wrap_message("validate finished", content=True))
+
+        logger.log("validate finished")
+
+        for messenger in messengers:
+            messenger.send([scores, targets])
+
+        return scores, targets
 
     def feature_importances_(self, importance_type="split"):
         """
@@ -356,6 +488,51 @@ class ActiveTreeParty(BaseModelComponent):
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
 
+    def get_tree_structures(self):
+        """tree_id : 1-based
+        """
+        def _pre_order_traverse(root):
+            nonlocal data
+
+            if not root:
+                data += "None;"
+                return
+
+            node_info = ""
+
+            if root.value != None:
+                # leaf node
+                node_info += f"leaf value: {root.value: .4f},"
+            else:
+                # mid node
+                if root.party_id == 0:
+                    node_info += "active_party,"
+                    node_info += f"record_id: {root.record_id},"
+                    node_info += f"split_feature: f{tree.record[root.record_id][0]},"
+                    node_info += f"split_value: {tree.record[root.record_id][1]: .4f},"
+                else:
+                    node_info += f"passive_party_{root.party_id},"
+                    node_info += f"record_id: {root.record_id},"
+                    node_info += f"split_feature: encrypt,"
+                    node_info += f"split_value: encrypt,"
+
+            data += f"{node_info};"
+
+            if root.left_branch:
+                _pre_order_traverse(root.left_branch)
+            if root.right_branch:
+                _pre_order_traverse(root.right_branch)
+
+        tree_structures = {}
+
+        for tree_id, tree in enumerate(self.trees, 1):
+            data = ""
+            _pre_order_traverse(tree.root)
+            tree_structures[f"tree{tree_id}"] = data
+
+        return tree_structures
+
+
     def _validate_tree(self, testset, tree, raw_outputs_test=None):
         assert isinstance(
             testset, NumpyDataset
@@ -373,13 +550,24 @@ class ActiveTreeParty(BaseModelComponent):
         update_pred = tree.predict(features)
         raw_outputs_test += self.learning_rate * update_pred
 
-        if self.task == "binary":
+        if task == "regression":
+            outputs = raw_outputs_test
+            targets = raw_outputs_test
+
+            mae = mean_absolute_error(labels, outputs)
+            mse = mean_squared_error(labels, outputs)
+            sse = mse * len(labels)
+            r2 = r2_score(labels, outputs)
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
+
+        elif self.task == "binary":
             outputs = sigmoid(raw_outputs_test)
             targets = np.round(outputs).astype(int)
 
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs_test, axis=1)
@@ -388,11 +576,10 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = -1
             f1 = -1
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         else:
             raise ValueError("No such task label.")
-
-        scores = {"acc": acc, "auc": auc, "f1": f1}
 
         for i, messenger in enumerate(self.messengers):
             if self.messengers_validTag[i]:
@@ -424,13 +611,24 @@ class ActiveTreeParty(BaseModelComponent):
                 break
             raw_outputs += self.learning_rate * update_pred
 
-        if self.task == "binary":
+        if task == "regression":
+            outputs = raw_outputs
+            targets = raw_outputs
+
+            mae = mean_absolute_error(labels, outputs)
+            mse = mean_squared_error(labels, outputs)
+            sse = mse * len(labels)
+            r2 = r2_score(labels, outputs)
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
+
+        elif self.task == "binary":
             outputs = sigmoid(raw_outputs)
             targets = np.round(outputs).astype(int)
 
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs, axis=1)
@@ -439,11 +637,10 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = -1
             f1 = -1
+            scores = {"acc": acc, "auc": auc, "f1": f1}
 
         else:
             raise ValueError("No such task label.")
-
-        scores = {"acc": acc, "auc": auc, "f1": f1}
 
         for i, messenger in enumerate(self.messengers):
             if self.messengers_validTag[i]:
@@ -465,9 +662,10 @@ class ActiveTreeParty(BaseModelComponent):
         self.logger.log("merge tree information done")
 
     def _save_model(self):
-        model_name = f"{self.model_name}.model"
+        # model_name = f"{self.model_name}.model"
+        model_name = self.model_name
         model_params = [(tree.record, tree.root) for tree in self.trees]
-        saved_data = [model_params, self.feature_importance_info]
+        saved_data = [model_params, self.feature_importance_info, self.learning_rate]
         NumpyModelIO.save(saved_data, self.model_path, model_name)
 
         self.logger.log(f"Save model {model_name} success.")
@@ -479,13 +677,14 @@ if __name__ == "__main__":
     from linkefl.feature.transform import parse_label
 
     # 0. Set parameters
-    # cancer, digits, epsilon, census, credit, default_credit, criteo
+    #  binary: cancer, digits, epsilon, census, credit, default_credit, criteo
+    #  regression: diabetes
     dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
-    n_trees = 5
-    task = "binary"     # multi, binary
+    n_trees = 2
+    task = "binary"     # multi, binary, regression
     n_labels = 2
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
@@ -493,9 +692,9 @@ if __name__ == "__main__":
     n_processes = 6
 
     active_ips = ["localhost", "localhost"]
-    active_ports = [20001, 20002]
+    active_ports = [21001, 21002]
     passive_ips = ["localhost", "localhost"]
-    passive_ports = [30001, 30002]
+    passive_ports = [20001, 20002]
 
     drop_protection = True
     reconnect_ports = [30003, 30004]
@@ -597,3 +796,5 @@ if __name__ == "__main__":
     for messenger in messengers:
         messenger.close()
 
+    tree_structures = active_party.get_tree_structures()
+    print(tree_structures)
