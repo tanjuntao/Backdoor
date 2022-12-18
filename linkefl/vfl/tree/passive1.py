@@ -8,11 +8,11 @@ from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "diabetes"
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
-    task = "regression"
+    task = "binary"
     _crypto_type = Const.FAST_PAILLIER
 
     active_ip = "localhost"

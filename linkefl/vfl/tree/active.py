@@ -250,7 +250,6 @@ class ActiveTreeParty(BaseModelComponent):
                     else:
                         break
 
-                # TODO: fix log bug here.
                 if self.task == "binary":
                     self.logger.log_metric(
                         epoch=tree_id,
@@ -489,6 +488,51 @@ class ActiveTreeParty(BaseModelComponent):
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
 
+    def get_tree_structures(self):
+        """tree_id : 1-based
+        """
+        def _pre_order_traverse(root):
+            nonlocal data
+
+            if not root:
+                data += "None;"
+                return
+
+            node_info = ""
+
+            if root.value != None:
+                # leaf node
+                node_info += f"leaf value: {root.value: .4f},"
+            else:
+                # mid node
+                if root.party_id == 0:
+                    node_info += "active_party,"
+                    node_info += f"record_id: {root.record_id},"
+                    node_info += f"split_feature: f{tree.record[root.record_id][0]},"
+                    node_info += f"split_value: {tree.record[root.record_id][1]: .4f},"
+                else:
+                    node_info += f"passive_party_{root.party_id},"
+                    node_info += f"record_id: {root.record_id},"
+                    node_info += f"split_feature: encrypt,"
+                    node_info += f"split_value: encrypt,"
+
+            data += f"{node_info};"
+
+            if root.left_branch:
+                _pre_order_traverse(root.left_branch)
+            if root.right_branch:
+                _pre_order_traverse(root.right_branch)
+
+        tree_structures = {}
+
+        for tree_id, tree in enumerate(self.trees, 1):
+            data = ""
+            _pre_order_traverse(tree.root)
+            tree_structures[f"tree{tree_id}"] = data
+
+        return tree_structures
+
+
     def _validate_tree(self, testset, tree, raw_outputs_test=None):
         assert isinstance(
             testset, NumpyDataset
@@ -635,12 +679,12 @@ if __name__ == "__main__":
     # 0. Set parameters
     #  binary: cancer, digits, epsilon, census, credit, default_credit, criteo
     #  regression: diabetes
-    dataset_name = "diabetes"
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
-    n_trees = 5
-    task = "regression"     # multi, binary, regression
+    n_trees = 2
+    task = "binary"     # multi, binary, regression
     n_labels = 2
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
@@ -752,3 +796,5 @@ if __name__ == "__main__":
     for messenger in messengers:
         messenger.close()
 
+    tree_structures = active_party.get_tree_structures()
+    print(tree_structures)
