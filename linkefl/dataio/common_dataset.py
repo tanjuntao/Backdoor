@@ -251,6 +251,7 @@ class CommonDataset:
     def from_mariadb(cls, role, dataset_type,
                     host, user, password, database, table,
                     *,
+                    target_fields=None, excluding_fields=False,
                     mappings=None, transform=None, port=3306
     ):
         """
@@ -267,7 +268,15 @@ class CommonDataset:
 
         with connection:
             with connection.cursor() as cursor:
-                cursor.execute("select * from {}".format(table))
+                selected_fields = cls._get_selected_fields(
+                    db_type='mariadb',
+                    cursor=cursor,
+                    table=table,
+                    target_fields=target_fields,
+                    excluding_fields=excluding_fields
+                )
+                sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
+                cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
@@ -276,6 +285,7 @@ class CommonDataset:
         return cls(
             role=role,
             raw_dataset=np_dataset,
+            header=selected_fields,
             dataset_type=dataset_type,
             transform=transform
         )
