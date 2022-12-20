@@ -298,8 +298,10 @@ class DecisionTree:
 
         return np.array(y_pred)
 
-    def _build_tree_xgb1(self, sample_tag_selected, sample_tag_unselected):
+    def _build_tree_xgb(self, sample_tag_selected, sample_tag_unselected):
+
         root = self._gen_node(sample_tag_selected, sample_tag_unselected, depth=0)
+
         split_node_candidates = deque()
         split_node_candidates.append(root)
 
@@ -346,155 +348,6 @@ class DecisionTree:
                 self.update_pred += update_temp
 
         return root
-
-    def _build_tree_xgb(
-        self,
-        sample_tag_selected,
-        sample_tag_unselected,
-        current_depth,
-        *,
-        hist_list=None,
-        party_id=None,
-        feature_id=None,
-        split_id=None,
-        max_gain=None
-    ):
-        # split only when conditions meet
-        if (
-            current_depth < self.max_depth - 1
-            and sample_tag_selected.sum() >= self.min_split_samples
-        ):
-            if hist_list is None:
-                # happens in root
-                (
-                    hist_list,
-                    party_id,
-                    feature_id,
-                    split_id,
-                    max_gain,
-                ) = self._get_hist_list(sample_tag_selected)
-            if party_id is None:
-                # happens in sub hist
-                party_id, feature_id, split_id, max_gain = find_split(
-                    hist_list, self.task, self.reg_lambda
-                )
-
-            if max_gain > self.min_split_gain:
-                if party_id == 0:
-                    # split in active party
-                    feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
-                        feature_id, split_id, sample_tag_selected, sample_tag_unselected
-                    )
-                    self.logger.log(f"threshold saved in record_id: {record_id}")
-
-                else:
-                    # ask corresponding passive party to split
-                    self.messengers[party_id - 1].send(
-                        wrap_message(
-                            "record", content=(feature_id, split_id, sample_tag_selected, sample_tag_unselected)
-                        )
-                    )
-                    if self.drop_protection:
-                        data, passive_party_connected = self.messengers[party_id - 1].recv()
-                        if not passive_party_connected:
-                            raise DisconnectedError(disconnect_phase='record', disconnect_party_id=party_id-1)
-                    else:
-                        data = self.messengers[party_id - 1].recv()
-
-                    # print(data)
-                    assert data["name"] == "record"
-
-                    # Get the selected feature index to the original feature index
-                    feature_id_origin, record_id, sample_tag_selected_left , sample_tag_unselected_left = data["content"]
-
-                # store feature split information
-                self.feature_importance_info['split'][f'client{party_id}_feature{feature_id_origin}'] += 1
-                self.feature_importance_info['gain'][f'client{party_id}_feature{feature_id_origin}'] += max_gain
-                self.feature_importance_info['cover'][f'client{party_id}_feature{feature_id_origin}'] += sum(
-                    sample_tag_selected)
-                self.logger.log(f"store feature split information")
-
-                sample_tag_selected_right = sample_tag_selected - sample_tag_selected_left
-                sample_tag_unselected_right = sample_tag_unselected - sample_tag_unselected_left
-
-                # choose the easy part to directly compute hist, the other part
-                # can be computed by a simple subtract
-                if sample_tag_selected_left.sum() <= sample_tag_selected_right.sum():
-                    (
-                        hist_list_left,
-                        party_id_left,
-                        feature_id_left,
-                        split_id_left,
-                        max_gain_left,
-                    ) = self._get_hist_list(sample_tag_selected_left)
-                    hist_list_right = [
-                         None if current is None or left is None else current - left
-                        for current, left in zip(hist_list, hist_list_left)
-                    ]
-                    left_node = self._build_tree_xgb(
-                        sample_tag_selected_left,
-                        sample_tag_unselected_left,
-                        current_depth + 1,
-                        hist_list=hist_list_left,
-                        party_id=party_id_left,
-                        feature_id=feature_id_left,
-                        split_id=split_id_left,
-                        max_gain=max_gain_left
-                    )
-                    right_node = self._build_tree_xgb(
-                        sample_tag_selected_right,
-                        sample_tag_unselected_right,
-                        current_depth + 1,
-                        hist_list=hist_list_right
-                    )
-                else:
-                    (
-                        hist_list_right,
-                        party_id_right,
-                        feature_id_right,
-                        split_id_right,
-                        max_gain_right,
-                    ) = self._get_hist_list(sample_tag_selected_right)
-                    hist_list_left = [
-                        None if current is None or right is None else current - right
-                        for current, right in zip(hist_list, hist_list_right)
-                    ]
-                    left_node = self._build_tree_xgb(
-                        sample_tag_selected_left,
-                        sample_tag_unselected_left,
-                        current_depth + 1,
-                        hist_list=hist_list_left
-                    )
-                    right_node = self._build_tree_xgb(
-                        sample_tag_selected_right,
-                        sample_tag_unselected_right,
-                        current_depth + 1,
-                        hist_list=hist_list_right,
-                        party_id=party_id_right,
-                        feature_id=feature_id_right,
-                        split_id=split_id_right,
-                        max_gain=max_gain_right
-                    )
-
-                return _DecisionNode(
-                    party_id=party_id,
-                    record_id=record_id,
-                    left_branch=left_node,
-                    right_branch=right_node,
-                )
-
-        # compute leaf weight
-        if self.task == "multi":
-            leaf_value = leaf_weight_multi(self.gh, sample_tag_selected, self.reg_lambda)
-            update_temp = np.dot(sample_tag_selected.reshape(-1, 1), leaf_value.reshape(1, -1)) + \
-                            np.dot(sample_tag_unselected.reshape(-1, 1), leaf_value.reshape(1, -1))
-        else:
-            leaf_value = leaf_weight(self.gh, sample_tag_selected, self.reg_lambda)
-            update_temp = np.dot(sample_tag_selected, leaf_value) + np.dot(sample_tag_unselected, leaf_value)
-
-        self.update_pred += update_temp
-
-        return _DecisionNode(value=leaf_value)
 
     def _build_tree_lightgbm(self, sample_tag_selected, sample_tag_unselected):
         root = self._gen_node(sample_tag_selected, sample_tag_unselected, depth=0)
