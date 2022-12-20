@@ -56,6 +56,7 @@ class Const:
     VERTICAL_LINREG = "vertical_linreg"
     VERTICAL_LOGREG = "vertical_logreg"
     VERTICAL_SBT = "vertical_sbt"
+    VERTICAL_LIGHTGBM = "vertical_lightgbm"
     VERTICAL_NN = "vertical_nn"
     HORIZONTAL_NN = "horizontal_nn"
     SPLIT_NN = "split_nn"

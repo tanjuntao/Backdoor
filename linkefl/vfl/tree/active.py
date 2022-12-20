@@ -772,8 +772,8 @@ if __name__ == "__main__":
         logger=logger,
 
         messengers=messengers,
-        sampling_method='goss',
-        subsample=0.9,
+        sampling_method='uniform',
+        subsample=1,
         top_rate=0.3,
         other_rate=0.7,
         colsample_bytree=1,

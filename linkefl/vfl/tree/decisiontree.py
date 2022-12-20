@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from multiprocessing import Pool
 from typing import List
 from termcolor import colored
@@ -37,6 +37,14 @@ class _DecisionNode:
         left_branch=None,
         right_branch=None,
         value=None,
+        hist_list=None,
+        sample_tag_selected=None,
+        sample_tag_unselected=None,
+        split_party_id=None,
+        split_feature_id=None,
+        split_bin_id=None,
+        split_gain=None,
+        depth=None,
     ):
         # intermediate node
         self.party_id = party_id
@@ -46,6 +54,19 @@ class _DecisionNode:
 
         # leaf node
         self.value = value
+
+        # training data
+        self.hist_list = hist_list
+        self.sample_tag_selected = sample_tag_selected
+        self.sample_tag_unselected = sample_tag_unselected
+        self.split_party_id = split_party_id
+        self.split_feature_id = split_feature_id
+        self.split_bin_id = split_bin_id
+        self.split_gain = split_gain
+        self.depth = depth
+
+    def __lt__(self, other):
+        return self.split_gain > other.split_gain
 
 
 class DecisionTree:
@@ -234,7 +255,10 @@ class DecisionTree:
                             wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length))
                         )
                 # start building tree
-                self.root = self._build_tree(sample_tag_selected, sample_tag_unselected, current_depth=0)
+                # todo : add parameters here.
+                # self.root = self._build_tree_xgb(sample_tag_selected, sample_tag_unselected, current_depth=0)
+                self.root = self._build_tree_xgb(sample_tag_selected, sample_tag_unselected)
+                # self.root = self._build_tree_lightgbm(sample_tag_selected, sample_tag_unselected)
 
             except DisconnectedError as e:
                 self.logger.log(f"passive party {e.disconnect_party_id} is disconnected.")
@@ -274,7 +298,56 @@ class DecisionTree:
 
         return np.array(y_pred)
 
-    def _build_tree(
+    def _build_tree_xgb1(self, sample_tag_selected, sample_tag_unselected):
+        root = self._gen_node(sample_tag_selected, sample_tag_unselected, depth=0)
+        split_node_candidates = deque()
+        split_node_candidates.append(root)
+
+        while len(split_node_candidates) > 0:
+            node = split_node_candidates.popleft()
+            if (node.depth < self.max_depth - 1
+                    and node.sample_tag_selected.sum() >= self.min_split_samples
+                    and node.split_gain > self.min_split_gain
+            ):
+
+                feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._get_split_info(
+                    node)
+
+                left_node, right_node = self._gen_child_node(node, sample_tag_selected_left,
+                                                             sample_tag_unselected_left)
+                split_node_candidates.append(left_node)
+                split_node_candidates.append(right_node)
+
+                node.party_id = node.split_party_id
+                node.record_id = record_id
+                node.left_branch = left_node
+                node.right_branch = right_node
+
+                # store feature split information
+                self.feature_importance_info['split'][f'client{node.party_id}_feature{feature_id_origin}'] += 1
+                self.feature_importance_info['gain'][
+                    f'client{node.party_id}_feature{feature_id_origin}'] += node.split_gain
+                self.feature_importance_info['cover'][f'client{node.party_id}_feature{feature_id_origin}'] += sum(
+                    node.sample_tag_selected)
+                self.logger.log(f"store feature split information")
+
+            else:
+                # compute leaf weight
+                if self.task == "multi":
+                    leaf_value = leaf_weight_multi(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected.reshape(-1, 1), leaf_value.reshape(1, -1)) + \
+                                  np.dot(node.sample_tag_unselected.reshape(-1, 1), leaf_value.reshape(1, -1))
+                else:
+                    leaf_value = leaf_weight(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected, leaf_value) + np.dot(node.sample_tag_unselected,
+                                                                                        leaf_value)
+
+                node.value = leaf_value
+                self.update_pred += update_temp
+
+        return root
+
+    def _build_tree_xgb(
         self,
         sample_tag_selected,
         sample_tag_unselected,
@@ -358,7 +431,7 @@ class DecisionTree:
                          None if current is None or left is None else current - left
                         for current, left in zip(hist_list, hist_list_left)
                     ]
-                    left_node = self._build_tree(
+                    left_node = self._build_tree_xgb(
                         sample_tag_selected_left,
                         sample_tag_unselected_left,
                         current_depth + 1,
@@ -368,7 +441,7 @@ class DecisionTree:
                         split_id=split_id_left,
                         max_gain=max_gain_left
                     )
-                    right_node = self._build_tree(
+                    right_node = self._build_tree_xgb(
                         sample_tag_selected_right,
                         sample_tag_unselected_right,
                         current_depth + 1,
@@ -386,13 +459,13 @@ class DecisionTree:
                         None if current is None or right is None else current - right
                         for current, right in zip(hist_list, hist_list_right)
                     ]
-                    left_node = self._build_tree(
+                    left_node = self._build_tree_xgb(
                         sample_tag_selected_left,
                         sample_tag_unselected_left,
                         current_depth + 1,
                         hist_list=hist_list_left
                     )
-                    right_node = self._build_tree(
+                    right_node = self._build_tree_xgb(
                         sample_tag_selected_right,
                         sample_tag_unselected_right,
                         current_depth + 1,
@@ -422,6 +495,137 @@ class DecisionTree:
         self.update_pred += update_temp
 
         return _DecisionNode(value=leaf_value)
+
+    def _build_tree_lightgbm(self, sample_tag_selected, sample_tag_unselected):
+        root = self._gen_node(sample_tag_selected, sample_tag_unselected, depth=0)
+        split_node_candidates = queue.PriorityQueue()
+        split_node_candidates.put(root)
+
+        while not split_node_candidates.empty():
+            node = split_node_candidates.get()
+            if (node.depth < self.max_depth - 1
+                    and node.sample_tag_selected.sum() >= self.min_split_samples
+                    and node.split_gain > self.min_split_gain
+            ):
+
+                feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._get_split_info(
+                    node)
+
+                left_node, right_node = self._gen_child_node(node, sample_tag_selected_left,
+                                                             sample_tag_unselected_left)
+                split_node_candidates.put(left_node)
+                split_node_candidates.put(right_node)
+
+                node.party_id = node.split_party_id
+                node.record_id = record_id
+                node.left_branch = left_node
+                node.right_branch = right_node
+
+                # store feature split information
+                self.feature_importance_info['split'][f'client{node.party_id}_feature{feature_id_origin}'] += 1
+                self.feature_importance_info['gain'][
+                    f'client{node.party_id}_feature{feature_id_origin}'] += node.split_gain
+                self.feature_importance_info['cover'][f'client{node.party_id}_feature{feature_id_origin}'] += sum(
+                    node.sample_tag_selected)
+                self.logger.log(f"store feature split information")
+
+            else:
+                # compute leaf weight
+                if self.task == "multi":
+                    leaf_value = leaf_weight_multi(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected.reshape(-1, 1), leaf_value.reshape(1, -1)) + \
+                                  np.dot(node.sample_tag_unselected.reshape(-1, 1), leaf_value.reshape(1, -1))
+                else:
+                    leaf_value = leaf_weight(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected, leaf_value) + np.dot(node.sample_tag_unselected,
+                                                                                        leaf_value)
+
+                node.value = leaf_value
+                self.update_pred += update_temp
+
+        return root
+
+    def _gen_child_node(self, node, sample_tag_selected_left, sample_tag_unselected_left):
+        sample_tag_selected_right = node.sample_tag_selected - sample_tag_selected_left
+        sample_tag_unselected_right = node.sample_tag_unselected - sample_tag_unselected_left
+
+        if sum(sample_tag_selected_left) < sum(sample_tag_selected_right):
+            left_node = self._gen_node(sample_tag_selected_left, sample_tag_unselected_left,
+                                       depth=node.depth + 1)
+            hist_list_right = [
+                None if current is None or left is None else current - left
+                for current, left in zip(node.hist_list, left_node.hist_list)
+            ]
+            right_node = self._gen_node(sample_tag_selected_right, sample_tag_unselected_right,
+                                        depth=node.depth + 1, hist_list=hist_list_right)
+        else:
+            right_node = self._gen_node(sample_tag_selected_right, sample_tag_unselected_right,
+                                        depth=node.depth + 1)
+            hist_list_left = [
+                None if current is None or right is None else current - right
+                for current, right in zip(node.hist_list, right_node.hist_list)
+            ]
+            left_node = self._gen_node(sample_tag_selected_left, sample_tag_unselected_left,
+                                       depth=node.depth + 1, hist_list=hist_list_left)
+
+        return left_node, right_node
+
+    def _get_split_info(self, node):
+        if node.split_party_id == 0:
+            # split in active party
+            feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
+                node.split_feature_id, node.split_bin_id, node.sample_tag_selected, node.sample_tag_unselected
+            )
+            self.logger.log(f"threshold saved in record_id: {record_id}")
+        else:
+            # ask corresponding passive party to split
+            self.messengers[node.split_party_id - 1].send(
+                wrap_message(
+                    "record",
+                    content=(
+                        node.split_feature_id, node.split_bin_id, node.sample_tag_selected,
+                        node.sample_tag_unselected)
+                )
+            )
+            if self.drop_protection:
+                data, passive_party_connected = self.messengers[node.split_party_id - 1].recv()
+                if not passive_party_connected:
+                    raise DisconnectedError(disconnect_phase='record', disconnect_party_id=node.split_party_id - 1)
+            else:
+                data = self.messengers[node.split_party_id - 1].recv()
+
+            # print(data)
+            assert data["name"] == "record"
+            # Get the selected feature index to the original feature index
+            feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = data["content"]
+
+        return feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left
+
+    def _gen_node(self, sample_tag_selected, sample_tag_unselected, depth=0, hist_list=None):
+        if hist_list is None:
+            # happens in root
+            (
+                hist_list,
+                party_id,
+                feature_id,
+                split_id,
+                max_gain,
+            ) = self._get_hist_list(sample_tag_selected)
+        else:
+            # happens in sub hist
+            party_id, feature_id, split_id, max_gain = find_split(
+                hist_list, self.task, self.reg_lambda
+            )
+
+        return _DecisionNode(hist_list=hist_list,
+                             sample_tag_selected=sample_tag_selected,
+                             sample_tag_unselected=sample_tag_unselected,
+                             split_party_id=party_id,
+                             split_feature_id=feature_id,
+                             split_bin_id=split_id,
+                             split_gain=max_gain,
+                             depth=depth)
+
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
         # Map the selected feature index to the original feature index
