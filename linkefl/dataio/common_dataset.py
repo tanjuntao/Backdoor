@@ -248,6 +248,49 @@ class CommonDataset:
         )
 
     @classmethod
+    def from_mariadb(cls, role, dataset_type,
+                    host, user, password, database, table,
+                    *,
+                    target_fields=None, excluding_fields=False,
+                    mappings=None, transform=None, port=3306
+    ):
+        """
+            Load dataset from MariaDB database.
+            Note that the default port is 3306, the same as mysql
+        """
+        import mariadb
+
+        connection = mariadb.connect(host=host,
+                                     user=user,
+                                     port=port,
+                                     password=password,
+                                     database=database)
+
+        with connection:
+            with connection.cursor() as cursor:
+                selected_fields = cls._get_selected_fields(
+                    db_type='mariadb',
+                    cursor=cursor,
+                    table=table,
+                    target_fields=target_fields,
+                    excluding_fields=excluding_fields
+                )
+                sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
+                cursor.execute(sql)
+                results = cursor.fetchall()
+                df_dataset = pd.DataFrame.from_dict(results)
+
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
+
+        return cls(
+            role=role,
+            raw_dataset=np_dataset,
+            header=selected_fields,
+            dataset_type=dataset_type,
+            transform=transform
+        )
+
+    @classmethod
     def from_oracle(cls, role, dataset_type,
                     host, user, password, database, table,
                     *,
