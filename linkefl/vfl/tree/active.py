@@ -225,28 +225,25 @@ class ActiveTreeParty(BaseModelComponent):
                 while True:
                     try:
                         tree.messengers_validTag = self.messengers_validTag         # update messengers tag
-                        fit_result = tree.fit(gradient, hessian, bin_index, bin_split)
+                        tree.fit(gradient, hessian, bin_index, bin_split)
                         self.messengers_validTag = tree.messengers_validTag         # update messengers tag
 
-                        raw_outputs += self.learning_rate * fit_result["update_pred"]
-                        print(tree.update_pred)
+                        raw_outputs += self.learning_rate * tree.update_pred
 
                         if self.task == "binary":
                             outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
                         else:
                             outputs = raw_outputs
-                        # outputs = sigmoid(raw_outputs)
 
-                        self._merge_tree_info(fit_result["feature_importance_info"])
+                        self._merge_tree_info(tree.feature_importance_info)
                         self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
                             if self.messengers_validTag[messenger_id]:
                                 messenger.send(wrap_message("validate", content=True))
-                        # scores = self._validate(testset)
-                        # print(raw_outputs_test)
+
                         scores = self._validate_tree(testset, tree, raw_outputs_test)
-                        # print(raw_outputs_test)
+
                     except DisconnectedError as e:
                         # Handling of disconnection during prediction stage
                         tree._reconnect_passiveParty(e.disconnect_party_id)
@@ -301,21 +298,21 @@ class ActiveTreeParty(BaseModelComponent):
                 while True:
                     try:
                         tree.messengers_validTag = self.messengers_validTag  # update messengers tag
-                        fit_result = tree.fit(gradient, hessian, bin_index, bin_split)
+                        tree.fit(gradient, hessian, bin_index, bin_split)
 
-                        raw_outputs += self.learning_rate * fit_result["update_pred"]
+                        raw_outputs += self.learning_rate * tree.update_pred
                         outputs = softmax(raw_outputs, axis=1)
 
                         self.messengers_validTag = tree.messengers_validTag  # update messengers tag
-                        self._merge_tree_info(fit_result["feature_importance_info"])
+                        self._merge_tree_info(tree.feature_importance_info)
                         self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
                             if self.messengers_validTag[messenger_id]:
                                 messenger.send(wrap_message("validate", content=True))
 
-                        # scores = self._validate(testset)
                         scores = self._validate_tree(testset, tree, raw_outputs_test)
+
                     except DisconnectedError as e:
                         # Handling of disconnection during prediction stage
                         tree._reconnect_passiveParty(e.disconnect_party_id)

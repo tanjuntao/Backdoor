@@ -159,14 +159,23 @@ class DecisionTree:
         self.update_pred = None  # saving tree raw output
         self.messengers_recvTag = None
 
-
     def fit(self, gradient, hessian, bin_index, bin_split):
-        """single tree training, return raw output"""
+        # 0. prepare: get params and reconnect
         self.model_phase = "train"
-
         sample_num, feature_num = bin_index.shape[0], bin_index.shape[1]
 
-        # tree-level samples sampling
+        if self.task == "regression" or self.task == "binary":
+            self.gh = np.array([gradient, hessian]).T
+            self.update_pred = np.zeros(sample_num, dtype=float)
+        else:
+            self.gh = np.stack((gradient, hessian), axis=2)
+            self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
+
+        for party_id, validTag in enumerate(self.messengers_validTag):
+            if not validTag:
+                self._reconnect_passiveParty(party_id)
+
+        # 1. sample: sample sampling and feature sampling
         if self.sampling_method == "uniform":
             selected_g, selected_h, selected_idx = random_sampling(gradient, hessian, self.subsample)
         elif self.sampling_method == "goss":
@@ -174,79 +183,22 @@ class DecisionTree:
         else:
             raise ValueError
 
-        # tree-level feature sampling
-        self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
+        self.feature_index_selected = random.sample(list(range(feature_num)),
+                                                    int(feature_num * self.colsample_bytree))
         self.feature_index_selected.sort()
-        # reset bin_index
         self.bin_index_selected = np.array(bin_index.copy())
         self.bin_index_selected = self.bin_index_selected[:, self.feature_index_selected]
-        # print(self.feature_index_selected, self.bin_index_selected)
         self.bin_split = bin_split
-        # self.bin_index_selected, self.bin_split = feature_sampling(bin_index, bin_split, self.feature_index_selected)
 
+        # sample_tag: selected training sample, full_sample_tag: all sample
         sample_tag_selected = np.zeros(sample_num, dtype=int)
         sample_tag_selected[selected_idx] = 1
         sample_tag_unselected = np.ones(sample_num, dtype=int) - sample_tag_selected
 
-        # try to restore disconnect messengers
-        for party_id, validTag in enumerate(self.messengers_validTag):
-            if not validTag:
-                self._reconnect_passiveParty(party_id)
+        # 2. gh packing
+        gh_send = self._get_gh_send(sample_num, selected_g, selected_h, selected_idx)
 
-        # Implementation logic with sampling
-        if self.task == "binary" or self.task == "regression":
-            self.gh = np.array([gradient, hessian]).T
-            self.update_pred = np.zeros(sample_num, dtype=float)
-
-            selected_gh_int, self.h_length, self.gh_length = gh_packing(
-                selected_g, selected_h, self.fix_point_precision
-            )
-
-            self.capacity = self.crypto_system.key_size // self.gh_length
-
-            if self.crypto_type == Const.PLAIN:
-                gh_send = np.zeros(sample_num)
-                for i, idx in enumerate(selected_idx):
-                    gh_send[idx] = selected_gh_int[i]
-            elif self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                gh_send = [0 for _ in range(sample_num)]
-                selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_int, self.pool)
-                for i, idx in enumerate(selected_idx):
-                    gh_send[idx] = selected_gh_enc[i]
-                gh_send = np.array(gh_send)
-            else:
-                raise NotImplementedError
-
-        elif self.task == "multi":
-            self.gh = np.stack((gradient, hessian), axis=2)
-            self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
-
-            selected_gh_compress, self.h_length, self.gh_length = gh_compress_multi(
-                selected_g,
-                selected_h,
-                self.fix_point_precision,
-                self.crypto_system.key_size,
-            )
-            self.capacity = self.crypto_system.key_size // self.gh_length
-
-            # The number of ciphertexts occupied by each sample
-            sample2enc_num = (self.n_labels + self.capacity - 1) // self.capacity
-            gh_send = [[0 for _ in range(sample2enc_num)] for _ in range(sample_num)]
-
-            if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_compress, self.pool)
-                for i, sample_idx in enumerate(selected_idx):
-                    for j in range(sample2enc_num):
-                        gh_send[sample_idx][j] = selected_gh_enc[i][j]
-                gh_send = np.array(gh_send)
-            else:
-                raise NotImplementedError
-
-        else:
-            raise ValueError("No such task label.")
-
-        self.logger.log("gh packed")
-
+        # 3. start train
         while True:
             try:
                 for i, messenger in enumerate(self.messengers):
@@ -256,7 +208,6 @@ class DecisionTree:
                         )
                 # start building tree
                 # todo : add parameters here.
-                # self.root = self._build_tree_xgb(sample_tag_selected, sample_tag_unselected, current_depth=0)
                 self.root = self._build_tree_xgb(sample_tag_selected, sample_tag_unselected)
                 # self.root = self._build_tree_lightgbm(sample_tag_selected, sample_tag_unselected)
 
@@ -267,22 +218,16 @@ class DecisionTree:
                 if e.disconnect_phase == 'hist':
                     # build histogram phase disconnected, need to clean up channels
                     for passive_party_id, recv_tag in enumerate(self.messengers_recvTag):
-                        if recv_tag or passive_party_id==e.disconnect_party_id:
+                        if recv_tag or passive_party_id == e.disconnect_party_id:
                             continue
-                        data, passive_party_connected = self.messengers[passive_party_id].recv()     # clear message
-                        if not passive_party_connected:     # Multiple parties are disconnected at the same time
+                        data, passive_party_connected = self.messengers[passive_party_id].recv()  # clear message
+                        if not passive_party_connected:  # Multiple parties are disconnected at the same time
                             self._reconnect_passiveParty(passive_party_id)
 
                 self._reconnect_passiveParty(e.disconnect_party_id)
             else:
                 # if no exception occurs, break out of the loop
                 break
-
-        fit_result = {
-            "update_pred": self.update_pred,
-            "feature_importance_info": self.feature_importance_info
-        }
-        return fit_result
 
     def predict(self, x_test):
         """single tree predict"""
@@ -398,6 +343,55 @@ class DecisionTree:
 
         return root
 
+    def _get_gh_send(self, sample_num, selected_g, selected_h, selected_idx):
+        if self.task == "regression" or self.task == "binary":
+            selected_gh_int, self.h_length, self.gh_length = gh_packing(
+                selected_g, selected_h, self.fix_point_precision
+            )
+
+            self.capacity = self.crypto_system.key_size // self.gh_length
+
+            if self.crypto_type == Const.PLAIN:
+                gh_send = np.zeros(sample_num)
+                for i, idx in enumerate(selected_idx):
+                    gh_send[idx] = selected_gh_int[i]
+            elif self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
+                gh_send = [0 for _ in range(sample_num)]
+                selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_int, self.pool)
+                for i, idx in enumerate(selected_idx):
+                    gh_send[idx] = selected_gh_enc[i]
+                gh_send = np.array(gh_send)
+            else:
+                raise NotImplementedError
+
+        elif self.task == "multi":
+            selected_gh_compress, self.h_length, self.gh_length = gh_compress_multi(
+                selected_g,
+                selected_h,
+                self.fix_point_precision,
+                self.crypto_system.key_size,
+            )
+            self.capacity = self.crypto_system.key_size // self.gh_length
+
+            # The number of ciphertexts occupied by each sample
+            sample2enc_num = (self.n_labels + self.capacity - 1) // self.capacity
+            gh_send = [[0 for _ in range(sample2enc_num)] for _ in range(sample_num)]
+
+            if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
+                selected_gh_enc = self.crypto_system.encrypt_data(selected_gh_compress, self.pool)
+                for i, sample_idx in enumerate(selected_idx):
+                    for j in range(sample2enc_num):
+                        gh_send[sample_idx][j] = selected_gh_enc[i][j]
+                gh_send = np.array(gh_send)
+            else:
+                raise NotImplementedError
+
+        else:
+            raise ValueError("No such task label.")
+
+        self.logger.log("gh packed.")
+        return gh_send
+
     def _gen_child_node(self, node, sample_tag_selected_left, sample_tag_unselected_left):
         sample_tag_selected_right = node.sample_tag_selected - sample_tag_selected_left
         sample_tag_unselected_right = node.sample_tag_unselected - sample_tag_unselected_left
@@ -422,6 +416,31 @@ class DecisionTree:
                                        depth=node.depth + 1, hist_list=hist_list_left)
 
         return left_node, right_node
+
+    def _gen_node(self, sample_tag_selected, sample_tag_unselected, depth=0, hist_list=None):
+        if hist_list is None:
+            # happens in root
+            (
+                hist_list,
+                party_id,
+                feature_id,
+                split_id,
+                max_gain,
+            ) = self._get_hist_list(sample_tag_selected)
+        else:
+            # happens in sub hist
+            party_id, feature_id, split_id, max_gain = find_split(
+                hist_list, self.task, self.reg_lambda
+            )
+
+        return _DecisionNode(hist_list=hist_list,
+                             sample_tag_selected=sample_tag_selected,
+                             sample_tag_unselected=sample_tag_unselected,
+                             split_party_id=party_id,
+                             split_feature_id=feature_id,
+                             split_bin_id=split_id,
+                             split_gain=max_gain,
+                             depth=depth)
 
     def _get_split_info(self, node):
         if node.split_party_id == 0:
@@ -453,32 +472,6 @@ class DecisionTree:
             feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = data["content"]
 
         return feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left
-
-    def _gen_node(self, sample_tag_selected, sample_tag_unselected, depth=0, hist_list=None):
-        if hist_list is None:
-            # happens in root
-            (
-                hist_list,
-                party_id,
-                feature_id,
-                split_id,
-                max_gain,
-            ) = self._get_hist_list(sample_tag_selected)
-        else:
-            # happens in sub hist
-            party_id, feature_id, split_id, max_gain = find_split(
-                hist_list, self.task, self.reg_lambda
-            )
-
-        return _DecisionNode(hist_list=hist_list,
-                             sample_tag_selected=sample_tag_selected,
-                             sample_tag_unselected=sample_tag_unselected,
-                             split_party_id=party_id,
-                             split_feature_id=feature_id,
-                             split_bin_id=split_id,
-                             split_gain=max_gain,
-                             depth=depth)
-
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
         # Map the selected feature index to the original feature index
