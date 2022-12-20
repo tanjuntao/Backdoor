@@ -15,10 +15,10 @@ from linkefl.dataio import NumpyDataset
 from linkefl.messenger.socket_disconnection import FastSocket_disconnection_v1
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
-from linkefl.vfl.tree import DecisionTree
-from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
-from linkefl.vfl.tree.error import DisconnectedError
-from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss, MeanSquaredErrorLoss
+from linkefl.vfl.lightgbm import DecisionTree
+from linkefl.vfl.lightgbm.data_functions import get_bin_info, wrap_message
+from linkefl.vfl.lightgbm.error import DisconnectedError
+from linkefl.vfl.lightgbm.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss, MeanSquaredErrorLoss
 
 
 class ActiveTreeParty(BaseModelComponent):
@@ -35,7 +35,8 @@ class ActiveTreeParty(BaseModelComponent):
         learning_rate: float = 0.3,
         compress: bool = False,
         max_bin: int = 16,
-        max_depth: int = 4,
+        max_depth: int = 5,
+        max_num_leaves: int = 31,
         reg_lambda: float = 0.1,
         min_split_samples: int = 3,
         min_split_gain: float = 1e-7,
@@ -61,6 +62,7 @@ class ActiveTreeParty(BaseModelComponent):
             compress: can only be enabled when task is set as binary
             max_bin: max bin number for a feature point
             max_depth: max depth of a tree, including root
+            max_num_leaves: maximum number of leaves on a tree
             reg_lambda: used to compute gain and leaf weight
             min_split_samples: minimum samples required to split
             min_split_gain: minimum gain required to split
@@ -124,6 +126,7 @@ class ActiveTreeParty(BaseModelComponent):
                 logger=self.logger,
                 compress=compress,
                 max_depth=max_depth,
+                max_num_leaves=max_num_leaves,
                 reg_lambda=reg_lambda,
                 min_split_samples=min_split_samples,
                 min_split_gain=min_split_gain,
@@ -198,19 +201,18 @@ class ActiveTreeParty(BaseModelComponent):
 
         if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(labels))  # sum of tree raw outputs
+            raw_outputs_test = np.zeros(len(testset.labels))
 
             if self.task == "binary":
                 outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
             else:
                 outputs = raw_outputs
 
-            raw_outputs_test = np.zeros(len(testset.labels))
-
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
 
                 self.logger.log_component(
-                    name=Const.VERTICAL_SBT,
+                    name=Const.VERTICAL_LIGHTGBM,
                     status=Const.RUNNING,
                     begin=start_time,
                     end=time.time(),
@@ -225,28 +227,26 @@ class ActiveTreeParty(BaseModelComponent):
                 while True:
                     try:
                         tree.messengers_validTag = self.messengers_validTag         # update messengers tag
-                        fit_result = tree.fit(gradient, hessian, bin_index, bin_split)
+                        tree.fit(gradient, hessian, bin_index, bin_split)
                         self.messengers_validTag = tree.messengers_validTag         # update messengers tag
 
-                        raw_outputs += self.learning_rate * fit_result["update_pred"]
-                        print(tree.update_pred)
+                        raw_outputs += self.learning_rate * tree.update_pred
 
                         if self.task == "binary":
                             outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
                         else:
                             outputs = raw_outputs
-                        # outputs = sigmoid(raw_outputs)
 
-                        self._merge_tree_info(fit_result["feature_importance_info"])
+                        self._merge_tree_info(tree.feature_importance_info)
                         self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
                             if self.messengers_validTag[messenger_id]:
                                 messenger.send(wrap_message("validate", content=True))
+
                         # scores = self._validate(testset)
-                        # print(raw_outputs_test)
-                        scores = self._validate_tree(testset, tree, raw_outputs_test)
-                        # print(raw_outputs_test)
+                        raw_outputs_test, scores = self._validate_tree(testset, tree, raw_outputs_test)
+
                     except DisconnectedError as e:
                         # Handling of disconnection during prediction stage
                         tree._reconnect_passiveParty(e.disconnect_party_id)
@@ -286,7 +286,7 @@ class ActiveTreeParty(BaseModelComponent):
                 self.logger.log(f"tree {tree_id} started...")
 
                 self.logger.log_component(
-                    name=Const.VERTICAL_SBT,
+                    name=Const.VERTICAL_LIGHTGBM,
                     status=Const.RUNNING,
                     begin=start_time,
                     end=time.time(),
@@ -301,13 +301,12 @@ class ActiveTreeParty(BaseModelComponent):
                 while True:
                     try:
                         tree.messengers_validTag = self.messengers_validTag  # update messengers tag
-                        fit_result = tree.fit(gradient, hessian, bin_index, bin_split)
-
-                        raw_outputs += self.learning_rate * fit_result["update_pred"]
+                        tree.fit(gradient, hessian, bin_index, bin_split)
+                        raw_outputs += self.learning_rate * tree.update_pred
                         outputs = softmax(raw_outputs, axis=1)
 
                         self.messengers_validTag = tree.messengers_validTag  # update messengers tag
-                        self._merge_tree_info(fit_result["feature_importance_info"])
+                        self._merge_tree_info(tree.feature_importance_info)
                         self.logger.log(f"tree {tree_id} finished")
 
                         for messenger_id, messenger in enumerate(self.messengers):
@@ -315,7 +314,7 @@ class ActiveTreeParty(BaseModelComponent):
                                 messenger.send(wrap_message("validate", content=True))
 
                         # scores = self._validate(testset)
-                        scores = self._validate_tree(testset, tree, raw_outputs_test)
+                        raw_outputs_test, scores = self._validate_tree(testset, tree, raw_outputs_test)
                     except DisconnectedError as e:
                         # Handling of disconnection during prediction stage
                         tree._reconnect_passiveParty(e.disconnect_party_id)
@@ -336,7 +335,7 @@ class ActiveTreeParty(BaseModelComponent):
                 messenger.send(wrap_message("train finished", content=True))
 
         self.logger.log_component(
-            name=Const.VERTICAL_SBT,
+            name=Const.VERTICAL_LIGHTGBM,
             status=Const.SUCCESS,
             begin=start_time,
             end=time.time(),
@@ -503,7 +502,7 @@ class ActiveTreeParty(BaseModelComponent):
 
             node_info = ""
 
-            if root.value != None:
+            if root.left_branch == None and root.right_branch == None:
                 # leaf node
                 node_info += f"leaf value: {root.value: .4f},"
             else:
@@ -590,9 +589,7 @@ class ActiveTreeParty(BaseModelComponent):
 
         self.logger.log("validate finished")
 
-        # TODO: test wheather need to return raw_outputs
-        # return raw_outputs_test, scores
-        return scores
+        return raw_outputs_test, scores
 
     def _validate(self, testset):
         assert isinstance(
@@ -777,7 +774,7 @@ if __name__ == "__main__":
         top_rate=0.3,
         other_rate=0.7,
         colsample_bytree=1,
-        saving_model=True,
+        saving_model=False,
         n_processes=n_processes,
 
         drop_protection=drop_protection,
@@ -799,5 +796,5 @@ if __name__ == "__main__":
     for messenger in messengers:
         messenger.close()
 
-    tree_structures = active_party.get_tree_structures()
-    print(tree_structures)
+    # tree_structures = active_party.get_tree_structures()
+    # print(tree_structures)
