@@ -32,10 +32,12 @@ class ActiveTreeParty(BaseModelComponent):
         messengers: List[BaseMessenger],
         logger,
         *,
+        training_mode: str = "lightgbm",
         learning_rate: float = 0.3,
         compress: bool = False,
         max_bin: int = 16,
         max_depth: int = 4,
+        max_num_leaves: int = 31,
         reg_lambda: float = 0.1,
         min_split_samples: int = 3,
         min_split_gain: float = 1e-7,
@@ -73,7 +75,7 @@ class ActiveTreeParty(BaseModelComponent):
             n_processes: number of processes in multiprocessing
         """
 
-        self._check_parameters(task, n_labels, compress, sampling_method, messengers, drop_protection)
+        self._check_parameters(training_mode, task, n_labels, compress, sampling_method, messengers, drop_protection)
 
         self.n_trees = n_trees
         self.task = task
@@ -122,8 +124,10 @@ class ActiveTreeParty(BaseModelComponent):
                 crypto_system=crypto_system,
                 messengers=messengers,
                 logger=self.logger,
+                training_mode=training_mode,
                 compress=compress,
                 max_depth=max_depth,
+                max_num_leaves=max_num_leaves,
                 reg_lambda=reg_lambda,
                 min_split_samples=min_split_samples,
                 min_split_gain=min_split_gain,
@@ -146,7 +150,8 @@ class ActiveTreeParty(BaseModelComponent):
             "cover": defaultdict(float)         # Total sample covered
         }
 
-    def _check_parameters(self, task, n_labels, compress, sampling_method, messengers, drop_protection):
+    def _check_parameters(self, training_mode, task, n_labels, compress, sampling_method, messengers, drop_protection):
+        assert training_mode in ("lightgbm", "xgboost"), "training_mode should be lightgbm or xgboost"
         assert task in ("regression", "binary", "multi"), "task should be regression or binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
         assert sampling_method in ("uniform", "goss"), "sampling method not supported"
@@ -766,9 +771,10 @@ if __name__ == "__main__":
         n_labels=n_labels,
         crypto_type=_crypto_type,
         crypto_system=crypto_system,
+        messengers=messengers,
         logger=logger,
 
-        messengers=messengers,
+        training_mode="xgboost",       # "lightgbm", "xgboost"
         sampling_method='uniform',
         subsample=1,
         top_rate=0.3,

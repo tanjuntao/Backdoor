@@ -79,8 +79,10 @@ class DecisionTree:
         messengers: List[BaseMessenger],
         logger: GlobalLogger,
         *,
+        training_mode: str = "lightgbm",
         compress: bool = False,
         max_depth: int = 4,
+        max_num_leaves: int = 31,
         reg_lambda: float = 0.1,
         min_split_samples: int = 3,
         min_split_gain: float = 1e-7,
@@ -120,8 +122,10 @@ class DecisionTree:
         self.messengers = messengers
         self.logger = logger
 
+        self.training_mode = training_mode
         self.compress = compress
         self.max_depth = max_depth
+        self.max_num_leaves = max_num_leaves
         self.reg_lambda = reg_lambda
         self.min_split_samples = min_split_samples
         self.min_split_gain = min_split_gain
@@ -206,10 +210,14 @@ class DecisionTree:
                         messenger.send(
                             wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length))
                         )
+
                 # start building tree
-                # todo : add parameters here.
-                self.root = self._build_tree_xgb(sample_tag_selected, sample_tag_unselected)
-                # self.root = self._build_tree_lightgbm(sample_tag_selected, sample_tag_unselected)
+                if self.training_mode == "lightgbm":
+                    self.root = self._build_tree_lightgbm(sample_tag_selected, sample_tag_unselected)
+                elif self.training_mode == "xgboost":
+                    self.root = self._build_tree_xgb(sample_tag_selected, sample_tag_unselected)
+                else:
+                    raise NotImplementedError("Unsupported training mode.")
 
             except DisconnectedError as e:
                 self.logger.log(f"passive party {e.disconnect_party_id} is disconnected.")
@@ -252,7 +260,7 @@ class DecisionTree:
 
         while len(split_node_candidates) > 0:
             node = split_node_candidates.popleft()
-            if (node.depth < self.max_depth - 1
+            if (node.depth < self.max_depth
                     and node.sample_tag_selected.sum() >= self.min_split_samples
                     and node.split_gain > self.min_split_gain
             ):
@@ -299,9 +307,11 @@ class DecisionTree:
         split_node_candidates = queue.PriorityQueue()
         split_node_candidates.put(root)
 
+        num_leaves = 0
+        # todo: add leaves limit here
         while not split_node_candidates.empty():
             node = split_node_candidates.get()
-            if (node.depth < self.max_depth - 1
+            if (node.depth < self.max_depth
                     and node.sample_tag_selected.sum() >= self.min_split_samples
                     and node.split_gain > self.min_split_gain
             ):
@@ -337,7 +347,7 @@ class DecisionTree:
                     leaf_value = leaf_weight(self.gh, node.sample_tag_selected, self.reg_lambda)
                     update_temp = np.dot(node.sample_tag_selected, leaf_value) + np.dot(node.sample_tag_unselected,
                                                                                         leaf_value)
-
+                num_leaves += 1
                 node.value = leaf_value
                 self.update_pred += update_temp
 
