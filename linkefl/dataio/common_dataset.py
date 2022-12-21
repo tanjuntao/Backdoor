@@ -212,6 +212,7 @@ class CommonDataset:
                    host, user, password, database, table,
                    *,
                    target_fields=None, excluding_fields=False,
+                   row_threshold=0.3, column_threshold=0.3,
                    mappings=None, transform=None, port=3306
     ):
         """Load dataset from MySQL database."""
@@ -237,6 +238,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -252,6 +255,7 @@ class CommonDataset:
                     host, user, password, database, table,
                     *,
                     target_fields=None, excluding_fields=False,
+                    row_threshold=0.3, column_threshold=0.3,
                     mappings=None, transform=None, port=3306
     ):
         """
@@ -280,6 +284,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -295,6 +301,7 @@ class CommonDataset:
                     host, user, password, database, table,
                     *,
                     target_fields=None, excluding_fields=False,
+                    row_threshold=0.3, column_threshold=0.3,
                     mappings=None, transform=None, port=1521
     ):
         import cx_Oracle
@@ -319,6 +326,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -334,6 +343,7 @@ class CommonDataset:
                      host, user, password, database, table,
                      *,
                      target_fields=None, excluding_fields=False,
+                     row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None, port=6789
     ):
         """Load dataset from Gaussdb database."""
@@ -367,6 +377,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -382,6 +394,7 @@ class CommonDataset:
                      host, user, password, database, table,
                      *,
                      target_fields=None, excluding_fields=False,
+                     row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None, port=6789
     ):
         """Load dataset from gbase8a database."""
@@ -406,6 +419,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -419,6 +434,7 @@ class CommonDataset:
     @classmethod
     def from_csv(cls, role, abs_path, dataset_type,
                  delimiter=',', has_header=False,
+                 row_threshold=0.3, column_threshold=0.3,
                  mappings=None, transform=None
     ):
         header_arg = 0 if has_header else None
@@ -429,6 +445,8 @@ class CommonDataset:
             skipinitialspace=True, # skip spaces after delimiter
         )
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         if has_header:
@@ -449,6 +467,7 @@ class CommonDataset:
     @classmethod
     def from_excel(cls, role, abs_path, dataset_type,
                    has_header=False,
+                   row_threshold=0.3, column_threshold=0.3,
                    mappings=None, transform=None
     ):
         """ Load dataset from excel.
@@ -461,6 +480,8 @@ class CommonDataset:
             index_col=False
         )
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         if has_header:
@@ -481,6 +502,7 @@ class CommonDataset:
     @classmethod
     def from_url(cls, role, url, dataset_type,
                  delimiter=',', has_header=False,
+                 row_threshold=0.3, column_threshold=0.3,
                  mappings=None, transform=None
     ):
         import requests
@@ -497,6 +519,8 @@ class CommonDataset:
             skipinitialspace=True, # skip spaces after delimiter
         )
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         if has_header:
@@ -908,6 +932,40 @@ class CommonDataset:
         return np_dataset, header
 
     @staticmethod
+    def _clean_data(df_dataset: pd.DataFrame, row_threshold: float = 0.3, column_threshold: float = 0.3):
+        """Remove rows and columns with too many NANs
+
+        Parameters
+        ----------
+        df_dataset : pd.DataFrame
+            dataset which needs clean
+        row_threshold : float
+            in a row, the threshold of NANs
+        column_threshold : float
+            in a column, the threshold of NANs
+
+        Returns
+        -------
+        pd.DataFrame
+            a cleaned df_dataset (with acceptable NANs)
+        """
+
+        df_nan = df_dataset.isna()
+        rows, columns = df_dataset.shape
+        # check row
+        row_indexes = df_nan.sum(axis=1) < columns * row_threshold
+        # check column
+        column_indexes = df_nan.sum(axis=0) < rows * column_threshold
+        new_df_dataset = df_dataset.loc[row_indexes, column_indexes]
+
+        return new_df_dataset
+
+    @staticmethod
+    def _fill_data(df_dataset: pd.DataFrame):
+        new_df_dataset = df_dataset.apply(lambda x: x.fillna(x.value_counts().index[0]))
+        return new_df_dataset
+
+    @staticmethod
     def _pandas2numpy(df_dataset: pd.DataFrame, mappings: dict = None):
         """Transform a pandas DataFrame into Numpy Array"""
         from pandas.core.dtypes.common import is_numeric_dtype
@@ -964,34 +1022,53 @@ class CommonDataset:
 
         return header
 
+
 if __name__ == "__main__":
-    from linkefl.feature.transform import OneHot
+    # from linkefl.feature.transform import OneHot
+    #
+    # print("the first df_dataset")
+    # _df_dataset = pd.DataFrame(
+    #     {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["aaa", "bbb", "ccc"], "b": ["aa", "bb", "cc"]}
+    # )
+    # print(_df_dataset)
+    # _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
+    # _mappings = CommonDataset.mappings
+    # # you can save these mappings and load it back when loading testset at inference pahse
+    # # with open('train_mappings.pkl', 'wb') as f:
+    # #     pickle.dump(mappings, f)
+    # print(_np_dataset)
+    # _np_dataset = OneHot([1, 2]).fit(_np_dataset, Const.PASSIVE_NAME)
+    # print(_np_dataset)
+    #
+    # print()
+    #
+    # print("the second df_dataset")
+    # another_df_dataset = pd.DataFrame(
+    #     {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["bbb", "ccc", "aaa"], "b": ["cc", "aa", "bb"]}
+    # )
+    # print(another_df_dataset)
+    # # you can load the mappings back and apply it to testset
+    # # with open('train_mappings.pkl', 'rb') as f:
+    # #     mappings = pickle.load(f)
+    # another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset, mappings=_mappings)
+    # print(another_np_dataset)
+    # another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
+    # print(another_np_dataset)
 
-    print("the first df_dataset")
-    _df_dataset = pd.DataFrame(
-        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["aaa", "bbb", "ccc"], "b": ["aa", "bb", "cc"]}
+    df_dataset = pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4, 5],
+            "x": [1.1, 1.2, np.nan, np.nan, 1.2],
+            "a": ["a", "aa", "aaa", np.nan, "aaaaa"],
+            "b": ["b", "bb", "bbb", np.nan, np.nan],
+            "c": [np.nan, np.nan, np.nan, "cccc", "ccccc"]
+        }
     )
-    print(_df_dataset)
-    _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
-    _mappings = CommonDataset.mappings
-    # you can save these mappings and load it back when loading testset at inference pahse
-    # with open('train_mappings.pkl', 'wb') as f:
-    #     pickle.dump(mappings, f)
-    print(_np_dataset)
-    _np_dataset = OneHot([1, 2]).fit(_np_dataset, Const.PASSIVE_NAME)
-    print(_np_dataset)
-
-    print()
-
-    print("the second df_dataset")
-    another_df_dataset = pd.DataFrame(
-        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["bbb", "ccc", "aaa"], "b": ["cc", "aa", "bb"]}
-    )
-    print(another_df_dataset)
-    # you can load the mappings back and apply it to testset
-    # with open('train_mappings.pkl', 'rb') as f:
-    #     mappings = pickle.load(f)
-    another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset, mappings=_mappings)
-    print(another_np_dataset)
-    another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
-    print(another_np_dataset)
+    print("Original")
+    print(df_dataset)
+    cleaned_df_dataset = CommonDataset._clean_data(df_dataset, row_threshold=0.5, column_threshold=0.5)
+    print("Cleaned")
+    print(cleaned_df_dataset)
+    filled_df_dataset = CommonDataset._fill_data(cleaned_df_dataset)
+    print("Filled")
+    print(filled_df_dataset)
