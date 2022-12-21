@@ -764,7 +764,18 @@ class CommonDataset:
         num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)),
                                   index=['unique'],
                                   columns=col_names)
-        print(pd.concat([df_dataset.describe(), num_unique]))
+        col_sum = df_dataset.sum().values.reshape((1, -1))
+        col_top3 = np.array([])
+        for col in col_names:
+            temp = df_dataset.nlargest(3, col)[col].values.reshape((-1, 1))
+            col_top3 = temp if col_top3.size == 0 else np.concatenate((col_top3, temp), axis=1)
+        top3_ratio_data = col_top3 / col_sum
+        top3_ratio = pd.DataFrame(data=top3_ratio_data,
+                                  index=["top1", "top2", "top3"],
+                                  columns=col_names)
+        for col in col_names:
+            top3_ratio[col] = top3_ratio[col].apply(lambda x: format(x, '.4%'))
+        print(pd.concat([df_dataset.describe(), num_unique, top3_ratio]))
         print()
 
         # Output the distribution for the data label.
