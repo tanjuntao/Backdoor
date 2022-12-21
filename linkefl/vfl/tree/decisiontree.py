@@ -308,12 +308,12 @@ class DecisionTree:
         split_node_candidates.put(root)
 
         num_leaves = 0
-        # todo: add leaves limit here
-        while not split_node_candidates.empty():
+        while not split_node_candidates.empty() or num_leaves + split_node_candidates.qsize() < self.max_num_leaves:
             node = split_node_candidates.get()
             if (node.depth < self.max_depth
-                    and node.sample_tag_selected.sum() >= self.min_split_samples
-                    and node.split_gain > self.min_split_gain
+                and node.sample_tag_selected.sum() >= self.min_split_samples
+                and node.split_gain > self.min_split_gain
+                and num_leaves + split_node_candidates.qsize() < self.max_num_leaves
             ):
 
                 feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._get_split_info(
