@@ -11,6 +11,7 @@ class Basewoe(ABC):
         self.woe_features = woe_features
         self.messenger = messenger
         self.split = dict()
+        self.bin_woe = dict()
 
     @abstractmethod
     def cal_woe(self):
@@ -36,6 +37,7 @@ class ActiveWoe(Basewoe):
                 bin_feature, self.split[self.woe_features[i]] = \
                     pd.cut(features[:, self.woe_features[i]], bin, labels=False, retbins=True)
                 self.split[self.woe_features[i]] = self.split[self.woe_features[i]][1: -1]
+                woe = []
                 for j in range(bin):
                     bin_sample = (bin_feature == j)
                     bin_num = np.count_nonzero(bin_sample)
@@ -48,6 +50,8 @@ class ActiveWoe(Basewoe):
                         bin_woe = np.log(bin_positive_ratio / bin_negative_ratio)
                     bin_feature = \
                         np.where(bin_feature == j, bin_woe, bin_feature)
+                    woe.append(bin_woe)
+                self.bin_woe[self.woe_features[i]] = woe
                 features[:, self.woe_features[i]] = bin_feature
             dataset = np.concatenate(
                 (ids[:, np.newaxis], y[:, np.newaxis], features),
@@ -62,6 +66,7 @@ class ActiveWoe(Basewoe):
                 bin_feature, self.split[self.woe_features[i]] = \
                     pd.cut(features[:, self.woe_features[i]], bin, labels=False, retbins=True)
                 self.split[self.woe_features[i]] = self.split[self.woe_features[i]][1: -1]
+                woe = []
                 for j in range(bin):
                     bin_sample = (bin_feature == j)
                     bin_num = np.count_nonzero(bin_sample)
@@ -74,6 +79,8 @@ class ActiveWoe(Basewoe):
                         bin_woe = np.log(bin_positive_ratio / bin_negative_ratio)
                     bin_feature = \
                         np.where(bin_feature == j, bin_woe, bin_feature)
+                    woe.append(bin_woe)
+                self.bin_woe[self.woe_features[i]] = woe
                 features[:, self.woe_features[i]] = bin_feature
             dataset = np.concatenate(
                 (ids[:, np.newaxis], y[:, np.newaxis], features),
@@ -84,7 +91,7 @@ class ActiveWoe(Basewoe):
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
         self.dataset.set_dataset(dataset)
 
-        return self.split
+        return self.split, self.bin_woe
 
 
 class PassiveWoe(Basewoe):
@@ -105,6 +112,7 @@ class PassiveWoe(Basewoe):
                 bin_feature, self.split[self.woe_features[i]] = \
                     pd.cut(features[:, self.woe_features[i]], bin, labels=False, retbins=True)
                 self.split[self.woe_features[i]] = self.split[self.woe_features[i]][1: -1]
+                woe = []
                 for j in range(bin):
                     bin_sample = (bin_feature == j)
                     bin_num = np.count_nonzero(bin_sample)
@@ -117,6 +125,8 @@ class PassiveWoe(Basewoe):
                         bin_woe = np.log(bin_positive_ratio / bin_negative_ratio)
                     bin_feature = \
                         np.where(bin_feature == j, bin_woe, bin_feature)
+                    woe.append(bin_woe)
+                self.bin_woe[self.woe_features[i]] = woe
                 features[:, self.woe_features[i]] = bin_feature
             dataset = np.concatenate(
                 (ids[:, np.newaxis], features),
@@ -131,6 +141,7 @@ class PassiveWoe(Basewoe):
                 bin_feature, self.split[self.woe_features[i]] = \
                     pd.cut(features[:, self.woe_features[i]], bin, labels=False, retbins=True)
                 self.split[self.woe_features[i]] = self.split[self.woe_features[i]][1: -1]
+                woe = []
                 for j in range(bin):
                     bin_sample = (bin_feature == j)
                     bin_num = np.count_nonzero(bin_sample)
@@ -143,6 +154,8 @@ class PassiveWoe(Basewoe):
                         bin_woe = np.log(bin_positive_ratio / bin_negative_ratio)
                     bin_feature = \
                         np.where(bin_feature == j, bin_woe, bin_feature)
+                    woe.append(bin_woe)
+                self.bin_woe[self.woe_features[i]] = woe
                 features[:, self.woe_features[i]] = bin_feature
             dataset = np.concatenate(
                 (ids[:, np.newaxis], features),
@@ -153,4 +166,4 @@ class PassiveWoe(Basewoe):
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
         self.dataset.set_dataset(dataset)
 
-        return self.split
+        return self.split, self.bin_woe
