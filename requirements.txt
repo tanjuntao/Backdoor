@@ -1,7 +1,6 @@
 blosc
 cx_Oracle
 gmpy2>=2.1.3
-ibm_db
 matplotlib
 numpy
 openpyxl
