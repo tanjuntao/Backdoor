@@ -432,6 +432,43 @@ class CommonDataset:
         )
 
     @classmethod
+    def from_db2(cls, role, dataset_type,
+                   host, user, password, database, table,
+                   *,
+                   target_fields=None, excluding_fields=False,
+                   mappings=None, transform=None, port=None
+    ):
+        """
+            Load dataset from IBM DB2 database.
+            No default port
+        """
+        import ibm_db_dbi
+
+        connection = ibm_db_dbi.connect(database, user, password)
+
+        selected_fields = cls._get_selected_fields(
+                    db_type='db2',
+                    cursor=None,
+                    table=table,
+                    target_fields=target_fields,
+                    excluding_fields=excluding_fields,
+                    conn=connection
+                )
+        sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
+
+        df_dataset = pd.read_sql(sql,connection)
+
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
+
+        return cls(
+            role=role,
+            raw_dataset=np_dataset,
+            header=selected_fields,
+            dataset_type=dataset_type,
+            transform=transform
+        )
+
+    @classmethod
     def from_csv(cls, role, abs_path, dataset_type,
                  delimiter=',', has_header=False,
                  row_threshold=0.3, column_threshold=0.3,
@@ -1000,15 +1037,25 @@ class CommonDataset:
         return np_dataset
 
     @staticmethod
-    def _get_selected_fields(db_type, cursor, table, target_fields, excluding_fields):
-        if db_type == "oracle":
-            sql = "select * from {} fetch first 1 rows only".format(table)
+    def _get_selected_fields(db_type, cursor, table, target_fields, excluding_fields, conn=None):
+        if db_type == 'db2':
+            import ibm_db
+            sql = "SELECT * FROM {}".format(table)
+            stmt = ibm_db.exec_immediate(conn, sql)
+            result = ibm_db.fetch_both(stmt)
+            # result = {'ID':1, 0:1, 'USER_NAME':'xxx', 1:'xxx'}
+            keys = list(result.keys())
+            all_fields = keys[::2]
+            # all_fields = ['ID', 'USER_NAME']
         else:
-            sql = "select * from {} limit 1".format(table)
-        cursor.execute(sql)
-        # description is a tuple of tuple,
-        # the first position of tuple element is the field name
-        all_fields = [tuple_[0] for tuple_ in cursor.description]
+            if db_type == "oracle":
+                sql = "select * from {} fetch first 1 rows only".format(table)
+            else:
+                sql = "select * from {} limit 1".format(table)
+            cursor.execute(sql)
+            # description is a tuple of tuple,
+            # the first position of tuple element is the field name
+            all_fields = [tuple_[0] for tuple_ in cursor.description]
 
         if target_fields is None:
             selected_fields = all_fields
