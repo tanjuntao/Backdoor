@@ -724,16 +724,16 @@ class CommonDataset:
         from termcolor import colored
 
         static_result = {}
-        static_result['number of samples'] = self.n_samples
-        static_result['number of features'] = self.n_features
+        static_result['number_of_samples'] = self.n_samples
+        static_result['number_of_features'] = self.n_features
         if self.role == Const.ACTIVE_NAME and len(np.unique(list(self.labels))) == 2:
             if isinstance(self.labels, np.ndarray): # Numpy Array
                 n_positive = (self.labels == 1).astype(int).sum()
             else: # PyTorch Tensor
                 n_positive = (self.labels == 1).type(torch.int32).sum().item()
             n_negative = self.n_samples - n_positive
-            static_result['positive samples'] = n_positive
-            static_result['negative samples'] = n_negative
+            static_result['positive_samples'] = n_positive
+            static_result['negative_samples'] = n_negative
 
         pd.set_option('display.max_columns', None)
         df_dataset = pd.DataFrame(self._raw_dataset)
@@ -745,12 +745,12 @@ class CommonDataset:
             df_dataset.rename(columns={0: 'id'}, inplace=True)
             for i in range(self.n_features):
                 df_dataset.rename(columns={i + 1: 'x' + str(i + 1)}, inplace=True)
-        static_result['first&last 5 rows'] = pd.concat([df_dataset.head(), df_dataset.tail()])
+        static_result['first_and_last_5_rows'] = pd.concat([df_dataset.head(), df_dataset.tail()])
 
         buf = io.StringIO()
         df_dataset.info(buf=buf)
         info = buf.getvalue()
-        static_result['index dtype & colunms, non-null values & memory usage'] = info
+        static_result['index_dtype_and_colunms_non-null_values_and_memory_usage'] = info
 
         col_names = list(df_dataset.columns.values)
         num_unique_data = np.array(df_dataset[col_names].nunique().values)
