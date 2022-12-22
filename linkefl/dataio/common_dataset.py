@@ -717,24 +717,24 @@ class CommonDataset:
         self._header = new_header
 
     def describe(self):
+        import io
         import seaborn as sns
 
         from matplotlib import pyplot as plt
         from termcolor import colored
 
-        print(colored('Number of samples: {}'.format(self.n_samples), 'red'))
-        print(colored('Number of features: {}'.format(self.n_features), 'red'))
+        static_result = {}
+        static_result['number of samples'] = self.n_samples
+        static_result['number of features'] = self.n_features
         if self.role == Const.ACTIVE_NAME and len(np.unique(list(self.labels))) == 2:
             if isinstance(self.labels, np.ndarray): # Numpy Array
                 n_positive = (self.labels == 1).astype(int).sum()
             else: # PyTorch Tensor
                 n_positive = (self.labels == 1).type(torch.int32).sum().item()
             n_negative = self.n_samples - n_positive
-            print(colored('Positive samples: Negative samples = {}:{}'
-                          .format(n_positive, n_negative), 'red'))
-        print()
+            static_result['positive samples'] = n_positive
+            static_result['negative samples'] = n_negative
 
-        # Output of statistical values of the data set.
         pd.set_option('display.max_columns', None)
         df_dataset = pd.DataFrame(self._raw_dataset)
         if self.role == Const.ACTIVE_NAME:
@@ -745,20 +745,13 @@ class CommonDataset:
             df_dataset.rename(columns={0: 'id'}, inplace=True)
             for i in range(self.n_features):
                 df_dataset.rename(columns={i + 1: 'x' + str(i + 1)}, inplace=True)
+        static_result['first&last 5 rows'] = pd.concat([df_dataset.head(), df_dataset.tail()])
 
-        print(colored('The first 5 rows and the last 5 rows of the dataset are as follows:', 'red'))
-        print(pd.concat([df_dataset.head(), df_dataset.tail()]))
-        print()
+        buf = io.StringIO()
+        df_dataset.info(buf=buf)
+        info = buf.getvalue()
+        static_result['index dtype & colunms, non-null values & memory usage'] = info
 
-        print(colored('The information about the dataset including the index '
-                      'dtype and columns, non-null values and memory usage '
-                      'are as follows:', 'red'))
-        df_dataset.info()
-        print()
-
-        print(colored('The descriptive statistics include those that summarize '
-                      'the central tendency, dispersion and shape of the dataset’s '
-                      'distribution, excluding NaN values are as follows:', 'red'))
         col_names = list(df_dataset.columns.values)
         num_unique_data = np.array(df_dataset[col_names].nunique().values)
         num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)),
@@ -775,40 +768,44 @@ class CommonDataset:
                                   columns=col_names)
         for col in col_names:
             top3_ratio[col] = top3_ratio[col].apply(lambda x: format(x, '.4%'))
-        print(pd.concat([df_dataset.describe(), num_unique, top3_ratio]))
-        print()
+
+        info = pd.concat([df_dataset.describe(), num_unique, top3_ratio])
+        row_names = list(info.index.values)
+        for row_name in row_names:
+            static_result[row_name] = info.loc[row_name, :]
+        return static_result
 
         # Output the distribution for the data label.
-        if self.role == Const.ACTIVE_NAME:
-            n_classes = len(np.unique(list(self.labels)))
-            if self.dataset_type == Const.REGRESSION:  # regression dataset
-                dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
-                                         columns=['label'])
-                # histplot
-                sns.histplot(dis_label, kde=True, linewidth=1)
-            else:  # classification dataset
-                bars = [str(i) for i in range(n_classes)]
-                if isinstance(self.labels, np.ndarray): # Numpy Array
-                    counts = [(self.labels == i).astype(int).sum()
-                                for i in range(n_classes)]
-                else: # PyTorch Tensor
-                    counts = [(self.labels == i).type(torch.int32).sum().item()
-                                for i in range(n_classes)]
-                x = np.arange(len(bars))
-                width = 0.5 / n_classes
-
-                # barplot
-                rec = plt.bar(x, counts, width=width)
-                # show corresponding value of the bar on top of itself
-                for bar in rec:
-                    h = bar.get_height()
-                    plt.text(bar.get_x() + bar.get_width() / 2, h, h,
-                             ha='center',
-                             va='bottom',
-                             size=14)
-                plt.xticks(x, bars, fontsize=14)
-
-            plt.show()
+        # if self.role == Const.ACTIVE_NAME:
+        #     n_classes = len(np.unique(list(self.labels)))
+        #     if self.dataset_type == Const.REGRESSION:  # regression dataset
+        #         dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
+        #                                  columns=['label'])
+        #         # histplot
+        #         sns.histplot(dis_label, kde=True, linewidth=1)
+        #     else:  # classification dataset
+        #         bars = [str(i) for i in range(n_classes)]
+        #         if isinstance(self.labels, np.ndarray): # Numpy Array
+        #             counts = [(self.labels == i).astype(int).sum()
+        #                         for i in range(n_classes)]
+        #         else: # PyTorch Tensor
+        #             counts = [(self.labels == i).type(torch.int32).sum().item()
+        #                         for i in range(n_classes)]
+        #         x = np.arange(len(bars))
+        #         width = 0.5 / n_classes
+        #
+        #         # barplot
+        #         rec = plt.bar(x, counts, width=width)
+        #         # show corresponding value of the bar on top of itself
+        #         for bar in rec:
+        #             h = bar.get_height()
+        #             plt.text(bar.get_x() + bar.get_width() / 2, h, h,
+        #                      ha='center',
+        #                      va='bottom',
+        #                      size=14)
+        #         plt.xticks(x, bars, fontsize=14)
+        #
+        #     plt.show()
 
     def get_dataset(self):
         return self._raw_dataset
