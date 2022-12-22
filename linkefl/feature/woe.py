@@ -36,7 +36,6 @@ class Basewoe(ABC):
         """
         self.dataset = dataset
         self.woe_features = woe_features
-        self.messenger = messenger
         self.split = dict()
         self.bin_woe = dict()
         self.bin_iv = dict()
