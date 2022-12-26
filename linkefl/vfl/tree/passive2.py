@@ -1,10 +1,9 @@
 import pandas as pd
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory
+from linkefl.common.factory import messenger_factory_disconnection, logger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.vfl.tree import PassiveTreeParty
-
 
 if __name__ == "__main__":
     # 0. Set parameters
@@ -16,9 +15,9 @@ if __name__ == "__main__":
     _crypto_type = Const.FAST_PAILLIER
 
     active_ip = "localhost"
-    active_port = 20002
+    active_port = 21002
     passive_ip = "localhost"
-    passive_port = 30002
+    passive_port = 20002
 
     # 1. Load datasets
     print("Loading dataset...")
@@ -41,9 +40,18 @@ if __name__ == "__main__":
     print("Done")
 
     # 2. Initialize messenger
-    messenger = messenger_factory(
-        messenger_type=Const.FAST_SOCKET,
+    # messenger = messenger_factory(
+    #     messenger_type=Const.FAST_SOCKET,
+    #     role=Const.PASSIVE_NAME,
+    #     active_ip=active_ip,
+    #     active_port=active_port,
+    #     passive_ip=passive_ip,
+    #     passive_port=passive_port,
+    # )
+    messenger = messenger_factory_disconnection(
+        messenger_type=Const.FAST_SOCKET_V1,
         role=Const.PASSIVE_NAME,
+        model_type='Tree',
         active_ip=active_ip,
         active_port=active_port,
         passive_ip=passive_ip,
@@ -51,11 +59,14 @@ if __name__ == "__main__":
     )
 
     # 3. Initialize passive tree party and start training
+    logger = logger_factory(role=Const.PASSIVE_NAME)
     passive_party = PassiveTreeParty(
         task=task,
         crypto_type=_crypto_type,
         messenger=messenger,
+        logger=logger,
         saving_model=True,
+        model_path="./models/passive_party_2"
     )
     passive_party.train(passive_trainset, passive_testset)
     # passive_party.online_inference(passive_testset, "xxx.model")

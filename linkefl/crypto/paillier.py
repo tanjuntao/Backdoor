@@ -19,14 +19,14 @@ from multiprocessing.pool import Pool
 
 import gmpy2
 import numpy as np
-import torch
 import phe
+import torch
 from phe import EncodedNumber, EncryptedNumber, paillier
 from phe.util import mulmod
 
+from linkefl.base import BasePartialCryptoSystem, BaseCryptoSystem
 from linkefl.common.const import Const
 from linkefl.config import BaseConfig
-from linkefl.crypto.base import CryptoSystem, PartialCryptoSystem
 
 
 def _cal_enc_zeros(public_key, num_enc_zeros, gen_from_set):
@@ -243,7 +243,7 @@ class PaillierPublicKey:
             return [_fast_encrypt(val) for val in plain_vector]
 
         # sequentially
-        using_pool_thresh = 5000 # based on empirical evaluations on different machines
+        using_pool_thresh = 10000 # based on empirical evaluations on different machines
         if len(plain_vector) < using_pool_thresh:
             return [_fast_encrypt(val) for val in plain_vector]
 
@@ -253,29 +253,38 @@ class PaillierPublicKey:
                 n_workers = os.cpu_count()
             process_pool = multiprocessing.pool.Pool(n_workers)
         n_processes = process_pool._processes
-        data_size = len(plain_vector)
-        quotient = data_size // n_processes
-        remainder = data_size % n_processes
+        manager = Manager()
+        # important: convert it to object dtype
+        plain_vector = np.array(plain_vector).astype(object)
+        shared_data = manager.list(
+            list(map(manager.list, np.array_split(plain_vector, n_processes)))
+        )
         async_results = []
-        for idx in range(n_processes):
-            start = idx * quotient
-            end = (idx + 1) * quotient
-            if idx == n_processes - 1:
-                end += remainder
-            # target function will modify plain_vector in place
-            result = process_pool.apply_async(self._target_fast_enc_vector,
-                                              args=(plain_vector, start, end))
+        for i in range(n_processes):
+            # this will modify shared_data in place
+            result = process_pool.apply_async(
+                self._target_fast_enc_vector,
+                # all parameters in args will be pickled and passed to child processes,
+                # which may be time-consuming
+                args=(shared_data[i],)
+            )
             async_results.append(result)
-        for idx, result in enumerate(async_results):
-            assert result.get() is True, "worker thread did not finish " \
-                                         "within default timeout"
-        return plain_vector  # is a Python list
+        for i in range(n_processes):
+            assert async_results[i].get() is True, \
+                "worker thread did not finish within default timeout"
+        # concat the split sub-arrays into one array and then convert it to Python list
+        encrypted_data = functools.reduce(
+            lambda a, b: np.concatenate((a, b)),
+            shared_data
+        ).tolist()
+
+        return encrypted_data # always return a Python list
 
     def _target_enc_vector(self, plaintexts, start, end):
         n = self.raw_pub_key.n
         nsquare = self.raw_pub_key.nsquare
         r_values = [random.SystemRandom().randrange(1, n) for _ in range(end - start)]
-        obfuscators = gmpy2.powmod_list(r_values, n, nsquare)
+        obfuscators = gmpy2.powmod_base_list(r_values, n, nsquare)
 
         r_idx = 0
         for k in range(start, end):
@@ -288,25 +297,26 @@ class PaillierPublicKey:
             r_idx += 1
         return True
 
-    def _target_fast_enc_vector(self, plaintexts, start, end):
+    def _target_fast_enc_vector(self, plaintexts):
         def _fast_encrypt(val):
             # unlike self.raw_fast_encrypt(), there's no need to judge the data type
             enc_zero = random.choice(getattr(self, 'enc_zeros'))
             return enc_zero + val
 
-        for idx in range(start, end):
+        for idx in range(len(plaintexts)):
             plaintexts[idx] = _fast_encrypt(plaintexts[idx])
         return True
 
     def raw_encrypt_data(self, plain_data, pool: Pool = None):
         target_func = self._target_enc_data
-        return self._base_encrypt_data(plain_data, pool, target_func)
+        return PaillierPublicKey._base_encrypt_data(plain_data, pool, target_func)
 
     def raw_fast_encrypt_data(self, plain_data, pool: Pool = None):
         target_func = self._target_fast_enc_data
-        return self._base_encrypt_data(plain_data, pool, target_func)
+        return PaillierPublicKey._base_encrypt_data(plain_data, pool, target_func)
 
-    def _base_encrypt_data(self, plain_data, pool, target_func):
+    @staticmethod
+    def _base_encrypt_data(plain_data, pool, target_func):
         if type(plain_data) == torch.Tensor:
             plain_data = plain_data.numpy()
             data_type = "torch"
@@ -333,7 +343,9 @@ class PaillierPublicKey:
             print("using pool to speed up")
             n_processes = pool._processes
             manager = Manager()
-            shared_data = manager.list(np.array_split(flatten_data, n_processes))
+            shared_data = manager.list(
+                list(map(manager.list, np.array_split(flatten_data, n_processes)))
+            )
 
             results = []
             for i in range(n_processes):
@@ -358,7 +370,6 @@ class PaillierPublicKey:
             # unlike self.raw_encrypt(), there's no need to judge the data type
             return self.raw_pub_key.encrypt(val)
 
-        assert len(shared_vector.shape) == 1
         for i in range(len(shared_vector)):
             shared_vector[i] = _encrypt(shared_vector[i])
         return True
@@ -369,7 +380,6 @@ class PaillierPublicKey:
             enc_zero = random.choice(getattr(self, 'enc_zeros'))
             return enc_zero + val
 
-        assert len(shared_vector.shape) == 1
         for i in range(len(shared_vector)):
             shared_vector[i] = _fast_encrypt(shared_vector[i])
         return True
@@ -472,8 +482,8 @@ class PaillierPrivateKey:
     def _target_dec_vector(self, ciphertexts, exponents, start, end):
         p, psquare, hp = self.raw_priv_key.p, self.raw_priv_key.psquare, self.raw_priv_key.hp
         q, qsquare, hq = self.raw_priv_key.q, self.raw_priv_key.qsquare, self.raw_priv_key.hq
-        powmod_p = gmpy2.powmod_list(ciphertexts[start:end], p - 1, psquare) # multi thread
-        powmod_q = gmpy2.powmod_list(ciphertexts[start:end], q - 1, qsquare) # multi thread
+        powmod_p = gmpy2.powmod_base_list(ciphertexts[start:end], p - 1, psquare) # multi thread
+        powmod_q = gmpy2.powmod_base_list(ciphertexts[start:end], q - 1, qsquare) # multi thread
         public_key = self.raw_priv_key.public_key
         sublist_idx = 0
         for k in range(start, end):
@@ -505,7 +515,9 @@ class PaillierPrivateKey:
             print("using pool to speed up")
             n_processes = pool._processes
             manager = Manager()
-            shared_data = manager.list(np.array_split(flatten_data, n_processes))
+            shared_data = manager.list(
+                list(map(manager.list, np.array_split(flatten_data, n_processes)))
+            )
 
             results = []
             for i in range(n_processes):
@@ -527,14 +539,12 @@ class PaillierPrivateKey:
         return plain_data
 
     def _target_dec_data(self, shared_vector):
-        assert len(shared_vector.shape) == 1
-
         for i in range(len(shared_vector)):
             shared_vector[i] = self.raw_decrypt(shared_vector[i])
         return True
 
 
-class PartialPaillier(PartialCryptoSystem):
+class PartialPaillier(BasePartialCryptoSystem):
     def __init__(self, raw_public_key):
         super(PartialPaillier, self).__init__()
         self.pub_key = raw_public_key # for API consistency
@@ -554,7 +564,7 @@ class PartialPaillier(PartialCryptoSystem):
         )
 
 
-class PartialFastPaillier(PartialCryptoSystem):
+class PartialFastPaillier(BasePartialCryptoSystem):
     def __init__(self, raw_public_key, num_enc_zeros=10000, gen_from_set=True):
         super(PartialFastPaillier, self).__init__()
         self.pub_key = raw_public_key
@@ -579,7 +589,7 @@ class PartialFastPaillier(PartialCryptoSystem):
         )
 
 
-class Paillier(CryptoSystem):
+class Paillier(BaseCryptoSystem):
     """Paillier additive homomorphic cryptosystem.
 
     Paillier cryptosystem satisfies additive homomorphism,
@@ -675,7 +685,7 @@ class Paillier(CryptoSystem):
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
-class FastPaillier(CryptoSystem):
+class FastPaillier(BaseCryptoSystem):
     """
     Faster paillier encryption using pre-computed encrypted zeros.
     """
@@ -725,7 +735,7 @@ class FastPaillier(CryptoSystem):
         return self.pub_key_obj.raw_fast_encrypt(plaintext)
 
     def decrypt(self, ciphertext):
-        self.priv_key_obj.raw_decrypt(ciphertext)
+        return self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(self, plain_vector,
                        using_pool=False, n_workers=None, process_pool=None):
@@ -752,7 +762,122 @@ class FastPaillier(CryptoSystem):
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
+def cipher_matmul(
+        cipher_matrix: np.ndarray,
+        plain_matrix: np.ndarray,
+        executor_pool: multiprocessing.pool.ThreadPool,
+        scheduler_pool: multiprocessing.pool.ThreadPool
+):
+    """
+
+    Parameters
+    ----------
+    cipher_matrix
+    plain_matrix
+    executor_pool
+    scheduler_pool
+
+    Returns
+    -------
+
+    """
+    assert cipher_matrix.shape[1] == plain_matrix.shape[0], \
+        "Matrix shape dismatch error. cipher_matrix shape is {}, plain_matrix shape is {}" \
+            .format(cipher_matrix.shape, plain_matrix.shape)
+
+    result_matrix = []
+    for i in range(len(cipher_matrix)):
+        curr_result = _cipher_mat_vec_product(
+            cipher_vector=cipher_matrix[i],
+            plain_matrix=plain_matrix,
+            executor_pool=executor_pool,
+            scheduler_pool=scheduler_pool
+        )
+        result_matrix.append(curr_result)
+
+    return np.array(result_matrix)
+
+def _cipher_mat_vec_product(cipher_vector, plain_matrix, executor_pool, scheduler_pool):
+    height, width = plain_matrix.shape
+
+    # 1. multiply each raw of plain_matrix with its corresponding enc value
+    enc_result = [None] * height
+    data_size = height
+    n_schedulers = scheduler_pool._processes
+    quotient = data_size // n_schedulers
+    remainder = data_size % n_schedulers
+    async_results = []
+    for idx in range(n_schedulers):
+        start = idx * quotient
+        end = (idx + 1) * quotient
+        if idx == n_schedulers - 1:
+            end += remainder
+        # this will modify enc_result in place
+        result = scheduler_pool.apply_async(
+            _target_row_mul,
+            args=(cipher_vector, plain_matrix, enc_result, start, end, executor_pool)
+        )
+        async_results.append(result)
+    for result in async_results:
+        assert result.get() is True
+
+    # 2. transpose enc_result
+    enc_result = np.array(enc_result).transpose()
+
+    # 3. average enc_result
+    avg_result = [None] * width
+    data_size = width
+    n_schedulers = scheduler_pool._processes
+    quotient = data_size // n_schedulers
+    remainder = data_size % n_schedulers
+    async_results = []
+    for idx in range(n_schedulers):
+        start = idx * quotient
+        end = (idx + 1) * quotient
+        if idx == n_schedulers - 1:
+            end += remainder
+        # this will modify avg_result in place
+        result = scheduler_pool.apply_async(
+            _target_row_add,
+            args=(enc_result, avg_result, start, end, executor_pool)
+        )
+        async_results.append(result)
+    for result in async_results:
+        assert result.get() is True
+
+    return np.array(avg_result)
+
+def _target_row_mul(enc_vector, plain_matrix, enc_result,
+                    start, end, executor_pool):
+    for k in range(start, end):
+        enc_row = fast_mul_ciphers(
+            plain_matrix[k],
+            enc_vector[k],
+            executor_pool
+        )
+        enc_result[k] = enc_row
+    return True
+
+def _target_row_add(enc_result, avg_result,
+                    start, end, executor_pool):
+    for k in range(start, end):
+        row_sum = fast_add_ciphers(enc_result[k], executor_pool)
+        avg_result[k] = row_sum
+    return True
+
+
 def fast_add_ciphers(cipher_vector, thread_pool=None):
+    """
+
+    Parameters
+    ----------
+    cipher_vector
+    thread_pool
+
+    Returns
+    -------
+
+    """
     assert type(cipher_vector) in (list, np.ndarray), \
         "cipher_vector's dtype can only be Python list or Numpy array."
     exp2cipher = {}
@@ -789,7 +914,7 @@ def fast_add_ciphers(cipher_vector, thread_pool=None):
 
 def _target_add_ciphers(ciphertexts, curr_exp, min_exp, base, nsquare):
     multiplier = pow(base, curr_exp - min_exp)
-    aligned_ciphers = gmpy2.powmod_list(ciphertexts, multiplier, nsquare)
+    aligned_ciphers = gmpy2.powmod_base_list(ciphertexts, multiplier, nsquare)
     result = gmpy2.mpz(1)
     for ciphertext in aligned_ciphers:
         result = gmpy2.mod(gmpy2.mul(result, ciphertext), nsquare)
@@ -797,6 +922,18 @@ def _target_add_ciphers(ciphertexts, curr_exp, min_exp, base, nsquare):
 
 
 def fast_mul_ciphers(plain_vector, cipher, thread_pool=None):
+    """
+
+    Parameters
+    ----------
+    plain_vector
+    cipher
+    thread_pool
+
+    Returns
+    -------
+
+    """
     assert type(plain_vector) in (list, np.ndarray), \
         "plain_vector's dtype can only be Python list or Numpy array."
     if thread_pool is None:
@@ -842,6 +979,31 @@ def fast_mul_ciphers(plain_vector, cipher, thread_pool=None):
 
 def _target_mul_ciphers(base, exps, nsquare):
     return gmpy2.powmod_exp_list(base, exps, nsquare)
+
+
+def encode(
+        raw_data: np.ndarray,
+        raw_pub_key: phe.PaillierPublicKey,
+        precision: float = 0.001
+):
+    """
+
+    Parameters
+    ----------
+    raw_data
+    raw_pub_key
+    precision
+
+    Returns
+    -------
+
+    """
+    data_flat = raw_data.flatten()
+    # remember to use val.item(), otherwise,
+    # "TypeError('argument should be a string or a Rational instance'" will be raised
+    data_encode = [EncodedNumber.encode(raw_pub_key, val.item(), precision=precision)
+                   for val in data_flat]
+    return np.array(data_encode).reshape(raw_data.shape)
 
 
 if __name__ == "__main__":

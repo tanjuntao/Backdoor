@@ -63,7 +63,8 @@ pip3 install *.whl
 * [Running verticalNN model training along with PSI](./examples/psi-nn/README.md)
 
 ## API references 
-WIP...
+Follow the [API building guide](./docs/README.md) to locally build the API documentation
+and then view it using your browser. 
 
 ## Contribution
 Please first read the [developer guide](./docs/dev_guide.md) before making any pull request. 

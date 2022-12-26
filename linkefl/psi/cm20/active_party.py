@@ -2,20 +2,20 @@ import os
 import random
 import sys
 import time
+from typing import Union
 from urllib.error import URLError
 
 import numpy as np
 
+from linkefl.base import BasePSIComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
-from linkefl.dataio import gen_dummy_ids, NumpyDataset
-from linkefl.messenger import FastSocket
-from linkefl.pipeline.base import TransformComponent
-from linkefl.util import urlretrive
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 try:
     from linkefl.psi.cm20.PsiPython import PsiReceiver
 except ImportError:
+    from linkefl.util import urlretrive
+
     resources = {
         "37-darwin": "PsiPython.cpython-37m-darwin.so",
         "37-linux": "PsiPython.cpython-37m-x86_64-linux-gnu.so",
@@ -50,7 +50,7 @@ except ImportError:
     print('Done!')
 
 
-class CM20PSIActive(TransformComponent):
+class CM20PSIActive(BasePSIComponent):
     def __init__(
         self,
         messengers,
@@ -72,7 +72,7 @@ class CM20PSIActive(TransformComponent):
         self.bucket1 = bucket1
         self.bucket2 = bucket2
 
-    def fit(self, dataset: NumpyDataset, role=Const.ACTIVE_NAME):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.ACTIVE_NAME):
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
@@ -139,6 +139,10 @@ class CM20PSIActive(TransformComponent):
 
 
 if __name__ == "__main__":
+    from linkefl.common.factory import logger_factory
+    from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
+    from linkefl.messenger import FastSocket
+
     # 1. get sample IDs
     _ids = gen_dummy_ids(size=50_000, option=Const.SEQUENCE)
 

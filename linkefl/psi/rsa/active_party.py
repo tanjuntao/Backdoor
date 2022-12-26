@@ -1,27 +1,24 @@
-import argparse
 import hashlib
 import os
-from pathlib import Path
 import pickle
 import time
-from typing import Union, List
+from pathlib import Path
+from typing import List, Union
 
 from termcolor import colored
 
+from linkefl.base import BaseMessenger, BasePSIComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.common.log import GlobalLogger
-from linkefl.crypto import RSACrypto
-from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
-from linkefl.messenger import FastSocket
-from linkefl.messenger.base import Messenger
-from linkefl.pipeline.base import TransformComponent
+from linkefl.crypto import RSA
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 
-class RSAPSIActive(TransformComponent):
+class RSAPSIActive(BasePSIComponent):
     def __init__(self,
-                 messenger: List[Messenger],
-                 cryptosystem: RSACrypto,
+                 messenger: List[BaseMessenger],
+                 cryptosystem: RSA,
                  logger: GlobalLogger,
                  num_workers: int = -1
     ):
@@ -35,7 +32,7 @@ class RSAPSIActive(TransformComponent):
         self.HASHED_IDS_FILENAME = 'hashed_signed_ids.pkl'
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
-    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role: str):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.ACTIVE_NAME):
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
@@ -51,9 +48,10 @@ class RSAPSIActive(TransformComponent):
         # 2. signing blinded ids of passive party
         for msger in self.messenger:
             blinded_ids = msger.recv()
-            signed_blinded_ids = self.cryptosystem.sign_set_thread(
+            signed_blinded_ids = self.cryptosystem.sign_vector(
                 blinded_ids,
-                n_threads=self.num_workers
+                using_pool=True,
+                n_workers=self.num_workers
             )
             msger.send(signed_blinded_ids)
         self.logger.log('Active party sends signed blinded ids back to passive party.')
@@ -67,9 +65,10 @@ class RSAPSIActive(TransformComponent):
         )
 
         # 3. signing and hashing its own ids
-        signed_ids = self.cryptosystem.sign_set_thread(
+        signed_ids = self.cryptosystem.sign_vector(
             ids,
-            n_threads=self.num_workers
+            using_pool=True,
+            n_workers=self.num_workers
         )
         active_hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
         self.logger.log('Active party finished signing and hashing its own ids.')
@@ -121,9 +120,10 @@ class RSAPSIActive(TransformComponent):
     def run_offline(self, ids):
         print('[ACTIVE] Start the offline protocol...')
         begin = time.time()
-        signed_ids = self.cryptosystem.sign_set_thread(
+        signed_ids = self.cryptosystem.sign_vector(
             ids,
-            n_threads=self.num_workers
+            using_pool=True,
+            n_workers=self.num_workers
         )
         print('Signing self id set time: {:.5f}'.format(time.time() - begin))
         hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
@@ -144,9 +144,10 @@ class RSAPSIActive(TransformComponent):
         for msger in self.messenger:
             blinded_ids = msger.recv()
             begin = time.time()
-            signed_blinded_ids = self.cryptosystem.sign_set_thread(
+            signed_blinded_ids = self.cryptosystem.sign_vector(
                 blinded_ids,
-                n_threads=self.num_workers
+                using_pool=True,
+                n_workers=self.num_workers
             )
             print('Signing passive id set time: {:.5f}'.format(time.time() - begin))
             msger.send(signed_blinded_ids)
@@ -217,6 +218,11 @@ class RSAPSIActive(TransformComponent):
 
 
 if __name__ == '__main__':
+    import argparse
+
+    from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
+    from linkefl.messenger import FastSocket
+
     ######   Option 1: split the protocol   ######
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()
@@ -236,12 +242,12 @@ if __name__ == '__main__':
     #
     # # 3. Start the RSA-Blind-Signature protocol
     # if args.phase == 'offline':
-    #     _crypto = RSACrypto()
+    #     _crypto = RSA()
     #     bob = RSAPSIActive([_messenger], _crypto, _logger)
     #     bob.run_offline(_ids)
     #
     # elif args.phase == 'online':
-    #     _crypto = RSACrypto.from_private()
+    #     _crypto = RSA.from_private_key()
     #     bob = RSAPSIActive([_messenger], _crypto, _logger)
     #     bob.run_online(_ids)
     #
@@ -273,7 +279,7 @@ if __name__ == '__main__':
     _messenger = [_messenger1]
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     # 3. Initialize cryptosystem
-    _crypto = RSACrypto()
+    _crypto = RSA()
 
     # 4. Start the RSA-Blind-Signature protocol
     active_party = RSAPSIActive(_messenger, _crypto, _logger)

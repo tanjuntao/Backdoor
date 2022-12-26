@@ -1,14 +1,11 @@
 from abc import ABC, abstractmethod
 
 
-class Messenger(ABC):
+class BaseMessenger(ABC):
     """Base class of messenger.
 
     Messenger provides sending and receiving APIs for communication.
     """
-    def __init__(self):
-        pass
-
     @abstractmethod
     def send(self, msg):
         """Send message."""

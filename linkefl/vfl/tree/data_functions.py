@@ -1,6 +1,7 @@
+import os
 import random
-
 import numpy as np
+
 
 def _find_bin(vec, max_bin):
     shape = vec.shape
@@ -120,6 +121,15 @@ def goss_sampling(grad, hess, top_rate, other_rate):
 def wrap_message(name, *, content):
     return {"name": name, "content": content}
 
+def get_latest_filename(filedir):
+    if os.path.exists(filedir):
+        file_list = os.listdir(filedir)
+    else:
+        raise ValueError("not exist filedir.")
+
+    # sort by create time
+    file_list.sort(key=lambda fn:os.path.getmtime(os.path.join(filedir, fn)))
+    return file_list[-1]
 
 # def _greedy_find_bin(vec, max_bin):
 #     """传入 feature，返回每个值所在 bin 编号和划分点
@@ -242,15 +252,16 @@ def wrap_message(name, *, content):
 
 
 if __name__ == "__main__":
-    sample_num = 20
-    grad, hess = np.random.random(sample_num), np.random.random(sample_num)
-    # selected_g, selected_h, selected_idx = goss_sampling(grad, hess, 0.25, 0.25)
-    selected_g, selected_h, selected_idx = random_sampling(grad, hess, 1)
-
-    g_enc, h_enc = [0 for _ in range(sample_num)], [0 for _ in range(sample_num)]
-    for i, idx in enumerate(selected_idx):
-        g_enc[idx] = selected_g[i]
-        h_enc[idx] = selected_h[i]
-    print(selected_idx)
-    print(grad, "\n", np.array(g_enc))
-    print(hess, "\n", np.array(h_enc))
+    # sample_num = 20
+    # grad, hess = np.random.random(sample_num), np.random.random(sample_num)
+    # # selected_g, selected_h, selected_idx = goss_sampling(grad, hess, 0.25, 0.25)
+    # selected_g, selected_h, selected_idx = random_sampling(grad, hess, 1)
+    #
+    # g_enc, h_enc = [0 for _ in range(sample_num)], [0 for _ in range(sample_num)]
+    # for i, idx in enumerate(selected_idx):
+    #     g_enc[idx] = selected_g[i]
+    #     h_enc[idx] = selected_h[i]
+    # print(selected_idx)
+    # print(grad, "\n", np.array(g_enc))
+    # print(hess, "\n", np.array(h_enc))
+    print(get_latest_filename("./models"))

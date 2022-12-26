@@ -10,33 +10,36 @@ class Const:
     IMPORTANCE = "importance"
 
     START_SIGNAL = "start"
+    PROJECT_CACHE_DIR = '.linkefl'
 
     BUILDIN_DATASETS = [
+        "avazu",
         "cancer",
+        "census",
+        "cifar10",
+        "covertype",
+        "credit",
+        "criteo",
+        "default_credit",
+        "diabetes",
         "digits",
         "epsilon",
-        "census",
-        "credit",
-        "default_credit",
-        "covertype",
-        "higgs",
-        "criteo",
-        "diabetes",
-        "year",
-        "nyc_taxi",
-        "iris",
-        "wine",
-        "mnist",
         "fashion_mnist",
-        "cifar",
+        "higgs",
+        "iris",
+        "mnist",
+        "nyc_taxi",
         "svhn",
-        "avazu",
+        "tab_fashion_mnist",
+        "tab_mnist",
+        "wine",
+        "year",
     ]
-    REGRESSION_DATASETS = ["diabetes", "year", "nyc_taxi"]
 
     PLAIN = "plain"
     PAILLIER = "paillier"
     FAST_PAILLIER = "fast_paillier"
+    RSA = 'rsa'
 
     L1 = "l1"
     L2 = "l2"
@@ -44,6 +47,7 @@ class Const:
 
     SOCKET = "socket"
     FAST_SOCKET = "fast_socket"
+    FAST_SOCKET_V1 = 'fast_socket_v1'
 
     DATALOADER = "dataloader"
     TRANSFORM = "transform"
@@ -52,6 +56,7 @@ class Const:
     VERTICAL_LINREG = "vertical_linreg"
     VERTICAL_LOGREG = "vertical_logreg"
     VERTICAL_SBT = "vertical_sbt"
+    VERTICAL_LIGHTGBM = "vertical_lightgbm"
     VERTICAL_NN = "vertical_nn"
     HORIZONTAL_NN = "horizontal_nn"
     SPLIT_NN = "split_nn"
@@ -66,26 +71,18 @@ class Const:
 
     REGRESSION = "regression"
     CLASSIFICATION = "classification"
+    PYTORCH_DATASET = [
+        "cifar10",
+        "fashion_mnist",
+        "mnist",
+        "svhn",
+        "tab_mnist",
+        "tab_fashion_mnist",
+    ]
+    REGRESSION_DATASETS = ["diabetes", "nyc_taxi", "year",]
     DATA_TYPE_DICT = {
-        REGRESSION: ["diabetes", "year", "nyc_taxi"],
-        CLASSIFICATION: [
-            "cancer",
-            "digits",
-            "epsilon",
-            "census",
-            "credit",
-            "criteo",
-            "default_credit",
-            "covertype",
-            "higgs",
-            "iris",
-            "wine",
-            "mnist",
-            "fashion_mnist",
-            "cifar",
-            "svhn",
-            "avazu",
-        ],
+        REGRESSION: ["diabetes", "nyc_taxi", "year",],
+        CLASSIFICATION: list(set(BUILDIN_DATASETS) - set(REGRESSION_DATASETS))
     }
 
     BLOSC = "blosc"

@@ -10,6 +10,8 @@
 *.mat
 .idea/
 linkefl.egg-info/
+cifar-10-batches-py
+linkefl/vfl/tree/models
 
 ### macOS ###
 # General

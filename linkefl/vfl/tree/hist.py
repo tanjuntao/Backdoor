@@ -1,6 +1,6 @@
 import numpy as np
 
-from linkefl.crypto.base import CryptoSystem
+from linkefl.base import BaseCryptoSystem
 
 
 class ActiveHist:
@@ -19,7 +19,7 @@ class ActiveHist:
         """compute hist with data on active party"""
 
         bin_num = bin_index.max() + 1
-        if task == "binary":
+        if task == "binary" or task == "regression":
             bin_gh = np.zeros((bin_index.shape[1], bin_num, 2), dtype=gh.dtype)
         elif task == "multi":
             bin_gh = np.zeros((bin_index.shape[1], bin_num, n_labels, 2), dtype=gh.dtype)
@@ -35,7 +35,7 @@ class ActiveHist:
         return cls(task, n_labels, bin_gh)
 
     @classmethod
-    def decrypt_hist(cls, task, n_labels, bin_gh_enc, h_length, r, crypto_system: CryptoSystem, pool):
+    def decrypt_hist(cls, task, n_labels, bin_gh_enc, h_length, r, crypto_system: BaseCryptoSystem, pool):
         """decrypt hist received from passive party, binary only"""
 
         bin_gh_int = crypto_system.decrypt_data(bin_gh_enc, pool)
@@ -136,7 +136,7 @@ class PassiveHist:
 
         bin_num = bin_index.max() + 1  # max bin number in all hist
 
-        if self.task == "binary":
+        if self.task == "binary" or self.task == "regression":
             bin_gh_data = np.zeros((bin_index.shape[1], bin_num), dtype=gh_data.dtype)
         elif self.task == "multi":
             bin_gh_data = np.zeros((bin_index.shape[1], bin_num, gh_data.shape[1]), dtype=gh_data.dtype)

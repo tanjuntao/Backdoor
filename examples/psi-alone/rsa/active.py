@@ -3,7 +3,7 @@ import argparse
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
-from linkefl.crypto import RSACrypto
+from linkefl.crypto import RSA
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIActive
@@ -28,12 +28,12 @@ _logger = logger_factory(role=Const.ACTIVE_NAME)
 
 # 3. Start the RSA-Blind-Signature protocol
 if args.phase == 'offline':
-    _crypto = RSACrypto()
+    _crypto = RSA()
     bob = RSAPSIActive(_messenger, _crypto, _logger)
     bob.run_offline(_ids)
 
 elif args.phase == 'online':
-    _crypto = RSACrypto.from_private()
+    _crypto = RSA.from_private_key()
     bob = RSAPSIActive(_messenger, _crypto, _logger)
     bob.run_online(_ids)
 

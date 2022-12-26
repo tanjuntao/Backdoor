@@ -1,3 +1,4 @@
+# from .progress import progress_bar
 from .utils import (
     sigmoid,
     save_params, load_params,

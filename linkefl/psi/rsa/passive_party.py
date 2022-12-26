@@ -1,24 +1,21 @@
-import argparse
 import functools
 import hashlib
 import multiprocessing
 import os
-from pathlib import Path
 import pickle
-from secrets import randbelow
 import time
+from pathlib import Path
+from secrets import randbelow
 from typing import Union
 
-from Crypto.PublicKey import RSA
 import gmpy2
+from Crypto.PublicKey import RSA
 from termcolor import colored
 
+from linkefl.base import BasePSIComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
-from linkefl.crypto import PartialRSACrypto
-from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
-from linkefl.messenger import FastSocket
-from linkefl.pipeline.base import TransformComponent
+from linkefl.crypto import PartialRSA
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 
 def _target_mp_pool(r, e, n):
@@ -28,7 +25,7 @@ def _target_mp_pool(r, e, n):
     return r_inv, r_encrypted
 
 
-class RSAPSIPassive(TransformComponent):
+class RSAPSIPassive(BasePSIComponent):
     def __init__(self, messenger, logger, num_workers=-1):
         self.messenger = messenger
         self.logger = logger
@@ -40,7 +37,7 @@ class RSAPSIPassive(TransformComponent):
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
-    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role: str):
+    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.PASSIVE_NAME):
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
@@ -50,7 +47,7 @@ class RSAPSIPassive(TransformComponent):
     def run(self, ids):
         # sync RSA public key
         public_key = self._sync_pubkey()
-        self.cryptosystem = PartialRSACrypto(pub_key=public_key)
+        self.cryptosystem = PartialRSA(raw_public_key=public_key)
         start = time.time()
 
         # 1. generate random factors
@@ -129,7 +126,7 @@ class RSAPSIPassive(TransformComponent):
     def run_online(self, ids):
         start_time = time.time()
         public_key = self._sync_pubkey()
-        self.cryptosystem = PartialRSACrypto(pub_key=public_key)
+        self.cryptosystem = PartialRSA(raw_public_key=public_key)
 
         # generate random factors and blind ids
         begin = time.time()
@@ -195,7 +192,11 @@ class RSAPSIPassive(TransformComponent):
 
         n = self.cryptosystem.pub_key.n
         r_invs = [gmpy2.invert(r, n) for r in randoms]
-        r_encs = self.cryptosystem.encrypt_set_thread(randoms, n_threads=n_threads)
+        r_encs = self.cryptosystem.encrypt_vector(
+            randoms,
+            using_pool=True,
+            n_workers=n_threads
+        )
         random_factors = list(zip(r_invs, r_encs))
 
         return random_factors
@@ -240,6 +241,12 @@ class RSAPSIPassive(TransformComponent):
 
 
 if __name__ == '__main__':
+    import argparse
+
+    from linkefl.common.factory import logger_factory
+    from linkefl.dataio import gen_dummy_ids
+    from linkefl.messenger import FastSocket
+
     ######   Option 1: split the protocol   ######
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()

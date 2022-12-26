@@ -1,11 +1,11 @@
 import datetime
 import json
 import logging
-from logging.handlers import HTTPHandler, QueueHandler, QueueListener
 import os
 import pathlib
 import queue
 import time
+from logging.handlers import HTTPHandler, QueueHandler, QueueListener
 
 from linkefl.common.const import Const
 
@@ -97,6 +97,23 @@ class GlobalLogger:
                 'acc': round(acc, GlobalLogger.FLOAT_PRECISION),
                 'auc': round(auc, GlobalLogger.FLOAT_PRECISION),
                 'f1': round(f1, GlobalLogger.FLOAT_PRECISION),
+                'time': self.time_formatter(time.time()),
+                'progress': (epoch + 1) / total_epoch,
+                'role': self.role,
+            }
+        })
+        log_func = GlobalLogger._loglevel_dict[level]
+        log_func(json_msg)
+
+    def log_metric_regression(self, epoch, loss, mae, mse, sse, r2, total_epoch, level='info'):
+        json_msg = json.dumps({
+            'metricLog': {
+                'epoch': epoch + 1,
+                'loss': round(loss, GlobalLogger.FLOAT_PRECISION),
+                'mae': round(mae, GlobalLogger.FLOAT_PRECISION),
+                'mse': round(mse, GlobalLogger.FLOAT_PRECISION),
+                'sse': round(sse, GlobalLogger.FLOAT_PRECISION),
+                'r2': round(r2, GlobalLogger.FLOAT_PRECISION),
                 'time': self.time_formatter(time.time()),
                 'progress': (epoch + 1) / total_epoch,
                 'role': self.role,

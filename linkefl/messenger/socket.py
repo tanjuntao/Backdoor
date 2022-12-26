@@ -6,11 +6,12 @@ import zlib
 
 import blosc
 
-from .base import Messenger
-from linkefl.config import BaseConfig
+from linkefl.base import BaseMessenger
 from linkefl.common.const import Const
+from linkefl.config import BaseConfig
 
-class FastSocket_v1(Messenger):
+
+class FastSocket_v1(BaseMessenger):
     """Implement messenger using python socket
 
     RSAPSIPassive and RSAPSIActive will only need to maintain two pair sockets, one for RSAPSIPassive
@@ -169,7 +170,7 @@ class FastSocket_v1(Messenger):
         return raw_data
 
 
-class FastSocket(Messenger):
+class FastSocket(BaseMessenger):
     """Implement messenger using python socket
 
     RSAPSIPassive and RSAPSIActive will only need to maintain two pair sockets, one for RSAPSIPassive
@@ -398,7 +399,7 @@ class FastSocket(Messenger):
         return raw_data
 
 
-class Socket(Messenger):
+class Socket(BaseMessenger):
     """Using python socket to implement messenger."""
     def __init__(self,
                  role,

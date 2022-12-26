@@ -5,15 +5,14 @@ import numpy as np
 from sklearn.metrics import r2_score
 from termcolor import colored
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform import add_intercept, AddIntercept
 from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.linear import BaseLinearActive
 
 
-class ActiveLinReg(BaseLinearActive):
+class ActiveLinReg(BaseLinearActive, BaseModelComponent):
     def __init__(self,
                  epochs,
                  batch_size,
@@ -32,6 +31,7 @@ class ActiveLinReg(BaseLinearActive):
                  val_freq=1,
                  saving_model=False,
                  model_path='./models',
+                 model_name=None,
     ):
         super(ActiveLinReg, self).__init__(
             epochs=epochs,
@@ -50,6 +50,7 @@ class ActiveLinReg(BaseLinearActive):
             val_freq=val_freq,
             saving_model=saving_model,
             model_path=model_path,
+            model_name=model_name,
             task='regression'
         )
 
@@ -195,6 +196,12 @@ class ActiveLinReg(BaseLinearActive):
     def predict(self, testset):
         return self.validate(testset)
 
+    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+        self.train(trainset, validset)
+
+    def score(self, testset, role=Const.ACTIVE_NAME):
+        return self.predict(testset)
+
     @staticmethod
     def online_inference(dataset, model_name, messenger, model_path='./models'):
         assert isinstance(dataset,
@@ -210,13 +217,16 @@ class ActiveLinReg(BaseLinearActive):
             "loss": loss,
             "r2": r2
         }
-        messenger.send(scores)
+        messenger.send([scores, y_pred])
 
-        return scores
+        return scores, y_pred
 
 
 
 if __name__ == '__main__':
+    from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+    from linkefl.feature.transform import add_intercept
+
     # 0. Set parameters
     dataset_name = 'diabetes'
     passive_feat_frac = 0.5
