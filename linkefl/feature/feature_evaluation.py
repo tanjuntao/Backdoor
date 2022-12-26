@@ -67,7 +67,7 @@ class FeatureEvaluation(object):
         else:
             raise ValueError("Unsupported evaluation way.")
 
-        return ranking
+        return importances, ranking
 
     @classmethod
     def collinearity_anay(cls, dateset: NumpyDataset, evaluation_way: str="pearson"):
@@ -83,6 +83,7 @@ class FeatureEvaluation(object):
             features = pd.DataFrame(dateset.features)
             corr = features.corr(method=f"{evaluation_way}")
         elif evaluation_way == "vif":
+            # todo: to be write.
             raise NotImplementedError("to be done.")
         else:
             raise ValueError("Unsupported evaluation way")
