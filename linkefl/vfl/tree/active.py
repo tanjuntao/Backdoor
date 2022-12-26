@@ -786,7 +786,9 @@ if __name__ == "__main__":
         n_processes=n_processes,
 
         drop_protection=drop_protection,
-        reconnect_ports=reconnect_ports
+        reconnect_ports=reconnect_ports,
+
+        model_path="./models/active_party"
     )
 
     active_party.train(active_trainset, active_testset)

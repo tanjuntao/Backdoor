@@ -11,6 +11,7 @@ from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.hist import PassiveHist
+from linkefl.vfl.tree.data_functions import get_latest_filename
 
 
 class PassiveTreeParty(BaseModelComponent):
@@ -168,10 +169,11 @@ class PassiveTreeParty(BaseModelComponent):
             )
         )
 
-    def load_retrain(self, load_model_path, load_model_name, trainset, testset):
+    def load_retrain(self, load_model_path, trainset, testset):
         """breakpoint retraining function.
         """
-        self.record, self.feature_importance_info = NumpyModelIO.load(load_model_path, load_model_name)
+        model_name = get_latest_filename(load_model_path)
+        self.record, self.feature_importance_info = NumpyModelIO.load(load_model_path, model_name)
         self.train(trainset, testset)
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):

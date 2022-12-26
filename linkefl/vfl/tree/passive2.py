@@ -66,6 +66,7 @@ if __name__ == "__main__":
         messenger=messenger,
         logger=logger,
         saving_model=True,
+        model_path="./models/passive_party_2"
     )
     passive_party.train(passive_trainset, passive_testset)
     # passive_party.online_inference(passive_testset, "xxx.model")
