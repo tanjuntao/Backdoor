@@ -18,7 +18,7 @@ from linkefl.common.factory import (
     partial_crypto_factory,
 )
 from linkefl.config import BaseConfig
-from linkefl.crypto import fast_add_ciphers, fast_mul_ciphers
+from linkefl.crypto.paillier import fast_add_ciphers, fast_mul_ciphers
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
