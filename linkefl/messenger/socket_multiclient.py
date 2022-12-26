@@ -7,7 +7,7 @@ import platform
 from termcolor import colored
 
 
-from .base import Messenger
+from linkefl.base import BaseMessenger
 from linkefl.config import BaseConfig
 from linkefl.common.const import Const
 
@@ -15,7 +15,7 @@ from linkefl.common.const import Const
 
 
 
-class FastSocket_multi_v1(Messenger):
+class FastSocket_multi_v1(BaseMessenger):
     """Implement messenger using python socket
 
     RSAPSIPassive and RSAPSIActive will only need to maintain two pair sockets, one for RSAPSIPassive
