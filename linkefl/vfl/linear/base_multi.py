@@ -1,17 +1,24 @@
+from abc import ABC, abstractmethod
 import copy
 import datetime
 import multiprocessing
 import multiprocessing.pool
 import os
+import random
 import time
-from abc import ABC, abstractmethod
 
 import numpy as np
+from phe import EncodedNumber
+from termcolor import colored
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, messenger_factory, partial_crypto_factory
+from linkefl.common.factory import (
+    crypto_factory,
+    messenger_factory,
+    partial_crypto_factory,
+)
 from linkefl.config import BaseConfig
-from linkefl.crypto.paillier import cipher_matmul, encode
+from linkefl.crypto import fast_add_ciphers, fast_mul_ciphers
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
@@ -25,7 +32,7 @@ class BaseLinear(ABC):
         if self.random_state is not None:
             np.random.seed(self.random_state)
         else:
-            np.random.seed(None) # explicitly set the seed to None
+            np.random.seed(None)
         params = np.random.normal(0, 1.0, size)
         return params
 
@@ -66,7 +73,6 @@ class BaseLinearPassive(BaseLinear):
                  crypto_type,
                  logger,
                  *,
-                 rank=1,
                  penalty=Const.L2,
                  reg_lambda=0.01,
                  precision=0.001,
@@ -76,7 +82,6 @@ class BaseLinearPassive(BaseLinear):
                  val_freq=1,
                  saving_model=False,
                  model_path='./models',
-                 model_name=None,
                  task='classification',
     ):
         super(BaseLinearPassive, self).__init__(learning_rate, random_state)
@@ -103,13 +108,11 @@ class BaseLinearPassive(BaseLinear):
         self.saving_model = saving_model
         self.model_path = model_path
         model_type = Const.VERTICAL_LOGREG if task=='classification' else Const.VERTICAL_LINREG
-        if model_name is None:
-            model_name = "{time}-{role}-{model_type}".format(
-                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                role=Const.PASSIVE_NAME + str(rank),
-                model_type=model_type
-            )
-        self.model_name = model_name
+        self.model_name = "{time}-{role}-{model_type}".format(
+            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            role=Const.PASSIVE_NAME,
+            model_type=model_type
+        )
         self.logger = logger
 
     @classmethod
@@ -145,6 +148,16 @@ class BaseLinearPassive(BaseLinear):
         public_key = self.messenger.recv()
         self.logger.log('[PASSIVE] Done!')
         return public_key
+
+    @staticmethod
+    def _encode(x_train, pub_key, precision):
+        x_encode = []
+        n_samples = x_train.shape[0]
+        for i in range(n_samples):
+            row = [EncodedNumber.encode(pub_key, val, precision=precision)
+                   for val in x_train[i]]
+            x_encode.append(row)
+        return np.array(x_encode)
 
     def _gradient(self, enc_residue, batch_idxes, executor_pool, scheduler_pool):
         # compute gradient of empirical loss term
@@ -185,20 +198,83 @@ class BaseLinearPassive(BaseLinear):
         return enc_train_grad
 
     def _grad_pool(self, enc_residue, batch_idxes, executor_pool, scheduler_pool):
+        """compute encrypted gradients manually via Python ThreadPool"""
         if self.crypto_type == Const.PLAIN:
             raise RuntimeError("you should not use pool when crypto type is Plain.")
 
+        n_samples, n_features = len(batch_idxes), getattr(self, 'params').size
         x_encode = getattr(self, 'x_encode')
-        enc_train_grad = cipher_matmul(
-            cipher_matrix=enc_residue[np.newaxis, :], # remember to add an addition axis
-            plain_matrix=x_encode[batch_idxes],
-            executor_pool=executor_pool,
-            scheduler_pool=scheduler_pool
-        )
-        # don't forget to multiply (-1/bs) to average the gradients
-        enc_train_grad = (-1 / len(batch_idxes)) * enc_train_grad.flatten()
 
-        return enc_train_grad
+        # 1. multipy each sample with its corresponding encrypted residue
+        enc_train_grads = [None] * n_samples
+        data_size = n_samples
+        n_schedulers = scheduler_pool._processes
+        quotient = data_size // n_schedulers
+        remainder = data_size % n_schedulers
+        async_results = []
+        for idx in range(n_schedulers):
+            start = idx * quotient
+            end = (idx + 1) * quotient
+            if idx == n_schedulers - 1:
+                end += remainder
+            # this will modify enc_train_grads in-place
+            result = scheduler_pool.apply_async(
+                BaseLinearPassive._target_grad_mul,
+                args=(x_encode, enc_residue, batch_idxes, enc_train_grads,
+                      start, end, executor_pool)
+            )
+            async_results.append(result)
+        for result in async_results:
+            assert result.get() is True
+
+        # 2. transpose this two-dim numpy array so that each row can be averaged to
+        #    get the gradient of its corresponding feature
+        enc_train_grads = np.array(enc_train_grads).transpose()
+
+        # 3. average the encrypted gradients of each sample to get the final averaged
+        #    gradients
+        avg_grad = [None] * n_features
+        data_size = n_features
+        n_schedulers = scheduler_pool._processes
+        quotient = data_size // n_schedulers
+        remainder = data_size % n_schedulers
+        async_results = []
+        for idx in range(n_schedulers):
+            start = idx * quotient
+            end = (idx + 1) * quotient
+            if idx == n_schedulers - 1:
+                end += remainder
+            # this will modify avg_grad in-place
+            result = scheduler_pool.apply_async(
+                BaseLinearPassive._target_grad_add,
+                args=(enc_train_grads, avg_grad, start, end, executor_pool)
+            )
+            async_results.append(result)
+        for result in async_results:
+            assert result.get() is True
+
+        return np.array(avg_grad)
+
+    @staticmethod
+    def _target_grad_mul(x_encode, enc_residue, batch_idxes, enc_train_grads,
+                         start, end, executor_pool):
+        for k in range(start, end):
+            curr_grad = fast_mul_ciphers(
+                x_encode[batch_idxes[k]],  # remember to obtain the sample index first
+                enc_residue[k],
+                executor_pool
+            )
+            enc_train_grads[k] = curr_grad
+        return True
+
+    @staticmethod
+    def _target_grad_add(enc_train_grads, avg_grad,
+                         start, end, executor_pool):
+        batch_size = len(enc_train_grads[start])
+        for k in range(start, end):
+            grad = fast_add_ciphers(enc_train_grads[k], executor_pool)
+            avg_grad[k] = grad * (-1. / batch_size)
+        return True
 
     @staticmethod
     def _mask_grad(enc_grad):
@@ -234,10 +310,10 @@ class BaseLinearPassive(BaseLinear):
         # encode the training dataset if the crypto type belongs to Paillier family
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
             print('encoding dataset...')
-            x_encode = encode(
-                raw_data=getattr(self, 'x_train'),
-                raw_pub_key=public_key,
-                precision=self.precision
+            x_encode = BaseLinearPassive._encode(
+                getattr(self, 'x_train'),
+                public_key,
+                self.precision
             )
             print('Done!')
             setattr(self, 'x_encode', x_encode)
@@ -269,6 +345,7 @@ class BaseLinearPassive(BaseLinear):
                 _begin = time.time()
                 self.messenger.send(wx)
 
+
                 # Receive encrypted residue and calculate masked encrypted gradients
                 enc_residue = self.messenger.recv()
                 commu_plus_compu_time += time.time() - _begin
@@ -298,8 +375,7 @@ class BaseLinearPassive(BaseLinear):
                     if self.saving_model:
                         # the use of deepcopy here is to avoid saving other self attrbiutes
                         model_params = copy.deepcopy(getattr(self, 'params'))
-                        # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
-                        model_name = self.model_name
+                        model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
                         NumpyModelIO.save(model_params, self.model_path, model_name)
 
         # after training release the multiprocessing pool
@@ -331,8 +407,8 @@ class BaseLinearPassive(BaseLinear):
         model_params = NumpyModelIO.load(model_path, model_name)
         wx = np.matmul(dataset.features, model_params)
         messenger.send(wx)
-        scores, preds = messenger.recv()
-        return scores, preds
+        scores = messenger.recv()
+        return scores
 
 
 class BaseLinearActive(BaseLinear):
@@ -354,8 +430,8 @@ class BaseLinearActive(BaseLinear):
                  val_freq=1,
                  saving_model=False,
                  model_path='./models',
-                 model_name=None,
                  task='classification',
+                 world_size=1
     ):
         super(BaseLinearActive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -370,6 +446,7 @@ class BaseLinearActive(BaseLinear):
         self.precision = precision
         self.random_state = random_state
         self.using_pool = using_pool
+        self.world_size = world_size
         if using_pool:
             if num_workers == -1:
                 num_workers = os.cpu_count()
@@ -383,13 +460,11 @@ class BaseLinearActive(BaseLinear):
         self.saving_model = saving_model
         self.model_path = model_path
         model_type = Const.VERTICAL_LOGREG if task == 'classification' else Const.VERTICAL_LINREG
-        if model_name is None:
-            model_name = "{time}-{role}-{model_type}".format(
-                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                role=Const.ACTIVE_NAME,
-                model_type=model_type
-            )
-        self.model_name = model_name
+        self.model_name = "{time}-{role}-{model_type}".format(
+            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+            role=Const.ACTIVE_NAME,
+            model_type=model_type
+        )
         self.logger = logger
 
     @classmethod
@@ -423,13 +498,14 @@ class BaseLinearActive(BaseLinear):
                    is_multi_thread=config.IS_MULTI_THREAD)
 
     def _sync_pubkey(self):
-        for msger in self.messenger:
-            signal = msger.recv()
+        for id in range(self.world_size):
+            print(id)
+            print(self.world_size)
+            signal = self.messenger.recv(id=id)
             if signal == Const.START_SIGNAL:
                 print('Training protocol started.')
                 print('[ACTIVE] Sending public key to passive party...')
-                msger.send(self.cryptosystem.pub_key)
-
+                self.messenger.send(self.cryptosystem.pub_key,id)
             else:
                 raise ValueError('Invalid signal, exit.')
         print('[ACTIVE] Sending public key done!')
@@ -456,6 +532,7 @@ class BaseLinearActive(BaseLinear):
 
         return train_grad + reg_grad
 
+
     def train(self, trainset, testset):
         raise NotImplementedError('should not call this method within base class')
 
@@ -464,3 +541,71 @@ class BaseLinearActive(BaseLinear):
 
     def predict(self, testset):
         raise NotImplementedError('should not call this method within base class')
+
+
+
+
+
+class BaseLinearActive_disconnection(BaseLinearActive):
+    def __init__(self,
+                 epochs,
+                 batch_size,
+                 learning_rate,
+                 messenger,
+                 cryptosystem,
+                 logger,
+                 *,
+                 penalty=Const.L2,
+                 reg_lambda=0.01,
+                 crypto_type=Const.PAILLIER,
+                 precision=0.001,
+                 random_state=None,
+                 using_pool=False,
+                 num_workers=-1,
+                 val_freq=1,
+                 saving_model=False,
+                 model_path='./models',
+                 task='classification',
+                 world_size=1
+    ):
+        super(BaseLinearActive_disconnection, self).__init__(epochs=epochs,
+                 batch_size=batch_size,
+                 learning_rate=learning_rate,
+                 messenger=messenger,
+                 cryptosystem=cryptosystem,
+                 logger=logger,
+                 penalty=penalty,
+                 reg_lambda=reg_lambda,
+                 crypto_type=crypto_type,
+                 precision=precision,
+                 random_state=random_state,
+                 using_pool=using_pool,
+                 num_workers=num_workers,
+                 val_freq=val_freq,
+                 saving_model=saving_model,
+                 model_path=model_path,
+                 task=task,
+                 world_size=world_size)
+        pass
+
+
+    def _sync_pubkey(self):
+        for id in range(self.world_size):
+            signal,_ = self.messenger.recv(id=id)
+            if signal == Const.START_SIGNAL:
+                print('Training protocol started.')
+                print('[ACTIVE] Sending public key to passive party...')
+                self.messenger.send(self.cryptosystem.pub_key,id)
+            else:
+                raise ValueError('Invalid signal, exit.')
+        print('[ACTIVE] Sending public key done!')
+
+    def _sync_pubkey_client(self,id):
+        signal,_ = self.messenger.recv(id=id)
+        if signal == Const.START_SIGNAL:
+            print('Training protocol started.')
+            print('[ACTIVE] Sending public key to passive party...')
+            self.messenger.send(self.cryptosystem.pub_key,id)
+        else:
+            raise ValueError('Invalid signal, exit.')
+        print('[ACTIVE] Sending public key done!')
