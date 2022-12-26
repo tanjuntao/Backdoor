@@ -151,3 +151,27 @@ class PassiveWoe(Basewoe):
         super()._cal_woe(y)
 
         return self.split, self.bin_woe, self.bin_iv
+
+    
+class TestWoe(Basewoe):
+    def __init__(self, dataset, woe_features, messenger, split, bin_woe):
+        super(TestWoe, self).__init__(dataset, woe_features, messenger)
+        self.split = split
+        self.bin_woe = bin_woe
+
+    def cal_woe(self):
+        features = self.dataset.features
+        ids = np.array(self.dataset.ids)
+        if isinstance(features, np.ndarray):
+            features = features.astype(float)
+            sam_num = self.dataset.n_samples
+            for woe_features_idx in range(len(self.woe_features)):
+                cur_split = self.split[woe_features_idx]
+                cur_woe_list = self.bin_woe[woe_features_idx]
+                for sam_idx in range(sam_num):
+                    bin_idx = 0
+                    while(bin_idx < len(cur_split)):
+                        if features[sam_idx, woe_features_idx] <= cur_split[bin_idx]:
+                            break
+                        bin_idx += 1
+                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[bin_idx]

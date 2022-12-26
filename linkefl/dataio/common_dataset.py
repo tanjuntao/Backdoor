@@ -537,6 +537,36 @@ class CommonDataset:
         )
 
     @classmethod
+    def from_json(cls, role, abs_path, dataset_type,
+                  data_field='data', has_header=True,
+                  existing_json=None,
+                  row_threshold=0.3, column_threshold=0.3,
+                  mappings=None, transform=None):
+        import json
+        if existing_json is None:
+            f = open(abs_path)
+            whole_json = json.load(f)
+            f.close()
+        else:
+            whole_json = existing_json
+
+        raw_data = whole_json[data_field]  # a Python list
+        df_dataset = pd.DataFrame.from_dict(raw_data)
+        df_dataset = cls._clean_data(df_dataset, row_threshold, column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
+
+        header = list(raw_data[0].keys()) # each element in raw_data is a dict
+
+        return cls(
+            role=role,
+            raw_dataset=np_dataset,
+            header=header,
+            dataset_type=dataset_type,
+            transform=transform
+        )
+
+    @classmethod
     def from_url(cls, role, url, dataset_type,
                  delimiter=',', has_header=False,
                  row_threshold=0.3, column_threshold=0.3,
@@ -576,8 +606,33 @@ class CommonDataset:
         )
 
     @classmethod
+    def from_api(cls, role, url, dataset_type, post_params,
+                 data_field='data', has_header=True,
+                 row_threshold=0.3, column_threshold=0.3,
+                 mappings=None, transform=None,
+    ):
+        import json
+        import requests
+
+        resp = requests.post(url=url, json=post_params)
+        existing_json = json.loads(resp.text)
+
+        return cls.from_json(
+            role=role,
+            abs_path=None,
+            dataset_type=dataset_type,
+            data_field=data_field,
+            existing_json=existing_json,
+            row_threshold=row_threshold,
+            column_threshold=column_threshold,
+            mappings=mappings,
+            transform=transform
+        )
+
+    @classmethod
     def from_anyfile(cls, role, abs_path, dataset_type,
-                     has_header=False,
+                     data_field='data', has_header=False,
+                     row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None
     ):
         extension = abs_path.split('.')[-1]
@@ -596,6 +651,8 @@ class CommonDataset:
                 dataset_type=dataset_type,
                 delimiter=delimiter,
                 has_header=has_header,
+                row_threshold=row_threshold,
+                column_threshold=column_threshold,
                 mappings=mappings,
                 transform=transform
             )
@@ -606,6 +663,20 @@ class CommonDataset:
                 abs_path=abs_path,
                 dataset_type=dataset_type,
                 has_header=has_header,
+                row_threshold=row_threshold,
+                column_threshold=column_threshold,
+                mappings=mappings,
+                transform=transform
+            )
+
+        elif extension in ('json', ):
+            return cls.from_json(
+                role=role,
+                abs_path=abs_path,
+                dataset_type=dataset_type,
+                data_field=data_field,
+                row_threshold=row_threshold,
+                column_threshold=column_threshold,
                 mappings=mappings,
                 transform=transform
             )
@@ -1110,7 +1181,7 @@ if __name__ == "__main__":
     # another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
     # print(another_np_dataset)
 
-    df_dataset = pd.DataFrame(
+    df_dataset_ = pd.DataFrame(
         {
             "id": [1, 2, 3, 4, 5],
             "x": [1.1, 1.2, np.nan, np.nan, 1.2],
@@ -1120,8 +1191,8 @@ if __name__ == "__main__":
         }
     )
     print("Original")
-    print(df_dataset)
-    cleaned_df_dataset = CommonDataset._clean_data(df_dataset, row_threshold=0.5, column_threshold=0.5)
+    print(df_dataset_)
+    cleaned_df_dataset = CommonDataset._clean_data(df_dataset_, row_threshold=0.5, column_threshold=0.5)
     print("Cleaned")
     print(cleaned_df_dataset)
     filled_df_dataset = CommonDataset._fill_data(cleaned_df_dataset)
