@@ -501,7 +501,7 @@ class ActiveTreeParty(BaseModelComponent):
             tree_str = plot_tree(tree, tree_structure)
             tree_strs[tree_id] = tree_str
 
-        self.logger.log(f"Load model {model_name} success.")
+        self.logger.log(f"Load model {self.model_name} success.")
         return tree_strs
 
     def get_tree_structures(self):

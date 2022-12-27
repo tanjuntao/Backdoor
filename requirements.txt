@@ -1,5 +1,6 @@
 blosc
 cx_Oracle
+Cython>=3.0.0a11
 gmpy2>=2.1.3
 gmssl
 matplotlib

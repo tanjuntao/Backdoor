@@ -10,8 +10,8 @@ if [[ -d linkefl.egg-info ]]; then
 fi
 
 # build python package
-python3 -m pip install "Cython>=3.0.0a11"
 python3 -m pip install --upgrade pip wheel setuptools
+python3 -m pip install -r requirements.txt
 python3 setup.py build_ext --inplace
 python3 setup.py sdist bdist_wheel
 
