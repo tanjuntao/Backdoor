@@ -37,7 +37,7 @@ class ActiveLinReg_disconnection(BaseLinearActive_disconnection):
                  num_workers=-1,
                  val_freq=1,
                  saving_model=False,
-                 model_path='./models',
+                 model_path='./models_active',
                  world_size=1,
                  reconnection=False,
                  reconnection_port=["30001"]
@@ -324,7 +324,7 @@ class PassiveLinReg_disconnection(BaseLinearPassive):
                  num_workers=-1,
                  val_freq=1,
                  saving_model=False,
-                 model_path='./models',
+                 model_path='./models_passive',
     ):
         super(PassiveLinReg_disconnection, self).__init__(
             epochs=epochs,
@@ -611,7 +611,7 @@ class PassiveLinReg_reconnection(BaseLinearPassive):
               'substract the computation time which is printed in the console'
               'of active party.'.format(commu_plus_compu_time))
 
-    def get_latest_filename(filedir):
+    def get_latest_filename(self,filedir):
         if os.path.exists(filedir):
             file_list = os.listdir(filedir)
         else:

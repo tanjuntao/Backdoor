@@ -22,7 +22,7 @@ if __name__ == '__main__':
     active_port = [20000, 30000]
     passive_ip = ['localhost', 'localhost']
     passive_port = [20001, 30001]
-    world_size = 1
+    world_size = 2
     _epochs = 200000
     _batch_size = -1
     _learning_rate = 1.0

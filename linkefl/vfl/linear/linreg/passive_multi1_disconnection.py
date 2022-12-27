@@ -25,6 +25,7 @@ if __name__ == '__main__':
     _random_state = None
     _crypto_type = Const.PLAIN
     _val_freq = 5000
+    saving_model = True
 
     # 1. Load datasets
     print('Loading dataset...')
@@ -71,7 +72,7 @@ if __name__ == '__main__':
                                   reg_lambda=_reg_lambda,
                                   random_state=_random_state,
                                   val_freq=_val_freq,
-                                  saving_model=False)
+                                  saving_model=saving_model)
 
     passive_party.train(passive_trainset, passive_testset)
 

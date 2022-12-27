@@ -25,6 +25,7 @@ if __name__ == '__main__':
     _random_state = 3347
     _crypto_type = Const.PLAIN
     _using_pool = False
+    saving_model = True
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
     print('Loading dataset...')
@@ -94,8 +95,9 @@ if __name__ == '__main__':
                                   reg_lambda=_reg_lambda,
                                   random_state=_random_state,
                                   using_pool=_using_pool,
-                                  saving_model=False,)
+                                  saving_model=saving_model,)
 
+    passive_party.load_lastmodel(model_path='./models_passive')
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training

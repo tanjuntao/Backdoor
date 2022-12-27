@@ -18,6 +18,8 @@ from linkefl.common.factory import (
     partial_crypto_factory,
 )
 from  linkefl.vfl.linear.base_multi import BaseLinearActive_disconnection
+import os
+
 
 class PassiveLogReg_disconnection(BaseLinearPassive):
     def __init__(self,
@@ -36,7 +38,7 @@ class PassiveLogReg_disconnection(BaseLinearPassive):
                  num_workers=-1,
                  val_freq=1,
                  saving_model=False,
-                 model_path='./models',
+                 model_path='./models_passive',
     ):
         super(PassiveLogReg_disconnection, self).__init__(
             epochs=epochs,
@@ -197,7 +199,7 @@ class PassiveLogReg_reconnection(BaseLinearPassive):
                  num_workers=-1,
                  val_freq=1,
                  saving_model=False,
-                 model_path='./models',
+                 model_path='./models_passive',
     ):
         super(PassiveLogReg_reconnection, self).__init__(
             epochs=epochs,
@@ -225,9 +227,7 @@ class PassiveLogReg_reconnection(BaseLinearPassive):
                                                   'of NumpyDataset'
         setattr(self, 'x_train', trainset.features)
         setattr(self, 'x_val', testset.features)
-        # init model parameters
-        params = self._init_weights(trainset.n_features)
-        setattr(self, 'params', params)
+
 
         # obtain public key from active party and init cryptosystem
         public_key = self._sync_pubkey()
@@ -260,7 +260,6 @@ class PassiveLogReg_reconnection(BaseLinearPassive):
         # Main Training Loop Here
         all_idxes = list(range(n_samples))
         new_epoch = self.messenger.recv()
-        print(new_epoch)
         self.logger.log('Start collaborative model training...')
         for epoch in range(new_epoch, self.epochs):
             self.logger.log('Epoch: {}'.format(epoch))
@@ -325,6 +324,22 @@ class PassiveLogReg_reconnection(BaseLinearPassive):
               'substract the computation time which is printed in the console'
               'of active party.'.format(commu_plus_compu_time))
         
+    def get_latest_filename(self,filedir):
+        if os.path.exists(filedir):
+            file_list = os.listdir(filedir)
+        else:
+            raise ValueError("not exist filedir.")
+
+        # sort by create time
+        file_list.sort(key=lambda fn: os.path.getmtime(os.path.join(filedir, fn)))
+        return file_list[-1]
+
+    def load_lastmodel(self,model_path):
+
+        model_name = self.get_latest_filename(model_path)
+        model_params = NumpyModelIO.load(model_path, model_name)
+
+        setattr(self, 'params', model_params)
 
 class ActiveLogReg_disconnection(BaseLinearActive_disconnection):
     def __init__(self,
@@ -344,7 +359,7 @@ class ActiveLogReg_disconnection(BaseLinearActive_disconnection):
                  num_workers=-1,
                  val_freq=1,
                  saving_model=False,
-                 model_path='./models',
+                 model_path='./models_active',
                  positive_thresh=0.5,
                  residue_precision=0.0001,
                  world_size=1,
@@ -492,7 +507,6 @@ class ActiveLogReg_disconnection(BaseLinearActive_disconnection):
                 for id in range(self.world_size):
                     if not passive_party[id]:
                         passive_party[id] = self.try_to_connection(id=id,reconnection_port=self.reconnection_port)
-                        print(id)
                         passive_party[id] = self.messenger.send(epoch,id,passive_party[id])
 
 
@@ -654,3 +668,4 @@ class ActiveLogReg_disconnection(BaseLinearActive_disconnection):
         }
         messenger.send(scores)
         return scores
+

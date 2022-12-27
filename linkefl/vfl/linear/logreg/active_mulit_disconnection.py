@@ -27,6 +27,7 @@ if __name__ == '__main__':
     _key_size = 1024
     _using_pool = False
     reconnection = True
+    saving_model = True
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
@@ -118,7 +119,7 @@ if __name__ == '__main__':
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
                                 using_pool=_using_pool,
-                                saving_model=False,
+                                saving_model=saving_model,
                                 world_size=world_size,
                                 reconnection=reconnection,
                                 reconnection_port=reconnection_port)

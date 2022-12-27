@@ -59,7 +59,7 @@ if __name__ == '__main__':
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
 
-    # 4. Initialize model and start training
+    # 4. Loading model and retraining
     _logger = logger_factory(role=Const.PASSIVE_NAME)
     passive_party = PassiveLinReg_reconnection(epochs=_epochs,
                                   batch_size=_batch_size,
@@ -73,6 +73,7 @@ if __name__ == '__main__':
                                   val_freq=_val_freq,
                                   saving_model=False)
 
+    passive_party.load_lastmodel(model_path='./models_passive')
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training
