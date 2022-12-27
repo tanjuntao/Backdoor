@@ -13,7 +13,7 @@ class BasePearsonVfl(ABC):
         self.messenger = messenger
 
     @abstractmethod
-    def pearosn_vfl(self):
+    def pearson_vfl(self):
         pass
 
 
@@ -23,7 +23,7 @@ class ActivePearsonVfl(BasePearsonVfl):
         self.cryptosystem = cryptosystem
         self.crypto_type = crypto_type
 
-    def pearosn_vfl(self):
+    def pearson_vfl(self):
         y = self.dataset.labels
         if isinstance(y, np.ndarray) or isinstance(y, torch.Tensor):
             if isinstance(y, torch.Tensor):
@@ -34,23 +34,33 @@ class ActivePearsonVfl(BasePearsonVfl):
 
             # The active party sends the encrypted vector Y_meanY to the passive party.
             enc_ymeany = np.array(self.cryptosystem.encrypt_vector(y_meany))
-            self.messenger.send(enc_ymeany)
+            for msger in self.messenger: msger.send(enc_ymeany)
 
             # The active party receives the encrypted cov(X, Y) and stdx_r from the passive party.
-            enc_cov = self.messenger.recv()
-            stdx_r = self.messenger.recv()
+            for msger in self.messenger: enc_cov = msger.recv()
+            for msger in self.messenger: stdx_r = msger.recv()
 
             # The active party calculates the pearson_r and sends it to the passive party.
             cov = np.array(self.cryptosystem.decrypt_vector(enc_cov))
             pearson_r = cov / (stdx_r * stdy)
-            self.messenger.send(pearson_r)
+            for msger in self.messenger: msger.send(pearson_r)
 
         else:
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
 
+    def pearson_single(self):
+        features = self.dataset.features
+        y = self.dataset.labels
+        n_features = self.dataset.n_features
+        peason = []
+        for i in range(n_features):
+            temp = np.corrcoef(features[:, i], y, rowvar=False)
+            peason.append(temp[0][1])
+        return peason
+
 
 class PassivePearsonVfl(BasePearsonVfl):
-    def pearosn_vfl(self):
+    def pearson_vfl(self):
         x = self.dataset.features
         if isinstance(x, np.ndarray) or isinstance(x, torch.Tensor):
             if isinstance(x, torch.Tensor):
