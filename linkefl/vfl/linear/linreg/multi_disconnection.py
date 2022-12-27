@@ -1,6 +1,6 @@
 import copy
 import time
-
+import os
 import numpy as np
 from sklearn.metrics import r2_score
 from termcolor import colored
@@ -161,7 +161,6 @@ class ActiveLinReg_disconnection(BaseLinearActive_disconnection):
                     for id in range(self.world_size):
                         if not passive_party[id]:
                             passive_party[id] = self.try_to_connection(id=id,reconnection_port=self.reconnection_port)
-                            print(id)
                             passive_party[id] = self.messenger.send(epoch,id,passive_party[id])
 
                 for id in range(self.world_size):
@@ -514,9 +513,7 @@ class PassiveLinReg_reconnection(BaseLinearPassive):
                                                   'of NumpyDataset'
         setattr(self, 'x_train', trainset.features)
         setattr(self, 'x_val', testset.features)
-        # init model parameters
-        params = self._init_weights(trainset.n_features)
-        setattr(self, 'params', params)
+
 
         # obtain public key from active party and init cryptosystem
         public_key = self._sync_pubkey()
@@ -613,3 +610,20 @@ class PassiveLinReg_reconnection(BaseLinearPassive):
               '{:.4f}s. In order to obtain the communication time only, you should'
               'substract the computation time which is printed in the console'
               'of active party.'.format(commu_plus_compu_time))
+
+    def get_latest_filename(filedir):
+        if os.path.exists(filedir):
+            file_list = os.listdir(filedir)
+        else:
+            raise ValueError("not exist filedir.")
+
+        # sort by create time
+        file_list.sort(key=lambda fn: os.path.getmtime(os.path.join(filedir, fn)))
+        return file_list[-1]
+
+    def load_lastmodel(self,model_path):
+
+        model_name = self.get_latest_filename(model_path)
+        model_params = NumpyModelIO.load(model_path, model_name)
+
+        setattr(self, 'params', model_params)

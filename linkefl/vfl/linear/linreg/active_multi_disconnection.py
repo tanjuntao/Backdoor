@@ -22,7 +22,7 @@ if __name__ == '__main__':
     active_port = [20000, 30000]
     passive_ip = ['localhost', 'localhost']
     passive_port = [20001, 30001]
-    world_size = 2
+    world_size = 1
     _epochs = 200000
     _batch_size = -1
     _learning_rate = 1.0
@@ -33,7 +33,8 @@ if __name__ == '__main__':
     _key_size = 1024
     _val_freq = 5000
 
-    reconnection = False
+    saving_model = True
+    reconnection = True
     reconnection_port = [20002, 30002]
 
     # 1. Loading dataset and preprocessing
@@ -104,7 +105,7 @@ if __name__ == '__main__':
                                 reg_lambda=_reg_lambda,
                                 random_state=_random_state,
                                 val_freq=_val_freq,
-                                saving_model=False,
+                                saving_model=saving_model,
                                 world_size=world_size,
                                 reconnection=reconnection,
                                 reconnection_port=reconnection_port
@@ -113,8 +114,7 @@ if __name__ == '__main__':
     active_party.train(active_trainset, active_testset)
 
     # 6. Close messenger, finish training.
-    for msger_ in _messenger:
-        msger_.close()
+    _messenger.close()
 
     # # For online inference, you only need to substitue the model name
     # scores = ActiveLinReg.online_inference(
