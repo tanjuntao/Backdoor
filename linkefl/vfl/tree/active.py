@@ -19,7 +19,7 @@ from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.error import DisconnectedError
 from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss, MeanSquaredErrorLoss
-
+from linkefl.vfl.tree.plotting import plot_tree
 
 class ActiveTreeParty(BaseModelComponent):
     def __init__(
@@ -470,7 +470,7 @@ class ActiveTreeParty(BaseModelComponent):
         return result
 
     def load_model(self, model_name, model_path="./models"):
-        model_params, feature_importance_info = NumpyModelIO.load(model_path, model_name)
+        model_params, feature_importance_info, lr = NumpyModelIO.load(model_path, model_name)
 
         if len(self.trees) != len(model_params):
             self.trees = [
@@ -492,6 +492,17 @@ class ActiveTreeParty(BaseModelComponent):
 
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
+
+    def plot_trees(self, tree_structure: str="VERTICAL"):
+        assert tree_structure in ["VERTICAL", "HORIZONTAL"], "tree_structure should be VERTICAL or HORIZONTAL"
+        tree_strs = {}
+
+        for tree_id, tree in enumerate(active_party.trees, 1):
+            tree_str = plot_tree(tree, tree_structure)
+            tree_strs[tree_id] = tree_str
+
+        self.logger.log(f"Load model {model_name} success.")
+        return tree_strs
 
     def get_tree_structures(self):
         """tree_id : 1-based
@@ -774,10 +785,10 @@ if __name__ == "__main__":
         messengers=messengers,
         logger=logger,
 
-        training_mode="lightgbm",       # "lightgbm", "xgboost"
+        training_mode="xgboost",       # "lightgbm", "xgboost"
         sampling_method='uniform',
-        max_depth=6,
-        max_num_leaves=16,
+        max_depth=3,
+        max_num_leaves=8,
         subsample=1,
         top_rate=0.3,
         other_rate=0.7,
@@ -793,18 +804,16 @@ if __name__ == "__main__":
 
     active_party.train(active_trainset, active_testset)
 
-    feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
-    print(feature_importance_info)
+    # feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
+    # print(feature_importance_info)
 
     # ax = plot_importance(active_party, importance_type='split')
     # plt.show()
 
-    # scores = active_party.online_inference(active_testset, "xxx.model")
-    # print(scores)
+    # trees_strs = active_party.plot_trees(tree_structure="VERTICAL")
+    # print(trees_strs[1])        # tree id is 1-based
 
     # 5. Close messenger, finish training
     for messenger in messengers:
         messenger.close()
 
-    tree_structures = active_party.get_tree_structures()
-    print(tree_structures)

@@ -1,7 +1,9 @@
-from typing import Optional, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+from typing import Optional, Any
+from PrettyPrint import PrettyPrintTree
 
 # TODO：fix ereor "circular import"
 # import linkefl
@@ -9,6 +11,55 @@ import numpy as np
 Axes = Any              # real type is matplotlib.axes.Axes
 GraphvizSource = Any    # real type is graphviz.Source
 ActiveTreeParty = Any   # real type is linkefl.vfl.tree.ActiveTreeParty
+
+def plot_tree(tree, tree_structure):
+    root = tree.root
+    _prepare_print_val(tree, root)
+
+    orientation = PrettyPrintTree.HORIZONTAL if tree_structure == "HORIZONTAL" else PrettyPrintTree.VERTICAL
+
+    pt = PrettyPrintTree(
+        get_children=lambda x: x.children if x else [],
+        get_val=lambda x: x.print_val if x else "",
+        default_orientation = orientation,
+        border=True,
+        # color=None,
+        return_instead_of_print=True,
+    )
+
+    tree_str = pt(root)
+    return tree_str
+
+def _prepare_print_val(tree, root):
+    if not root:
+        return
+
+    if root.value != None:
+        # leaf node
+        print_val = f"value: {root.value: .3f}"
+    else:
+        # mid node
+        if root.party_id == 0:
+            print_val = "active_party\n"
+            print_val += f"record_id: {root.record_id}\n"
+            print_val += f"feature: f{int(tree.record[root.record_id][0])}\n"
+            print_val += f"threshold: {tree.record[root.record_id][1]: .3f}"
+        else:
+            print_val = f"passive_party_{root.party_id}\n"
+            print_val += f"record_id: {root.record_id}\n"
+            print_val += f"feature: encrypt\n"
+            print_val += f"threshold: encrypt"
+
+    root.print_val = print_val
+    root.children = []
+    # print(root.print_val)
+    if root.left_branch:
+        _prepare_print_val(tree, root.left_branch)
+        root.children.append(root.left_branch)
+    if root.right_branch:
+        _prepare_print_val(tree, root.right_branch)
+        root.children.append(root.right_branch)
+
 
 def _check_not_tuple_of_2_elements(obj: Any, obj_name: str = 'obj') -> None:
     """Check object is not tuple or does not have 2 elements."""
@@ -134,6 +185,7 @@ def plot_importance(
     ax.grid(grid)
 
     return ax
+
 
 if __name__ == '__main__':
     feature_num = 20
