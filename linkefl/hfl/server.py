@@ -83,7 +83,8 @@ if __name__ == '__main__':
     #逻辑回归模型
     model_name = 'LogisticRegression'
     in_features = 81
-    model = LogReg(in_features)
+    out_features = 2
+    model = LogReg(in_features,out_features)
 
 
     model.to(device)
