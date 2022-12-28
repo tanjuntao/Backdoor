@@ -23,7 +23,8 @@ class Server:
                  E=30,
                  kp=0.1,
                  batch_size=64,
-                 BUFSIZ=1024000000):
+                 BUFSIZ=1024000000,
+                 model_name="NeuralNetwork"):
 
         """
         HOST:联邦学习server的ip
@@ -52,7 +53,7 @@ class Server:
         self.batch_size = batch_size
         self.iter = iter
         self.kp = kp
-
+        self.model_name = model_name
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         return dataloader
@@ -85,7 +86,7 @@ class Server:
         num_batches = ceil(len(test_set.dataset) / float(self.batch_size))
 
         for idx, (data, target) in enumerate(test_set):
-            data, target = data.to(self.device), target.to(self.device)
+            data, target = data.to(self.device), target.to(self.device).to(torch.long)
             log_probs = self.model(data)
             # test_loss += self.lossfunction(log_probs, target, reduction='sum').item()
             test_loss += self.lossfunction(log_probs, target).item()
@@ -125,7 +126,8 @@ class Client:
                  dp_mechanism='Laplace',
                  dp_clip=10,
                  dp_epsilon=1,
-                 dp_delta=1e-5):
+                 dp_delta=1e-5,
+                 model_name="NeuralNetwork"):
 
         """
         HOST:联邦学习server的ip
@@ -155,7 +157,7 @@ class Client:
         self.BUFSIZ = BUFSIZ
         self.batch_size = batch_size
         self.iter = iter
-
+        self.model_name=model_name
         # FedProx
         self.mu = mu
 
@@ -238,13 +240,12 @@ class Client:
         num_batches = ceil(len(test_set.dataset) / float(self.batch_size))
 
         for idx, (data, target) in enumerate(test_set):
-            data, target = data.to(self.device), target.to(self.device)
+            data, target = data.to(self.device), target.to(self.device).to(torch.long)
             log_probs = self.model(data)
             # test_loss += self.lossfunction(log_probs, target, reduction='sum').item()
             test_loss += self.lossfunction(log_probs, target).item()
             y_pred = log_probs.data.max(1, keepdim=True)[1]
             correct += y_pred.eq(target.data.view_as(y_pred)).long().cpu().sum()
-
         test_loss /= num_batches
         accuracy = 100.00 * correct / len(test_set.dataset)
         print('\nTest set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n'.format(
