@@ -308,7 +308,7 @@ class DecisionTree:
         split_node_candidates.put(root)
 
         num_leaves = 0
-        while not split_node_candidates.empty() or num_leaves + split_node_candidates.qsize() < self.max_num_leaves:
+        while (not split_node_candidates.empty()) and num_leaves + split_node_candidates.qsize() < self.max_num_leaves:
             node = split_node_candidates.get()
             if (node.depth < self.max_depth
                 and node.sample_tag_selected.sum() >= self.min_split_samples
