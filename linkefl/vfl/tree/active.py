@@ -497,7 +497,7 @@ class ActiveTreeParty(BaseModelComponent):
         assert tree_structure in ["VERTICAL", "HORIZONTAL"], "tree_structure should be VERTICAL or HORIZONTAL"
         tree_strs = {}
 
-        for tree_id, tree in enumerate(active_party.trees, 1):
+        for tree_id, tree in enumerate(self.trees, 1):
             tree_str = plot_tree(tree, tree_structure)
             tree_strs[tree_id] = tree_str
 
@@ -566,7 +566,7 @@ class ActiveTreeParty(BaseModelComponent):
         update_pred = tree.predict(features)
         raw_outputs_test += self.learning_rate * update_pred
 
-        if task == "regression":
+        if self.task == "regression":
             outputs = raw_outputs_test
             targets = raw_outputs_test
 
@@ -627,7 +627,7 @@ class ActiveTreeParty(BaseModelComponent):
                 break
             raw_outputs += self.learning_rate * update_pred
 
-        if task == "regression":
+        if self.task == "regression":
             outputs = raw_outputs
             targets = raw_outputs
 
