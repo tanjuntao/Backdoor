@@ -8,6 +8,7 @@ numpy
 openpyxl
 pandas
 phe>=1.5.0
+PrettyPrint
 pycryptodome
 PyMySQL
 pyotp
@@ -21,3 +22,4 @@ torch
 torchvision
 tqdm
 xgboost
+
