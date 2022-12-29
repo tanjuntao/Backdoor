@@ -377,7 +377,6 @@ def plot(X_active, estimator, name):
 if __name__ == '__main__':
     from linkefl.common.factory import messenger_factory
 
-    passive_feat_frac = 0.5
     active_ip = 'localhost'
     active_port = 20001
     passive_ip = 'localhost'
