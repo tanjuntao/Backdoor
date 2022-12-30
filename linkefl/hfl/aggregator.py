@@ -3,7 +3,7 @@ import numpy as np
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import StepLR
 from linkefl.hfl.dp_mechanism import gradient_clip
-
+import torch
 
 class Aggregator_server:
 
@@ -99,7 +99,8 @@ class Aggregator_client:
             epoch_loss = 0.0
             for data, target in train_set:
                 data, target = data.to(device), target.to(device)
-                data, target = Variable(data), Variable(target)
+                # data, target = Variable(data).to(torch.float32), Variable(target).to(torch.float32)
+                data, target = Variable(data), Variable(target).to(torch.long)
                 optimizer.zero_grad()
                 output = model(data)
                 loss = lf(output, target)

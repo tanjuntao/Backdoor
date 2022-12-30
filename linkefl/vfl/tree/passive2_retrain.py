@@ -57,12 +57,12 @@ if __name__ == "__main__":
         crypto_type=_crypto_type,
         messenger=messenger,
         saving_model=True,
+        model_path="./models/passive_party_2"
     )
 
     # load temp model and retrain
-    load_model_path = "./models"
-    load_model_name = ""
-    passive_party.load_retrain(load_model_path, load_model_name, passive_trainset, passive_testset)
+    load_model_path = "./models/passive_party_2"
+    passive_party.load_retrain(load_model_path, passive_trainset, passive_testset)
 
     # passive_party.online_inference(passive_testset, "xxx.model")
 

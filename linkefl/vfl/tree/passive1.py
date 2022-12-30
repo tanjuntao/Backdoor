@@ -72,6 +72,7 @@ if __name__ == "__main__":
         messenger=messenger,
         logger=logger,
         saving_model=True,
+        model_path="./models/passive_party_1"
     )
 
     passive_party.train(passive_trainset, passive_testset)

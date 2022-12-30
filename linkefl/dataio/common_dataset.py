@@ -212,6 +212,7 @@ class CommonDataset:
                    host, user, password, database, table,
                    *,
                    target_fields=None, excluding_fields=False,
+                   row_threshold=0.3, column_threshold=0.3,
                    mappings=None, transform=None, port=3306
     ):
         """Load dataset from MySQL database."""
@@ -237,6 +238,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -252,6 +255,7 @@ class CommonDataset:
                     host, user, password, database, table,
                     *,
                     target_fields=None, excluding_fields=False,
+                    row_threshold=0.3, column_threshold=0.3,
                     mappings=None, transform=None, port=3306
     ):
         """
@@ -280,6 +284,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -295,6 +301,7 @@ class CommonDataset:
                     host, user, password, database, table,
                     *,
                     target_fields=None, excluding_fields=False,
+                    row_threshold=0.3, column_threshold=0.3,
                     mappings=None, transform=None, port=1521
     ):
         import cx_Oracle
@@ -319,6 +326,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -334,6 +343,7 @@ class CommonDataset:
                      host, user, password, database, table,
                      *,
                      target_fields=None, excluding_fields=False,
+                     row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None, port=6789
     ):
         """Load dataset from Gaussdb database."""
@@ -367,6 +377,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -382,6 +394,7 @@ class CommonDataset:
                      host, user, password, database, table,
                      *,
                      target_fields=None, excluding_fields=False,
+                     row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None, port=6789
     ):
         """Load dataset from gbase8a database."""
@@ -406,6 +419,8 @@ class CommonDataset:
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -456,6 +471,7 @@ class CommonDataset:
     @classmethod
     def from_csv(cls, role, abs_path, dataset_type,
                  delimiter=',', has_header=False,
+                 row_threshold=0.3, column_threshold=0.3,
                  mappings=None, transform=None
     ):
         header_arg = 0 if has_header else None
@@ -466,6 +482,8 @@ class CommonDataset:
             skipinitialspace=True, # skip spaces after delimiter
         )
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         if has_header:
@@ -486,6 +504,7 @@ class CommonDataset:
     @classmethod
     def from_excel(cls, role, abs_path, dataset_type,
                    has_header=False,
+                   row_threshold=0.3, column_threshold=0.3,
                    mappings=None, transform=None
     ):
         """ Load dataset from excel.
@@ -498,6 +517,8 @@ class CommonDataset:
             index_col=False
         )
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         if has_header:
@@ -516,8 +537,39 @@ class CommonDataset:
         )
 
     @classmethod
+    def from_json(cls, role, abs_path, dataset_type,
+                  data_field='data', has_header=True,
+                  existing_json=None,
+                  row_threshold=0.3, column_threshold=0.3,
+                  mappings=None, transform=None):
+        import json
+        if existing_json is None:
+            f = open(abs_path)
+            whole_json = json.load(f)
+            f.close()
+        else:
+            whole_json = existing_json
+
+        raw_data = whole_json[data_field]  # a Python list
+        df_dataset = pd.DataFrame.from_dict(raw_data)
+        df_dataset = cls._clean_data(df_dataset, row_threshold, column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
+        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
+
+        header = list(raw_data[0].keys()) # each element in raw_data is a dict
+
+        return cls(
+            role=role,
+            raw_dataset=np_dataset,
+            header=header,
+            dataset_type=dataset_type,
+            transform=transform
+        )
+
+    @classmethod
     def from_url(cls, role, url, dataset_type,
                  delimiter=',', has_header=False,
+                 row_threshold=0.3, column_threshold=0.3,
                  mappings=None, transform=None
     ):
         import requests
@@ -534,6 +586,8 @@ class CommonDataset:
             skipinitialspace=True, # skip spaces after delimiter
         )
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         if has_header:
@@ -552,8 +606,33 @@ class CommonDataset:
         )
 
     @classmethod
+    def from_api(cls, role, url, dataset_type, post_params,
+                 data_field='data', has_header=True,
+                 row_threshold=0.3, column_threshold=0.3,
+                 mappings=None, transform=None,
+    ):
+        import json
+        import requests
+
+        resp = requests.post(url=url, json=post_params)
+        existing_json = json.loads(resp.text)
+
+        return cls.from_json(
+            role=role,
+            abs_path=None,
+            dataset_type=dataset_type,
+            data_field=data_field,
+            existing_json=existing_json,
+            row_threshold=row_threshold,
+            column_threshold=column_threshold,
+            mappings=mappings,
+            transform=transform
+        )
+
+    @classmethod
     def from_anyfile(cls, role, abs_path, dataset_type,
-                     has_header=False,
+                     data_field='data', has_header=False,
+                     row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None
     ):
         extension = abs_path.split('.')[-1]
@@ -572,6 +651,8 @@ class CommonDataset:
                 dataset_type=dataset_type,
                 delimiter=delimiter,
                 has_header=has_header,
+                row_threshold=row_threshold,
+                column_threshold=column_threshold,
                 mappings=mappings,
                 transform=transform
             )
@@ -582,6 +663,20 @@ class CommonDataset:
                 abs_path=abs_path,
                 dataset_type=dataset_type,
                 has_header=has_header,
+                row_threshold=row_threshold,
+                column_threshold=column_threshold,
+                mappings=mappings,
+                transform=transform
+            )
+
+        elif extension in ('json', ):
+            return cls.from_json(
+                role=role,
+                abs_path=abs_path,
+                dataset_type=dataset_type,
+                data_field=data_field,
+                row_threshold=row_threshold,
+                column_threshold=column_threshold,
                 mappings=mappings,
                 transform=transform
             )
@@ -730,24 +825,24 @@ class CommonDataset:
         self._header = new_header
 
     def describe(self):
+        import io
         import seaborn as sns
 
         from matplotlib import pyplot as plt
         from termcolor import colored
 
-        print(colored('Number of samples: {}'.format(self.n_samples), 'red'))
-        print(colored('Number of features: {}'.format(self.n_features), 'red'))
+        static_result = {}
+        static_result['number_of_samples'] = self.n_samples
+        static_result['number_of_features'] = self.n_features
         if self.role == Const.ACTIVE_NAME and len(np.unique(list(self.labels))) == 2:
             if isinstance(self.labels, np.ndarray): # Numpy Array
                 n_positive = (self.labels == 1).astype(int).sum()
             else: # PyTorch Tensor
                 n_positive = (self.labels == 1).type(torch.int32).sum().item()
             n_negative = self.n_samples - n_positive
-            print(colored('Positive samples: Negative samples = {}:{}'
-                          .format(n_positive, n_negative), 'red'))
-        print()
+            static_result['positive_samples'] = n_positive
+            static_result['negative_samples'] = n_negative
 
-        # Output of statistical values of the data set.
         pd.set_option('display.max_columns', None)
         df_dataset = pd.DataFrame(self._raw_dataset)
         if self.role == Const.ACTIVE_NAME:
@@ -758,59 +853,67 @@ class CommonDataset:
             df_dataset.rename(columns={0: 'id'}, inplace=True)
             for i in range(self.n_features):
                 df_dataset.rename(columns={i + 1: 'x' + str(i + 1)}, inplace=True)
+        static_result['first_and_last_5_rows'] = pd.concat([df_dataset.head(), df_dataset.tail()])
 
-        print(colored('The first 5 rows and the last 5 rows of the dataset are as follows:', 'red'))
-        print(pd.concat([df_dataset.head(), df_dataset.tail()]))
-        print()
+        buf = io.StringIO()
+        df_dataset.info(buf=buf)
+        info = buf.getvalue()
+        static_result['index_dtype_and_colunms_non-null_values_and_memory_usage'] = info
 
-        print(colored('The information about the dataset including the index '
-                      'dtype and columns, non-null values and memory usage '
-                      'are as follows:', 'red'))
-        df_dataset.info()
-        print()
-
-        print(colored('The descriptive statistics include those that summarize '
-                      'the central tendency, dispersion and shape of the dataset’s '
-                      'distribution, excluding NaN values are as follows:', 'red'))
         col_names = list(df_dataset.columns.values)
         num_unique_data = np.array(df_dataset[col_names].nunique().values)
         num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)),
                                   index=['unique'],
                                   columns=col_names)
-        print(pd.concat([df_dataset.describe(), num_unique]))
-        print()
+        col_sum = df_dataset.sum().values.reshape((1, -1))
+        col_top3 = np.array([])
+        for col in col_names:
+            temp = df_dataset.nlargest(3, col)[col].values.reshape((-1, 1))
+            col_top3 = temp if col_top3.size == 0 else np.concatenate((col_top3, temp), axis=1)
+        top3_ratio_data = col_top3 / col_sum
+        top3_ratio = pd.DataFrame(data=top3_ratio_data,
+                                  index=["top1", "top2", "top3"],
+                                  columns=col_names)
+        for col in col_names:
+            top3_ratio[col] = top3_ratio[col].apply(lambda x: format(x, '.4%'))
+
+        info = pd.concat([df_dataset.describe(), num_unique, top3_ratio])
+        row_names = list(info.index.values)
+        for row_name in row_names:
+            static_result[row_name] = info.loc[row_name, :]
+        return static_result
 
         # Output the distribution for the data label.
-        if self.role == Const.ACTIVE_NAME:
-            n_classes = len(np.unique(list(self.labels)))
-            if self.dataset_type == Const.REGRESSION:  # regression dataset
-                dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
-                                         columns=['label'])
-                # histplot
-                sns.histplot(dis_label, kde=True, linewidth=1)
-            else:  # classification dataset
-                bars = [str(i) for i in range(n_classes)]
-                if isinstance(self.labels, np.ndarray): # Numpy Array
-                    counts = [(self.labels == i).astype(int).sum()
-                                for i in range(n_classes)]
-                else: # PyTorch Tensor
-                    counts = [(self.labels == i).type(torch.int32).sum().item()
-                                for i in range(n_classes)]
-                x = np.arange(len(bars))
-                width = 0.5 / n_classes
-
-                # barplot
-                rec = plt.bar(x, counts, width=width)
-                # show corresponding value of the bar on top of itself
-                for bar in rec:
-                    h = bar.get_height()
-                    plt.text(bar.get_x() + bar.get_width() / 2, h, h,
-                             ha='center',
-                             va='bottom',
-                             size=14)
-                plt.xticks(x, bars, fontsize=14)
-
-            plt.show()
+        # if self.role == Const.ACTIVE_NAME:
+        #     n_classes = len(np.unique(list(self.labels)))
+        #     if self.dataset_type == Const.REGRESSION:  # regression dataset
+        #         dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
+        #                                  columns=['label'])
+        #         # histplot
+        #         sns.histplot(dis_label, kde=True, linewidth=1)
+        #     else:  # classification dataset
+        #         bars = [str(i) for i in range(n_classes)]
+        #         if isinstance(self.labels, np.ndarray): # Numpy Array
+        #             counts = [(self.labels == i).astype(int).sum()
+        #                         for i in range(n_classes)]
+        #         else: # PyTorch Tensor
+        #             counts = [(self.labels == i).type(torch.int32).sum().item()
+        #                         for i in range(n_classes)]
+        #         x = np.arange(len(bars))
+        #         width = 0.5 / n_classes
+        #
+        #         # barplot
+        #         rec = plt.bar(x, counts, width=width)
+        #         # show corresponding value of the bar on top of itself
+        #         for bar in rec:
+        #             h = bar.get_height()
+        #             plt.text(bar.get_x() + bar.get_width() / 2, h, h,
+        #                      ha='center',
+        #                      va='bottom',
+        #                      size=14)
+        #         plt.xticks(x, bars, fontsize=14)
+        #
+        #     plt.show()
 
     def get_dataset(self):
         return self._raw_dataset
@@ -945,6 +1048,40 @@ class CommonDataset:
         return np_dataset, header
 
     @staticmethod
+    def _clean_data(df_dataset: pd.DataFrame, row_threshold: float = 0.3, column_threshold: float = 0.3):
+        """Remove rows and columns with too many NANs
+
+        Parameters
+        ----------
+        df_dataset : pd.DataFrame
+            dataset which needs clean
+        row_threshold : float
+            in a row, the threshold of NANs
+        column_threshold : float
+            in a column, the threshold of NANs
+
+        Returns
+        -------
+        pd.DataFrame
+            a cleaned df_dataset (with acceptable NANs)
+        """
+
+        df_nan = df_dataset.isna()
+        rows, columns = df_dataset.shape
+        # check row
+        row_indexes = df_nan.sum(axis=1) < columns * row_threshold
+        # check column
+        column_indexes = df_nan.sum(axis=0) < rows * column_threshold
+        new_df_dataset = df_dataset.loc[row_indexes, column_indexes]
+
+        return new_df_dataset
+
+    @staticmethod
+    def _fill_data(df_dataset: pd.DataFrame):
+        new_df_dataset = df_dataset.apply(lambda x: x.fillna(x.value_counts().index[0]))
+        return new_df_dataset
+
+    @staticmethod
     def _pandas2numpy(df_dataset: pd.DataFrame, mappings: dict = None):
         """Transform a pandas DataFrame into Numpy Array"""
         from pandas.core.dtypes.common import is_numeric_dtype
@@ -1011,34 +1148,53 @@ class CommonDataset:
 
         return header
 
+
 if __name__ == "__main__":
-    from linkefl.feature.transform import OneHot
+    # from linkefl.feature.transform import OneHot
+    #
+    # print("the first df_dataset")
+    # _df_dataset = pd.DataFrame(
+    #     {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["aaa", "bbb", "ccc"], "b": ["aa", "bb", "cc"]}
+    # )
+    # print(_df_dataset)
+    # _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
+    # _mappings = CommonDataset.mappings
+    # # you can save these mappings and load it back when loading testset at inference pahse
+    # # with open('train_mappings.pkl', 'wb') as f:
+    # #     pickle.dump(mappings, f)
+    # print(_np_dataset)
+    # _np_dataset = OneHot([1, 2]).fit(_np_dataset, Const.PASSIVE_NAME)
+    # print(_np_dataset)
+    #
+    # print()
+    #
+    # print("the second df_dataset")
+    # another_df_dataset = pd.DataFrame(
+    #     {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["bbb", "ccc", "aaa"], "b": ["cc", "aa", "bb"]}
+    # )
+    # print(another_df_dataset)
+    # # you can load the mappings back and apply it to testset
+    # # with open('train_mappings.pkl', 'rb') as f:
+    # #     mappings = pickle.load(f)
+    # another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset, mappings=_mappings)
+    # print(another_np_dataset)
+    # another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
+    # print(another_np_dataset)
 
-    print("the first df_dataset")
-    _df_dataset = pd.DataFrame(
-        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["aaa", "bbb", "ccc"], "b": ["aa", "bb", "cc"]}
+    df_dataset_ = pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4, 5],
+            "x": [1.1, 1.2, np.nan, np.nan, 1.2],
+            "a": ["a", "aa", "aaa", np.nan, "aaaaa"],
+            "b": ["b", "bb", "bbb", np.nan, np.nan],
+            "c": [np.nan, np.nan, np.nan, "cccc", "ccccc"]
+        }
     )
-    print(_df_dataset)
-    _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
-    _mappings = CommonDataset.mappings
-    # you can save these mappings and load it back when loading testset at inference pahse
-    # with open('train_mappings.pkl', 'wb') as f:
-    #     pickle.dump(mappings, f)
-    print(_np_dataset)
-    _np_dataset = OneHot([1, 2]).fit(_np_dataset, Const.PASSIVE_NAME)
-    print(_np_dataset)
-
-    print()
-
-    print("the second df_dataset")
-    another_df_dataset = pd.DataFrame(
-        {"id": [0, 1, 2], "x": [1.1, 1.2, 1.3], "a": ["bbb", "ccc", "aaa"], "b": ["cc", "aa", "bb"]}
-    )
-    print(another_df_dataset)
-    # you can load the mappings back and apply it to testset
-    # with open('train_mappings.pkl', 'rb') as f:
-    #     mappings = pickle.load(f)
-    another_np_dataset = CommonDataset._pandas2numpy(another_df_dataset, mappings=_mappings)
-    print(another_np_dataset)
-    another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
-    print(another_np_dataset)
+    print("Original")
+    print(df_dataset_)
+    cleaned_df_dataset = CommonDataset._clean_data(df_dataset_, row_threshold=0.5, column_threshold=0.5)
+    print("Cleaned")
+    print(cleaned_df_dataset)
+    filled_df_dataset = CommonDataset._fill_data(cleaned_df_dataset)
+    print("Filled")
+    print(filled_df_dataset)

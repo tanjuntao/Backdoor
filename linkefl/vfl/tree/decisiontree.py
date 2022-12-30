@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 
-from collections import defaultdict
+from collections import defaultdict, deque
 from multiprocessing import Pool
 from typing import List
 from termcolor import colored
@@ -37,6 +37,14 @@ class _DecisionNode:
         left_branch=None,
         right_branch=None,
         value=None,
+        hist_list=None,
+        sample_tag_selected=None,
+        sample_tag_unselected=None,
+        split_party_id=None,
+        split_feature_id=None,
+        split_bin_id=None,
+        split_gain=None,
+        depth=None,
     ):
         # intermediate node
         self.party_id = party_id
@@ -46,6 +54,19 @@ class _DecisionNode:
 
         # leaf node
         self.value = value
+
+        # training data
+        self.hist_list = hist_list
+        self.sample_tag_selected = sample_tag_selected
+        self.sample_tag_unselected = sample_tag_unselected
+        self.split_party_id = split_party_id
+        self.split_feature_id = split_feature_id
+        self.split_bin_id = split_bin_id
+        self.split_gain = split_gain
+        self.depth = depth
+
+    def __lt__(self, other):
+        return self.split_gain > other.split_gain
 
 
 class DecisionTree:
@@ -58,8 +79,10 @@ class DecisionTree:
         messengers: List[BaseMessenger],
         logger: GlobalLogger,
         *,
+        training_mode: str = "lightgbm",
         compress: bool = False,
         max_depth: int = 4,
+        max_num_leaves: int = 31,
         reg_lambda: float = 0.1,
         min_split_samples: int = 3,
         min_split_gain: float = 1e-7,
@@ -99,8 +122,10 @@ class DecisionTree:
         self.messengers = messengers
         self.logger = logger
 
+        self.training_mode = training_mode
         self.compress = compress
         self.max_depth = max_depth
+        self.max_num_leaves = max_num_leaves
         self.reg_lambda = reg_lambda
         self.min_split_samples = min_split_samples
         self.min_split_gain = min_split_gain
@@ -138,14 +163,23 @@ class DecisionTree:
         self.update_pred = None  # saving tree raw output
         self.messengers_recvTag = None
 
-
     def fit(self, gradient, hessian, bin_index, bin_split):
-        """single tree training, return raw output"""
+        # 0. prepare: get params and reconnect
         self.model_phase = "train"
-
         sample_num, feature_num = bin_index.shape[0], bin_index.shape[1]
 
-        # tree-level samples sampling
+        if self.task == "regression" or self.task == "binary":
+            self.gh = np.array([gradient, hessian]).T
+            self.update_pred = np.zeros(sample_num, dtype=float)
+        else:
+            self.gh = np.stack((gradient, hessian), axis=2)
+            self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
+
+        for party_id, validTag in enumerate(self.messengers_validTag):
+            if not validTag:
+                self._reconnect_passiveParty(party_id)
+
+        # 1. sample: sample sampling and feature sampling
         if self.sampling_method == "uniform":
             selected_g, selected_h, selected_idx = random_sampling(gradient, hessian, self.subsample)
         elif self.sampling_method == "goss":
@@ -153,30 +187,174 @@ class DecisionTree:
         else:
             raise ValueError
 
-        # tree-level feature sampling
-        self.feature_index_selected = random.sample(list(range(feature_num)), int(feature_num * self.colsample_bytree))
+        self.feature_index_selected = random.sample(list(range(feature_num)),
+                                                    int(feature_num * self.colsample_bytree))
         self.feature_index_selected.sort()
-        # reset bin_index
         self.bin_index_selected = np.array(bin_index.copy())
         self.bin_index_selected = self.bin_index_selected[:, self.feature_index_selected]
-        # print(self.feature_index_selected, self.bin_index_selected)
         self.bin_split = bin_split
-        # self.bin_index_selected, self.bin_split = feature_sampling(bin_index, bin_split, self.feature_index_selected)
 
+        # sample_tag: selected training sample, full_sample_tag: all sample
         sample_tag_selected = np.zeros(sample_num, dtype=int)
         sample_tag_selected[selected_idx] = 1
         sample_tag_unselected = np.ones(sample_num, dtype=int) - sample_tag_selected
 
-        # try to restore disconnect messengers
-        for party_id, validTag in enumerate(self.messengers_validTag):
-            if not validTag:
-                self._reconnect_passiveParty(party_id)
+        # 2. gh packing
+        gh_send = self._get_gh_send(sample_num, selected_g, selected_h, selected_idx)
 
-        # Implementation logic with sampling
-        if self.task == "binary" or self.task == "regression":
-            self.gh = np.array([gradient, hessian]).T
-            self.update_pred = np.zeros(sample_num, dtype=float)
+        # 3. start train
+        while True:
+            try:
+                for i, messenger in enumerate(self.messengers):
+                    if self.messengers_validTag[i]:
+                        messenger.send(
+                            wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length))
+                        )
 
+                # start building tree
+                if self.training_mode == "lightgbm":
+                    self.root = self._build_tree_lightgbm(sample_tag_selected, sample_tag_unselected)
+                elif self.training_mode == "xgboost":
+                    self.root = self._build_tree_xgb(sample_tag_selected, sample_tag_unselected)
+                else:
+                    raise NotImplementedError("Unsupported training mode.")
+
+            except DisconnectedError as e:
+                self.logger.log(f"passive party {e.disconnect_party_id} is disconnected.")
+                print(e)
+
+                if e.disconnect_phase == 'hist':
+                    # build histogram phase disconnected, need to clean up channels
+                    for passive_party_id, recv_tag in enumerate(self.messengers_recvTag):
+                        if recv_tag or passive_party_id == e.disconnect_party_id:
+                            continue
+                        data, passive_party_connected = self.messengers[passive_party_id].recv()  # clear message
+                        if not passive_party_connected:  # Multiple parties are disconnected at the same time
+                            self._reconnect_passiveParty(passive_party_id)
+
+                self._reconnect_passiveParty(e.disconnect_party_id)
+            else:
+                # if no exception occurs, break out of the loop
+                break
+
+    def predict(self, x_test):
+        """single tree predict"""
+
+        if self.root is None:
+            return None
+
+        y_pred = []
+        for sampleID in range(x_test.shape[0]):
+            x_sample = x_test[sampleID : sampleID + 1, :].flatten()
+            score = self._predict_value(x_sample, sampleID, self.root)
+            y_pred.append(score)
+
+        return np.array(y_pred)
+
+    def _build_tree_xgb(self, sample_tag_selected, sample_tag_unselected):
+
+        root = self._gen_node(sample_tag_selected, sample_tag_unselected, depth=0)
+
+        split_node_candidates = deque()
+        split_node_candidates.append(root)
+
+        while len(split_node_candidates) > 0:
+            node = split_node_candidates.popleft()
+            if (node.depth < self.max_depth
+                    and node.sample_tag_selected.sum() >= self.min_split_samples
+                    and node.split_gain > self.min_split_gain
+            ):
+
+                feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._get_split_info(
+                    node)
+
+                left_node, right_node = self._gen_child_node(node, sample_tag_selected_left,
+                                                             sample_tag_unselected_left)
+                split_node_candidates.append(left_node)
+                split_node_candidates.append(right_node)
+
+                node.party_id = node.split_party_id
+                node.record_id = record_id
+                node.left_branch = left_node
+                node.right_branch = right_node
+
+                # store feature split information
+                self.feature_importance_info['split'][f'client{node.party_id}_feature{feature_id_origin}'] += 1
+                self.feature_importance_info['gain'][
+                    f'client{node.party_id}_feature{feature_id_origin}'] += node.split_gain
+                self.feature_importance_info['cover'][f'client{node.party_id}_feature{feature_id_origin}'] += sum(
+                    node.sample_tag_selected)
+                self.logger.log(f"store feature split information")
+
+            else:
+                # compute leaf weight
+                if self.task == "multi":
+                    leaf_value = leaf_weight_multi(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected.reshape(-1, 1), leaf_value.reshape(1, -1)) + \
+                                  np.dot(node.sample_tag_unselected.reshape(-1, 1), leaf_value.reshape(1, -1))
+                else:
+                    leaf_value = leaf_weight(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected, leaf_value) + np.dot(node.sample_tag_unselected,
+                                                                                        leaf_value)
+
+                node.value = leaf_value
+                self.update_pred += update_temp
+
+        return root
+
+    def _build_tree_lightgbm(self, sample_tag_selected, sample_tag_unselected):
+        root = self._gen_node(sample_tag_selected, sample_tag_unselected, depth=0)
+        split_node_candidates = queue.PriorityQueue()
+        split_node_candidates.put(root)
+
+        num_leaves = 0
+        while (not split_node_candidates.empty()) and num_leaves + split_node_candidates.qsize() < self.max_num_leaves:
+            node = split_node_candidates.get()
+            if (node.depth < self.max_depth
+                and node.sample_tag_selected.sum() >= self.min_split_samples
+                and node.split_gain > self.min_split_gain
+                and num_leaves + split_node_candidates.qsize() < self.max_num_leaves
+            ):
+
+                feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._get_split_info(
+                    node)
+
+                left_node, right_node = self._gen_child_node(node, sample_tag_selected_left,
+                                                             sample_tag_unselected_left)
+                split_node_candidates.put(left_node)
+                split_node_candidates.put(right_node)
+
+                node.party_id = node.split_party_id
+                node.record_id = record_id
+                node.left_branch = left_node
+                node.right_branch = right_node
+
+                # store feature split information
+                self.feature_importance_info['split'][f'client{node.party_id}_feature{feature_id_origin}'] += 1
+                self.feature_importance_info['gain'][
+                    f'client{node.party_id}_feature{feature_id_origin}'] += node.split_gain
+                self.feature_importance_info['cover'][f'client{node.party_id}_feature{feature_id_origin}'] += sum(
+                    node.sample_tag_selected)
+                self.logger.log(f"store feature split information")
+
+            else:
+                # compute leaf weight
+                if self.task == "multi":
+                    leaf_value = leaf_weight_multi(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected.reshape(-1, 1), leaf_value.reshape(1, -1)) + \
+                                  np.dot(node.sample_tag_unselected.reshape(-1, 1), leaf_value.reshape(1, -1))
+                else:
+                    leaf_value = leaf_weight(self.gh, node.sample_tag_selected, self.reg_lambda)
+                    update_temp = np.dot(node.sample_tag_selected, leaf_value) + np.dot(node.sample_tag_unselected,
+                                                                                        leaf_value)
+                num_leaves += 1
+                node.value = leaf_value
+                self.update_pred += update_temp
+
+        return root
+
+    def _get_gh_send(self, sample_num, selected_g, selected_h, selected_idx):
+        if self.task == "regression" or self.task == "binary":
             selected_gh_int, self.h_length, self.gh_length = gh_packing(
                 selected_g, selected_h, self.fix_point_precision
             )
@@ -197,9 +375,6 @@ class DecisionTree:
                 raise NotImplementedError
 
         elif self.task == "multi":
-            self.gh = np.stack((gradient, hessian), axis=2)
-            self.update_pred = np.zeros((sample_num, self.n_labels), dtype=float)
-
             selected_gh_compress, self.h_length, self.gh_length = gh_compress_multi(
                 selected_g,
                 selected_h,
@@ -224,204 +399,89 @@ class DecisionTree:
         else:
             raise ValueError("No such task label.")
 
-        self.logger.log("gh packed")
+        self.logger.log("gh packed.")
+        return gh_send
 
-        while True:
-            try:
-                for i, messenger in enumerate(self.messengers):
-                    if self.messengers_validTag[i]:
-                        messenger.send(
-                            wrap_message("gh", content=(gh_send, self.compress, self.capacity, self.gh_length))
-                        )
-                # start building tree
-                self.root = self._build_tree(sample_tag_selected, sample_tag_unselected, current_depth=0)
+    def _gen_child_node(self, node, sample_tag_selected_left, sample_tag_unselected_left):
+        sample_tag_selected_right = node.sample_tag_selected - sample_tag_selected_left
+        sample_tag_unselected_right = node.sample_tag_unselected - sample_tag_unselected_left
 
-            except DisconnectedError as e:
-                self.logger.log(f"passive party {e.disconnect_party_id} is disconnected.")
-                print(e)
-
-                if e.disconnect_phase == 'hist':
-                    # build histogram phase disconnected, need to clean up channels
-                    for passive_party_id, recv_tag in enumerate(self.messengers_recvTag):
-                        if recv_tag or passive_party_id==e.disconnect_party_id:
-                            continue
-                        data, passive_party_connected = self.messengers[passive_party_id].recv()     # clear message
-                        if not passive_party_connected:     # Multiple parties are disconnected at the same time
-                            self._reconnect_passiveParty(passive_party_id)
-
-                self._reconnect_passiveParty(e.disconnect_party_id)
-            else:
-                # if no exception occurs, break out of the loop
-                break
-
-        fit_result = {
-            "update_pred": self.update_pred,
-            "feature_importance_info": self.feature_importance_info
-        }
-        return fit_result
-
-    def predict(self, x_test):
-        """single tree predict"""
-
-        if self.root is None:
-            return None
-
-        y_pred = []
-        for sampleID in range(x_test.shape[0]):
-            x_sample = x_test[sampleID : sampleID + 1, :].flatten()
-            score = self._predict_value(x_sample, sampleID, self.root)
-            y_pred.append(score)
-
-        return np.array(y_pred)
-
-    def _build_tree(
-        self,
-        sample_tag_selected,
-        sample_tag_unselected,
-        current_depth,
-        *,
-        hist_list=None,
-        party_id=None,
-        feature_id=None,
-        split_id=None,
-        max_gain=None
-    ):
-        # split only when conditions meet
-        if (
-            current_depth < self.max_depth - 1
-            and sample_tag_selected.sum() >= self.min_split_samples
-        ):
-            if hist_list is None:
-                # happens in root
-                (
-                    hist_list,
-                    party_id,
-                    feature_id,
-                    split_id,
-                    max_gain,
-                ) = self._get_hist_list(sample_tag_selected)
-            if party_id is None:
-                # happens in sub hist
-                party_id, feature_id, split_id, max_gain = find_split(
-                    hist_list, self.task, self.reg_lambda
-                )
-
-            if max_gain > self.min_split_gain:
-                if party_id == 0:
-                    # split in active party
-                    feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
-                        feature_id, split_id, sample_tag_selected, sample_tag_unselected
-                    )
-                    self.logger.log(f"threshold saved in record_id: {record_id}")
-
-                else:
-                    # ask corresponding passive party to split
-                    self.messengers[party_id - 1].send(
-                        wrap_message(
-                            "record", content=(feature_id, split_id, sample_tag_selected, sample_tag_unselected)
-                        )
-                    )
-                    if self.drop_protection:
-                        data, passive_party_connected = self.messengers[party_id - 1].recv()
-                        if not passive_party_connected:
-                            raise DisconnectedError(disconnect_phase='record', disconnect_party_id=party_id-1)
-                    else:
-                        data = self.messengers[party_id - 1].recv()
-
-                    # print(data)
-                    assert data["name"] == "record"
-
-                    # Get the selected feature index to the original feature index
-                    feature_id_origin, record_id, sample_tag_selected_left , sample_tag_unselected_left = data["content"]
-
-                # store feature split information
-                self.feature_importance_info['split'][f'client{party_id}_feature{feature_id_origin}'] += 1
-                self.feature_importance_info['gain'][f'client{party_id}_feature{feature_id_origin}'] += max_gain
-                self.feature_importance_info['cover'][f'client{party_id}_feature{feature_id_origin}'] += sum(
-                    sample_tag_selected)
-                self.logger.log(f"store feature split information")
-
-                sample_tag_selected_right = sample_tag_selected - sample_tag_selected_left
-                sample_tag_unselected_right = sample_tag_unselected - sample_tag_unselected_left
-
-                # choose the easy part to directly compute hist, the other part
-                # can be computed by a simple subtract
-                if sample_tag_selected_left.sum() <= sample_tag_selected_right.sum():
-                    (
-                        hist_list_left,
-                        party_id_left,
-                        feature_id_left,
-                        split_id_left,
-                        max_gain_left,
-                    ) = self._get_hist_list(sample_tag_selected_left)
-                    hist_list_right = [
-                         None if current is None or left is None else current - left
-                        for current, left in zip(hist_list, hist_list_left)
-                    ]
-                    left_node = self._build_tree(
-                        sample_tag_selected_left,
-                        sample_tag_unselected_left,
-                        current_depth + 1,
-                        hist_list=hist_list_left,
-                        party_id=party_id_left,
-                        feature_id=feature_id_left,
-                        split_id=split_id_left,
-                        max_gain=max_gain_left
-                    )
-                    right_node = self._build_tree(
-                        sample_tag_selected_right,
-                        sample_tag_unselected_right,
-                        current_depth + 1,
-                        hist_list=hist_list_right
-                    )
-                else:
-                    (
-                        hist_list_right,
-                        party_id_right,
-                        feature_id_right,
-                        split_id_right,
-                        max_gain_right,
-                    ) = self._get_hist_list(sample_tag_selected_right)
-                    hist_list_left = [
-                        None if current is None or right is None else current - right
-                        for current, right in zip(hist_list, hist_list_right)
-                    ]
-                    left_node = self._build_tree(
-                        sample_tag_selected_left,
-                        sample_tag_unselected_left,
-                        current_depth + 1,
-                        hist_list=hist_list_left
-                    )
-                    right_node = self._build_tree(
-                        sample_tag_selected_right,
-                        sample_tag_unselected_right,
-                        current_depth + 1,
-                        hist_list=hist_list_right,
-                        party_id=party_id_right,
-                        feature_id=feature_id_right,
-                        split_id=split_id_right,
-                        max_gain=max_gain_right
-                    )
-
-                return _DecisionNode(
-                    party_id=party_id,
-                    record_id=record_id,
-                    left_branch=left_node,
-                    right_branch=right_node,
-                )
-
-        # compute leaf weight
-        if self.task == "multi":
-            leaf_value = leaf_weight_multi(self.gh, sample_tag_selected, self.reg_lambda)
-            update_temp = np.dot(sample_tag_selected.reshape(-1, 1), leaf_value.reshape(1, -1)) + \
-                            np.dot(sample_tag_unselected.reshape(-1, 1), leaf_value.reshape(1, -1))
+        if sum(sample_tag_selected_left) < sum(sample_tag_selected_right):
+            left_node = self._gen_node(sample_tag_selected_left, sample_tag_unselected_left,
+                                       depth=node.depth + 1)
+            hist_list_right = [
+                None if current is None or left is None else current - left
+                for current, left in zip(node.hist_list, left_node.hist_list)
+            ]
+            right_node = self._gen_node(sample_tag_selected_right, sample_tag_unselected_right,
+                                        depth=node.depth + 1, hist_list=hist_list_right)
         else:
-            leaf_value = leaf_weight(self.gh, sample_tag_selected, self.reg_lambda)
-            update_temp = np.dot(sample_tag_selected, leaf_value) + np.dot(sample_tag_unselected, leaf_value)
+            right_node = self._gen_node(sample_tag_selected_right, sample_tag_unselected_right,
+                                        depth=node.depth + 1)
+            hist_list_left = [
+                None if current is None or right is None else current - right
+                for current, right in zip(node.hist_list, right_node.hist_list)
+            ]
+            left_node = self._gen_node(sample_tag_selected_left, sample_tag_unselected_left,
+                                       depth=node.depth + 1, hist_list=hist_list_left)
 
-        self.update_pred += update_temp
+        return left_node, right_node
 
-        return _DecisionNode(value=leaf_value)
+    def _gen_node(self, sample_tag_selected, sample_tag_unselected, depth=0, hist_list=None):
+        if hist_list is None:
+            # happens in root
+            (
+                hist_list,
+                party_id,
+                feature_id,
+                split_id,
+                max_gain,
+            ) = self._get_hist_list(sample_tag_selected)
+        else:
+            # happens in sub hist
+            party_id, feature_id, split_id, max_gain = find_split(
+                hist_list, self.task, self.reg_lambda
+            )
+
+        return _DecisionNode(hist_list=hist_list,
+                             sample_tag_selected=sample_tag_selected,
+                             sample_tag_unselected=sample_tag_unselected,
+                             split_party_id=party_id,
+                             split_feature_id=feature_id,
+                             split_bin_id=split_id,
+                             split_gain=max_gain,
+                             depth=depth)
+
+    def _get_split_info(self, node):
+        if node.split_party_id == 0:
+            # split in active party
+            feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = self._save_record(
+                node.split_feature_id, node.split_bin_id, node.sample_tag_selected, node.sample_tag_unselected
+            )
+            self.logger.log(f"threshold saved in record_id: {record_id}")
+        else:
+            # ask corresponding passive party to split
+            self.messengers[node.split_party_id - 1].send(
+                wrap_message(
+                    "record",
+                    content=(
+                        node.split_feature_id, node.split_bin_id, node.sample_tag_selected,
+                        node.sample_tag_unselected)
+                )
+            )
+            if self.drop_protection:
+                data, passive_party_connected = self.messengers[node.split_party_id - 1].recv()
+                if not passive_party_connected:
+                    raise DisconnectedError(disconnect_phase='record', disconnect_party_id=node.split_party_id - 1)
+            else:
+                data = self.messengers[node.split_party_id - 1].recv()
+
+            # print(data)
+            assert data["name"] == "record"
+            # Get the selected feature index to the original feature index
+            feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left = data["content"]
+
+        return feature_id_origin, record_id, sample_tag_selected_left, sample_tag_unselected_left
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
         # Map the selected feature index to the original feature index

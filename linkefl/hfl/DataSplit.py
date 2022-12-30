@@ -28,10 +28,10 @@ if __name__=='__main__':
     dataset_train = datasets.MNIST('data/', train=True, download=True, transform=trans_mnist)
 
     dict_users = mnist_iid(dataset_train, num_users)
-    torch.save(dict_users,'data/test/dict_user_100')
+    torch.save(dict_users,'data/test/dict_user')
 
 
     for i in range(num_users):
         partition = Partition(dataset_train, dict_users[i])
-        torch.save(partition,'data/test/data_of_client{}_100'.format(i+1))
+        torch.save(partition,'data/test/data_of_client{}'.format(i+1))
 

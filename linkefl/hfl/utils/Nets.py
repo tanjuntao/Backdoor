@@ -124,7 +124,17 @@ def ResNet101(num_classes=10,num_channels=3):
 def ResNet152(num_classes=10,num_channels=3):
     return ResNet(Bottleneck, [3,8,36,3],num_classes,num_channels)
 
-
+class LogReg(nn.Module):
+    def __init__(self,in_features=2,out_feautes =2):
+        super(LogReg, self).__init__()
+        self.features=nn.Linear(in_features, out_features=out_feautes)
+        # self.sigmoid=nn.Sigmoid()
+    def forward(self,x):
+        x = x.to(torch.float32)
+        x = self.features(x)
+        # out = self.sigmoid(x)
+        # out = out.squeeze(-1)
+        return x
 
 def Nets(model_name,num_classes,num_channels):
 
@@ -134,3 +144,5 @@ def Nets(model_name,num_classes,num_channels):
     #     return VGG16(num_classes,num_channels)
     elif model_name == 'ResNet18':
         return ResNet18(num_classes,num_channels)
+
+

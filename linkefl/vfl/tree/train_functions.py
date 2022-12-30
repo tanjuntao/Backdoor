@@ -171,7 +171,7 @@ def find_split(hist_list, task, reg_lambda):
         #              4d array in multi，featureNum * binNum * config["train"]["classNum"] * 2
         if hist is None:
             continue
-            
+
         for feature_id, feature_bin_gh in enumerate(hist.bin_gh):
             for split_id in range(len(feature_bin_gh) - 1):
                 left_bin_gh, right_bin_gh = np.split(feature_bin_gh, [split_id + 1])
@@ -190,3 +190,4 @@ def find_split(hist_list, task, reg_lambda):
                     max_gain = gain
 
     return max_hist_id, max_feature_id, max_split_id, max_gain
+

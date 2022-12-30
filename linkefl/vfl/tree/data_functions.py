@@ -1,6 +1,5 @@
 import os
 import random
-
 import numpy as np
 
 
@@ -123,14 +122,14 @@ def wrap_message(name, *, content):
     return {"name": name, "content": content}
 
 def get_latest_filename(filedir):
-    file_list = os.listdir(filedir)
-    file_list.sort(key=lambda fn:os.path.getmtime(filedir+'\\'+fn))
-    # filepath = os.path.join(filedir, file_list[-1])
-    # latest_filetime = datetime.datetime.fromtimestamp(os.path.getmtime(filedir+'\\'+file_list[-1]))
-    # print("最新修改的文件(夹)：" + file_list[-1])
-    # print("时间："+latest_filetime.strftime('%Y-%m-%d %H-%M-%S'))
-    return file_list[-1]
+    if os.path.exists(filedir):
+        file_list = os.listdir(filedir)
+    else:
+        raise ValueError("not exist filedir.")
 
+    # sort by create time
+    file_list.sort(key=lambda fn:os.path.getmtime(os.path.join(filedir, fn)))
+    return file_list[-1]
 
 # def _greedy_find_bin(vec, max_bin):
 #     """传入 feature，返回每个值所在 bin 编号和划分点
@@ -265,4 +264,4 @@ if __name__ == "__main__":
     # print(selected_idx)
     # print(grad, "\n", np.array(g_enc))
     # print(hess, "\n", np.array(h_enc))
-    get_latest_filename("./models")
+    print(get_latest_filename("./models"))
