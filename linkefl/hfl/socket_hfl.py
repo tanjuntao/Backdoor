@@ -31,7 +31,7 @@ class messenger :
         #server
             tcpSerSock, addr = self.tcpSerSocks[id-1].accept()
             tcpSerSock.sendall(str(sendData).encode())
-            print('server send data to client {}'.format(id))
+            # print('server send data to client {}'.format(id))
         elif self.role=='client':
         #client
             PORT = self.PORTs[self.partyid-1]
@@ -40,7 +40,7 @@ class messenger :
             tcpCliSock.connect(ADDR)
             tcpCliSock.sendall(str(sendData).encode())
             tcpCliSock.close()
-            print('client {} send data to server'.format(self.partyid))
+            # print('client {} send data to server'.format(self.partyid))
 
 
 
@@ -56,7 +56,7 @@ class messenger :
                 else:
                     recData += buf.decode()
             recData = eval(recData)
-            print('server rec data from client {}'.format(id))
+            # print('server rec data from client {}'.format(id))
 
         elif self.role=='client':
         #client
@@ -74,7 +74,7 @@ class messenger :
                     recData += buf.decode()
             recData = eval(recData)
             tcpCliSock.close()
-            print('client {} rec data from server'.format(self.partyid))
+            # print('client {} rec data from server'.format(self.partyid))
         return recData
 
 

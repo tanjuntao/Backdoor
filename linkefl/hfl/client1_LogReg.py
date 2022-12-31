@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
 
     print("Client training...")
-    model_parameters = client.train(Trainset)
+    model_parameters = client.train(Trainset,Testset)
     print("Client training done.")
 
     test_accuracy, test_loss = client.test(Testset)

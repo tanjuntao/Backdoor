@@ -1,7 +1,9 @@
 import collections
 import copy
+from math import ceil
 
 import torch
+from torch.utils.data import DataLoader
 
 from linkefl.hfl.aggregator import Aggregator_server, Aggregator_client
 from linkefl.hfl.dp_mechanism import add_dp
@@ -15,6 +17,29 @@ def modelpara_to_list(para):
         para[key] = para[key].cpu().numpy().tolist()
     return para
 
+def test(model, testset,lossfunction,device):
+
+    test_loss = 0
+    correct = 0
+    batch_size = 32
+    test_set = DataLoader(testset, batch_size=batch_size, shuffle=False)
+    model.eval()
+    num_batches = ceil(len(test_set.dataset) / float(batch_size))
+
+    for idx, (data, target) in enumerate(test_set):
+        data, target = data.to(device), target.to(device).to(torch.long)
+        log_probs = model(data)
+        # test_loss += self.lossfunction(log_probs, target, reduction='sum').item()
+        test_loss += lossfunction(log_probs, target).item()
+        y_pred = log_probs.data.max(1, keepdim=True)[1]
+        correct += y_pred.eq(target.data.view_as(y_pred)).long().cpu().sum()
+
+    test_loss /= num_batches
+    accuracy = 100.00 * correct / len(test_set.dataset)
+    print('Test set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n'.format(
+        test_loss, correct, len(test_set.dataset), accuracy))
+
+    return accuracy, test_loss
 
 # list to tensor
 def list_to_tensor(data):
@@ -26,7 +51,7 @@ def list_to_tensor(data):
 class Train_server:
 
     @staticmethod
-    def train_basic(epoch, world_size, server, model, device):
+    def train_basic(epoch, world_size, server, model, device,testset,lossfunction):
         aggregator = Aggregator_server.FedAvg
         for j in range(epoch):
 
@@ -52,11 +77,12 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-
+            print('epoch:', j)
+            test(model, testset,lossfunction,device)
         return model
 
     @staticmethod
-    def train_FedAvg_seq(epoch, world_size, server, model, device):
+    def train_FedAvg_seq(epoch, world_size, server, model, device,testset,lossfunction):
         aggregator = Aggregator_server.FedAvg_seq
         for j in range(epoch):
 
@@ -82,11 +108,12 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-
+            print('epoch:', j)
+            test(model, testset,lossfunction,device)
         return model
 
     @staticmethod
-    def train_Scaffold(epoch, world_size, server, model, device, E=30):
+    def train_Scaffold(epoch, world_size, server, model, device,testset,lossfunction,E=30):
 
         server_control = {}
         server_delta_control = {}
@@ -163,11 +190,12 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-
+            print('epoch:', j)
+            test(model, testset,lossfunction,device)
         return model
 
     @staticmethod
-    def train_PersonalizedFed(epoch, world_size, server, model, device, kp):
+    def train_PersonalizedFed(epoch, world_size, server, model, device, kp,testset,lossfunction):
 
         aggregator = Aggregator_server.PersonalizedFed
         for j in range(epoch):
@@ -194,14 +222,15 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-
+            print('epoch:', j)
+            test(model, testset,lossfunction,device)
         return model
 
 
 class Train_client:
 
     @staticmethod
-    def train_basic(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches):
+    def train_basic(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches,testset):
         model.train()
         aggregator = Aggregator_client.FedAvg
         for epoch in range(epoch):
@@ -209,8 +238,9 @@ class Train_client:
 
             client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device)
 
-            print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
 
+            test(model, testset,lf,device)
             # tensor to list
             client_net = dict(client_net)
             for key in client_net:
@@ -234,7 +264,7 @@ class Train_client:
         return model
 
     @staticmethod
-    def train_FedProx(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, mu):
+    def train_FedProx(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, mu,testset):
         model.train()
         aggregator = Aggregator_client.FedProx
         for epoch in range(epoch):
@@ -242,8 +272,9 @@ class Train_client:
 
             client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device, mu)
 
-            print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
-
+            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
+            test(model, testset,lf,device)
             # tensor to list
             client_net = dict(client_net)
             for key in client_net:
@@ -267,7 +298,8 @@ class Train_client:
         return model
 
     @staticmethod
-    def train_Scaffold(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, E=30,
+    def train_Scaffold(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches,testset,
+                       E=30,
                        lr=0.01):
 
         model.train()
@@ -299,7 +331,9 @@ class Train_client:
             model, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device,
                                            server_control, server_delta_y)
 
-            print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
+            test(model, testset,lf,device)
 
             client_net = model.state_dict()
 
@@ -349,7 +383,7 @@ class Train_client:
         return model
 
     @staticmethod
-    def train_PersonalizedFed(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, kp):
+    def train_PersonalizedFed(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, kp,testset):
 
         model.train()
         aggregator = Aggregator_client.FedAvg
@@ -358,7 +392,9 @@ class Train_client:
 
             client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device)
 
-            print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
+            test(model, testset,lf,device)
 
             # tensor to list
             client_net = dict(client_net)
@@ -390,7 +426,7 @@ class Train_client:
 
     @staticmethod
     def train_FedDP(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, lr,
-                    dp_mechanism, dp_clip, dp_epsilon, dp_delta):
+                    dp_mechanism, dp_clip, dp_epsilon, dp_delta,testset):
         model.train()
         aggregator = Aggregator_client.FedDP
         for epoch in range(epoch):
@@ -398,7 +434,10 @@ class Train_client:
 
             client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device, dp_mechanism, dp_clip)
 
-            print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
+            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
+            test(model, testset,lf,device)
+
 
             # 添加差分隐私
             num_dataset = len(train_set.dataset)

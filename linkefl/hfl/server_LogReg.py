@@ -104,9 +104,6 @@ if __name__ == '__main__':
 
     server = setServer()
 
-    print(" Server training...")
-    model = server.train()
-    print("Server training done.")
 
     # 加载测试数据
 
@@ -117,4 +114,7 @@ if __name__ == '__main__':
                               download=True,)
 
 
+    print(" Server training...")
+    model = server.train(Testset)
+    print("Server training done.")
     test_accuracy, test_loss = server.test(Testset)

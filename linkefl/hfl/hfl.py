@@ -58,24 +58,24 @@ class Server:
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         return dataloader
 
-    def train(self):
+    def train(self,testset):
         # server
         role = 'server'
         server = messenger(self.HOST, self.PORT, role='server', partyid=self.partyid, world_size=self.world_size)
 
         if self.aggregator == "FedAvg":
-            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device)
+            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
         elif self.aggregator == "FedAvg_seq":
-            self.model = Train_server.train_FedAvg_seq(self.epoch, self.world_size, server, self.model, self.device)
+            self.model = Train_server.train_FedAvg_seq(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
         elif self.aggregator == "FedProx":
-            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device)
+            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
         elif self.aggregator == "Scaffold":
-            self.model = Train_server.train_Scaffold(self.epoch, self.world_size, server, self.model, self.device)
+            self.model = Train_server.train_Scaffold(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
         elif self.aggregator == "PersonalizedFed":
             self.model = Train_server.train_PersonalizedFed(self.epoch, self.world_size, server, self.model,
-                                                            self.device,self.kp)
+                                                            self.device,self.kp,testset,self.lossfunction)
         elif self.aggregator == "FedDP":
-            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device)
+            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
 
     def test(self, testset):
 
@@ -192,7 +192,7 @@ class Client:
         else:
             raise Exception("Invalid aggregation rule")
 
-    def train(self, trainset):
+    def train(self, trainset,testset):
 
         role = 'client'
         client = messenger(self.HOST, self.PORT, role=role, partyid=self.partyid, world_size=self.world_size)
@@ -207,29 +207,29 @@ class Client:
 
         if self.aggregator == "FedAvg":
             self.model = Train_client.train_basic(client, self.partyid, self.epoch, train_set, self.model,
-                                                  optimizer, lf, self.iter, self.device, num_batches)
+                                                  optimizer, lf, self.iter, self.device, num_batches,testset)
 
         elif self.aggregator == "FedAvg_seq":
             self.model = Train_client.train_basic(client, self.partyid, self.epoch, train_set, self.model,
-                                                  optimizer, lf, self.iter, self.device, num_batches)
+                                                  optimizer, lf, self.iter, self.device, num_batches,testset)
 
         elif self.aggregator == "FedProx":
             self.model = Train_client.train_FedProx(client, self.partyid, self.epoch, train_set, self.model,
-                                                    optimizer, lf, self.iter, self.device, num_batches, self.mu)
+                                                    optimizer, lf, self.iter, self.device, num_batches, self.mu,testset)
 
         elif self.aggregator == "Scaffold":
             self.model = Train_client.train_Scaffold(client, self.partyid, self.epoch, train_set, self.model,
                                                      optimizer, lf, self.iter, self.device, num_batches, self.E,
-                                                     self.lr)
+                                                     self.lr,testset)
 
         elif self.aggregator == "PersonalizedFed":
             self.model = Train_client.train_PersonalizedFed(client, self.partyid, self.epoch, train_set, self.model,
-                                                            optimizer, lf, self.iter, self.device, num_batches, self.kp)
+                                                            optimizer, lf, self.iter, self.device, num_batches, self.kp,testset)
 
         elif self.aggregator == "FedDP":
             self.model = Train_client.train_FedDP(client, self.partyid, self.epoch, train_set, self.model,
                                                   optimizer, lf, self.iter, self.device, num_batches, self.lr,
-                                                  self.dp_mechanism, self.dp_clip, self.dp_epsilon, self.dp_delta)
+                                                  self.dp_mechanism, self.dp_clip, self.dp_epsilon, self.dp_delta,testset)
 
     def test(self, testset):
 
