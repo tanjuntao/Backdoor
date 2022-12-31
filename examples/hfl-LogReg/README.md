@@ -105,7 +105,7 @@ lossfunction = nn.CrossEntropyLoss()
 # dp_epsilon = 100/math.sqrt(epoch)
 # dp_delta = 1e-5
 ```
-**client 1**
+**client 2**
 ```python
 device = torch.device('cuda:{}'.format(0) if torch.cuda.is_available() else 'cpu')
 
