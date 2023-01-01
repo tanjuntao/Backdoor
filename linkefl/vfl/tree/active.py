@@ -1,5 +1,6 @@
 import datetime
 import time
+import os
 from collections import defaultdict
 from multiprocessing import Pool
 from typing import List
@@ -19,7 +20,7 @@ from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.error import DisconnectedError
 from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss, MeanSquaredErrorLoss
-from linkefl.vfl.tree.plotting import plot_tree
+from linkefl.vfl.tree.plotting import Plot, tree_to_str
 
 class ActiveTreeParty(BaseModelComponent):
     def __init__(
@@ -49,7 +50,7 @@ class ActiveTreeParty(BaseModelComponent):
         colsample_bytree: float = 1,
         n_processes: int = 1,
         saving_model: bool = False,
-        model_path: str = "./models",
+        model_path: str = "./models/active_party",
         model_name=None,
         drop_protection: bool = False,
         reconnect_ports: List[int] = None,
@@ -105,6 +106,10 @@ class ActiveTreeParty(BaseModelComponent):
             )
         else:
             self.model_name = model_name
+
+        self.pics_path = os.path.join(self.model_path, self.model_name+"_pics")
+        if not os.path.exists(self.pics_path):
+            os.makedirs(self.pics_path)
 
         # 初始化 loss
         if task == "binary":
@@ -201,15 +206,20 @@ class ActiveTreeParty(BaseModelComponent):
         bin_index, bin_split = get_bin_info(trainset.features, self.max_bin)
         self.logger.log("Done")
 
+        # record loss and auc for plot fig in binary classification task.
+        self.train_loss, self.test_loss = [], []
+        self.train_auc, self.test_auc = [], []
+
         if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(labels))  # sum of tree raw outputs
+            raw_outputs_test = np.zeros(len(testset.labels))
 
             if self.task == "binary":
                 outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
+                outputs_test = sigmoid(raw_outputs_test)
             else:
                 outputs = raw_outputs
-
-            raw_outputs_test = np.zeros(len(testset.labels))
+                outputs_test = raw_outputs_test
 
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
@@ -223,7 +233,8 @@ class ActiveTreeParty(BaseModelComponent):
                     progress=tree_id / len(self.trees)
                 )
 
-                loss = self.loss.loss(labels, outputs)
+                train_loss = self.loss.loss(labels, outputs)
+                test_loss = self.loss.loss(testset.labels, outputs_test)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
 
@@ -249,6 +260,11 @@ class ActiveTreeParty(BaseModelComponent):
 
                         scores = self._validate_tree(testset, tree, raw_outputs_test)
 
+                        if self.task == "binary":
+                            outputs_test = sigmoid(raw_outputs_test)
+                        else:
+                            outputs_test = raw_outputs_test
+
                     except DisconnectedError as e:
                         # Handling of disconnection during prediction stage
                         tree._reconnect_passiveParty(e.disconnect_party_id)
@@ -258,16 +274,20 @@ class ActiveTreeParty(BaseModelComponent):
                 if self.task == "binary":
                     self.logger.log_metric(
                         epoch=tree_id,
-                        loss=loss.mean(),
+                        loss=train_loss.mean(),
                         acc=scores["acc"],
                         auc=scores["auc"],
                         f1=scores["f1"],
                         total_epoch=self.n_trees,
                     )
+                    self.train_loss.append(train_loss.mean())
+                    self.test_loss.append(test_loss.mean())
+                    self.train_auc.append(roc_auc_score(trainset.labels, outputs))
+                    self.test_auc.append(scores["auc"])
                 else:
                     self.logger.log_metric_regression(
                         epoch=tree_id,
-                        loss=loss.mean(),
+                        loss=train_loss.mean(),
                         mae=scores["mae"],
                         mse=scores["mse"],
                         sse=scores["sse"],
@@ -351,8 +371,19 @@ class ActiveTreeParty(BaseModelComponent):
         if self.pool is not None:
             self.pool.close()
 
-        if self.saving_model:
+        if self.saving_model:       # save training files.
             self._save_model()
+
+            Plot.plot_importance(self, importance_type="split", file_dir=self.pics_path)
+            Plot.plot_train_test_loss(self.train_loss, self.test_loss, self.pics_path)
+
+            if self.task == "binary":
+                Plot.plot_train_test_auc(self.train_auc, self.test_auc, self.pics_path)
+                Plot.plot_binary_mertics(testset.labels, outputs_test, self.pics_path)
+
+            tree_strs = self.get_tree_str_structures(tree_structure="VERTICAL")
+            Plot.plot_trees(tree_strs, self.pics_path)
+
 
     def score(self, testset, role=Const.ACTIVE_NAME):
         """set for pipeline func.
@@ -493,13 +524,13 @@ class ActiveTreeParty(BaseModelComponent):
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
 
-    def plot_trees(self, tree_structure: str="VERTICAL"):
+    def get_tree_str_structures(self, tree_structure: str="VERTICAL"):
         assert tree_structure in ["VERTICAL", "HORIZONTAL"], "tree_structure should be VERTICAL or HORIZONTAL"
         tree_strs = {}
 
         for tree_id, tree in enumerate(self.trees, 1):
-            tree_str = plot_tree(tree, tree_structure)
-            tree_strs[tree_id] = tree_str
+            tree_str = tree_to_str(tree, tree_structure)
+            tree_strs[f"tree{tree_id}"] = tree_str
 
         self.logger.log(f"Load model {self.model_name} success.")
         return tree_strs
@@ -784,8 +815,7 @@ if __name__ == "__main__":
         crypto_system=crypto_system,
         messengers=messengers,
         logger=logger,
-
-        training_mode="xgboost",       # "lightgbm", "xgboost"
+        training_mode="lightgbm",       # "lightgbm", "xgboost"
         sampling_method='uniform',
         max_depth=3,
         max_num_leaves=8,
@@ -793,12 +823,10 @@ if __name__ == "__main__":
         top_rate=0.3,
         other_rate=0.7,
         colsample_bytree=1,
-        saving_model=True,
         n_processes=n_processes,
-
         drop_protection=drop_protection,
         reconnect_ports=reconnect_ports,
-
+        saving_model=True,
         model_path="./models/active_party"
     )
 

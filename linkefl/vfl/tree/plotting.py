@@ -1,3 +1,4 @@
+import os.path
 
 import numpy as np
 import pandas as pd
@@ -19,44 +20,55 @@ class Plot(object):
     def __init__(self):
         pass
 
-    @classmethod
-    def plot_convergence(cls, loss, auc, file_dir="./pics"):
-        fig = plt.figure(figsize=(12, 6))
+    @staticmethod
+    def plot_trees(tree_strs, file_dir="./models"):
+        file_path = os.path.join(file_dir, "trees.txt")
 
-        ax1 = fig.add_subplot(1, 2, 1)
-        ax1.plot(np.arange(len(loss)), loss)
-        ax1.grid(True, linestyle='-.')
-        ax1.set_title('training loss')
-        ax1.set_ylabel('loss', labelpad=5, loc='center')
-        ax1.set_xlabel('epoch', labelpad=5, loc='center')
+        with open(file_path, "a") as f:
+            for tree_id, tree_str in enumerate(tree_strs.values(), 1):
+                f.write(f"Tree{tree_id}:\n")
+                f.write(tree_str)
 
-        ax2 = fig.add_subplot(1, 2, 2)
-        ax2.plot(np.arange(len(auc)), auc)
-        ax2.grid(True, linestyle='-.')
-        ax2.set_title('training auc')
-        ax2.set_ylabel('auc', labelpad=5, loc='center')
-        ax2.set_xlabel('epoch', labelpad=5, loc='center')
-
-        plt.savefig(f"{file_dir}/convergence.png")
+    @staticmethod
+    def plot_importance(booster: ActiveTreeParty,
+                        importance_type: str = "split",
+                        file_dir='./models'):
+        ax = plot_importance(booster, importance_type)
+        plt.savefig(f"{file_dir}/importance.png")
         plt.close()
 
-    @classmethod
-    def plot_fit(cls, train_loss, test_loss, file_dir="./pics"):
+    @staticmethod
+    def plot_train_test_loss(train_loss, test_loss, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(np.arange(len(train_loss)), train_loss, label='train_loss')  # color='darkorange'
         ax.plot(np.arange(len(test_loss)), test_loss, label='test_loss')
         ax.grid(True, linestyle='-.')
-        ax.set_title('fit analysis')
+        ax.set_title('train_test_loss')
         ax.set_ylabel('loss', labelpad=5, loc='center')
         ax.set_xlabel('epoch', labelpad=5, loc='center')
         plt.legend(loc='best')
 
-        plt.savefig(f'{file_dir}/fit_anay.png')
+        plt.savefig(f'{file_dir}/train_test_loss.png')
+        plt.close()
+
+    @staticmethod
+    def plot_train_test_auc(train_auc, test_auc, file_dir="./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(np.arange(len(train_auc)), train_loss, label='train_auc')  # color='darkorange'
+        ax.plot(np.arange(len(test_auc)), test_loss, label='test_auc')
+        ax.grid(True, linestyle='-.')
+        ax.set_title('train_test_auc')
+        ax.set_ylabel('loss', labelpad=5, loc='center')
+        ax.set_xlabel('epoch', labelpad=5, loc='center')
+        plt.legend(loc='best')
+
+        plt.savefig(f'{file_dir}/train_test_auc.png')
         plt.close()
 
     @classmethod
-    def plot_binary_mertics(cls, labels, y_probs, file_dir: str='./pics'):
+    def plot_binary_mertics(cls, labels, y_probs, file_dir: str='./models'):
         cls._plot_pr(labels, y_probs, file_dir)
         cls._plot_roc(labels, y_probs, file_dir)
         cls._plot_ks(labels, y_probs, file_dir)
@@ -78,7 +90,7 @@ class Plot(object):
         plt.close()
 
     @classmethod
-    def _plot_roc(cls, label, y_prob, file_dir=None):
+    def _plot_roc(cls, label, y_prob, file_dir):
         fpr, tpr, thresholds_roc = roc_curve(label, y_prob)
 
         fig = plt.figure()
@@ -136,7 +148,7 @@ class Plot(object):
         plt.close()
 
 
-def plot_tree(tree, tree_structure):
+def tree_to_str(tree, tree_structure):
     """
 
     Args:
@@ -349,5 +361,5 @@ if __name__ == '__main__':
     train_auc = np.array([0.5, 0.7, 0.85, 0.9, 0.92, 0.94, 0.95])
     test_loss = np.array([0.87, 0.4, 0.25, 0.105, 0.08, 0.07, 0.06])
 
-    Plot.plot_convergence(train_loss, train_auc)
+    # Plot.plot_convergence(train_loss, train_auc)
     # Plot.plot_fit(train_loss, test_loss)

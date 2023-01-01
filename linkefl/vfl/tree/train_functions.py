@@ -67,7 +67,7 @@ def leaf_weight(gh, sample_tag, reg_lambda):
 
     return weight
 
-
+# todo: add reg_gamma to limit leaf node num.
 def _structure_score(bin_gh, reg_lambda):
     gradient = bin_gh[:, :1]
     hessian = bin_gh[:, 1:2]
