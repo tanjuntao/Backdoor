@@ -73,12 +73,6 @@ if __name__ == '__main__':
     aggregator = 'FedAvg'
     # aggregator = 'FedAvg_seq'
 
-    #神经网络模型
-    # model_name = 'SimpleCNN'
-    # num_classes = 10
-    # num_channels = 1
-    # model = Nets(model_name, num_classes, num_channels)
-
 
     #逻辑回归模型
     model_name = 'LogisticRegression'
@@ -108,20 +102,18 @@ if __name__ == '__main__':
     # Differential Privacy Based Federated Learning
     # aggregator = 'FedDP'
 
-    server = setServer()
+
+
 
     # 加载测试数据
 
-    #神经网络模型数据，mnist
-    if dataset_name == "mnist":
-        trans_mnist = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-        Testset = datasets.MNIST('data/', train=False, download=True, transform=trans_mnist)
-    else:
-        Testset = myData(name=dataset_name,
+
+    Testset = myData(name=dataset_name,
                               root='../../data',
                               train=False,
                               download=True,)
 
+    server = setServer()
     print(" Server training...")
     model = server.train(Testset)
     print("Server training done.")

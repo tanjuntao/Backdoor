@@ -121,7 +121,6 @@ class PassiveNeuralNetwork_disconnection:
                     self.optimizers["cut"].step()
                     self.optimizers["bottom"].step()
 
-                # break
 
             scores = self.validate(testset, existing_loader=test_dataloader)
             is_best = self.messenger.recv()
@@ -167,6 +166,7 @@ if __name__ == '__main__':
     _passive_in_nodes = 10
     _crypto_type = Const.PLAIN
     _key_size = 1024
+    saving_model = True
     torch.manual_seed(1314)
 
     # 1. Load datasets
@@ -230,7 +230,8 @@ if __name__ == '__main__':
                                          models=_models,
                                          optimizers=_optimizers,
                                          messenger=_messenger,
-                                         cryptosystem=_crypto,)
+                                         cryptosystem=_crypto,
+                                         saving_model=saving_model)
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training
