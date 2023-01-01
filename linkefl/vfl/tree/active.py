@@ -211,15 +211,15 @@ class ActiveTreeParty(BaseModelComponent):
         self.train_auc, self.test_auc = [], []
 
         if self.task == "binary" or self.task == "regression":
-            raw_outputs = np.zeros(len(labels))  # sum of tree raw outputs
+            raw_outputs = np.zeros(len(trainset.labels))  # sum of tree raw outputs
             raw_outputs_test = np.zeros(len(testset.labels))
 
             if self.task == "binary":
                 outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
                 outputs_test = sigmoid(raw_outputs_test)
             else:
-                outputs = raw_outputs
-                outputs_test = raw_outputs_test
+                outputs = raw_outputs.copy()
+                outputs_test = raw_outputs_test.copy()
 
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
@@ -234,9 +234,10 @@ class ActiveTreeParty(BaseModelComponent):
                 )
 
                 train_loss = self.loss.loss(labels, outputs)
-                test_loss = self.loss.loss(testset.labels, outputs_test)
                 gradient = self.loss.gradient(labels, outputs)
                 hessian = self.loss.hessian(labels, outputs)
+
+                test_loss = self.loss.loss(testset.labels, outputs_test)
 
                 while True:
                     try:
@@ -246,11 +247,6 @@ class ActiveTreeParty(BaseModelComponent):
 
                         raw_outputs += self.learning_rate * tree.update_pred
 
-                        if self.task == "binary":
-                            outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
-                        else:
-                            outputs = raw_outputs
-
                         self._merge_tree_info(tree.feature_importance_info)
                         self.logger.log(f"tree {tree_id} finished")
 
@@ -258,12 +254,15 @@ class ActiveTreeParty(BaseModelComponent):
                             if self.messengers_validTag[messenger_id]:
                                 messenger.send(wrap_message("validate", content=True))
 
+                        # validate
                         scores = self._validate_tree(testset, tree, raw_outputs_test)
 
                         if self.task == "binary":
+                            outputs = sigmoid(raw_outputs)  # sigmoid of raw_outputs
                             outputs_test = sigmoid(raw_outputs_test)
                         else:
-                            outputs_test = raw_outputs_test
+                            outputs = raw_outputs.copy()
+                            outputs_test = raw_outputs_test.copy()
 
                     except DisconnectedError as e:
                         # Handling of disconnection during prediction stage
@@ -815,10 +814,10 @@ if __name__ == "__main__":
         crypto_system=crypto_system,
         messengers=messengers,
         logger=logger,
-        training_mode="lightgbm",       # "lightgbm", "xgboost"
+        training_mode="xgboost",       # "lightgbm", "xgboost"
         sampling_method='uniform',
-        max_depth=3,
-        max_num_leaves=8,
+        max_depth=4,
+        max_num_leaves=16,
         subsample=1,
         top_rate=0.3,
         other_rate=0.7,

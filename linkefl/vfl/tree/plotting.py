@@ -5,7 +5,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from typing import Optional, Any
-from scipy.stats import scoreatpercentile
 from PrettyPrint import PrettyPrintTree
 from sklearn.metrics import precision_recall_curve, roc_curve
 
@@ -28,21 +27,135 @@ class Plot(object):
             for tree_id, tree_str in enumerate(tree_strs.values(), 1):
                 f.write(f"Tree{tree_id}:\n")
                 f.write(tree_str)
+                f.write("\n\n")
 
     @staticmethod
-    def plot_importance(booster: ActiveTreeParty,
-                        importance_type: str = "split",
-                        file_dir='./models'):
-        ax = plot_importance(booster, importance_type)
-        plt.savefig(f"{file_dir}/importance.png")
-        plt.close()
+    def plot_importance(
+            booster: ActiveTreeParty,
+            importance_type: str = "split",
+            max_num_features: Optional[int] = 20,
+            title: str = "Feature importance",
+            xlabel: str = "Importance score",
+            ylabel: str = "Features",
+            # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
+            figsize: Optional[tuple] = (14, 8),
+            height: float = 0.2,
+            xlim: Optional[tuple] = None,
+            ylim: Optional[tuple] = None,
+            grid: bool = True,
+            show_values: bool = True,
+            precision: Optional[int] = 3,
+            file_dir: str = './models',
+    ) -> Axes:
+        """Plot importance based on fitted trees.
+        Parameters
+        ----------
+        booster : ActiveTreeParty or dict
+        importance_type : str, default "split"
+            How the importance is calculated: either "split", "gain", or "cover"
+            * "split" is the number of times a feature appears in trees
+            * "gain" is the average gain of splits which use the feature
+            * "cover" is the average coverage of splits which use the feature
+              where coverage is defined as the number of samples affected by the split
+        max_num_features : int, default None
+            Maximum number of top features displayed on plot. If None, all features will be displayed.
+        height : float, default 0.2
+            Bar height, passed to ax.barh()
+        xlim : tuple, default None
+            Tuple passed to axes.xlim()
+        ylim : tuple, default None
+            Tuple passed to axes.ylim()
+        title : str, default "Feature importance"
+            Axes title. To disable, pass None.
+        xlabel : str, default "F score"
+            X axis title label. To disable, pass None.
+        ylabel : str, default "Features"
+            Y axis title label. To disable, pass None.
+        grid : bool, Turn the axes grids on or off.  Default is True (On).
+        show_values : bool, default True
+            Show values on plot. To disable, pass False.
+        precision : int or None, optional (default=3)
+            Used to restrict the display of floating point values to a certain precision.
+        Returns
+        -------
+        ax : matplotlib Axes
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError as e:
+            raise ImportError('You must install matplotlib to plot importance') from e
+
+        # if isinstance(booster, ActiveTreeParty):
+        #     importance_info = booster.feature_importances_(importance_type)
+        # elif isinstance(booster, dict):
+        #     importance_info = booster
+        # else:
+        #     raise ValueError('tree must be ActivePartyModel or dict instance')
+        if isinstance(booster, dict):
+            importance_info = booster
+        else:
+            importance_info = booster.feature_importances_(importance_type)
+
+        # deal feature importance message
+        features, values = importance_info['features'], importance_info[f'importance_{importance_type}']
+        tuples = sorted(zip(features, values), key=lambda x: x[1])
+
+        if max_num_features is not None and max_num_features > 0:
+            tuples = tuples[-max_num_features:]
+        features, values = zip(*tuples)
+
+        # set ax
+        if figsize is not None:
+            _check_not_tuple_of_2_elements(figsize, 'figsize')
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+        ylocs = np.arange(len(values))
+        ax.barh(ylocs, values, align='center', height=height)
+
+        gap = min(1, max(values) * 0.02)  # avoid errors when the value is less than 1
+        if show_values is True:
+            for x, y in zip(values, ylocs):
+                ax.text(x + gap, y,
+                        _float2str(x, precision) if importance_type == 'gain' else x,
+                        va='center')
+
+        ax.set_yticks(ylocs)
+        ax.set_yticklabels(features)
+
+        # Set the x-axis scope
+        if xlim is not None:
+            _check_not_tuple_of_2_elements(xlim, 'xlim')
+        else:
+            xlim = (0, max(values) * 1.1)
+        ax.set_xlim(xlim)
+
+        # Set the y-axis scope
+        if ylim is not None:
+            _check_not_tuple_of_2_elements(ylim, 'ylim')
+        else:
+            ylim = (-1, len(values))
+        ax.set_ylim(ylim)
+
+        if title is not None:
+            ax.set_title(title)
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+        ax.grid(grid)
+
+        plt.savefig(f"{file_dir}/importance.png", pad_inches="tight")
+        return ax
 
     @staticmethod
     def plot_train_test_loss(train_loss, test_loss, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(np.arange(len(train_loss)), train_loss, label='train_loss')  # color='darkorange'
-        ax.plot(np.arange(len(test_loss)), test_loss, label='test_loss')
+        ax.plot(list(range(len(train_loss))), train_loss, label='train_loss')  # color='darkorange'
+        ax.plot(list(range(len(test_loss))), test_loss, label='test_loss')
+        # ax.set_xlim(0, len(test_loss)-0.95)
+        # ax.set_ylim(0, 1.02)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(1))
         ax.grid(True, linestyle='-.')
         ax.set_title('train_test_loss')
         ax.set_ylabel('loss', labelpad=5, loc='center')
@@ -56,8 +169,11 @@ class Plot(object):
     def plot_train_test_auc(train_auc, test_auc, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(np.arange(len(train_auc)), train_loss, label='train_auc')  # color='darkorange'
-        ax.plot(np.arange(len(test_auc)), test_loss, label='test_auc')
+        ax.plot(list(range(len(train_auc))), train_auc, label='train_auc')  # color='darkorange'
+        ax.plot(list(range(len(test_auc))), test_auc, label='test_auc')
+        # ax.set_xlim(0, len(train_auc) - 0.95)
+        # ax.set_ylim(0, 1.02)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(1))
         ax.grid(True, linestyle='-.')
         ax.set_title('train_test_auc')
         ax.set_ylabel('loss', labelpad=5, loc='center')
@@ -168,128 +284,13 @@ def tree_to_str(tree, tree_structure):
         get_val=lambda x: x.print_val if x else "",
         default_orientation = orientation,
         border=True,
-        # color=None,
+        color=None,
         return_instead_of_print=True,
     )
 
     tree_str = pt(root)
     return tree_str
 
-
-def plot_importance(
-    booster: ActiveTreeParty,
-    importance_type: str = "split",
-    max_num_features: Optional[int] = None,
-    title: str = "Feature importance",
-    xlabel: str = "Importance score",
-    ylabel: str = "Features",
-    # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
-    figsize: Optional[tuple] = None,
-    height: float = 0.2,
-    xlim: Optional[tuple] = None,
-    ylim: Optional[tuple] = None,
-    grid: bool = True,
-    show_values: bool = True,
-    precision: Optional[int] = 3,
-) -> Axes:
-    """Plot importance based on fitted trees.
-    Parameters
-    ----------
-    booster : ActiveTreeParty or dict
-    importance_type : str, default "split"
-        How the importance is calculated: either "split", "gain", or "cover"
-        * "split" is the number of times a feature appears in trees
-        * "gain" is the average gain of splits which use the feature
-        * "cover" is the average coverage of splits which use the feature
-          where coverage is defined as the number of samples affected by the split
-    max_num_features : int, default None
-        Maximum number of top features displayed on plot. If None, all features will be displayed.
-    height : float, default 0.2
-        Bar height, passed to ax.barh()
-    xlim : tuple, default None
-        Tuple passed to axes.xlim()
-    ylim : tuple, default None
-        Tuple passed to axes.ylim()
-    title : str, default "Feature importance"
-        Axes title. To disable, pass None.
-    xlabel : str, default "F score"
-        X axis title label. To disable, pass None.
-    ylabel : str, default "Features"
-        Y axis title label. To disable, pass None.
-    grid : bool, Turn the axes grids on or off.  Default is True (On).
-    show_values : bool, default True
-        Show values on plot. To disable, pass False.
-    precision : int or None, optional (default=3)
-        Used to restrict the display of floating point values to a certain precision.
-    Returns
-    -------
-    ax : matplotlib Axes
-    """
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError as e:
-        raise ImportError('You must install matplotlib to plot importance') from e
-
-    # if isinstance(booster, ActiveTreeParty):
-    #     importance_info = booster.feature_importances_(importance_type)
-    # elif isinstance(booster, dict):
-    #     importance_info = booster
-    # else:
-    #     raise ValueError('tree must be ActivePartyModel or dict instance')
-    if isinstance(booster, dict):
-        importance_info = booster
-    else:
-        importance_info = booster.feature_importances_(importance_type)
-
-    # deal feature importance message
-    features, values = importance_info['features'], importance_info[f'importance_{importance_type}']
-    tuples = sorted(zip(features, values), key = lambda x: x[1])
-
-    if max_num_features is not None and max_num_features > 0:
-        tuples = tuples[-max_num_features:]
-    features, values = zip(*tuples)
-
-    # set ax
-    if figsize is not None:
-        _check_not_tuple_of_2_elements(figsize, 'figsize')
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
-
-    ylocs = np.arange(len(values))
-    ax.barh(ylocs, values, align='center', height=height)
-
-    gap = min(1, max(values)*0.02)      # avoid errors when the value is less than 1
-    if show_values is True:
-        for x, y in zip(values, ylocs):
-            ax.text(x + gap, y,
-                    _float2str(x, precision) if importance_type == 'gain' else x,
-                    va='center')
-
-    ax.set_yticks(ylocs)
-    ax.set_yticklabels(features)
-
-    # Set the x-axis scope
-    if xlim is not None:
-        _check_not_tuple_of_2_elements(xlim, 'xlim')
-    else:
-        xlim = (0, max(values) * 1.1)
-    ax.set_xlim(xlim)
-
-    # Set the y-axis scope
-    if ylim is not None:
-        _check_not_tuple_of_2_elements(ylim, 'ylim')
-    else:
-        ylim = (-1, len(values))
-    ax.set_ylim(ylim)
-
-    if title is not None:
-        ax.set_title(title)
-    if xlabel is not None:
-        ax.set_xlabel(xlabel)
-    if ylabel is not None:
-        ax.set_ylabel(ylabel)
-    ax.grid(grid)
-
-    return ax
 
 def _prepare_print_val(tree, root):
     if not root:
@@ -335,7 +336,7 @@ def _float2str(value: float, precision: Optional[int] = None) -> str:
 
 if __name__ == '__main__':
     # feature_num = 20
-    # features = [f'feature{i}' for i in range(feature_num)]
+    # features = [f'active_feature{i}' for i in range(feature_num)]
     #
     # importance_type = 'gain'
     # if importance_type == 'split':
@@ -348,18 +349,22 @@ if __name__ == '__main__':
     #     'features': list(features),
     #     f'importance_{importance_type}': list(values)
     # }
-    #
-    # ax = plot_importance(booster=importance_info,
-    #                      importance_type=importance_type)
+
+    # ax = Plot.plot_importance(booster=importance_info,
+    #                         importance_type=importance_type,
+    #                           figsize=(14, 8))
     # plt.show()
-    labels = np.array([1, 1, 1, 1, 1, 0, 0, 0, 0, 0])
-    probs = np.array([0.9, 0.8, 0.7, 0.6, 0.55, 0.45, 0.4, 0.3, 0.2, 0.1])
-
-    # Plot.plot_binary_mertics(labels, probs)
-
-    train_loss = np.array([0.97, 0.5, 0.25, 0.125, 0.05, 0.04, 0.03])
-    train_auc = np.array([0.5, 0.7, 0.85, 0.9, 0.92, 0.94, 0.95])
-    test_loss = np.array([0.87, 0.4, 0.25, 0.105, 0.08, 0.07, 0.06])
+    # labels = np.array([1, 1, 1, 1, 1, 0, 0, 0, 0, 0])
+    # probs = np.array([0.9, 0.8, 0.7, 0.6, 0.55, 0.45, 0.4, 0.3, 0.2, 0.1])
+    #
+    # # Plot.plot_binary_mertics(labels, probs)
+    #
+    # train_loss = np.array([0.97, 0.5, 0.25, 0.125, 0.05, 0.04, 0.03])
+    # train_auc = np.array([0.5, 0.7, 0.85, 0.9, 0.92, 0.94, 0.95])
+   #  test_loss = np.array([0.87, 0.4, 0.25, 0.105, 0.08, 0.07, 0.06])
+    train_loss = np.array([0.97, 0.95, 0.91, 0.9])
+    test_loss = np.array([0.87, 0.85, 0.81, 0.8])
 
     # Plot.plot_convergence(train_loss, train_auc)
     # Plot.plot_fit(train_loss, test_loss)
+    Plot.plot_train_test_loss(train_loss, test_loss)
