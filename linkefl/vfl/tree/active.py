@@ -814,10 +814,10 @@ if __name__ == "__main__":
         crypto_system=crypto_system,
         messengers=messengers,
         logger=logger,
-        training_mode="xgboost",       # "lightgbm", "xgboost"
+        training_mode="lightgbm",       # "lightgbm", "xgboost"
         sampling_method='uniform',
-        max_depth=4,
-        max_num_leaves=16,
+        max_depth=6,
+        max_num_leaves=8,
         subsample=1,
         top_rate=0.3,
         other_rate=0.7,

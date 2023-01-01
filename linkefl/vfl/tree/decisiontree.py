@@ -351,6 +351,21 @@ class DecisionTree:
                 node.value = leaf_value
                 self.update_pred += update_temp
 
+        while not split_node_candidates.empty():
+            node = split_node_candidates.get()
+            # compute leaf weight
+            if self.task == "multi":
+                leaf_value = leaf_weight_multi(self.gh, node.sample_tag_selected, self.reg_lambda)
+                update_temp = np.dot(node.sample_tag_selected.reshape(-1, 1), leaf_value.reshape(1, -1)) + \
+                              np.dot(node.sample_tag_unselected.reshape(-1, 1), leaf_value.reshape(1, -1))
+            else:
+                leaf_value = leaf_weight(self.gh, node.sample_tag_selected, self.reg_lambda)
+                update_temp = np.dot(node.sample_tag_selected, leaf_value) + np.dot(node.sample_tag_unselected,
+                                                                                    leaf_value)
+            num_leaves += 1
+            node.value = leaf_value
+            self.update_pred += update_temp
+
         return root
 
     def _get_gh_send(self, sample_num, selected_g, selected_h, selected_idx):
