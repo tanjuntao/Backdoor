@@ -155,7 +155,7 @@ class PassiveWoe(Basewoe):
     
 class TestWoe(Basewoe):
     def __init__(self, dataset, idxes, messenger, split, bin_woe):
-        super(TestWoe, self).__init__(dataset, idxes, messenger)
+        super(TestWoe, self).__init__(dataset, idxes)
         self.split = split
         self.bin_woe = bin_woe
 
