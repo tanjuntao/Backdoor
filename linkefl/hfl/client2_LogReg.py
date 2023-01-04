@@ -124,23 +124,23 @@ if __name__ == '__main__':
 
     # # FedProx
     # aggregator = 'FedProx'
-    # mu = 0.02
+    mu = 0.02
     #
     # # Scaffold
     # aggregator = 'Scaffold'
-    # E = 30
+    E = 30
     # optimizer = ScaffoldOptimizer(model.parameters(), lr=learningrate, weight_decay=1e-4)
     #
     # # PersonalizedFed
     # aggregator = 'PersonalizedFed'
-    # kp = 0  # rate of personalized lyaer
+    kp = 0  # rate of personalized lyaer
     #
     # Differential Privacy Based Federated Learning
     # aggregator = 'FedDP'
-    # dp_mechanism = 'Laplace'
-    # dp_clip = 10
-    # dp_epsilon = 100/math.sqrt(epoch)
-    # dp_delta = 1e-5
+    dp_mechanism = 'Laplace'
+    dp_clip = 10
+    dp_epsilon = 100/math.sqrt(epoch)
+    dp_delta = 1e-5
 
     print("Loading dataset...")
 
