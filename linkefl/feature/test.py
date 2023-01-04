@@ -75,13 +75,13 @@ if __name__ == "__main__":
     # feature_psi = FeatureEvaluation.calculate_psi(active_trainset, active_testset)
     # print(feature_psi)
 
-    # split, woe, iv = ActiveWoe(dataset=active_trainset, woe_features=[2, 3], messenger=_messenger).cal_woe()
-    # print(split, woe, iv)
-    #
-    # chi_bin = ActiveChiBin(dataset=active_trainset, bin_features=[2, 3], messenger=_messenger, max_group=200).chi_bin()
-    # print(chi_bin)
+    split, woe, iv = ActiveWoe(dataset=active_trainset, idxes=[2, 3], messenger=_messenger).cal_woe()
+    print(split, woe, iv)
 
-    ActivePearsonVfl(dataset=active_trainset, messenger=_messenger, cryptosystem=_crypto).pearson_vfl()
+    chi_bin = ActiveChiBin(dataset=active_trainset, idxes=[2, 3], messenger=_messenger, max_group=200).chi_bin()
+    print(chi_bin)
 
-    pearson = ActivePearsonVfl(dataset=active_trainset, messenger=_messenger, cryptosystem=_crypto).pearson_single()
-    print(pearson)
+    # ActivePearsonVfl(dataset=active_trainset, messenger=_messenger, cryptosystem=_crypto).pearson_vfl()
+
+    # pearson = ActivePearsonVfl(dataset=active_trainset, messenger=_messenger, cryptosystem=_crypto).pearson_single()
+    # print(pearson)

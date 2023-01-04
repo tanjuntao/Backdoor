@@ -53,11 +53,11 @@ if __name__ == "__main__":
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
 
-    # split, woe, iv = PassiveWoe(dataset=passive_trainset, woe_features=[2,3], messenger=_messenger).cal_woe()
-    # print(split, woe, iv)
+    split, woe, iv = PassiveWoe(dataset=passive_trainset, idxes=[2,3], messenger=_messenger).cal_woe()
+    print(split, woe, iv)
 
-    # chi_bin = PassiveChiBin(dataset=passive_trainset, bin_features=[2,3], messenger=_messenger, max_group=200).chi_bin()
-    # print(chi_bin)
+    chi_bin = PassiveChiBin(dataset=passive_trainset, idxes=[2,3], messenger=_messenger, max_group=200).chi_bin()
+    print(chi_bin)
 
-    pearson = PassivePearsonVfl(passive_trainset, _messenger).pearson_vfl()
-    print(pearson)
+    # pearson = PassivePearsonVfl(passive_trainset, _messenger).pearson_vfl()
+    # print(pearson)
