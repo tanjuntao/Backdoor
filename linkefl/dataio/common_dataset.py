@@ -522,7 +522,7 @@ class CommonDataset:
         """
         header_arg = 0 if has_header else None
         df_dataset = pd.read_excel(
-            "{}".format(abs_path),
+            abs_path,
             header=header_arg,
             index_col=False
         )
@@ -553,15 +553,13 @@ class CommonDataset:
                   existing_json=None,
                   row_threshold=0.3, column_threshold=0.3,
                   mappings=None, transform=None):
-        import json
         if existing_json is None:
-            f = open(abs_path)
-            whole_json = json.load(f)
-            f.close()
+            whole_json = pd.read_json(abs_path)
+            raw_data = whole_json[data_field].tolist() # a Python list
         else:
             whole_json = existing_json
+            raw_data = whole_json[data_field] # a Python list
 
-        raw_data = whole_json[data_field]  # a Python list
         df_dataset = pd.DataFrame.from_dict(raw_data)
         df_dataset = cls._clean_data(df_dataset, row_threshold, column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
@@ -574,46 +572,6 @@ class CommonDataset:
             role=role,
             raw_dataset=np_dataset,
             header=header,
-            dataset_type=dataset_type,
-            transform=transform
-        )
-
-    @classmethod
-    def from_url(cls, role, url, dataset_type,
-                 delimiter=',', has_header=False,
-                 row_threshold=0.3, column_threshold=0.3,
-                 mappings=None, transform=None
-    ):
-        import requests
-
-        # do not directly use pd.read_csv(url),
-        # because it will fail if it requires authentication
-        data_raw = requests.get(url).content
-        data_byte = io.StringIO(data_raw.decode('utf-8'))
-        header_arg = 0 if has_header else None
-        df_dataset = pd.read_csv(
-            data_byte,
-            delimiter=delimiter,
-            header=header_arg,
-            skipinitialspace=True, # skip spaces after delimiter
-        )
-
-        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
-        df_dataset = cls._outlier_data(df_dataset, role=role)
-        df_dataset = cls._fill_data(df_dataset)
-        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
-
-        if has_header:
-            header = df_dataset.columns.values.tolist()
-        else:
-            offset = 1 if role == Const.PASSIVE_NAME else 2
-            n_feats = np_dataset.shape[1] - offset
-            header = cls._gen_header(role, n_feats)
-
-        return cls(
-            role=role,
-            raw_dataset=np_dataset,
-            header = header,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -643,21 +601,31 @@ class CommonDataset:
         )
 
     @classmethod
-    def from_anyfile(cls, role, abs_path, dataset_type,
-                     data_field='data', has_header=False,
+    def from_anyfile(cls, role, abs_path, dataset_type, is_local,
+                     has_header=False,
                      row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None
     ):
         extension = abs_path.split('.')[-1]
+        # if the data file is in remote
+        if not is_local:
+            import requests
+            # abs_path is an url, e.g., http://10.10.10.81:8001/digits_active.json
+            data_raw = requests.get(abs_path).content
+            # abs_path is now a StringIO object
+            abs_path = io.StringIO(data_raw.decode('utf-8'))
+
         if extension in ('csv', 'txt', 'dat'):
-            # read first two lines to determine the delimiter
-            with open(abs_path) as f:
-                first_line = f.readline()
-                second_line = f.readline()
-            if "," in first_line or "," in second_line:
-                delimiter = ","
-            else:
-                delimiter = "\s+" # regular expression, indicating one or more whitespace
+            # TODO: parse delimiter for both local file and remote file
+            delimiter = ','
+            # # read first two lines to determine the delimiter
+            # with open(abs_path) as f:
+            #     first_line = f.readline()
+            #     second_line = f.readline()
+            # if "," in first_line or "," in second_line:
+            #     delimiter = ","
+            # else:
+            #     delimiter = "\s+" # regular expression, indicating one or more whitespace
             return cls.from_csv(
                 role=role,
                 abs_path=abs_path,
@@ -683,6 +651,7 @@ class CommonDataset:
             )
 
         elif extension in ('json', ):
+            data_field = "data"
             return cls.from_json(
                 role=role,
                 abs_path=abs_path,
