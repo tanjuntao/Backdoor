@@ -1093,7 +1093,8 @@ class CommonDataset:
     def _outlier_data(df_dataset: pd.DataFrame, role):
         from pandas.core.dtypes.common import is_numeric_dtype
 
-        start = 2 if role == Const.ACTIVE_NAME else 1
+        # start = 2 if role == Const.ACTIVE_NAME else 1
+        start = 2
         for i in range(start, df_dataset.shape[1]):
             column_data = df_dataset.iloc[:, i]
             if not is_numeric_dtype(column_data):
