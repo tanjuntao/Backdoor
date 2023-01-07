@@ -239,6 +239,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -285,6 +286,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -327,6 +329,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -378,6 +381,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -420,6 +424,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -436,6 +441,7 @@ class CommonDataset:
                    host, user, password, database, table,
                    *,
                    target_fields=None, excluding_fields=False,
+                   row_threshold=0.3, column_threshold=0.3,
                    mappings=None, transform=None, port=None
     ):
         """
@@ -458,6 +464,9 @@ class CommonDataset:
 
         df_dataset = pd.read_sql(sql,connection)
 
+        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
+        df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
         return cls(
@@ -483,6 +492,7 @@ class CommonDataset:
         )
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -512,12 +522,13 @@ class CommonDataset:
         """
         header_arg = 0 if has_header else None
         df_dataset = pd.read_excel(
-            "{}".format(abs_path),
+            abs_path,
             header=header_arg,
             index_col=False
         )
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -542,17 +553,16 @@ class CommonDataset:
                   existing_json=None,
                   row_threshold=0.3, column_threshold=0.3,
                   mappings=None, transform=None):
-        import json
         if existing_json is None:
-            f = open(abs_path)
-            whole_json = json.load(f)
-            f.close()
+            whole_json = pd.read_json(abs_path)
+            raw_data = whole_json[data_field].tolist() # a Python list
         else:
             whole_json = existing_json
+            raw_data = whole_json[data_field] # a Python list
 
-        raw_data = whole_json[data_field]  # a Python list
         df_dataset = pd.DataFrame.from_dict(raw_data)
         df_dataset = cls._clean_data(df_dataset, row_threshold, column_threshold)
+        df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
         np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
 
@@ -562,45 +572,6 @@ class CommonDataset:
             role=role,
             raw_dataset=np_dataset,
             header=header,
-            dataset_type=dataset_type,
-            transform=transform
-        )
-
-    @classmethod
-    def from_url(cls, role, url, dataset_type,
-                 delimiter=',', has_header=False,
-                 row_threshold=0.3, column_threshold=0.3,
-                 mappings=None, transform=None
-    ):
-        import requests
-
-        # do not directly use pd.read_csv(url),
-        # because it will fail if it requires authentication
-        data_raw = requests.get(url).content
-        data_byte = io.StringIO(data_raw.decode('utf-8'))
-        header_arg = 0 if has_header else None
-        df_dataset = pd.read_csv(
-            data_byte,
-            delimiter=delimiter,
-            header=header_arg,
-            skipinitialspace=True, # skip spaces after delimiter
-        )
-
-        df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
-        df_dataset = cls._fill_data(df_dataset)
-        np_dataset = cls._pandas2numpy(df_dataset, mappings=mappings)
-
-        if has_header:
-            header = df_dataset.columns.values.tolist()
-        else:
-            offset = 1 if role == Const.PASSIVE_NAME else 2
-            n_feats = np_dataset.shape[1] - offset
-            header = cls._gen_header(role, n_feats)
-
-        return cls(
-            role=role,
-            raw_dataset=np_dataset,
-            header = header,
             dataset_type=dataset_type,
             transform=transform
         )
@@ -630,21 +601,31 @@ class CommonDataset:
         )
 
     @classmethod
-    def from_anyfile(cls, role, abs_path, dataset_type,
-                     data_field='data', has_header=False,
+    def from_anyfile(cls, role, abs_path, dataset_type, is_local,
+                     has_header=False,
                      row_threshold=0.3, column_threshold=0.3,
                      mappings=None, transform=None
     ):
         extension = abs_path.split('.')[-1]
+        # if the data file is in remote
+        if not is_local:
+            import requests
+            # abs_path is an url, e.g., http://10.10.10.81:8001/digits_active.json
+            data_raw = requests.get(abs_path).content
+            # abs_path is now a StringIO object
+            abs_path = io.StringIO(data_raw.decode('utf-8'))
+
         if extension in ('csv', 'txt', 'dat'):
-            # read first two lines to determine the delimiter
-            with open(abs_path) as f:
-                first_line = f.readline()
-                second_line = f.readline()
-            if "," in first_line or "," in second_line:
-                delimiter = ","
-            else:
-                delimiter = "\s+" # regular expression, indicating one or more whitespace
+            # TODO: parse delimiter for both local file and remote file
+            delimiter = ','
+            # # read first two lines to determine the delimiter
+            # with open(abs_path) as f:
+            #     first_line = f.readline()
+            #     second_line = f.readline()
+            # if "," in first_line or "," in second_line:
+            #     delimiter = ","
+            # else:
+            #     delimiter = "\s+" # regular expression, indicating one or more whitespace
             return cls.from_csv(
                 role=role,
                 abs_path=abs_path,
@@ -670,6 +651,7 @@ class CommonDataset:
             )
 
         elif extension in ('json', ):
+            data_field = "data"
             return cls.from_json(
                 role=role,
                 abs_path=abs_path,
@@ -1077,6 +1059,22 @@ class CommonDataset:
         return new_df_dataset
 
     @staticmethod
+    def _outlier_data(df_dataset: pd.DataFrame, role):
+        from pandas.core.dtypes.common import is_numeric_dtype
+
+        # start = 2 if role == Const.ACTIVE_NAME else 1
+        start = 2
+        for i in range(start, df_dataset.shape[1]):
+            column_data = df_dataset.iloc[:, i]
+            if not is_numeric_dtype(column_data):
+                continue
+            column_data_mean = np.mean(column_data)
+            column_data_std = np.std(column_data)
+            outliers = np.abs(column_data - column_data_mean) > 3 * column_data_std
+            df_dataset.loc[outliers, df_dataset.columns[i]] = pd.NA
+        return df_dataset
+
+    @staticmethod
     def _fill_data(df_dataset: pd.DataFrame):
         new_df_dataset = df_dataset.apply(lambda x: x.fillna(x.value_counts().index[0]))
         return new_df_dataset
@@ -1181,20 +1179,33 @@ if __name__ == "__main__":
     # another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
     # print(another_np_dataset)
 
+    # df_dataset_ = pd.DataFrame(
+    #     {
+    #         "id": [1, 2, 3, 4, 5],
+    #         "x": [1.1, 1.2, np.nan, np.nan, 1.2],
+    #         "a": ["a", "aa", "aaa", np.nan, "aaaaa"],
+    #         "b": ["b", "bb", "bbb", np.nan, np.nan],
+    #         "c": [np.nan, np.nan, np.nan, "cccc", "ccccc"]
+    #     }
+    # )
+    # print("Original")
+    # print(df_dataset_)
+    # cleaned_df_dataset = CommonDataset._clean_data(df_dataset_, row_threshold=0.5, column_threshold=0.5)
+    # print("Cleaned")
+    # print(cleaned_df_dataset)
+    # filled_df_dataset = CommonDataset._fill_data(cleaned_df_dataset)
+    # print("Filled")
+    # print(filled_df_dataset)
+
     df_dataset_ = pd.DataFrame(
         {
             "id": [1, 2, 3, 4, 5],
-            "x": [1.1, 1.2, np.nan, np.nan, 1.2],
-            "a": ["a", "aa", "aaa", np.nan, "aaaaa"],
-            "b": ["b", "bb", "bbb", np.nan, np.nan],
-            "c": [np.nan, np.nan, np.nan, "cccc", "ccccc"]
+            "x": [1, 1, 1, 1, 10000],
+            "a": [1, 2, 3, 4, "5"],
         }
     )
     print("Original")
     print(df_dataset_)
-    cleaned_df_dataset = CommonDataset._clean_data(df_dataset_, row_threshold=0.5, column_threshold=0.5)
-    print("Cleaned")
-    print(cleaned_df_dataset)
-    filled_df_dataset = CommonDataset._fill_data(cleaned_df_dataset)
-    print("Filled")
-    print(filled_df_dataset)
+    new_df_dataset = CommonDataset._outlier_data(df_dataset_, role=Const.PASSIVE_NAME)
+    print("New")
+    print(new_df_dataset)

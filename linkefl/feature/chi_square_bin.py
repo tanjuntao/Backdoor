@@ -9,14 +9,14 @@ from scipy.stats import chi
 
 
 class BaseChiBin(ABC):
-    def __init__(self, dataset, bin_features, max_group):
+    def __init__(self, dataset, idxes, max_group):
         """Chi-square binning for specified features.
 
         Parameters
         ----------
         dataset : NumpyDataset / TorchDataset
             Original complete data set.
-        bin_features : list[int]
+        idxes : list[int]
             The position of the column to be woe encoded.
         max_group : int
             The maximum number of bins.
@@ -29,7 +29,7 @@ class BaseChiBin(ABC):
             value(list) : The binning results.
         """
         self.dataset = dataset
-        self.bin_features = bin_features
+        self.idxes = idxes
         self.max_group = max_group
         self.bin = dict()
 
@@ -69,7 +69,7 @@ class BaseChiBin(ABC):
         '''
         cutoffs = dict()
         features = self.dataset.features
-        for i in self.bin_features:
+        for i in self.idxes:
             freq_tab = pd.crosstab(features[:, i], y)
             # 转成numpy数组用于计算。
             freq = freq_tab.values
@@ -134,26 +134,26 @@ class BaseChiBin(ABC):
         features = self.dataset.features
         if isinstance(features, np.ndarray):
             data = pd.DataFrame(features)
-            for i in self.bin_features:
+            for i in self.idxes:
                 self.bin[i] = data.iloc[:, i].apply(self._value2group, args=(cutoffs[i],)).values
         elif isinstance(features, torch.Tensor):
             data = features.numpy()
             data = pd.DataFrame(data)
-            for i in self.bin_features:
+            for i in self.idxes:
                 self.bin[i] = data.iloc[:, i].apply(self._value2group, args=(cutoffs[i],)).values
         else:
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
 
 
 class ActiveChiBin(BaseChiBin):
-    def __init__(self, dataset, bin_features, messenger, max_group=5):
+    def __init__(self, dataset, idxes, messenger, max_group=5):
         """Find the cutoff point of chi-square binning for active.
 
         Parameters
         ----------
         messenger : list[messenger_factory]
         """
-        super(ActiveChiBin, self).__init__(dataset, bin_features, max_group)
+        super(ActiveChiBin, self).__init__(dataset, idxes, max_group)
         self.messenger = messenger
 
     def chi_bin(self):
@@ -165,14 +165,14 @@ class ActiveChiBin(BaseChiBin):
 
 
 class PassiveChiBin(BaseChiBin):
-    def __init__(self, dataset, bin_features, messenger, max_group=5):
+    def __init__(self, dataset, idxes, messenger, max_group=5):
         """Find the cutoff point of chi-square binning for passive.
 
         Parameters
         ----------
         messenger : list[messenger_factory]
         """
-        super(PassiveChiBin, self).__init__(dataset, bin_features, max_group)
+        super(PassiveChiBin, self).__init__(dataset, idxes, max_group)
         self.messenger = messenger
 
     def chi_bin(self):

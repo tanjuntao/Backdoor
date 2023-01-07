@@ -89,15 +89,15 @@ if __name__ == '__main__':
 
     # # FedProx
     # aggregator = 'FedProx'
-    # mu = 0.02
+    mu = 0.02
     #
     # # Scaffold
     # aggregator = 'Scaffold'
-    # E = 30
+    E = 30
     #
     # # PersonalizedFed
     # aggregator = 'PersonalizedFed'
-    # kp = 0  # rate of personalized lyaer
+    kp = 0  # rate of personalized lyaer
     #
     # Differential Privacy Based Federated Learning
     # aggregator = 'FedDP'

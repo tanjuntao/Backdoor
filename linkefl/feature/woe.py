@@ -6,14 +6,14 @@ import pandas as pd
 
 
 class Basewoe(ABC):
-    def __init__(self, dataset, woe_features):
+    def __init__(self, dataset, idxes):
         """Woe encodes the specified features and calculates their iv values.
 
         Parameters
         ----------
         dataset : NumpyDataset / TorchDataset
             Original complete data set.
-        woe_features : list[int]
+        idxes : list[int]
             The position of the column to be woe encoded.
         messenger : list[messenger_factory] or messenger_factory
             For active, it should be list[messenger_factory].
@@ -35,7 +35,7 @@ class Basewoe(ABC):
             value(list) : The iv values.
         """
         self.dataset = dataset
-        self.woe_features = woe_features
+        self.idxes = idxes
         self.split = dict()
         self.bin_woe = dict()
         self.bin_iv = dict()
@@ -49,10 +49,10 @@ class Basewoe(ABC):
             features = features.astype(float)
             positive = np.count_nonzero(y == 1)
             negative = np.count_nonzero(y == 0)
-            for i in range(len(self.woe_features)):
-                bin_feature, self.split[self.woe_features[i]] = \
-                    pd.cut(features[:, self.woe_features[i]], bin, labels=False, retbins=True)
-                self.split[self.woe_features[i]] = self.split[self.woe_features[i]][1: -1]
+            for i in range(len(self.idxes)):
+                bin_feature, self.split[self.idxes[i]] = \
+                    pd.cut(features[:, self.idxes[i]], bin, labels=False, retbins=True)
+                self.split[self.idxes[i]] = self.split[self.idxes[i]][1: -1]
                 woe = []
                 iv = []
                 for j in range(bin):
@@ -70,9 +70,9 @@ class Basewoe(ABC):
                         np.where(bin_feature == j, bin_woe, bin_feature)
                     woe.append(bin_woe)
                     iv.append(bin_iv)
-                self.bin_woe[self.woe_features[i]] = woe
-                self.bin_iv[self.woe_features[i]] = iv
-                features[:, self.woe_features[i]] = bin_feature
+                self.bin_woe[self.idxes[i]] = woe
+                self.bin_iv[self.idxes[i]] = iv
+                features[:, self.idxes[i]] = bin_feature
             dataset = np.concatenate(
                 (ids[:, np.newaxis], y[:, np.newaxis], features),
                 axis=1
@@ -82,10 +82,10 @@ class Basewoe(ABC):
             y = y.numpy()
             positive = np.count_nonzero(y == 1)
             negative = np.count_nonzero(y == 0)
-            for i in range(len(self.woe_features)):
-                bin_feature, self.split[self.woe_features[i]] = \
-                    pd.cut(features[:, self.woe_features[i]], bin, labels=False, retbins=True)
-                self.split[self.woe_features[i]] = self.split[self.woe_features[i]][1: -1]
+            for i in range(len(self.idxes)):
+                bin_feature, self.split[self.idxes[i]] = \
+                    pd.cut(features[:, self.idxes[i]], bin, labels=False, retbins=True)
+                self.split[self.idxes[i]] = self.split[self.idxes[i]][1: -1]
                 woe = []
                 iv = []
                 for j in range(bin):
@@ -103,9 +103,9 @@ class Basewoe(ABC):
                         np.where(bin_feature == j, bin_woe, bin_feature)
                     woe.append(bin_woe)
                     iv.append(bin_iv)
-                self.bin_woe[self.woe_features[i]] = woe
-                self.bin_iv[self.woe_features[i]] = iv
-                features[:, self.woe_features[i]] = bin_feature
+                self.bin_woe[self.idxes[i]] = woe
+                self.bin_iv[self.idxes[i]] = iv
+                features[:, self.idxes[i]] = bin_feature
             dataset = np.concatenate(
                 (ids[:, np.newaxis], y[:, np.newaxis], features),
                 axis=1
@@ -117,14 +117,14 @@ class Basewoe(ABC):
 
 
 class ActiveWoe(Basewoe):
-    def __init__(self, dataset, woe_features, messenger):
+    def __init__(self, dataset, idxes, messenger):
         """Woe encodes the specified features and calculates their iv values for active.
 
         Parameters
         ----------
         messenger : list[messenger_factory]
         """
-        super(ActiveWoe, self).__init__(dataset, woe_features)
+        super(ActiveWoe, self).__init__(dataset, idxes)
         self.messenger = messenger
 
     def cal_woe(self):
@@ -136,14 +136,14 @@ class ActiveWoe(Basewoe):
 
 
 class PassiveWoe(Basewoe):
-    def __init__(self, dataset, woe_features, messenger):
+    def __init__(self, dataset, idxes, messenger):
         """Woe encodes the specified features and calculates their iv values for passive.
 
         Parameters
         ----------
         messenger : list[messenger_factory]
         """
-        super(PassiveWoe, self).__init__(dataset, woe_features)
+        super(PassiveWoe, self).__init__(dataset, idxes)
         self.messenger = messenger
 
     def cal_woe(self):
@@ -154,8 +154,8 @@ class PassiveWoe(Basewoe):
 
     
 class TestWoe(Basewoe):
-    def __init__(self, dataset, woe_features, messenger, split, bin_woe):
-        super(TestWoe, self).__init__(dataset, woe_features, messenger)
+    def __init__(self, dataset, idxes, messenger, split, bin_woe):
+        super(TestWoe, self).__init__(dataset, idxes)
         self.split = split
         self.bin_woe = bin_woe
 
@@ -165,13 +165,13 @@ class TestWoe(Basewoe):
         if isinstance(features, np.ndarray):
             features = features.astype(float)
             sam_num = self.dataset.n_samples
-            for woe_features_idx in range(len(self.woe_features)):
-                cur_split = self.split[woe_features_idx]
-                cur_woe_list = self.bin_woe[woe_features_idx]
+            for idxes_idx in range(len(self.idxes)):
+                cur_split = self.split[idxes_idx]
+                cur_woe_list = self.bin_woe[idxes_idx]
                 for sam_idx in range(sam_num):
                     bin_idx = 0
                     while(bin_idx < len(cur_split)):
-                        if features[sam_idx, woe_features_idx] <= cur_split[bin_idx]:
+                        if features[sam_idx, idxes_idx] <= cur_split[bin_idx]:
                             break
                         bin_idx += 1
-                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[bin_idx]
+                    self.dataset.features[sam_idx, idxes_idx] = cur_woe_list[bin_idx]
