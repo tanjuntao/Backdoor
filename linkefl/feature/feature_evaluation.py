@@ -20,7 +20,7 @@ class FeatureEvaluation(object):
 
     @classmethod
     def tree_importance(cls,
-                        trainset: NumpyDataset, testset: NumpyDataset,
+                        trainset: NumpyDataset,
                         task: str="binary",
                         evaluation_way: str="xgboost",
                         importance_type: str="gain",
@@ -34,9 +34,6 @@ class FeatureEvaluation(object):
         assert isinstance(
             trainset, NumpyDataset
         ), "trainset should be an instance of NumpyDataset"
-        assert isinstance(
-            testset, NumpyDataset
-        ), "testset should be an instance of NumpyDataset"
 
         # 1. set model and train
         if task == "regression":
