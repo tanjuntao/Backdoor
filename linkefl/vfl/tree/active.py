@@ -818,7 +818,7 @@ if __name__ == "__main__":
         sampling_method='uniform',
         max_depth=6,
         max_num_leaves=8,
-        subsample=1,
+        subsample=0.6,
         top_rate=0.3,
         other_rate=0.7,
         colsample_bytree=1,
