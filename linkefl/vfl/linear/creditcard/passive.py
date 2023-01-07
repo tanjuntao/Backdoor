@@ -5,6 +5,30 @@ from linkefl.common.const import Const
 from linkefl.vfl.linear import BaseLinearPassive
 from linkefl.feature.woe import PassiveWoe, TestWoe
 
+class Testwoe():
+    def __init__(self, dataset, woe_features, messenger, split, bin_woe):
+        self.split = split
+        self.bin_woe = bin_woe
+        self.messenger = messenger
+        self.dataset = dataset
+        self.woe_features = woe_features
+
+    def cal_woe(self):
+        features = self.dataset.features
+        ids = np.array(self.dataset.ids)
+        if isinstance(features, np.ndarray):
+            features = features.astype(float)
+            sam_num = self.dataset.n_samples
+            for woe_features_idx in range(len(self.woe_features)):
+                cur_split = self.split[woe_features_idx]
+                cur_woe_list = self.bin_woe[woe_features_idx]
+                for sam_idx in range(sam_num):
+                    bin_idx = 0
+                    while(bin_idx < len(cur_split)):
+                        if features[sam_idx, woe_features_idx] <= cur_split[bin_idx]:
+                            break
+                        bin_idx += 1
+                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[bin_idx]
 
 class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
     def __init__(self,
@@ -65,7 +89,7 @@ if __name__ == '__main__':
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
-    active_port = 20003
+    active_port = 20002
     passive_ip = 'localhost'
     passive_port = 20001
     _epochs = 100
@@ -85,6 +109,7 @@ if __name__ == '__main__':
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
 
+    _messenger.send('begin')
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
     print('Loading dataset...')
@@ -103,12 +128,16 @@ if __name__ == '__main__':
                                                    passive_feat_frac=passive_feat_frac,
                                                    feat_perm_option=feat_perm_option)
     # raise()
+    passive_trainset = scale(passive_trainset)
+    passive_testset = scale(passive_testset)
+    print(passive_trainset.features.shape, passive_testset.features.shape)
+
     passive_woe = PassiveWoe(passive_trainset, [0, 1, 2, 3, 4], _messenger)
     bin_bounds, bin_woe, bin_iv = passive_woe.cal_woe()
-
-    test_woe = TestWoe(passive_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
+    test_woe = Testwoe(passive_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
     test_woe.cal_woe()
 
+    print(passive_trainset.features.shape, passive_testset.features.shape)
     _logger = logger_factory(role=Const.PASSIVE_NAME)
     passive_party = PassiveLogReg(epochs=_epochs,
                                   batch_size=_batch_size,
