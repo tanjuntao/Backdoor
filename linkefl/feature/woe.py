@@ -54,7 +54,7 @@ class Basewoe(ABC):
                     pd.cut(features[:, self.idxes[i]], bin, labels=False, retbins=True)
                 self.split[self.idxes[i]] = self.split[self.idxes[i]][1: -1]
                 woe = []
-                iv = []
+                iv = 0
                 for j in range(bin):
                     bin_sample = (bin_feature == j)
                     bin_num = np.count_nonzero(bin_sample)
@@ -69,7 +69,7 @@ class Basewoe(ABC):
                     bin_feature = \
                         np.where(bin_feature == j, bin_woe, bin_feature)
                     woe.append(bin_woe)
-                    iv.append(bin_iv)
+                    iv += bin_iv
                 self.bin_woe[self.idxes[i]] = woe
                 self.bin_iv[self.idxes[i]] = iv
                 features[:, self.idxes[i]] = bin_feature
@@ -127,6 +127,7 @@ class Basewoe(ABC):
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
         if modify:
             self.dataset.set_dataset(dataset)
+        return self.split, self.bin_woe, self.bin_iv
 
 
 class ActiveWoe(Basewoe):

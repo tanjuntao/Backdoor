@@ -812,41 +812,26 @@ class CommonDataset:
 
         from matplotlib import pyplot as plt
         from termcolor import colored
+        from linkefl.feature.woe import Basewoe
+        from linkefl.feature.feature_evaluation import FeatureEvaluation
 
         static_result = {}
-        static_result['number_of_samples'] = self.n_samples
-        static_result['number_of_features'] = self.n_features
-        if self.role == Const.ACTIVE_NAME and len(np.unique(list(self.labels))) == 2:
-            if isinstance(self.labels, np.ndarray): # Numpy Array
-                n_positive = (self.labels == 1).astype(int).sum()
-            else: # PyTorch Tensor
-                n_positive = (self.labels == 1).type(torch.int32).sum().item()
-            n_negative = self.n_samples - n_positive
-            static_result['positive_samples'] = n_positive
-            static_result['negative_samples'] = n_negative
+        static_result['n_samples'] = self.n_samples
+        static_result['n_features'] = self.n_features
 
         pd.set_option('display.max_columns', None)
-        df_dataset = pd.DataFrame(self._raw_dataset)
-        if self.role == Const.ACTIVE_NAME:
-            df_dataset.rename(columns={0: 'id', 1: 'lable'}, inplace=True)
-            for i in range(self.n_features):
-                df_dataset.rename(columns={i + 2: 'x' + str(i + 1)}, inplace=True)
-        elif self.role == Const.PASSIVE_NAME:
-            df_dataset.rename(columns={0: 'id'}, inplace=True)
-            for i in range(self.n_features):
-                df_dataset.rename(columns={i + 1: 'x' + str(i + 1)}, inplace=True)
-        static_result['first_and_last_5_rows'] = pd.concat([df_dataset.head(), df_dataset.tail()])
+        df_dataset = pd.DataFrame(self.features)
+        for i in range(self.n_features):
+            df_dataset.rename(columns={i: 'x' + str(i + 1)}, inplace=True)
 
-        buf = io.StringIO()
-        df_dataset.info(buf=buf)
-        info = buf.getvalue()
-        static_result['index_dtype_and_colunms_non-null_values_and_memory_usage'] = info
-
+        # Calculate the unique value.
         col_names = list(df_dataset.columns.values)
         num_unique_data = np.array(df_dataset[col_names].nunique().values)
         num_unique = pd.DataFrame(data=num_unique_data.reshape((1, -1)),
                                   index=['unique'],
                                   columns=col_names)
+
+        # Calculate the top value.
         col_sum = df_dataset.sum().values.reshape((1, -1))
         col_top3 = np.array([])
         for col in col_names:
@@ -856,46 +841,49 @@ class CommonDataset:
         top3_ratio = pd.DataFrame(data=top3_ratio_data,
                                   index=["top1", "top2", "top3"],
                                   columns=col_names)
-        for col in col_names:
-            top3_ratio[col] = top3_ratio[col].apply(lambda x: format(x, '.4%'))
 
-        info = pd.concat([df_dataset.describe(), num_unique, top3_ratio])
-        row_names = list(info.index.values)
-        for row_name in row_names:
-            static_result[row_name] = info.loc[row_name, :]
+        if self.role == Const.ACTIVE_NAME:
+            # Calculate the iv value and iv_rate.
+            iv_idxes = list(range(self.n_features))
+            _, _, iv = Basewoe(dataset=self, idxes=iv_idxes)._cal_woe(self.labels, 'active', modify=False)
+            iv = pd.DataFrame(iv, index=[0])
+            iv = pd.DataFrame(data=iv.values,
+                              index=["iv"],
+                              columns=col_names)
+            iv_sum = iv.iloc[0, :].sum()
+            iv_rate = pd.DataFrame(data=iv.values / iv_sum,
+                                   index=["iv_rate"],
+                                   columns=col_names)
+            # Calculate the xgb_importance.
+            importance,_ =FeatureEvaluation.tree_importance(self, save_pic=False)
+            importance = importance.reshape(1, -1)
+            importance = pd.DataFrame(data=importance,
+                                      index=["xgb_importance"],
+                                      columns=col_names)
+
+        info = pd.concat([df_dataset.describe(), num_unique, top3_ratio, iv, iv_rate, importance])
+        info = info.round(4)
+
+        stat = {}
+        for field in col_names:
+            tstat = {}
+            tstat['missing_rate'] = round(((self.n_samples - info.loc['count'][field]) / self.n_samples), 4)
+            tstat['range'] = "[{}, {}]".format(info.loc['min'][field], info.loc['max'][field])
+            tstat['unique'] = int(info.loc['unique'][field])
+            tstat['iv'] = float(info.loc['iv'][field])
+            tstat['iv_rate'] = float(info.loc['iv_rate'][field])
+            tstat['xgb_importance'] = float(info.loc['xgb_importance'][field])
+            tstat['top'] = float(info.loc['top1'][field])
+            tstat['mean'] = float(info.loc['mean'][field])
+            tstat['quartile'] = float(info.loc['25%'][field])
+            tstat['max'] = float(info.loc['max'][field])
+            tstat['min'] = float(info.loc['min'][field])
+            tstat['std'] = float(info.loc['std'][field])
+            tstat['median'] = float(info.loc['50%'][field])
+            stat[field] = tstat
+        static_result['stat'] = stat
+
         return static_result
-
-        # Output the distribution for the data label.
-        # if self.role == Const.ACTIVE_NAME:
-        #     n_classes = len(np.unique(list(self.labels)))
-        #     if self.dataset_type == Const.REGRESSION:  # regression dataset
-        #         dis_label = pd.DataFrame(data=self.labels.reshape((-1, 1)),
-        #                                  columns=['label'])
-        #         # histplot
-        #         sns.histplot(dis_label, kde=True, linewidth=1)
-        #     else:  # classification dataset
-        #         bars = [str(i) for i in range(n_classes)]
-        #         if isinstance(self.labels, np.ndarray): # Numpy Array
-        #             counts = [(self.labels == i).astype(int).sum()
-        #                         for i in range(n_classes)]
-        #         else: # PyTorch Tensor
-        #             counts = [(self.labels == i).type(torch.int32).sum().item()
-        #                         for i in range(n_classes)]
-        #         x = np.arange(len(bars))
-        #         width = 0.5 / n_classes
-        #
-        #         # barplot
-        #         rec = plt.bar(x, counts, width=width)
-        #         # show corresponding value of the bar on top of itself
-        #         for bar in rec:
-        #             h = bar.get_height()
-        #             plt.text(bar.get_x() + bar.get_width() / 2, h, h,
-        #                      ha='center',
-        #                      va='bottom',
-        #                      size=14)
-        #         plt.xticks(x, bars, fontsize=14)
-        #
-        #     plt.show()
 
     def get_dataset(self):
         return self._raw_dataset
