@@ -40,7 +40,7 @@ class Basewoe(ABC):
         self.bin_woe = dict()
         self.bin_iv = dict()
 
-    def _cal_woe(self, y):
+    def _cal_woe(self, y, role, modify):
         bin = 3
         delta = 1e-07
         features = self.dataset.features
@@ -73,10 +73,16 @@ class Basewoe(ABC):
                 self.bin_woe[self.idxes[i]] = woe
                 self.bin_iv[self.idxes[i]] = iv
                 features[:, self.idxes[i]] = bin_feature
-            dataset = np.concatenate(
-                (ids[:, np.newaxis], y[:, np.newaxis], features),
-                axis=1
-            )
+            if role == 'active':
+                dataset = np.concatenate(
+                    (ids[:, np.newaxis], y[:, np.newaxis], features),
+                    axis=1
+                )
+            else:
+                dataset = np.concatenate(
+                    (ids[:, np.newaxis], features),
+                    axis=1
+                )
         elif isinstance(features, torch.Tensor):
             features = features.float().numpy()
             y = y.numpy()
@@ -106,14 +112,21 @@ class Basewoe(ABC):
                 self.bin_woe[self.idxes[i]] = woe
                 self.bin_iv[self.idxes[i]] = iv
                 features[:, self.idxes[i]] = bin_feature
-            dataset = np.concatenate(
-                (ids[:, np.newaxis], y[:, np.newaxis], features),
-                axis=1
-            )
+            if role == 'active':
+                dataset = np.concatenate(
+                    (ids[:, np.newaxis], y[:, np.newaxis], features),
+                    axis=1
+                )
+            else:
+                dataset = np.concatenate(
+                    (ids[:, np.newaxis], features),
+                    axis=1
+                )
             dataset = torch.from_numpy(dataset)
         else:
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
-        self.dataset.set_dataset(dataset)
+        if modify:
+            self.dataset.set_dataset(dataset)
 
 
 class ActiveWoe(Basewoe):
@@ -127,10 +140,10 @@ class ActiveWoe(Basewoe):
         super(ActiveWoe, self).__init__(dataset, idxes)
         self.messenger = messenger
 
-    def cal_woe(self):
+    def cal_woe(self, modify=True):
         y = self.dataset.labels
         for msger in self.messenger: msger.send(y)
-        super()._cal_woe(y)
+        super()._cal_woe(y, 'active', modify)
 
         return self.split, self.bin_woe, self.bin_iv
 
@@ -146,9 +159,9 @@ class PassiveWoe(Basewoe):
         super(PassiveWoe, self).__init__(dataset, idxes)
         self.messenger = messenger
 
-    def cal_woe(self):
+    def cal_woe(self, modify=True):
         y = self.messenger.recv()
-        super()._cal_woe(y)
+        super()._cal_woe(y, "passive", modify)
 
         return self.split, self.bin_woe, self.bin_iv
 
