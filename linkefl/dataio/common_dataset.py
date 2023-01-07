@@ -577,8 +577,8 @@ class CommonDataset:
         )
 
     @classmethod
-    def from_api(cls, role, url, dataset_type, post_params,
-                 data_field='data', has_header=True,
+    def from_api(cls, role, url, dataset_type,
+                 post_params=None, data_field='data', has_header=True,
                  row_threshold=0.3, column_threshold=0.3,
                  mappings=None, transform=None,
     ):

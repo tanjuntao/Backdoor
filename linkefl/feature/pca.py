@@ -1,13 +1,15 @@
 import numpy as np
 import torch
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA as SklearnPCA
 
+from linkefl.base import BaseTransformComponent
 from linkefl.common.const import Const
-from linkefl.dataio import TorchDataset, NumpyDataset
+from linkefl.dataio import NumpyDataset
 
-class BasePCA():
-    '''
-    Refer to https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html
+
+class PCA(BaseTransformComponent):
+    """
+    Ref:https://scikit-learn.org/stable/modules/generated/sklearn.decomposition.PCA.html
 
     Parameters
     ----------
@@ -163,11 +165,11 @@ class BasePCA():
     n_features_in_ : int
         Number of features seen during :term:`fit`.
 
-        .. versionadded:: 0.24    
-    '''
+        .. versionadded:: 0.24
+    """
+
     def __init__(
         self,
-        dataset,
         n_components=None,
         *,
         copy=True,
@@ -179,7 +181,6 @@ class BasePCA():
         power_iteration_normalizer="auto",
         random_state=None,
     ):
-        self.dataset = dataset
         self.n_components = n_components
         self.copy = copy
         self.whiten = whiten
@@ -190,117 +191,108 @@ class BasePCA():
         self.power_iteration_normalizer = power_iteration_normalizer
         self.random_state = random_state
 
+    def __call__(self, dataset, role):
+        pca = SklearnPCA(
+            n_components=self.n_components,
+            copy=self.copy,
+            whiten=self.whiten,
+            svd_solver=self.svd_solver,
+            tol=self.tol,
+            iterated_power=self.iterated_power,
+            random_state=self.random_state,
+        )
 
-    def pca(self):
-        X = self.dataset.features
-
-        if isinstance(X, np.ndarray) or isinstance(X, torch.Tensor):
-            if isinstance(X, torch.Tensor):
-                X = X.numpy()
+        offset = 2 if dataset.role == Const.ACTIVE_NAME else 1
+        raw_dataset = dataset.get_dataset()
+        if isinstance(raw_dataset, np.ndarray):
+            X_transform = pca.fit_transform(raw_dataset[:, offset:])
+            raw_dataset = np.concatenate((raw_dataset[:, :offset], X_transform), axis=1)
+            # raw_dataset[:, offset:] = X_transform
+        elif isinstance(raw_dataset, torch.Tensor):
+            X_transform = pca.fit_transform(raw_dataset[:, offset:].numpy())
+            raw_dataset = torch.cat((raw_dataset[:, :offset], torch.from_numpy(X_transform)), dim=1)
+            # raw_dataset[:, offset:] = torch.from_numpy(X_transform)
         else:
-            raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor') 
+            raise TypeError("invalid datatype")
 
-        pca = PCA(n_components=self.n_components,
-                  copy=self.copy,
-                  whiten=self.whiten,
-                  svd_solver=self.svd_solver,
-                  tol=self.tol,
-                  iterated_power=self.iterated_power,
-                  random_state=self.random_state)   
+        dataset.set_dataset(raw_dataset)
+        self.raw_pca = pca
 
-        pca.fit(X)
-
-        X_transform = pca.transform(X)
-
-        return X_transform, pca
+        return dataset
 
     @property
     def components_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.components_
+        return self.raw_pca.components_
 
     @property
     def explained_variance_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.explained_variance_
+        return self.raw_pca.explained_variance_
 
     @property
     def explained_variance_ratio_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.explained_variance_ratio_
+        return self.raw_pca.explained_variance_ratio_
 
     @property
     def singular_values_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.singular_values_
+        return self.raw_pca.singular_values_
 
     @property
     def mean_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.mean_
+        return self.raw_pca.mean_
 
     @property
     def n_components_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.n_components_
+        return self.raw_pca.n_components_
 
     @property
     def n_features_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.n_features_
+        return self.raw_pca.n_features_
 
     @property
     def n_samples_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.n_samples_
+        return self.raw_pca.n_samples_
 
     @property
     def noise_variance_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.noise_variance_
+        return self.raw_pca.noise_variance_
 
     @property
     def n_features_in_(self):
-        _, pca_fit = self.pca()
-        return pca_fit.n_features_in_
+        return self.raw_pca.n_features_in_
 
 
-
-if __name__ == '__main__':
-
-    dataset_name = 'credit'
+if __name__ == "__main__":
+    dataset_name = "credit"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
 
-    active_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
-                                                   role=Const.ACTIVE_NAME,
-                                                   root='../data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option,
-                                                   seed=_random_state)
+    active_trainset = NumpyDataset.buildin_dataset(
+        dataset_name=dataset_name,
+        role=Const.ACTIVE_NAME,
+        root="data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+        seed=_random_state,
+    )
 
+    print(f"before: {active_trainset.features.shape}")
+    instance = PCA(n_components=2)
+    _X_transform = instance(active_trainset, role=Const.ACTIVE_NAME)
+    print(f"after: {active_trainset.features.shape}")
 
-    instance = BasePCA(dataset=active_trainset, n_components=2)
-    X_transform, instance_pca = instance.pca()
+    print("X_transform", type(_X_transform))
+    print("instance_pca", instance.explained_variance_ratio_)
 
-    print('X_transform', X_transform)
-    print('instance_pca', instance_pca.explained_variance_ratio_)
-
-    print('components', instance.components_)
-    print('explained_variance_', instance.explained_variance_)
-    print('explained_variance_ratio_', instance.explained_variance_ratio_)
-    print('sigular values', instance.singular_values_)
-    print('mean_', instance.mean_)
-    print('n_components_', instance.n_components_)
-    print('n_features_', instance.n_features_)
-    print('n_samples_', instance.n_samples_)
-    print('noise_variance_', instance.noise_variance_)
-    print('n_features_in_', instance.n_features_in_)
-
-
-
-
-
+    print("components", instance.components_)
+    print("explained_variance_", instance.explained_variance_)
+    print("explained_variance_ratio_", instance.explained_variance_ratio_)
+    print("sigular values", instance.singular_values_)
+    print("mean_", instance.mean_)
+    print("n_components_", instance.n_components_)
+    print("n_features_", instance.n_features_)
+    print("n_samples_", instance.n_samples_)
+    print("noise_variance_", instance.noise_variance_)
+    print("n_features_in_", instance.n_features_in_)
