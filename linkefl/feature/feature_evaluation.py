@@ -1,11 +1,18 @@
+import os.path
+
 import shap
 import numpy as np
 import pandas as pd
+import xgboost as xgb
+import matplotlib.pyplot as plt
+import seaborn as sns
 
+from typing import Optional, Any
 from xgboost import XGBClassifier, XGBRegressor
 
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform.functional import bin
+
 
 class FeatureEvaluation(object):
     def __init__(self):
@@ -15,7 +22,11 @@ class FeatureEvaluation(object):
     def tree_importance(cls,
                         trainset: NumpyDataset, testset: NumpyDataset,
                         task: str="binary",
-                        evaluation_way: str="xgboost"):
+                        evaluation_way: str="xgboost",
+                        importance_type: str="gain",
+                        save_pic: bool=True,
+                        max_num_features_plot: int=25,
+                        pic_path: str="./eval_results"):
         """Measure feature importance based on tree model.
         """
 
@@ -47,6 +58,13 @@ class FeatureEvaluation(object):
         if evaluation_way == 'xgboost':
             importances = model.feature_importances_
             ranking = np.argsort(importances)[::-1]
+
+            if save_pic:
+                xgb.plot_importance(model, importance_type=importance_type, max_num_features=max_num_features_plot)  # 'weight', 'gain', 'cover'
+                plt.xlabel(f'{importance_type}', labelpad=5, loc='center')
+                plt.savefig(os.path.join(pic_path, 'feature_importance_gain.png'), bbox_inches='tight')
+                print("save importance fig success.")
+
         elif evaluation_way == 'shap':
             explainer = shap.Explainer(model)
             shap_values = explainer(trainset.features)
@@ -70,7 +88,12 @@ class FeatureEvaluation(object):
         return importances, ranking
 
     @classmethod
-    def collinearity_anay(cls, dateset: NumpyDataset, evaluation_way: str="pearson"):
+    def collinearity_anay(cls,
+                          dateset: NumpyDataset,
+                          evaluation_way: str="pearson",
+                          save_pic: bool = True,
+                          max_num_features_plot: int=20,
+                          pic_path: str="./eval_results"):
         """Using Variance Inflation Factor for characteristic collinearity analysis.
         """
         # 0. param check
@@ -88,14 +111,32 @@ class FeatureEvaluation(object):
         else:
             raise ValueError("Unsupported evaluation way")
 
+        if save_pic:
+            corr = np.array(corr)
+            corr_plot = corr[:max_num_features_plot, : max_num_features_plot]
+            sns.heatmap(corr_plot, linewidths=0.1, vmax=1.0, square=True,linecolor='white', annot=True)
+            plt.savefig(os.path.join(pic_path, 'collinearity_anay.png'))
+            print("save collinearity_anay.png success.")
+
         return corr
 
     @classmethod
-    def calculate_psi(cls, trainset, testset):
+    def calculate_psi(cls, trainset, testset,
+                      save_pic: bool = True,
+                      max_num_features_plot: int=20,
+                      pic_path: str="./eval_results"):
         psi_all = []
         for i in range(trainset.features.shape[1]):
             psi, _ = cls._calculate_feature_psi(trainset.features[:, i], testset.features[:, i])
             psi_all.append(psi)
+
+        if save_pic:
+            features = [f'f{i}' for i in range(len(psi_all))]
+            tuples = sorted(zip(features, psi_all), key=lambda x: x[1])
+            tuples = tuples[: max_num_features_plot]
+            features_plot, values_plot = zip(*tuples)
+
+            cls._plot_bar(features_plot, values_plot, pic_path=pic_path)
 
         return psi_all
 
@@ -172,3 +213,74 @@ class FeatureEvaluation(object):
 
         return psi, stat_df
 
+    @classmethod
+    def _plot_bar(cls,
+                  features: list,
+                  values: list,
+                  title: str = "psi anay",
+                  xlabel: str = "psi score",
+                  ylabel: str = "Features",
+                  # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
+                  figsize: Optional[tuple] = (10, 6),
+                  height: float = 0.2,
+                  xlim: Optional[tuple] = None,
+                  ylim: Optional[tuple] = None,
+                  grid: bool = True,
+                  show_values: bool = True,
+                  precision: Optional[int] = 5,
+                  pic_path: str = './eval_results',
+                  ):
+        # set ax
+        if figsize is not None:
+            cls._check_not_tuple_of_2_elements(figsize, 'figsize')
+        fig, ax = plt.subplots(1, 1, figsize=figsize)
+
+        ylocs = np.arange(len(values))
+        ax.barh(ylocs, values, align='center', height=height)
+
+        gap = min(1, max(values) * 0.02)  # avoid errors when the value is less than 1
+        if show_values is True:
+            for x, y in zip(values, ylocs):
+                ax.text(x + gap, y,
+                        cls._float2str(x, precision),
+                        va='center')
+
+        ax.set_yticks(ylocs)
+        ax.set_yticklabels(features)
+
+        # Set the x-axis scope
+        if xlim is not None:
+            cls._check_not_tuple_of_2_elements(xlim, 'xlim')
+        else:
+            xlim = (0, max(values) * 1.1)
+        ax.set_xlim(xlim)
+
+        # Set the y-axis scope
+        if ylim is not None:
+            cls._check_not_tuple_of_2_elements(ylim, 'ylim')
+        else:
+            ylim = (-1, len(values))
+        ax.set_ylim(ylim)
+
+        if title is not None:
+            ax.set_title(title)
+        if xlabel is not None:
+            ax.set_xlabel(xlabel)
+        if ylabel is not None:
+            ax.set_ylabel(ylabel)
+        ax.grid(grid)
+
+        plt.savefig(os.path.join(pic_path, 'psi_anay.png'), pad_inches="tight")
+        return ax
+
+    @staticmethod
+    def _check_not_tuple_of_2_elements(obj: Any, obj_name: str = 'obj') -> None:
+        """Check object is not tuple or does not have 2 elements."""
+        if not isinstance(obj, tuple) or len(obj) != 2:
+            raise TypeError(f"{obj_name} must be a tuple of 2 elements.")
+
+    @staticmethod
+    def _float2str(value: float, precision: Optional[int] = None) -> str:
+        return (f"{value:.{precision}f}"
+                if precision is not None and not isinstance(value, str)
+                else str(value))
