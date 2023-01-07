@@ -13,6 +13,30 @@ from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
 from linkefl.feature.woe import ActiveWoe, TestWoe
 
+class Testwoe():
+    def __init__(self, dataset, woe_features, messenger, split, bin_woe):
+        self.split = split
+        self.bin_woe = bin_woe
+        self.messenger = messenger
+        self.dataset = dataset
+        self.woe_features = woe_features
+
+    def cal_woe(self):
+        features = self.dataset.features
+        ids = np.array(self.dataset.ids)
+        if isinstance(features, np.ndarray):
+            features = features.astype(float)
+            sam_num = self.dataset.n_samples
+            for woe_features_idx in range(len(self.woe_features)):
+                cur_split = self.split[woe_features_idx]
+                cur_woe_list = self.bin_woe[woe_features_idx]
+                for sam_idx in range(sam_num):
+                    bin_idx = 0
+                    while(bin_idx < len(cur_split)):
+                        if features[sam_idx, woe_features_idx] <= cur_split[bin_idx]:
+                            break
+                        bin_idx += 1
+                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[bin_idx]
 
 class ActiveLogReg(BaseLinearActive, BaseModelComponent):
     def __init__(self,
@@ -224,6 +248,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                                                  'of NumpyDataset'
         active_wx = np.matmul(valset.features, getattr(self, 'params'))
         full_wx = active_wx
+        print(full_wx.shape)
         for msger in self.messenger:
             passive_wx = msger.recv()
             full_wx += passive_wx
@@ -285,7 +310,7 @@ if __name__ == '__main__':
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = ['localhost', ]
-    active_port = [20003, ]
+    active_port = [20002, ]
     passive_ip = ['localhost', ]
     passive_port = [20001, ]
     _epochs = 100
@@ -308,6 +333,9 @@ if __name__ == '__main__':
         for ac_ip, ac_port, pass_ip, pass_port in
         zip(active_ip, active_port, passive_ip, passive_port)
     ]
+    
+    for msger in _messenger: begin_msg = msger.recv()
+
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
     print('Loading dataset...')
@@ -326,15 +354,18 @@ if __name__ == '__main__':
                                                   passive_feat_frac=passive_feat_frac,
                                                   feat_perm_option=feat_perm_option)
 
-    active_trainset = parse_label(active_trainset)
-    active_testset = parse_label(active_testset)
+    # print(active_trainset.features.shape, active_testset.features.shape)
+    active_trainset = scale(parse_label(active_trainset))
+    active_testset = scale(parse_label(active_testset))
 
     active_woe = ActiveWoe(active_trainset, [0, 1, 2, 3, 4], _messenger)
     bin_bounds, bin_woe, bin_iv = active_woe.cal_woe()
     active_trainset = add_intercept(active_trainset)
-    test_woe = TestWoe(active_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
+    test_woe = Testwoe(active_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
     test_woe.cal_woe()
-    active_testset = add_intercept(parse_label(active_testset))
+    active_testset = add_intercept(active_testset)
+
+    print(active_trainset.features.shape, active_testset.features.shape)
 
     # 3. Initialize cryptosystem
     _crypto = crypto_factory(crypto_type=_crypto_type,
@@ -379,4 +410,3 @@ if __name__ == '__main__':
     np.save('score.npy', final_score)
     for msger_ in _messenger:
         msger_.close()
-
