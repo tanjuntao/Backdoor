@@ -1,11 +1,13 @@
 import copy
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.decomposition import PCA
 import torch
 
 from linkefl.common.const import Const
-
+from linkefl.dataio import NumpyDataset
 
 
 class ActiveConstrainedSeedKMeans:
@@ -112,10 +114,21 @@ class ActiveConstrainedSeedKMeans:
         unlabel_idxes = pkg.where(y == self.INVALID_LABEL)[0] # np.where returns a tuple
         self.messenger.send(unlabel_idxes)
 
-        for i in range(n_seed_centroids, self.n_clusters):
+        if len(unlabel_idxes) == 0:
+            raise ValueError("All samples are labeled! No need for clustering!")
+
+        if len(unlabel_idxes) < self.n_clusters - n_seed_centroids:
             np.random.seed(self.random_state)
-            idx = np.random.choice(unlabel_idxes, 1, replace=False)
-            centers_active[i] = X_active[idx]
+            idx = np.random.randint(X_active.shape[0], size=self.n_clusters - n_seed_centroids)
+            print('index', idx)
+
+            for i in range(n_seed_centroids, self.n_clusters):
+                centers_active[i] = X_active[idx[i - n_seed_centroids]]
+        else:
+            for i in range(n_seed_centroids, self.n_clusters):
+                np.random.seed(self.random_state)
+                idx = np.random.choice(unlabel_idxes, 1, replace=False)
+                centers_active[i] = X_active[idx]
 
         print('centers_active', centers_active)
 
@@ -299,8 +312,10 @@ class ActiveConstrainedSeedKMeans:
             indices[i] = min_idx
 
         if type(X_active) == np.ndarray:
+            self.messenger.send(np.array(indices))
             return np.array(indices)
         else:
+            self.messenger.send(torch.tensor(indices))
             return torch.tensor(indices)
 
     def fit_predict(self, X_active, y):
@@ -354,7 +369,7 @@ class ActiveConstrainedSeedKMeans:
         return -1 * interia
 
 
-def plot(X_active, estimator, name):
+def plot(X_active, estimator, color_num, name):
     import pandas as pd
     import seaborn as sns
 
@@ -366,12 +381,12 @@ def plot(X_active, estimator, name):
     else:
         df['y'] = estimator.indices
     plt.close()
-    plt.xlim(0.1, 0.9)
-    plt.ylim(0.0, 0.8)
+    plt.xlim(-2.5, 2.5)
+    plt.ylim(-1, 1)
     sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
-                    palette=sns.color_palette('hls', 3), data=df)
-    plt.show()
-    # plt.savefig('./figures/{}.pdf'.format(str.upper(name)))
+                    palette=sns.color_palette('hls', color_num), data=df)
+    # plt.show()
+    plt.savefig('figures/{}.png'.format(name))
 
 
 if __name__ == '__main__':
@@ -391,27 +406,63 @@ if __name__ == '__main__':
     print('Active party started, listening...')
 
 
-    # Load watermelon-4.0 dataset from book Machine Learning by Zhihua Zhou
-    dataset = np.genfromtxt('./watermelon_4.0.txt', delimiter=',')
-    X = dataset[:, 1:]
-    X_active = dataset[:, 1:2] # the first column are IDs
-    y = [-1 for _ in range(X_active.shape[0])] # by default, all samples has no label
+    dataset_name = 'credit'
+    passive_feat_frac = 0.5
+    feat_perm_option = Const.SEQUENCE
+    _random_state = None
 
-    y[3], y[24] = 0, 0
-    y[11], y[19] = 1, 1
-    y[13], y[16] = 2, 2
+    active_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
+                                                   role=Const.ACTIVE_NAME,
+                                                   root='../data',
+                                                   train=True,
+                                                   download=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option,
+                                                   seed=_random_state)
 
-    active = ActiveConstrainedSeedKMeans(messenger=_messenger,crypto_type=None,n_clusters=3, n_init=10, verbose=False)
+    print(active_trainset.features.shape)
+    print(active_trainset.features[0,:])
 
+    X_active = active_trainset.features[0:100, 0:3]
+    y = active_trainset.labels[0:100].tolist()
+    print('y', y)
+    y = [-1 for _ in range(X_active.shape[0])]
+    print('y_list', y)
+
+    # y[3], y[24] = 0, 0
+    # y[11], y[19] = 1, 1
+    # y[13], y[16] = 2, 2
+
+    n_cluster = 3
+    active = ActiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
+
+    begin_fit = time.time()
     active.fit(X_active, y)
+    end_fit = time.time()
+
     indices = active.indices
 
     print('indices are', indices)
 
-    plot(X, active, name='seed_kmeans')
+    # plot(X, active, name='seed_kmeans')
 
-    active.fit_predict(X_active, y)
+    begin_fit_predict = time.time()
+    fit_predict = active.fit_predict(X_active, y)
+    end_fit_predict = time.time()
 
     score = active.score(X_active)
     print('score', score)
+
+    print('total fit time consumed', end_fit - begin_fit)
+    print('total fit_predict time consumed', end_fit_predict - begin_fit_predict)
+
+    print('fit predict', fit_predict)
+
+    pca = PCA(n_components=2) 
+    pca.fit(X_active)
+    X_active_projection = pca.transform(X_active)
+
+    plot(X_active_projection, active, color_num = n_cluster, name='active_party')
+
+    print('X_active_projection', X_active_projection[0:10, :])
 

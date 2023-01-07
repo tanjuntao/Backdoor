@@ -1,9 +1,12 @@
 import copy
 
+import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.decomposition import PCA
 import torch
 
 from linkefl.common.const import Const
+from linkefl.dataio import NumpyDataset
 
 
 
@@ -86,10 +89,20 @@ class PassiveConstrainedSeedKMeans:
 
         # # Then, initilize the remaining centers with random samples from X_passive
         unlabel_idxes = self.messenger.recv() # np.where returns a tuple
-        for i in range(n_seed_centroids, self.n_clusters):
+        print('unlabeled index', unlabel_idxes)
+
+        if len(unlabel_idxes) < self.n_clusters - n_seed_centroids:
             np.random.seed(self.random_state)
-            idx = np.random.choice(unlabel_idxes, 1, replace=False)
-            centers_passive[i] = X_passive[idx]
+            idx = np.random.randint(X_passive.shape[0], size=self.n_clusters - n_seed_centroids)
+            print('index', idx)
+
+            for i in range(n_seed_centroids, self.n_clusters):
+                centers_passive[i] = X_passive[idx[i - n_seed_centroids]]
+        else:
+            for i in range(n_seed_centroids, self.n_clusters):
+                np.random.seed(self.random_state)
+                idx = np.random.choice(unlabel_idxes, 1, replace=False)
+                centers_passive[i] = X_passive[idx]
 
         print('final passive centers:', centers_passive)
 
@@ -225,6 +238,7 @@ class PassiveConstrainedSeedKMeans:
                 min_norm_passive = torch.norm(self.cluster_centers_passive_ - X_passive[i], dim=1)
             self.messenger.send(min_norm_passive)
 
+        self.indices = self.messenger.recv()
         #     indices[i] = min_idx
 
         # if type(X_passive) == np.ndarray:
@@ -281,6 +295,28 @@ class PassiveConstrainedSeedKMeans:
 
 
 
+def plot(X_passive, estimator, color_num, name):
+    import pandas as pd
+    import seaborn as sns
+
+    df = pd.DataFrame()
+    df['dim1'] = X_passive[:, 0]
+    df['dim2'] = X_passive[:, 1]
+    if name == 'sklearn_kmeans':
+        df['y'] = estimator.labels_
+    else:
+        df['y'] = estimator.indices
+    plt.close()
+    plt.xlim(-2.5, 2.5)
+    plt.ylim(-1, 1)
+    sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
+                    palette=sns.color_palette('hls', color_num), data=df)
+    # plt.show()
+    plt.savefig('figures/{}.png'.format(name))
+
+
+
+
 if __name__ == '__main__':
 
     from linkefl.common.factory import messenger_factory
@@ -298,15 +334,38 @@ if __name__ == '__main__':
                                    passive_port=passive_port)
 
 
-    # Load watermelon-4.0 dataset from book Machine Learning by Zhihua Zhou
-    dataset = np.genfromtxt('./watermelon_4.0.txt', delimiter=',')
-    X_passive = dataset[:, 2:] # the first column are IDs
+    dataset_name = 'credit'
+    passive_feat_frac = 0.5
+    feat_perm_option = Const.SEQUENCE
+    _random_state = None
 
-    passive = PassiveConstrainedSeedKMeans(messenger=_messenger,crypto_type=None,n_clusters=3, n_init=10, verbose=False)
+    active_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
+                                                   role=Const.ACTIVE_NAME,
+                                                   root='../data',
+                                                   train=True,
+                                                   download=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option,
+                                                   seed=_random_state)
+
+    print(active_trainset.features.shape)
+    print(active_trainset.features[0,:])
+
+    X_passive = active_trainset.features[0:100:, 3:]
+
+    n_cluster = 3
+    passive = PassiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
 
     passive.fit(X_passive)
 
     passive.fit_predict(X_passive)
 
     passive.score(X_passive)
+
+    pca = PCA(n_components=2) 
+    pca.fit(X_passive)
+    X_passive_projection = pca.transform(X_passive)
+
+    plot(X_passive_projection, passive, color_num = n_cluster, name='passive_party')
+
 
