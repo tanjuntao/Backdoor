@@ -891,9 +891,9 @@ class CommonDataset:
         static_result['stat'] = stat
 
         # Plot max/min/median pictures.
-        CommonDataset._plot_bar(col_names, info.loc['min', :].values, 'Min Value', path)
-        CommonDataset._plot_bar(col_names, info.loc['max', :].values, 'Max Value', path)
-        CommonDataset._plot_bar(col_names, info.loc['50%', :].values, 'Median Value', path)
+        CommonDataset._plot_bar(col_names, info.loc['min', :].values, 'Min Value', 'min_plot', path)
+        CommonDataset._plot_bar(col_names, info.loc['max', :].values, 'Max Value', 'max_plot', path)
+        CommonDataset._plot_bar(col_names, info.loc['50%', :].values, 'Median Value', 'mid_plot', path)
 
         return static_result
 
@@ -1147,7 +1147,7 @@ class CommonDataset:
         return header
 
     @staticmethod
-    def _plot_bar(x, y, ylabel, path):
+    def _plot_bar(x, y, ylabel, file_name, path):
         import os
 
         from matplotlib import pyplot as plt
@@ -1159,7 +1159,7 @@ class CommonDataset:
         plt.xlabel('Feature')
         plt.ylabel(ylabel)
         plt.title('{} of Each Feature'.format(ylabel))
-        plt.savefig(os.path.join(path, '{}.png'.format(ylabel)), pad_inches="tight")
+        plt.savefig(os.path.join(path, '{}.png'.format(file_name)), pad_inches="tight")
         plt.close()
 
 if __name__ == "__main__":

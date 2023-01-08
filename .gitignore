@@ -1,14 +1,16 @@
 # Project related
-*.csv
-*.npy
 *.c
-*.pkl
+*.csv
 *.gz
-*-ubyte
-*.pt
-*.model
 *.lprof
 *.mat
+*.model
+*.npy
+*.pkl
+*.png
+*.pt
+*-ubyte
+
 .idea/
 linkefl.egg-info/
 cifar-10-batches-py
