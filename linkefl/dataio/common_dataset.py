@@ -806,8 +806,9 @@ class CommonDataset:
         self.set_dataset(new_raw_dataset)
         self._header = new_header
 
-    def describe(self):
+    def describe(self, path='./'):
         import io
+        import os
         import seaborn as sns
 
         from matplotlib import pyplot as plt
@@ -821,8 +822,14 @@ class CommonDataset:
 
         pd.set_option('display.max_columns', None)
         df_dataset = pd.DataFrame(self.features)
-        for i in range(self.n_features):
-            df_dataset.rename(columns={i: 'x' + str(i + 1)}, inplace=True)
+        # for i in range(self.n_features):
+        #     df_dataset.rename(columns={i: 'x{}'.format(i)}, inplace=True)
+        if self.role == Const.ACTIVE_NAME:
+            for i in range(self.n_features):
+                df_dataset.rename(columns={i: self.header[i + 2]}, inplace=True)
+        else:
+            for i in range(self.n_features):
+                df_dataset.rename(columns={i: self.header[i + 1]}, inplace=True)
 
         # Calculate the unique value.
         col_names = list(df_dataset.columns.values)
@@ -882,6 +889,11 @@ class CommonDataset:
             tstat['median'] = float(info.loc['50%'][field])
             stat[field] = tstat
         static_result['stat'] = stat
+
+        # Plot max/min/median pictures.
+        CommonDataset._plot_bar(col_names, info.loc['min', :].values, 'Min Value', path)
+        CommonDataset._plot_bar(col_names, info.loc['max', :].values, 'Max Value', path)
+        CommonDataset._plot_bar(col_names, info.loc['50%', :].values, 'Median Value', path)
 
         return static_result
 
@@ -1134,6 +1146,21 @@ class CommonDataset:
 
         return header
 
+    @staticmethod
+    def _plot_bar(x, y, ylabel, path):
+        import os
+
+        from matplotlib import pyplot as plt
+
+        if len(x) > 10:
+            x = x[:10]
+            y = y[:10]
+        plt.bar(x, y, color='dodgerblue')
+        plt.xlabel('Feature')
+        plt.ylabel(ylabel)
+        plt.title('{} of Each Feature'.format(ylabel))
+        plt.savefig(os.path.join(path, '{}.png'.format(ylabel)), pad_inches="tight")
+        plt.close()
 
 if __name__ == "__main__":
     # from linkefl.feature.transform import OneHot
