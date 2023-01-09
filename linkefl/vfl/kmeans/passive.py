@@ -18,8 +18,8 @@ class PassiveConstrainedSeedKMeans:
                  crypto_type,
                  n_clusters=2,
                  *,
-                 n_init=10,
-                 max_iter=300,
+                 n_init=2,
+                 max_iter=30,
                  tol=0.0001,
                  verbose=False,
                  invalide_label=-1,
@@ -307,8 +307,8 @@ def plot(X_passive, estimator, color_num, name):
     else:
         df['y'] = estimator.indices
     plt.close()
-    plt.xlim(-2.5, 2.5)
-    plt.ylim(-1, 1)
+    plt.xlim(-0.2, 0.2)
+    plt.ylim(-0.3, 0.3)
     sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
                     palette=sns.color_palette('hls', color_num), data=df)
     # plt.show()
@@ -334,13 +334,13 @@ if __name__ == '__main__':
                                    passive_port=passive_port)
 
 
-    dataset_name = 'credit'
+    dataset_name = 'epsilon'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
 
-    active_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
-                                                   role=Const.ACTIVE_NAME,
+    passive_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
+                                                   role=Const.PASSIVE_NAME,
                                                    root='../data',
                                                    train=True,
                                                    download=True,
@@ -348,24 +348,25 @@ if __name__ == '__main__':
                                                    feat_perm_option=feat_perm_option,
                                                    seed=_random_state)
 
-    print(active_trainset.features.shape)
-    print(active_trainset.features[0,:])
+    print(passive_trainset.features.shape)
+    # print(passive_trainset.features[0,:])
 
-    X_passive = active_trainset.features[0:100:, 3:]
+    X_passive = passive_trainset.features
 
     n_cluster = 3
-    passive = PassiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
+    passive = PassiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=2, verbose=False)
 
-    passive.fit(X_passive)
+    # passive.fit(X_passive)
 
     passive.fit_predict(X_passive)
 
     passive.score(X_passive)
 
-    pca = PCA(n_components=2) 
-    pca.fit(X_passive)
-    X_passive_projection = pca.transform(X_passive)
+    pca_passive = PCA(n_components=2) 
+    pca_passive.fit(X_passive)
+    X_passive_projection = pca_passive.transform(X_passive)
 
-    plot(X_passive_projection, passive, color_num = n_cluster, name='passive_party')
+    plot(X_passive_projection, passive, color_num = n_cluster, name='epsilon_passive_party')
 
+    print('X_passive_projection', X_passive_projection[0:10, :])
 

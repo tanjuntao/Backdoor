@@ -18,8 +18,8 @@ class ActiveConstrainedSeedKMeans:
                  crypto_type,
                  n_clusters=2,
                  *,
-                 n_init=10,
-                 max_iter=300,
+                 n_init=2,
+                 max_iter=30,
                  tol=0.0001,
                  verbose=False,
                  invalide_label=-1,
@@ -381,8 +381,8 @@ def plot(X_active, estimator, color_num, name):
     else:
         df['y'] = estimator.indices
     plt.close()
-    plt.xlim(-2.5, 2.5)
-    plt.ylim(-1, 1)
+    plt.xlim(-0.3, 0.3)
+    plt.ylim(-0.1, 0.1)
     sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
                     palette=sns.color_palette('hls', color_num), data=df)
     # plt.show()
@@ -406,7 +406,7 @@ if __name__ == '__main__':
     print('Active party started, listening...')
 
 
-    dataset_name = 'credit'
+    dataset_name = 'epsilon'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
@@ -421,10 +421,10 @@ if __name__ == '__main__':
                                                    seed=_random_state)
 
     print(active_trainset.features.shape)
-    print(active_trainset.features[0,:])
+    # print(active_trainset.features[0,:])
 
-    X_active = active_trainset.features[0:100, 0:3]
-    y = active_trainset.labels[0:100].tolist()
+    X_active = active_trainset.features
+    y = active_trainset.labels.tolist()
     print('y', y)
     y = [-1 for _ in range(X_active.shape[0])]
     print('y_list', y)
@@ -434,15 +434,15 @@ if __name__ == '__main__':
     # y[13], y[16] = 2, 2
 
     n_cluster = 3
-    active = ActiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
+    active = ActiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=2, verbose=False)
 
-    begin_fit = time.time()
-    active.fit(X_active, y)
-    end_fit = time.time()
+    # begin_fit = time.time()
+    # active.fit(X_active, y)
+    # end_fit = time.time()
 
-    indices = active.indices
+    # indices = active.indices
 
-    print('indices are', indices)
+    # print('indices are', indices)
 
     # plot(X, active, name='seed_kmeans')
 
@@ -453,16 +453,16 @@ if __name__ == '__main__':
     score = active.score(X_active)
     print('score', score)
 
-    print('total fit time consumed', end_fit - begin_fit)
+    # print('total fit time consumed', end_fit - begin_fit)
     print('total fit_predict time consumed', end_fit_predict - begin_fit_predict)
 
     print('fit predict', fit_predict)
 
-    pca = PCA(n_components=2) 
-    pca.fit(X_active)
-    X_active_projection = pca.transform(X_active)
+    pca_active = PCA(n_components=2) 
+    pca_active.fit(X_active)
+    X_active_projection = pca_active.transform(X_active)
 
-    plot(X_active_projection, active, color_num = n_cluster, name='active_party')
+    plot(X_active_projection, active, color_num = n_cluster, name='epsilon_active_party')
 
     print('X_active_projection', X_active_projection[0:10, :])
 
