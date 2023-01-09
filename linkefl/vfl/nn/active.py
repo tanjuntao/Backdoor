@@ -212,6 +212,7 @@ class ActiveNeuralNetwork:
         test_loss = 0
         correct = 0
         labels, probs = np.array([]), np.array([])  # used for computing AUC score
+        preds = []
         with torch.no_grad():
             for batch, (X, y) in enumerate(dataloader):
                 passive_data = messenger.recv()
@@ -225,6 +226,7 @@ class ActiveNeuralNetwork:
 
                 test_loss += loss_fn(outputs, y).item()
                 correct += (outputs.argmax(1) == y).type(torch.float).sum().item()
+                preds.extend(outputs.argmax(1).numpy().tolist())
 
             test_loss /= num_batches
             acc = correct / dataset.n_samples
@@ -240,7 +242,8 @@ class ActiveNeuralNetwork:
             scores = {
                 "acc": acc,
                 "auc": auc,
-                "loss": test_loss
+                "loss": test_loss,
+                "preds": preds
             }
             messenger.send(scores)
             return scores

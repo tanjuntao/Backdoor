@@ -77,7 +77,7 @@ class PassiveNeuralNetwork:
                 print(colored('Best model updated.', 'red'))
                 if self.saving_model:
                     # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
-                    model_name = model_name + ".model"
+                    model_name = self.model_name + ".model"
                     TorchModelIO.save(self.model,
                                       self.model_path,
                                       model_name,
