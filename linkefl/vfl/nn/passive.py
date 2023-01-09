@@ -18,11 +18,13 @@ class PassiveNeuralNetwork:
                  optimizer,
                  messenger,
                  crypto_type,
+                 logger,
                  *,
                  precision=0.001,
                  random_state=None,
                  saving_model=False,
                  model_path='./models',
+                 model_name=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -30,16 +32,20 @@ class PassiveNeuralNetwork:
         self.optimizer = optimizer
         self.messenger = messenger
         self.crypto_type = crypto_type
+        self.logger = logger
 
         self.precision = precision
         self.random_state = random_state
         self.saving_model = saving_model
         self.model_path = model_path
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.PASSIVE_NAME,
-            model_type=Const.VERTICAL_NN
-        )
+        if model_name is None:
+            self.model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.PASSIVE_NAME,
+                model_type=Const.VERTICAL_NN
+            )
+        else:
+            self.model_name = model_name
 
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
@@ -70,7 +76,8 @@ class PassiveNeuralNetwork:
             if is_best:
                 print(colored('Best model updated.', 'red'))
                 if self.saving_model:
-                    model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    model_name = model_name + ".model"
                     TorchModelIO.save(self.model,
                                       self.model_path,
                                       model_name,
@@ -145,12 +152,12 @@ class PassiveNeuralNetwork:
 
 
 if __name__ == '__main__':
-    from linkefl.common.factory import messenger_factory_v1
+    from linkefl.common.factory import messenger_factory, logger_factory
     from linkefl.util import num_input_nodes
     from linkefl.vfl.nn.model import PassiveBottomModel
 
     # 0. Set parameters
-    dataset_name = 'census'
+    dataset_name = 'tab_mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -197,10 +204,10 @@ if __name__ == '__main__':
     input_nodes = num_input_nodes(dataset_name=dataset_name,
                                   role=Const.PASSIVE_NAME,
                                   passive_feat_frac=passive_feat_frac)
-    # all_nodes = [input_nodes, 256, 128] # mnist & fashion_mnist
+    all_nodes = [input_nodes, 256, 128] # mnist & fashion_mnist
     # all_nodes = [input_nodes, 15, 10] # criteo
     # all_nodes = [input_nodes, 10, 5] # avazu
-    all_nodes = [input_nodes, 20, 10] # census
+    # all_nodes = [input_nodes, 20, 10] # census
     # all_nodes = [input_nodes, 3, 3] # credit
     # all_nodes = [input_nodes, 8, 5] # default_credit
     # all_nodes = [input_nodes, 25, 10] # epsilon
@@ -208,12 +215,15 @@ if __name__ == '__main__':
     _optimizer = torch.optim.SGD(passive_bottom_model.parameters(), lr=_learning_rate)
 
     # 3. Initialize messenger
-    _messenger = messenger_factory_v1(messenger_type=Const.FAST_SOCKET,
+    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
                                    role=Const.PASSIVE_NAME,
                                    active_ip=active_ip,
                                    active_port=active_port,
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
+    _logger = logger_factory(role=Const.PASSIVE_NAME,
+                             writing_file=False,
+                             writing_http=False)
 
     # 4. Initilize NN protocol and start training
     passive_party = PassiveNeuralNetwork(epochs=_epochs,
@@ -222,6 +232,7 @@ if __name__ == '__main__':
                                          optimizer=_optimizer,
                                          messenger=_messenger,
                                          crypto_type=_crypto_type,
+                                         logger=_logger,
                                          saving_model=False)
     passive_party.train(passive_trainset, passive_testset)
 

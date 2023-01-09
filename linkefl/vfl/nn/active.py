@@ -22,11 +22,13 @@ class ActiveNeuralNetwork:
                  loss_fn,
                  messenger,
                  crypto_type,
+                 logger,
                  *,
                  precision=0.001,
                  random_state=None,
                  saving_model=False,
                  model_path='./models',
+                 model_name=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -35,16 +37,20 @@ class ActiveNeuralNetwork:
         self.loss_fn = loss_fn
         self.messenger = messenger
         self.crypto_type = crypto_type
+        self.logger = logger
 
         self.precision = precision
         self.random_state = random_state
         self.saving_model = saving_model
         self.model_path = model_path
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.ACTIVE_NAME,
-            model_type=Const.VERTICAL_NN
-        )
+        if model_name is None:
+            self.model_name = "{time}-{role}-{model_type}".format(
+                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                role=Const.ACTIVE_NAME,
+                model_type=Const.VERTICAL_NN
+            )
+        else:
+            self.model_name = model_name
 
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
@@ -91,13 +97,18 @@ class ActiveNeuralNetwork:
 
             is_best = False
             scores = self.validate(testset, existing_loader=test_dataloader)
-            curr_acc, curr_auc = scores['acc'], scores['auc']
+            curr_acc, curr_auc, curr_loss = scores['acc'], scores['auc'], scores['loss']
+            self.logger.log_metric(epoch,
+                                   curr_loss,
+                                   scores['acc'], scores['auc'], 0,
+                                   total_epoch=self.epochs)
             if curr_acc > best_acc:
                 print(colored('Best model update.\n', 'red'))
                 is_best = True
                 best_acc = curr_acc
                 if self.saving_model:
-                    model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    model_name = self.model_name + ".model"
                     TorchModelIO.save(self.models,
                                       self.model_path,
                                       model_name,
@@ -236,12 +247,12 @@ class ActiveNeuralNetwork:
 
 
 if __name__ == '__main__':
-    from linkefl.common.factory import messenger_factory_v1
+    from linkefl.common.factory import messenger_factory, logger_factory
     from linkefl.util import num_input_nodes
     from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
 
     # 0. Set parameters
-    dataset_name = 'census'
+    dataset_name = 'tab_mnist'
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = 'localhost'
@@ -290,9 +301,9 @@ if __name__ == '__main__':
                                   role=Const.ACTIVE_NAME,
                                   passive_feat_frac=passive_feat_frac)
     # mnist & fashion_mnist
-    # bottom_nodes = [input_nodes, 256, 128]
-    # intersect_nodes = [128, 128, 10]
-    # top_nodes = [10, 10]
+    bottom_nodes = [input_nodes, 256, 128]
+    intersect_nodes = [128, 128, 10]
+    top_nodes = [10, 10]
 
     # criteo
     # bottom_nodes = [input_nodes, 15, 10]
@@ -305,9 +316,9 @@ if __name__ == '__main__':
     # top_nodes = [5, 2]
 
     # census
-    bottom_nodes = [input_nodes, 20, 10]
-    intersect_nodes = [10, 10, 10]
-    top_nodes = [10, 2]
+    # bottom_nodes = [input_nodes, 20, 10]
+    # intersect_nodes = [10, 10, 10]
+    # top_nodes = [10, 2]
 
     # credit
     # bottom_nodes = [input_nodes, 3, 3]
@@ -332,12 +343,15 @@ if __name__ == '__main__':
                    for model in _models]
 
     # 3. Initialize messenger
-    _messenger = messenger_factory_v1(messenger_type=Const.FAST_SOCKET,
+    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
                                    role=Const.ACTIVE_NAME,
                                    active_ip=active_ip,
                                    active_port=active_port,
                                    passive_ip=passive_ip,
                                    passive_port=passive_port)
+    _logger = logger_factory(role=Const.ACTIVE_NAME,
+                             writing_file=False,
+                             writing_http=False)
     print('Active party started, listening...')
 
     # 4. Initialize NN protocol and start training
@@ -348,7 +362,8 @@ if __name__ == '__main__':
                                        loss_fn=_loss_fn,
                                        messenger=_messenger,
                                        crypto_type=_crypto_type,
-                                       saving_model=False)
+                                       logger=_logger,
+                                       saving_model=True,)
     active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training
