@@ -238,6 +238,7 @@ class ActiveConstrainedSeedKMeans:
         Returns:
             self: The estimator itself.
         """
+        begin_msg = self.messenger.recv()
         self._check_params(X_active, y)
 
         # _, n_seed_centroids = self._init_centroids(X_active, y)
@@ -386,7 +387,7 @@ def plot(X_active, estimator, color_num, name):
     sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
                     palette=sns.color_palette('hls', color_num), data=df)
     # plt.show()
-    plt.savefig('figures/{}.png'.format(name))
+    plt.savefig('./{}.png'.format(name))
 
 
 if __name__ == '__main__':
@@ -462,7 +463,7 @@ if __name__ == '__main__':
     pca_active.fit(X_active)
     X_active_projection = pca_active.transform(X_active)
 
-    plot(X_active_projection, active, color_num = n_cluster, name='epsilon_active_party')
+    plot(X_active_projection, active, color_num = n_cluster, name='active_kmeans')
 
     print('X_active_projection', X_active_projection[0:10, :])
 

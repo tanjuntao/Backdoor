@@ -9,6 +9,7 @@ openpyxl
 pandas
 phe>=1.5.0
 PrettyPrint
+PrettyPrintTree
 pycryptodome
 PyMySQL
 pyotp

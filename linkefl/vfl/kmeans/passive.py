@@ -201,6 +201,7 @@ class PassiveConstrainedSeedKMeans:
         Returns:
             self: The estimator itself.
         """
+        self.messenger.send('start signal.')
         self._check_params(X_passive)
 
         self.n_init = self.messenger.recv()
@@ -312,7 +313,7 @@ def plot(X_passive, estimator, color_num, name):
     sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
                     palette=sns.color_palette('hls', color_num), data=df)
     # plt.show()
-    plt.savefig('figures/{}.png'.format(name))
+    plt.savefig('./{}.png'.format(name))
 
 
 
@@ -366,7 +367,7 @@ if __name__ == '__main__':
     pca_passive.fit(X_passive)
     X_passive_projection = pca_passive.transform(X_passive)
 
-    plot(X_passive_projection, passive, color_num = n_cluster, name='epsilon_passive_party')
+    plot(X_passive_projection, passive, color_num = n_cluster, name='passive_kmeans')
 
     print('X_passive_projection', X_passive_projection[0:10, :])
 
