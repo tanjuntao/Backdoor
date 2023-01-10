@@ -18,7 +18,7 @@ class PassiveConstrainedSeedKMeans:
                  crypto_type,
                  n_clusters=2,
                  *,
-                 n_init=2,
+                 n_init=10,
                  max_iter=30,
                  tol=0.0001,
                  verbose=False,
@@ -75,7 +75,8 @@ class PassiveConstrainedSeedKMeans:
 
         n_seed_centroids = self.messenger.recv()
 
-        print('file receive', n_seed_centroids)
+        if self.verbose:
+            print('file receive', n_seed_centroids)
 
         labeled_idxes = self.messenger.recv()
            
@@ -85,16 +86,17 @@ class PassiveConstrainedSeedKMeans:
             seed_samples = X_passive[labeled_idxes[i]]
             centers_passive[i] = seed_samples.mean(axis=0)
 
-        print('centers_passive', centers_passive)
+        if self.verbose:
+            print('centers_passive', centers_passive)
 
         # # Then, initilize the remaining centers with random samples from X_passive
         unlabel_idxes = self.messenger.recv() # np.where returns a tuple
-        print('unlabeled index', unlabel_idxes)
+        if self.verbose:
+            print('unlabeled index', unlabel_idxes)
 
         if len(unlabel_idxes) < self.n_clusters - n_seed_centroids:
             np.random.seed(self.random_state)
             idx = np.random.randint(X_passive.shape[0], size=self.n_clusters - n_seed_centroids)
-            print('index', idx)
 
             for i in range(n_seed_centroids, self.n_clusters):
                 centers_passive[i] = X_passive[idx[i - n_seed_centroids]]
@@ -104,7 +106,8 @@ class PassiveConstrainedSeedKMeans:
                 idx = np.random.choice(unlabel_idxes, 1, replace=False)
                 centers_passive[i] = X_passive[idx]
 
-        print('final passive centers:', centers_passive)
+        if self.verbose:
+            print('final passive centers:', centers_passive)
 
         return centers_passive
 
@@ -118,7 +121,6 @@ class PassiveConstrainedSeedKMeans:
         new_centers_passive = copy.deepcopy(init_centers_passive)
 
         valid_idxes = self.messenger.recv()
-        print('valid index', valid_idxes)
 
         # Main loop
         for iter_ in range(self.max_iter):
@@ -308,8 +310,8 @@ def plot(X_passive, estimator, color_num, name):
     else:
         df['y'] = estimator.indices
     plt.close()
-    plt.xlim(-0.2, 0.2)
-    plt.ylim(-0.3, 0.3)
+    plt.xlim(-0.3, 0.3)
+    plt.ylim(-0.1, 0.1)
     sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
                     palette=sns.color_palette('hls', color_num), data=df)
     # plt.show()
@@ -350,14 +352,11 @@ if __name__ == '__main__':
                                                    seed=_random_state)
 
     print(passive_trainset.features.shape)
-    # print(passive_trainset.features[0,:])
 
     X_passive = passive_trainset.features
 
     n_cluster = 3
-    passive = PassiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=2, verbose=False)
-
-    # passive.fit(X_passive)
+    passive = PassiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
 
     passive.fit_predict(X_passive)
 
