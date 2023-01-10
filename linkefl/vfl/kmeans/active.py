@@ -18,7 +18,7 @@ class ActiveConstrainedSeedKMeans:
                  crypto_type,
                  n_clusters=2,
                  *,
-                 n_init=2,
+                 n_init=10,
                  max_iter=30,
                  tol=0.0001,
                  verbose=False,
@@ -105,7 +105,8 @@ class ActiveConstrainedSeedKMeans:
             labeled_idxes.append(label_idx)
             centers_active[i] = seed_samples.mean(axis=0)
         
-        print('labeled_idxes:', labeled_idxes)
+        if self.verbose:
+            print('labeled_idxes:', labeled_idxes)
         # print('labeled_idxes:', labeled_idxes[0])
 
         self.messenger.send(labeled_idxes)
@@ -120,7 +121,6 @@ class ActiveConstrainedSeedKMeans:
         if len(unlabel_idxes) < self.n_clusters - n_seed_centroids:
             np.random.seed(self.random_state)
             idx = np.random.randint(X_active.shape[0], size=self.n_clusters - n_seed_centroids)
-            print('index', idx)
 
             for i in range(n_seed_centroids, self.n_clusters):
                 centers_active[i] = X_active[idx[i - n_seed_centroids]]
@@ -130,7 +130,8 @@ class ActiveConstrainedSeedKMeans:
                 idx = np.random.choice(unlabel_idxes, 1, replace=False)
                 centers_active[i] = X_active[idx]
 
-        print('centers_active', centers_active)
+        if self.verbose:
+            print('centers_active', centers_active)
 
         return centers_active, n_seed_centroids
 
@@ -152,7 +153,6 @@ class ActiveConstrainedSeedKMeans:
                 valid_idxes.append(i)
 
         self.messenger.send(valid_idxes)
-        print('invalid index', valid_idxes)
 
         # Main loop
         for iter_ in range(self.max_iter):
@@ -172,7 +172,7 @@ class ActiveConstrainedSeedKMeans:
                 else:
                     min_idx = (torch.square(torch.norm(cur_centers - X_active[i], dim=1)) + torch.square(passive_norm)).argmin()
 
-                print('min index', min_idx)
+                # print('min index', min_idx)
                 indices[i] = min_idx
 
             self.messenger.send(indices)
@@ -422,30 +422,17 @@ if __name__ == '__main__':
                                                    seed=_random_state)
 
     print(active_trainset.features.shape)
-    # print(active_trainset.features[0,:])
 
     X_active = active_trainset.features
-    y = active_trainset.labels.tolist()
-    print('y', y)
+    # y = active_trainset.labels.tolist()
     y = [-1 for _ in range(X_active.shape[0])]
-    print('y_list', y)
 
     # y[3], y[24] = 0, 0
     # y[11], y[19] = 1, 1
     # y[13], y[16] = 2, 2
 
     n_cluster = 3
-    active = ActiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=2, verbose=False)
-
-    # begin_fit = time.time()
-    # active.fit(X_active, y)
-    # end_fit = time.time()
-
-    # indices = active.indices
-
-    # print('indices are', indices)
-
-    # plot(X, active, name='seed_kmeans')
+    active = ActiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
 
     begin_fit_predict = time.time()
     fit_predict = active.fit_predict(X_active, y)
