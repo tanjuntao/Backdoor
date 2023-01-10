@@ -98,8 +98,9 @@ class CommonDataset:
                 "permutation can only take from SEQUENCE AND RANDOM."
             )
 
+        offset = 2 if dataset.role == Const.ACTIVE_NAME else 1
         permed_features = dataset.features[:, perm]
-        permed_header = np.array(dataset.header)[perm].tolist()
+        permed_header = np.array(dataset.header[offset:])[perm].tolist()
         ids = dataset.ids # is a Python list
         step = dataset.n_features // n_splits
 
@@ -123,6 +124,7 @@ class CommonDataset:
                     (torch.unsqueeze(torch.tensor(ids), 1), splitted_feats),
                     dim=1
                 )
+            splitted_header = dataset.header[:offset] + splitted_header
             curr_dataset = cls(
                 role=dataset.role,
                 raw_dataset=raw_dataset,
