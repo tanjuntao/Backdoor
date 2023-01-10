@@ -90,7 +90,7 @@ class FeatureEvaluation(object):
                           dateset: NumpyDataset,
                           evaluation_way: str="pearson",
                           save_pic: bool = True,
-                          max_num_features_plot: int=10,
+                          max_num_features_plot: int=5,
                           pic_path: str="./eval_results"):
         """Using Variance Inflation Factor for characteristic collinearity analysis.
         """
@@ -111,7 +111,8 @@ class FeatureEvaluation(object):
 
         if save_pic:
             corr = np.array(corr)
-            corr_plot = corr[:max_num_features_plot, : max_num_features_plot]
+            bound = max_num_features_plot if corr.shape[1] > max_num_features_plot else corr.shape[1]
+            corr_plot = corr[:bound, :bound]
             sns.heatmap(corr_plot, linewidths=0.1, vmax=1.0, square=True,linecolor='white', annot=True)
             plt.savefig(os.path.join(pic_path, 'collinearity_anay.png'))
             plt.close()
@@ -122,7 +123,7 @@ class FeatureEvaluation(object):
     @classmethod
     def calculate_psi(cls, trainset, testset,
                       save_pic: bool = True,
-                      max_num_features_plot: int=20,
+                      max_num_features_plot: int=10,
                       pic_path: str="./eval_results"):
         psi_all = []
         for i in range(trainset.features.shape[1]):
@@ -285,3 +286,23 @@ class FeatureEvaluation(object):
         return (f"{value:.{precision}f}"
                 if precision is not None and not isinstance(value, str)
                 else str(value))
+
+if __name__ == "__main__":
+    from linkefl.dataio import NumpyDataset
+    from linkefl.common.const import Const
+
+    np_dataset = NumpyDataset.from_csv(
+        role=Const.ACTIVE_NAME,
+        abs_path="/Users/tanjuntao/LinkeFL-Servicer/data/电商平台精准营销数据202206.csv",
+        dataset_type=Const.CLASSIFICATION,
+        has_header=False,
+    )
+    print(np_dataset.features.shape)
+    # FeatureEvaluation.tree_importance(np_dataset, pic_path="./")
+    # FeatureEvaluation.collinearity_anay(np_dataset, pic_path="./")
+    # trainset, testset = NumpyDataset.train_test_split(np_dataset, test_size=0.2)
+    # FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
+
+    np_dataset01 = NumpyDataset.feature_split(np_dataset, n_splits=10)[1]
+    print(np_dataset01.features.shape, np_dataset01.header)
+    np_dataset01.describe()
