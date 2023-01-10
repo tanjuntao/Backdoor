@@ -867,6 +867,16 @@ class CommonDataset:
             importance = pd.DataFrame(data=importance,
                                       index=["xgb_importance"],
                                       columns=col_names)
+        else:
+            iv = pd.DataFrame(data=np.zeros((1, self.n_features)),
+                              index=["iv"],
+                              columns=col_names)
+            iv_rate = pd.DataFrame(data=np.zeros((1, self.n_features)),
+                                   index=["iv_rate"],
+                                   columns=col_names)
+            importance = pd.DataFrame(data=np.zeros((1, self.n_features)),
+                                      index=["xgb_importance"],
+                                      columns=col_names)
 
         info = pd.concat([df_dataset.describe(), num_unique, top3_ratio, iv, iv_rate, importance])
         info = info.round(4)
