@@ -725,7 +725,7 @@ if __name__ == "__main__":
     # 0. Set parameters
     #  binary: cancer, digits, epsilon, census, credit, default_credit, criteo
     #  regression: diabetes
-    dataset_name = "cancer"
+    dataset_name = "epsilon"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
