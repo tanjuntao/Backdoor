@@ -108,7 +108,7 @@ class ActiveNeuralNetwork:
                 best_acc = curr_acc
                 if self.saving_model:
                     # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
-                    model_name = self.model_name + ".model"
+                    model_name = self.model_name
                     TorchModelIO.save(self.models,
                                       self.model_path,
                                       model_name,
