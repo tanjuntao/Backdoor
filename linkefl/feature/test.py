@@ -66,20 +66,20 @@ if __name__ == "__main__":
     active_testset = parse_label(active_testset)
     print("Done")
 
-    importances, ranking = FeatureEvaluation.tree_importance(active_trainset, active_testset, task="binary",evaluation_way="xgboost")
+    importances, ranking = FeatureEvaluation.tree_importance(active_trainset, task="binary",evaluation_way="xgboost")
     print(importances, ranking)
 
-    # corr = FeatureEvaluation.collinearity_anay(dateset=active_trainset, evaluation_way="pearson")
-    # print(corr)
-    #
-    # feature_psi = FeatureEvaluation.calculate_psi(active_trainset, active_testset)
-    # print(feature_psi)
+    corr = FeatureEvaluation.collinearity_anay(dateset=active_trainset, evaluation_way="pearson")
+    print(corr)
+    
+    feature_psi = FeatureEvaluation.calculate_psi(active_trainset, active_testset)
+    print(feature_psi)
 
-    split, woe, iv = ActiveWoe(dataset=active_trainset, idxes=[2, 3], messenger=_messenger).cal_woe()
-    print(split, woe, iv)
+    # split, woe, iv = ActiveWoe(dataset=active_trainset, idxes=[2, 3], messenger=_messenger).cal_woe()
+    # print(split, woe, iv)
 
-    chi_bin = ActiveChiBin(dataset=active_trainset, idxes=[2, 3], messenger=_messenger, max_group=200).chi_bin()
-    print(chi_bin)
+    # chi_bin = ActiveChiBin(dataset=active_trainset, idxes=[2, 3], messenger=_messenger, max_group=200).chi_bin()
+    # print(chi_bin)
 
     # ActivePearsonVfl(dataset=active_trainset, messenger=_messenger, cryptosystem=_crypto).pearson_vfl()
 
