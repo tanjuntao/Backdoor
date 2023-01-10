@@ -1,8 +1,8 @@
 ## 一. 运行
 
 1. 进入当前目录中
-2. 在一个终端窗口中，`python passive.py`，启动被动方
-3. 新建另一个终端窗口，`python active.py`，启动主动方
+2. 在一个终端窗口中，`python active.py`，启动主动方
+3. 新建另一个终端窗口，`python passive.py`，启动被动方
 4. 程序自动完成参数设置，无监督聚类任务
 
 ## 二. 代码实现
@@ -46,21 +46,37 @@
 ##### 主动方
 
 ```python
-    dataset = np.genfromtxt('./watermelon_4.0.txt', delimiter=',')
-    X = dataset[:, 1:]
-    X_active = dataset[:, 1:2] # the first column are IDs
-    y = [-1 for _ in range(X_active.shape[0])] # by default, all samples has no label
+    dataset_name = 'epsilon'
+    passive_feat_frac = 0.5
+    feat_perm_option = Const.SEQUENCE
+    _random_state = None
 
-    y[3], y[24] = 0, 0
-    y[11], y[19] = 1, 1
-    y[13], y[16] = 2, 2
+    active_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
+                                                   role=Const.ACTIVE_NAME,
+                                                   root='../data',
+                                                   train=True,
+                                                   download=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option,
+                                                   seed=_random_state)
 ```
 
 ##### 被动方
 
 ```python
-    dataset = np.genfromtxt('./watermelon_4.0.txt', delimiter=',')
-    X_passive = dataset[:, 2:] # the first column are IDs
+    dataset_name = 'epsilon'
+    passive_feat_frac = 0.5
+    feat_perm_option = Const.SEQUENCE
+    _random_state = None
+
+    passive_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
+                                                   role=Const.PASSIVE_NAME,
+                                                   root='../data',
+                                                   train=True,
+                                                   download=True,
+                                                   passive_feat_frac=passive_feat_frac,
+                                                   feat_perm_option=feat_perm_option,
+                                                   seed=_random_state)
 ```
 
 ### 2. KMeans实现
@@ -68,7 +84,7 @@
 ##### 主动方
 
 ```python
-    active = ActiveConstrainedSeedKMeans(messenger=_messenger,crypto_type=None,n_clusters=3, n_init=10, verbose=False)
+    active = ActiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=3, n_init=10, verbose=False)
 
     active.fit(X_active, y)
 ```
@@ -76,7 +92,7 @@
 ##### 被动方
 
 ```python
-    passive = PassiveConstrainedSeedKMeans(messenger=_messenger,crypto_type=None,n_clusters=3, n_init=10, verbose=False)
+    passive = PassiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=3, n_init=10, verbose=False)
 
     passive.fit(X_passive)
 ```
@@ -100,5 +116,25 @@
     passive.score(X_passive)
 ```
 
-### 
+### 4. 对原始数据进行PCA降维后的可视化
+
+##### 主动方
+
+```python
+    pca_active = PCA(n_components=2) 
+    pca_active.fit(X_active)
+    X_active_projection = pca_active.transform(X_active)
+
+    plot(X_active_projection, active, color_num = n_cluster, name='active_kmeans')
+```
+
+##### 被动方
+
+```python
+    pca_passive = PCA(n_components=2) 
+    pca_passive.fit(X_passive)
+    X_passive_projection = pca_passive.transform(X_passive)
+
+    plot(X_passive_projection, passive, color_num = n_cluster, name='passive_kmeans')
+```
 
