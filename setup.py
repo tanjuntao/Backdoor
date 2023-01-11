@@ -84,7 +84,7 @@ setup(
     install_requires=REQUIRED,
     ext_modules=cythonize(
         get_ext_paths('linkefl'),
-        compiler_directives={'language_level': 3}
+        compiler_directives={'language_level': 3, 'annotation_typing': False}
     ),
     cmdclass={
         'build_py': BuildPy
