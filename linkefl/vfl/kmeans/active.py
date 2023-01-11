@@ -22,7 +22,7 @@ class ActiveConstrainedSeedKMeans:
                  max_iter=30,
                  tol=0.0001,
                  verbose=False,
-                 invalide_label=-1,
+                 invalid_label=-1,
                  random_state=None,
                  ):
         """Initialization a constrained seed kmeans estimator.
@@ -35,7 +35,7 @@ class ActiveConstrainedSeedKMeans:
                 matrix, which is the difference_active between two consective cluster
                 centers, is less than this threshold, we think the algorithm converges.
             verbose: Whether to print intermediate results to console.
-            invalide_label: Special sign to indicate which samples are unlabeled.
+            invalid_label: Special sign to indicate which samples are unlabeled.
                 If the y value of a sample equals to this value, then that sample
                 is a unlabeled one.
         """
@@ -44,7 +44,7 @@ class ActiveConstrainedSeedKMeans:
         self.max_iter = max_iter
         self.tol = tol
         self.verbose = verbose
-        self.INVALID_LABEL = invalide_label
+        self.INVALID_LABEL = invalid_label
         self.messenger = messenger
         self.random_state = random_state
         if random_state is not None:
