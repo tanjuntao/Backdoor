@@ -20,6 +20,7 @@ seaborn
 shap
 termcolor
 torch
+torchinfo
 torchvision
 tqdm
 xgboost

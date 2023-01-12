@@ -50,7 +50,7 @@ class ActiveTreeParty(BaseModelComponent):
         colsample_bytree: float = 1,
         n_processes: int = 1,
         saving_model: bool = False,
-        model_path: str = "./models/active_party",
+        model_path: str = "./models",
         model_name=None,
         drop_protection: bool = False,
         reconnect_ports: List[int] = None,
@@ -838,7 +838,7 @@ if __name__ == "__main__":
         drop_protection=drop_protection,
         reconnect_ports=reconnect_ports,
         saving_model=True,
-        model_path="./models/active_party"
+        # model_path="./models"
     )
 
     active_party.train(active_trainset, active_testset)
