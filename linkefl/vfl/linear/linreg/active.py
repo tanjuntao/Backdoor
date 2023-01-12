@@ -160,8 +160,7 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                     self.logger.log('Best model updates.')
                     if self.saving_model:
                         model_params = copy.deepcopy(getattr(self, 'params'))
-                        model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
-                        NumpyModelIO.save(model_params, self.model_path, model_name)
+                        NumpyModelIO.save(model_params, self.model_path, self.model_name)
 
                 for msger in self.messenger:
                     msger.send(is_best)

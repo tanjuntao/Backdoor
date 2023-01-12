@@ -108,7 +108,7 @@ class BaseLinearPassive(BaseLinear):
                 time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
                 role=Const.PASSIVE_NAME + str(rank),
                 model_type=model_type
-            )
+            ) + ".model"
         self.model_name = model_name
         self.logger = logger
 
@@ -298,9 +298,7 @@ class BaseLinearPassive(BaseLinear):
                     if self.saving_model:
                         # the use of deepcopy here is to avoid saving other self attrbiutes
                         model_params = copy.deepcopy(getattr(self, 'params'))
-                        # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
-                        model_name = self.model_name
-                        NumpyModelIO.save(model_params, self.model_path, model_name)
+                        NumpyModelIO.save(model_params, self.model_path, self.model_name)
 
         # after training release the multiprocessing pool
         if self.executor_pool is not None:
@@ -388,7 +386,7 @@ class BaseLinearActive(BaseLinear):
                 time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
                 role=Const.ACTIVE_NAME,
                 model_type=model_type
-            )
+            ) + ".model"
         self.model_name = model_name
         self.logger = logger
 

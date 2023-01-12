@@ -43,7 +43,7 @@ class PassiveNeuralNetwork:
                 time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
                 role=Const.PASSIVE_NAME,
                 model_type=Const.VERTICAL_NN
-            )
+            ) + ".model"
         else:
             self.model_name = model_name
 
@@ -164,7 +164,7 @@ if __name__ == '__main__':
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 100
+    _epochs = 10
     _batch_size = 200
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN

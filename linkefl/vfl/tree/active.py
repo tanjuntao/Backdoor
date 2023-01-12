@@ -103,7 +103,7 @@ class ActiveTreeParty(BaseModelComponent):
                 time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
                 role=Const.ACTIVE_NAME,
                 model_type=Const.VERTICAL_SBT,
-            )
+            ) + ".model"
         else:
             self.model_name = model_name
 
@@ -371,7 +371,10 @@ class ActiveTreeParty(BaseModelComponent):
             self.pool.close()
 
         if self.saving_model:       # save training files.
-            self._save_model()
+            model_structure = self._save_model()
+            for messenger_id, messenger in enumerate(self.messengers):
+                if self.messengers_validTag[messenger_id]:
+                    messenger.send(model_structure)
 
             Plot.plot_importance(self, importance_type="split", file_dir=self.pics_path)
             Plot.plot_train_test_loss(self.train_loss, self.test_loss, self.pics_path)
@@ -394,7 +397,8 @@ class ActiveTreeParty(BaseModelComponent):
                          model_name, model_path='./models'):
         assert isinstance(dataset, NumpyDataset), 'inference dataset should be an ' \
                                                   'instance of NumpyDataset'
-        model_params, feature_importance_info, learning_rate = NumpyModelIO.load(model_path, model_name)
+        model_params, feature_importance_info, learning_rate, tree_structure = \
+            NumpyModelIO.load(model_path, model_name)
 
         trees = [
             DecisionTree(
@@ -500,7 +504,8 @@ class ActiveTreeParty(BaseModelComponent):
         return result
 
     def load_model(self, model_name, model_path="./models"):
-        model_params, feature_importance_info, lr = NumpyModelIO.load(model_path, model_name)
+        model_params, feature_importance_info, lr, tree_structure = \
+            NumpyModelIO.load(model_path, model_name)
 
         if len(self.trees) != len(model_params):
             self.trees = [
@@ -711,10 +716,17 @@ class ActiveTreeParty(BaseModelComponent):
         # model_name = f"{self.model_name}.model"
         model_name = self.model_name
         model_params = [(tree.record, tree.root) for tree in self.trees]
-        saved_data = [model_params, self.feature_importance_info, self.learning_rate]
+        model_structure = self.get_tree_str_structures()
+        saved_data = [
+            model_params,
+            self.feature_importance_info,
+            self.learning_rate,
+            model_structure
+        ]
         NumpyModelIO.save(saved_data, self.model_path, model_name)
 
         self.logger.log(f"Save model {model_name} success.")
+        return model_structure
 
 if __name__ == "__main__":
     import pandas as pd
@@ -737,13 +749,13 @@ if __name__ == "__main__":
 
     n_processes = 6
 
-    active_ips = ["localhost", "localhost"]
-    active_ports = [21001, 21002]
-    passive_ips = ["localhost", "localhost"]
-    passive_ports = [20001, 20002]
+    active_ips = ["localhost", ]
+    active_ports = [21001, ]
+    passive_ips = ["localhost", ]
+    passive_ports = [20001, ]
 
-    drop_protection = True
-    reconnect_ports = [30003, 30004]
+    drop_protection = False
+    reconnect_ports = [30003]
 
     # 1. Load datasets
     print("Loading dataset...")

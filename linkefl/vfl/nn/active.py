@@ -48,7 +48,7 @@ class ActiveNeuralNetwork:
                 time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
                 role=Const.ACTIVE_NAME,
                 model_type=Const.VERTICAL_NN
-            )
+            ) + ".model"
         else:
             self.model_name = model_name
 
@@ -262,7 +262,7 @@ if __name__ == '__main__':
     active_port = 20000
     passive_ip = 'localhost'
     passive_port = 30000
-    _epochs = 100
+    _epochs = 10
     _batch_size = 200
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN
@@ -367,10 +367,21 @@ if __name__ == '__main__':
                                        crypto_type=_crypto_type,
                                        logger=_logger,
                                        saving_model=True,)
-    active_party.train(active_trainset, active_testset)
+    # active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training
     _messenger.close()
+
+    model, _, _, = TorchModelIO.load(_models, './models', '20230112_011446-active_party-vertical_nn')
+    bottom_model, cut_model, top_model = model
+    from torchinfo import summary
+    # summary(bottom_model, input_size=(200, 1, 392))
+    # summary(cut_model, input_size=(200, 1, 256))
+    # summary(top_model, input_size=(200, 1, 10))
+
+    model_stats = summary(bottom_model, (200, 1, 392), verbose=0)
+    print(str(model_stats))
+    print('done.')
 
 
     # # For online inference

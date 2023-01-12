@@ -49,7 +49,7 @@ class PassiveTreeParty(BaseModelComponent):
                 time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
                 role=Const.PASSIVE_NAME,
                 model_type=Const.VERTICAL_SBT,
-            )
+            ) + ".model"
         else:
             self.model_name = model_name
 
@@ -147,8 +147,13 @@ class PassiveTreeParty(BaseModelComponent):
                     # model_name = (
                     #     f"{self.model_name}-{trainset.n_samples}_samples.model"
                     # )
+                    model_structure = self.messenger.recv()
                     model_name = self.model_name
-                    NumpyModelIO.save([self.record, self.feature_importance_info], self.model_path, model_name)
+                    NumpyModelIO.save(
+                        [self.record, self.feature_importance_info, model_structure],
+                        self.model_path,
+                        model_name
+                    )
                 self.logger.log_component(
                     name=Const.VERTICAL_SBT,
                     status=Const.SUCCESS,
@@ -173,7 +178,7 @@ class PassiveTreeParty(BaseModelComponent):
         """breakpoint retraining function.
         """
         model_name = get_latest_filename(load_model_path)
-        self.record, self.feature_importance_info = NumpyModelIO.load(load_model_path, model_name)
+        self.record, self.feature_importance_info, model_structure = NumpyModelIO.load(load_model_path, model_name)
         self.train(trainset, testset)
 
     def _save_record(self, feature_id, split_id, sample_tag_selected, sample_tag_unselected):
@@ -264,7 +269,7 @@ class PassiveTreeParty(BaseModelComponent):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        record, feature_importance_info = NumpyModelIO.load(model_path, model_name)
+        record, feature_importance_info, model_structure = NumpyModelIO.load(model_path, model_name)
 
         features = dataset.features
 
