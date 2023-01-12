@@ -175,7 +175,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                 cur_loss = np.array(batch_losses).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
 
-                scores = self.validate(testset)
+                scores = self.validate(testset, epoch)
                 if scores['acc'] > best_acc:
                     best_acc = scores['acc']
                     is_best = True
@@ -210,7 +210,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         print(colored('Computation time: {:.5f}'.format(compu_time), 'red'))
         print(colored('Elapsed time: {:.5f}s'.format(time.time() - start_time), 'red'))
 
-    def validate(self, valset):
+    def validate(self, valset, epoch=-1):
         assert isinstance(valset, NumpyDataset), 'valset should be an instance ' \
                                                  'of NumpyDataset'
         active_wx = np.matmul(valset.features, getattr(self, 'params'))
@@ -224,6 +224,10 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         accuracy = accuracy_score(valset.labels, preds)
         f1 = f1_score(valset.labels, preds)
         auc = roc_auc_score(valset.labels, probs)
+
+        if epoch == self.epochs - 1:
+            from linkefl.vfl.tree.plotting import Plot
+            Plot.plot_binary_mertics(valset.labels, probs, self.pics_path)
 
         return {
             'acc': accuracy,

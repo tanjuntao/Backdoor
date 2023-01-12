@@ -907,6 +907,7 @@ class CommonDataset:
         CommonDataset._plot_bar(col_names, info.loc['min', :].values, 'Min Value', 'min_plot', path)
         CommonDataset._plot_bar(col_names, info.loc['max', :].values, 'Max Value', 'max_plot', path)
         CommonDataset._plot_bar(col_names, info.loc['50%', :].values, 'Median Value', 'mid_plot', path)
+        CommonDataset._plot_bar(col_names, info.loc['std', :].values, 'std value','std_plot', path)
 
         return static_result
 

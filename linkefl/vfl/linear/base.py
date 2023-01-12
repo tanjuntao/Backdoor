@@ -388,6 +388,9 @@ class BaseLinearActive(BaseLinear):
                 model_type=model_type
             ) + ".model"
         self.model_name = model_name
+        self.pics_path = os.path.join(model_path, "vfl_logreg")
+        if not os.path.exists(self.pics_path):
+            os.makedirs(self.pics_path)
         self.logger = logger
 
     @classmethod
