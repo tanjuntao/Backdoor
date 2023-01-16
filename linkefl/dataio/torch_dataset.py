@@ -17,6 +17,7 @@ class TorchDataset(CommonDataset, Dataset):
                  header: list,
                  dataset_type: str,
                  transform: BaseTransformComponent = None,
+                 header_type =  None,
     ):
         if isinstance(raw_dataset, np.ndarray):
             # PyTorch forward() function expects tensor type of Float rather Double,
@@ -32,7 +33,8 @@ class TorchDataset(CommonDataset, Dataset):
             raw_dataset=raw_dataset,
             header=header,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @staticmethod

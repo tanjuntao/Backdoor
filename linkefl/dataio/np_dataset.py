@@ -11,11 +11,13 @@ class NumpyDataset(CommonDataset):
                  header: list,
                  dataset_type: str,
                  transform: BaseTransformComponent = None,
+                 header_type = None,
     ):
         super(NumpyDataset, self).__init__(
             role=role,
             raw_dataset=raw_dataset,
             header=header,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )

@@ -1254,15 +1254,24 @@ if __name__ == "__main__":
     # print("Filled")
     # print(filled_df_dataset)
 
-    df_dataset_ = pd.DataFrame(
-        {
-            "id": [1, 2, 3, 4, 5],
-            "x": [1, 1, 1, 1, 10000],
-            "a": [1, 2, 3, 4, "5"],
-        }
+    # df_dataset_ = pd.DataFrame(
+    #     {
+    #         "id": [1, 2, 3, 4, 5],
+    #         "x": [1, 1, 1, 1, 10000],
+    #         "a": [1, 2, 3, 4, "5"],
+    #     }
+    # )
+    # print("Original")
+    # print(df_dataset_)
+    # new_df_dataset = CommonDataset._outlier_data(df_dataset_, role=Const.PASSIVE_NAME)
+    # print("New")
+    # print(new_df_dataset)
+
+    abs_path = "/Users/tanjuntao/LinkeFL-Servicer/data/电商平台精准营销数据202206.csv"
+    np_dataset = CommonDataset.from_csv(
+        role=Const.ACTIVE_NAME,
+        abs_path=abs_path,
+        dataset_type=Const.CLASSIFICATION,
     )
-    print("Original")
-    print(df_dataset_)
-    new_df_dataset = CommonDataset._outlier_data(df_dataset_, role=Const.PASSIVE_NAME)
-    print("New")
-    print(new_df_dataset)
+    print(np_dataset.header)
+    print(np_dataset.header_type)
