@@ -22,11 +22,13 @@ class CommonDataset:
                  header: list,
                  dataset_type: str,
                  transform: BaseTransformComponent = None,
+                 header_type = None,
     ):
         super(CommonDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
         self.role = role
         self._header = header
+        self.header_type = header_type
         self.dataset_type = dataset_type
         self.has_label = True if role == Const.ACTIVE_NAME else False
 
@@ -239,6 +241,7 @@ class CommonDataset:
                 cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
+                header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
@@ -250,7 +253,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=selected_fields,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -286,6 +290,7 @@ class CommonDataset:
                 cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
+                header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
@@ -297,7 +302,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=selected_fields,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -329,6 +335,7 @@ class CommonDataset:
                 cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
+                header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
@@ -340,7 +347,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=selected_fields,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -381,6 +389,7 @@ class CommonDataset:
                 cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
+                header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
@@ -392,7 +401,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=selected_fields,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -424,6 +434,7 @@ class CommonDataset:
                 cursor.execute(sql)
                 results = cursor.fetchall()
                 df_dataset = pd.DataFrame.from_dict(results)
+                header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
@@ -435,7 +446,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=selected_fields,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -465,7 +477,7 @@ class CommonDataset:
         sql = "select" + " " + ",".join(selected_fields) + " " + "from {}".format(table)
 
         df_dataset = pd.read_sql(sql,connection)
-
+        header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
@@ -476,7 +488,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=selected_fields,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -492,6 +505,7 @@ class CommonDataset:
             header=header_arg,
             skipinitialspace=True, # skip spaces after delimiter
         )
+        header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
@@ -510,7 +524,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=header,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -529,6 +544,7 @@ class CommonDataset:
             index_col=False
         )
 
+        header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
         df_dataset = cls._clean_data(df_dataset, row_threshold=row_threshold, column_threshold=column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
@@ -546,7 +562,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=header,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -563,6 +580,7 @@ class CommonDataset:
             raw_data = whole_json[data_field] # a Python list
 
         df_dataset = pd.DataFrame.from_dict(raw_data)
+        header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
         df_dataset = cls._clean_data(df_dataset, row_threshold, column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
@@ -575,7 +593,8 @@ class CommonDataset:
             raw_dataset=np_dataset,
             header=header,
             dataset_type=dataset_type,
-            transform=transform
+            transform=transform,
+            header_type=header_type
         )
 
     @classmethod
@@ -693,21 +712,30 @@ class CommonDataset:
 
     def obfuscated_ids(self, option='md5'):
         import hashlib
+        from gmssl import sm3, func
 
-        assert option in ('md5', 'sha256'), \
-            "ids obfuscation option can only take from md5 or sha256"
-        if option == 'md5':
-            obfuscate_func = hashlib.md5
-        else:
-            obfuscate_func = hashlib.sha256
+        assert option in ('md5', 'sha256', 'sm3'), \
+            "ids obfuscation option can only take from md5, sha256, sm3, but {} got.".format(option)
 
         raw_ids = self.ids
         obfuscated_ids = []
-        for _id in raw_ids:
-            _id_encode = str(_id).encode()
-            _id_hash = obfuscate_func(_id_encode).hexdigest()
-            _id_int = int(_id_hash, 16)
-            obfuscated_ids.append(_id_int)
+        if option in ('md5', 'sha256'):
+            if option == 'md5':
+                obfuscate_func = hashlib.md5
+            else:
+                obfuscate_func = hashlib.sha256
+            for _id in raw_ids:
+                _id_encode = str(_id).encode()
+                _id_hash = obfuscate_func(_id_encode).hexdigest()
+                _id_int = int(_id_hash, 16)
+                obfuscated_ids.append(_id_int)
+        else:
+            for _id in raw_ids:
+                _id_bytes = bytes(str(_id), encoding='utf-8')
+                _id_hash = sm3.sm3_hash(func.bytes_to_list(_id_bytes))
+                _id_int = int(_id_hash, 16)
+                obfuscated_ids.append(_id_int)
+
         return obfuscated_ids
 
     @property
