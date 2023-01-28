@@ -10,7 +10,7 @@ class Const:
     IMPORTANCE = "importance"
 
     START_SIGNAL = "start"
-    PROJECT_CACHE_DIR = '.linkefl'
+    PROJECT_CACHE_DIR = ".linkefl"
 
     BUILDIN_DATASETS = [
         "avazu",
@@ -39,7 +39,7 @@ class Const:
     PLAIN = "plain"
     PAILLIER = "paillier"
     FAST_PAILLIER = "fast_paillier"
-    RSA = 'rsa'
+    RSA = "rsa"
 
     L1 = "l1"
     L2 = "l2"
@@ -47,7 +47,7 @@ class Const:
 
     SOCKET = "socket"
     FAST_SOCKET = "fast_socket"
-    FAST_SOCKET_V1 = 'fast_socket_v1'
+    FAST_SOCKET_V1 = "fast_socket_v1"
 
     DATALOADER = "dataloader"
     TRANSFORM = "transform"
@@ -79,10 +79,18 @@ class Const:
         "tab_mnist",
         "tab_fashion_mnist",
     ]
-    REGRESSION_DATASETS = ["diabetes", "nyc_taxi", "year",]
+    REGRESSION_DATASETS = [
+        "diabetes",
+        "nyc_taxi",
+        "year",
+    ]
     DATA_TYPE_DICT = {
-        REGRESSION: ["diabetes", "nyc_taxi", "year",],
-        CLASSIFICATION: list(set(BUILDIN_DATASETS) - set(REGRESSION_DATASETS))
+        REGRESSION: [
+            "diabetes",
+            "nyc_taxi",
+            "year",
+        ],
+        CLASSIFICATION: list(set(BUILDIN_DATASETS) - set(REGRESSION_DATASETS)),
     }
 
     BLOSC = "blosc"

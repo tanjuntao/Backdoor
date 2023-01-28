@@ -1,6 +1,6 @@
-import numpy as np
 from abc import ABC, abstractmethod
 
+import numpy as np
 
 FLOAT_ZERO = 1e-8
 
@@ -42,7 +42,7 @@ class CrossEntropyLoss(Loss):
         Returns:
             log_loss : float, the binary cross entropy loss
         """
-        loss = - y * np.log(y_prob) - (1 - y) * np.log(1 - y_prob)
+        loss = -y * np.log(y_prob) - (1 - y) * np.log(1 - y_prob)
 
         return loss
 
@@ -61,7 +61,7 @@ class CrossEntropyLoss(Loss):
         return np.array(y_prob - y)
 
     def hessian(self, y, y_prob):
-        """"
+        """ "
         Compute the hessian(second order derivative of sigmoid cross entropy loss
             Formula : hessian = y_prob * (1 - y_prob)
 
@@ -136,21 +136,28 @@ class BalancedCE(object):
     def loss(self, label, sigmoid_pred):
         """Calculate Balanced CE loss"""
 
-        loss = -self.alpha * label * np.log(sigmoid_pred) - (1 - self.alpha) * (1 - sigmoid_pred) * np.log(
-            (1 - sigmoid_pred)
-        )
+        loss = -self.alpha * label * np.log(sigmoid_pred) - (1 - self.alpha) * (
+            1 - sigmoid_pred
+        ) * np.log((1 - sigmoid_pred))
 
         return loss
 
     def grad(self, label, sigmoid_pred):
         """Calculate gradient of Balanced CE loss"""
-        grad = -(self.alpha * label * (1 - sigmoid_pred)) + (1 - self.alpha) * (1 - label) * sigmoid_pred
+        grad = (
+            -(self.alpha * label * (1 - sigmoid_pred))
+            + (1 - self.alpha) * (1 - label) * sigmoid_pred
+        )
 
         return np.array(grad)
 
     def hessian(self, label, sigmoid_pred):
         """Calculate hessian of Balanced CE loss"""
-        hessian = (1 - self.alpha - label + 2 * self.alpha * label) * sigmoid_pred * (1 - sigmoid_pred)
+        hessian = (
+            (1 - self.alpha - label + 2 * self.alpha * label)
+            * sigmoid_pred
+            * (1 - sigmoid_pred)
+        )
         # Avoid having all the second derivatives equal to 0
         hessian[hessian == 0] = float(1e-16)
 
@@ -167,9 +174,11 @@ class FocalLoss(object):
     def loss(self, label, sigmoid_pred):
         """Calculate weight balance Focal loss"""
 
-        loss = self.alpha * (-label * np.log(sigmoid_pred) * ((1 - sigmoid_pred) ** self.gamma)) - (1 - self.alpha) * (
-                1 - label
-        ) * np.log(1 - sigmoid_pred) * (sigmoid_pred ** self.gamma)
+        loss = self.alpha * (
+            -label * np.log(sigmoid_pred) * ((1 - sigmoid_pred) ** self.gamma)
+        ) - (1 - self.alpha) * (1 - label) * np.log(1 - sigmoid_pred) * (
+            sigmoid_pred**self.gamma
+        )
 
         return loss
 
@@ -180,14 +189,14 @@ class FocalLoss(object):
         y, p = label, sigmoid_pred
 
         grad = (
-                p
-                * (1 - p)
-                * (
-                        alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p)
-                        - alpha * y * (1 - p) ** gamma / p
-                        - gamma * p ** gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p
-                        + p ** gamma * (1 - alpha) * (1 - y) / (1 - p)
-                )
+            p
+            * (1 - p)
+            * (
+                alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p)
+                - alpha * y * (1 - p) ** gamma / p
+                - gamma * p**gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p
+                + p**gamma * (1 - alpha) * (1 - y) / (1 - p)
+            )
         )
 
         return np.array(grad)
@@ -199,36 +208,51 @@ class FocalLoss(object):
         y, p = label, sigmoid_pred
 
         hess = (
+            p
+            * (1 - p)
+            * (
                 p
                 * (1 - p)
                 * (
-                        p
-                        * (1 - p)
-                        * (
-                                -alpha * gamma ** 2 * y * (1 - p) ** gamma * np.log(p) / (1 - p) ** 2
-                                + alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p) ** 2
-                                + 2 * alpha * gamma * y * (1 - p) ** gamma / (p * (1 - p))
-                                + alpha * y * (1 - p) ** gamma / p ** 2
-                                - gamma ** 2 * p ** gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p ** 2
-                                + 2 * gamma * p ** gamma * (1 - alpha) * (1 - y) / (p * (1 - p))
-                                + gamma * p ** gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p ** 2
-                                + p ** gamma * (1 - alpha) * (1 - y) / (1 - p) ** 2
-                        )
-                        - p
-                        * (
-                                alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p)
-                                - alpha * y * (1 - p) ** gamma / p
-                                - gamma * p ** gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p
-                                + p ** gamma * (1 - alpha) * (1 - y) / (1 - p)
-                        )
-                        + (1 - p)
-                        * (
-                                alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p)
-                                - alpha * y * (1 - p) ** gamma / p
-                                - gamma * p ** gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p
-                                + p ** gamma * (1 - alpha) * (1 - y) / (1 - p)
-                        )
+                    -alpha
+                    * gamma**2
+                    * y
+                    * (1 - p) ** gamma
+                    * np.log(p)
+                    / (1 - p) ** 2
+                    + alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p) ** 2
+                    + 2 * alpha * gamma * y * (1 - p) ** gamma / (p * (1 - p))
+                    + alpha * y * (1 - p) ** gamma / p**2
+                    - gamma**2
+                    * p**gamma
+                    * (1 - alpha)
+                    * (1 - y)
+                    * np.log(1 - p)
+                    / p**2
+                    + 2 * gamma * p**gamma * (1 - alpha) * (1 - y) / (p * (1 - p))
+                    + gamma
+                    * p**gamma
+                    * (1 - alpha)
+                    * (1 - y)
+                    * np.log(1 - p)
+                    / p**2
+                    + p**gamma * (1 - alpha) * (1 - y) / (1 - p) ** 2
                 )
+                - p
+                * (
+                    alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p)
+                    - alpha * y * (1 - p) ** gamma / p
+                    - gamma * p**gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p
+                    + p**gamma * (1 - alpha) * (1 - y) / (1 - p)
+                )
+                + (1 - p)
+                * (
+                    alpha * gamma * y * (1 - p) ** gamma * np.log(p) / (1 - p)
+                    - alpha * y * (1 - p) ** gamma / p
+                    - gamma * p**gamma * (1 - alpha) * (1 - y) * np.log(1 - p) / p
+                    + p**gamma * (1 - alpha) * (1 - y) / (1 - p)
+                )
+            )
         )
 
         return np.array(hess)
@@ -256,7 +280,7 @@ class MeanSquaredErrorLoss(Loss):
 
     def gradient(self, y, y_pred):
         """Calculate gradient of MSE loss"""
-        return np.array(2 * (y_pred-y))
+        return np.array(2 * (y_pred - y))
 
     def hessian(self, y, y_pred):
         """Calculate hessian of MSE loss"""
@@ -272,7 +296,7 @@ class LeastAbsoluteErrorLoss(Loss):
         super().__init__()
 
     def loss(self, y, y_pred):
-        loss = np.abs(y-y_pred)
+        loss = np.abs(y - y_pred)
         return loss
 
     def gradient(self, y, y_pred):
@@ -294,7 +318,7 @@ class LeastAbsoluteErrorLoss(Loss):
 
     def hessian(self, y, y_pred):
         if isinstance(y, np.ndarray) or isinstance(y_pred, np.ndarray):
-            shape = (y-y_pred).shape
+            shape = (y - y_pred).shape
             return np.full(shape, 1.0)
         else:
             return 1.0
@@ -312,16 +336,16 @@ class HubelLoss(Loss):
             self.delta = FLOAT_ZERO
 
     def loss(self, y, y_pred):
-        loss = self.delta ** 2 * (np.sqrt(1 + ((y_pred - y) / self.delta) ** 2) - 1)
+        loss = self.delta**2 * (np.sqrt(1 + ((y_pred - y) / self.delta) ** 2) - 1)
         return loss
 
     def gradient(self, y, y_pred):
         diff = y_pred - y
-        return diff / np.sqrt(1.0 + diff * diff / (self.delta ** 2))
+        return diff / np.sqrt(1.0 + diff * diff / (self.delta**2))
 
     def hessian(self, y, y_pred):
         diff = y_pred - y
-        return 1.0 / (1.0 + diff * diff / (self.delta ** 2)) ** 1.5
+        return 1.0 / (1.0 + diff * diff / (self.delta**2)) ** 1.5
 
 
 class FairLoss(Loss):
@@ -336,7 +360,9 @@ class FairLoss(Loss):
             self.c = FLOAT_ZERO
 
     def loss(self, y, y_pred):
-        loss = self.c * np.abs(y_pred - y) - self.c ** 2 * np.log(np.abs(y_pred - y) / self.c + 1)
+        loss = self.c * np.abs(y_pred - y) - self.c**2 * np.log(
+            np.abs(y_pred - y) / self.c + 1
+        )
         return loss
 
     def gradient(self, y, y_pred):
@@ -345,7 +371,7 @@ class FairLoss(Loss):
 
     def hessian(self, y, y_pred):
         diff = y_pred - y
-        return self.c ** 2 / (np.abs(diff) + self.c) ** 2
+        return self.c**2 / (np.abs(diff) + self.c) ** 2
 
 
 class LogCoshLoss(Loss):
@@ -376,12 +402,16 @@ class TweedieLoss(Loss):
             self.rho = FLOAT_ZERO
 
     def loss(self, y, y_pred):
-        loss = - y * np.exp(1 - self.rho) * np.log(max(y_pred, FLOAT_ZERO)) / (1 - self.rho) + \
-               np.exp(2 - self.rho) * np.log(max(FLOAT_ZERO, y_pred)) / (2 - self.rho)
+        loss = -y * np.exp(1 - self.rho) * np.log(max(y_pred, FLOAT_ZERO)) / (
+            1 - self.rho
+        ) + np.exp(2 - self.rho) * np.log(max(FLOAT_ZERO, y_pred)) / (2 - self.rho)
         return loss
 
     def gradient(self, y, y_pred):
         return -y * np.exp(1 - self.rho) * y_pred + np.exp(2 - self.rho) * y_pred
 
     def hessian(self, y, y_pred):
-        return -y * (1 - self.rho) * np.exp(1 - self.rho) * y_pred + (2 - self.rho) * np.exp(2 - self.rho) * y_pred
+        return (
+            -y * (1 - self.rho) * np.exp(1 - self.rho) * y_pred
+            + (2 - self.rho) * np.exp(2 - self.rho) * y_pred
+        )

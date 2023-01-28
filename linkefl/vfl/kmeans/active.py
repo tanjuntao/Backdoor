@@ -3,8 +3,8 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.decomposition import PCA
 import torch
+from sklearn.decomposition import PCA
 
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
@@ -13,18 +13,19 @@ from linkefl.dataio import NumpyDataset
 class ActiveConstrainedSeedKMeans:
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
 
-    def __init__(self,
-                 messenger,
-                 crypto_type,
-                 n_clusters=2,
-                 *,
-                 n_init=10,
-                 max_iter=30,
-                 tol=0.0001,
-                 verbose=False,
-                 invalid_label=-1,
-                 random_state=None,
-                 ):
+    def __init__(
+        self,
+        messenger,
+        crypto_type,
+        n_clusters=2,
+        *,
+        n_init=10,
+        max_iter=30,
+        tol=0.0001,
+        verbose=False,
+        invalid_label=-1,
+        random_state=None,
+    ):
         """Initialization a constrained seed kmeans estimator.
         Args:
             n_clusters: The number of clusters.
@@ -50,23 +51,27 @@ class ActiveConstrainedSeedKMeans:
         if random_state is not None:
             torch.random.manual_seed(random_state)
 
-
     def _check_params(self, X_active, y):
         """Check if the parameters of the algorithm and the inputs to it are valid."""
         if type(X_active) not in (np.ndarray, torch.Tensor):
-            raise TypeError(f"Type of X_active can only take numpy.ndarray and "
-                            f"torch.Tensor, but got {type(X_active)} instead.")
+            raise TypeError(
+                "Type of X_active can only take numpy.ndarray and "
+                f"torch.Tensor, but got {type(X_active)} instead."
+            )
 
         if type(y) not in (list, np.ndarray, torch.Tensor):
-            raise TypeError(f"Type of y can only take list, numpy.ndarray, and"
-                            f"torch.Tensor, but got{type(y)} instead.")
+            raise TypeError(
+                "Type of y can only take list, numpy.ndarray, and"
+                f"torch.Tensor, but got{type(y)} instead."
+            )
 
         if self.n_clusters > X_active.shape[0]:
-            raise ValueError(f"The number of clusters mube be less than the "
-                             f"number of samples.")
+            raise ValueError(
+                "The number of clusters mube be less than the number of samples."
+            )
 
         if self.max_iter <= 0:
-            raise ValueError(f"The number of maximum iteration must larger than zero.")
+            raise ValueError("The number of maximum iteration must larger than zero.")
 
     def _init_centroids(self, X_active, y):
         """Initialize cluster centers with little samples having label."""
@@ -81,22 +86,25 @@ class ActiveConstrainedSeedKMeans:
             y = torch.Tensor(y)
             pkg = torch
         else:
-            raise TypeError('Data type is not supported, please check it again.')
+            raise TypeError("Data type is not supported, please check it again.")
 
         y_unique = pkg.unique(y)
         if self.INVALID_LABEL in y_unique:
             n_seed_centroids = len(y_unique) - 1
         else:
             n_seed_centroids = len(y_unique)
-        assert n_seed_centroids <= self.n_clusters, f"The number of seed centroids" \
-                                                    f"should be less than the total" \
-                                                    f"number of clusters."
+        assert n_seed_centroids <= self.n_clusters, (
+            "The number of seed centroids"
+            "should be less than the total"
+            "number of clusters."
+        )
         # n_seed_centroids 是利用打有标签的样本来确定的中心的个数
-
 
         self.messenger.send(n_seed_centroids)
 
-        centers_active = pkg.empty((self.n_clusters, X_active.shape[1]), dtype=X_active.dtype)
+        centers_active = pkg.empty(
+            (self.n_clusters, X_active.shape[1]), dtype=X_active.dtype
+        )
         # First, initialize seed centers using samples with label
         labeled_idxes = []
         for i in range(n_seed_centroids):
@@ -104,15 +112,17 @@ class ActiveConstrainedSeedKMeans:
             label_idx = pkg.where(y == i)[0]
             labeled_idxes.append(label_idx)
             centers_active[i] = seed_samples.mean(axis=0)
-        
+
         if self.verbose:
-            print('labeled_idxes:', labeled_idxes)
+            print("labeled_idxes:", labeled_idxes)
         # print('labeled_idxes:', labeled_idxes[0])
 
         self.messenger.send(labeled_idxes)
 
         # Then, initilize the remaining centers with random samples from X_active
-        unlabel_idxes = pkg.where(y == self.INVALID_LABEL)[0] # np.where returns a tuple
+        unlabel_idxes = pkg.where(y == self.INVALID_LABEL)[
+            0
+        ]  # np.where returns a tuple
         self.messenger.send(unlabel_idxes)
 
         if len(unlabel_idxes) == 0:
@@ -120,7 +130,9 @@ class ActiveConstrainedSeedKMeans:
 
         if len(unlabel_idxes) < self.n_clusters - n_seed_centroids:
             np.random.seed(self.random_state)
-            idx = np.random.randint(X_active.shape[0], size=self.n_clusters - n_seed_centroids)
+            idx = np.random.randint(
+                X_active.shape[0], size=self.n_clusters - n_seed_centroids
+            )
 
             for i in range(n_seed_centroids, self.n_clusters):
                 centers_active[i] = X_active[idx[i - n_seed_centroids]]
@@ -131,18 +143,16 @@ class ActiveConstrainedSeedKMeans:
                 centers_active[i] = X_active[idx]
 
         if self.verbose:
-            print('centers_active', centers_active)
+            print("centers_active", centers_active)
 
         return centers_active, n_seed_centroids
-
-
 
     def _kmeans(self, X_active, y, init_centers_active):
         """KMeans algorithm implementation."""
         indices = copy.copy(y)
         if type(indices) == list:
             indices = np.array(indices)
-        n_samples, n_features = X_active.shape[0], X_active.shape[1]
+        n_samples = X_active.shape[0]
         cur_centers = init_centers_active
         new_centers_active = copy.deepcopy(init_centers_active)
 
@@ -168,9 +178,15 @@ class ActiveConstrainedSeedKMeans:
                 passive_norm = self.messenger.recv()
 
                 if type(X_active) == np.ndarray:
-                    min_idx = (np.square(np.linalg.norm(cur_centers - X_active[i], axis=1)) + np.square(passive_norm)).argmin()
+                    min_idx = (
+                        np.square(np.linalg.norm(cur_centers - X_active[i], axis=1))
+                        + np.square(passive_norm)
+                    ).argmin()
                 else:
-                    min_idx = (torch.square(torch.norm(cur_centers - X_active[i], dim=1)) + torch.square(passive_norm)).argmin()
+                    min_idx = (
+                        torch.square(torch.norm(cur_centers - X_active[i], dim=1))
+                        + torch.square(passive_norm)
+                    ).argmin()
 
                 # print('min index', min_idx)
                 indices[i] = min_idx
@@ -184,7 +200,9 @@ class ActiveConstrainedSeedKMeans:
                 # a sample from X_active.
                 if active_cluster_samples.shape[0] == 0:
                     np.random.seed(self.random_state)
-                    new_centers_active[i] = X_active[np.random.choice(n_samples, 1, replace=False)]
+                    new_centers_active[i] = X_active[
+                        np.random.choice(n_samples, 1, replace=False)
+                    ]
                 else:
                     new_centers_active[i] = active_cluster_samples.mean(axis=0)
 
@@ -192,36 +210,53 @@ class ActiveConstrainedSeedKMeans:
             inertia_active = 0
             for i in range(self.n_clusters):
                 if type(X_active) == np.ndarray:
-                    inertia_active += np.linalg.norm(X_active[indices == i] - new_centers_active[i], axis=1).sum()
+                    inertia_active += np.linalg.norm(
+                        X_active[indices == i] - new_centers_active[i], axis=1
+                    ).sum()
                 else:
-                    inertia_active += torch.norm(X_active[indices == i] - new_centers_active[i], dim=1).sum().item()
+                    inertia_active += (
+                        torch.norm(
+                            X_active[indices == i] - new_centers_active[i], dim=1
+                        )
+                        .sum()
+                        .item()
+                    )
 
             inertia_passive = self.messenger.recv()
 
             inertia = inertia_active + inertia_passive
 
             if self.verbose:
-                print('Iteration {}, inertia: {}'.format(iter_, inertia))
+                print("Iteration {}, inertia: {}".format(iter_, inertia))
 
             # Check if KMeans converges
             if type(X_active) == np.ndarray:
-                difference_active = np.linalg.norm(new_centers_active - cur_centers, ord='fro')
+                difference_active = np.linalg.norm(
+                    new_centers_active - cur_centers, ord="fro"
+                )
             else:
-                difference_active = torch.norm(new_centers_active - cur_centers, p='fro')
+                difference_active = torch.norm(
+                    new_centers_active - cur_centers, p="fro"
+                )
 
             difference_passive = self.messenger.recv()
 
             if type(X_active) == np.ndarray:
-                difference = np.sqrt(np.square(difference_active) + np.square(difference_passive))
+                difference = np.sqrt(
+                    np.square(difference_active) + np.square(difference_passive)
+                )
             else:
-                difference = torch.sqrt(torch.square(difference_active) + torch.square(difference_passive))
-            
+                difference = torch.sqrt(
+                    torch.square(difference_active) + torch.square(difference_passive)
+                )
+
             if difference < self.tol:
                 if self.verbose:
-                    print('Converged at iteration {}.\n'.format(iter_))
+                    print("Converged at iteration {}.\n".format(iter_))
                 break
 
-            # ATTENSION: Avoid using direct assignment like cur_centers = new_centers_active
+            # ATTENSION: Avoid using direct assignment like
+            # cur_centers = new_centers_active
             # This will cause cur_centers and new_cneters to point at the same
             # object in the memory. To fix this, you must create a new object.
             cur_centers = copy.deepcopy(new_centers_active)
@@ -238,7 +273,7 @@ class ActiveConstrainedSeedKMeans:
         Returns:
             self: The estimator itself.
         """
-        begin_msg = self.messenger.recv()
+        begin_msg = self.messenger.recv()  # noqa: F841
         self._check_params(X_active, y)
 
         # _, n_seed_centroids = self._init_centroids(X_active, y)
@@ -254,17 +289,18 @@ class ActiveConstrainedSeedKMeans:
             y = torch.Tensor(y)
             pkg = torch
         else:
-            raise TypeError('Data type is not supported, please check it again.')
+            raise TypeError("Data type is not supported, please check it again.")
 
         y_unique = pkg.unique(y)
         if self.INVALID_LABEL in y_unique:
             n_seed_centroids = len(y_unique) - 1
         else:
             n_seed_centroids = len(y_unique)
-        assert n_seed_centroids <= self.n_clusters, f"The number of seed centroids" \
-                                                    f"should be less than the total" \
-                                                    f"number of clusters."
-
+        assert n_seed_centroids <= self.n_clusters, (
+            "The number of seed centroids"
+            "should be less than the total"
+            "number of clusters."
+        )
 
         if n_seed_centroids == self.n_clusters:
             self.n_init = 1
@@ -277,8 +313,10 @@ class ActiveConstrainedSeedKMeans:
         for i in range(self.n_init):
             init_centers_active, _ = self._init_centroids(X_active, y)
             if self.verbose:
-                print('Initialization complete')
-            new_centers_active, indices, new_inertia = self._kmeans(X_active, y, init_centers_active)
+                print("Initialization complete")
+            new_centers_active, indices, new_inertia = self._kmeans(
+                X_active, y, init_centers_active
+            )
             if best_inertia is None or new_inertia < best_inertia:
                 best_inertia = new_inertia
                 best_centers_active = new_centers_active
@@ -307,9 +345,21 @@ class ActiveConstrainedSeedKMeans:
         for i in range(n_samples):
             min_norm_passive = self.messenger.recv()
             if type(X_active) == np.ndarray:
-                min_idx = (np.square(np.linalg.norm(self.cluster_centers_active_ - X_active[i], axis=1)) + np.square(min_norm_passive)).argmin()
+                min_idx = (
+                    np.square(
+                        np.linalg.norm(
+                            self.cluster_centers_active_ - X_active[i], axis=1
+                        )
+                    )
+                    + np.square(min_norm_passive)
+                ).argmin()
             else:
-                min_idx = (torch.square(torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)) + torch.square(min_norm_passive)).argmin()
+                min_idx = (
+                    torch.square(
+                        torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
+                    )
+                    + torch.square(min_norm_passive)
+                ).argmin()
             indices[i] = min_idx
 
         if type(X_active) == np.ndarray:
@@ -339,9 +389,13 @@ class ActiveConstrainedSeedKMeans:
         output = pkg.empty((n_samples, self.n_clusters), dtype=X_active.dtype)
         for i in range(n_samples):
             if type(X_active) == np.ndarray:
-                output[i] = np.linalg.norm(self.cluster_centers_active_ - X_active[i], axis=1)
+                output[i] = np.linalg.norm(
+                    self.cluster_centers_active_ - X_active[i], axis=1
+                )
             else:
-                output[i] = torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
+                output[i] = torch.norm(
+                    self.cluster_centers_active_ - X_active[i], dim=1
+                )
 
         output_passive = self.messenger.recv()
         output += output_passive
@@ -359,9 +413,15 @@ class ActiveConstrainedSeedKMeans:
 
         for i in range(n_samples):
             if type(X_active) == np.ndarray:
-                interia += np.linalg.norm(self.cluster_centers_active_ - X_active[i], axis=1).min()
+                interia += np.linalg.norm(
+                    self.cluster_centers_active_ - X_active[i], axis=1
+                ).min()
             else:
-                interia += torch.norm(self.cluster_centers_active_ - X_active[i], dim=1).min().item()
+                interia += (
+                    torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
+                    .min()
+                    .item()
+                )
 
         interia_passive = self.messenger.recv()
 
@@ -375,51 +435,59 @@ def plot(X_active, estimator, color_num, name):
     import seaborn as sns
 
     df = pd.DataFrame()
-    df['dim1'] = X_active[:, 0]
-    df['dim2'] = X_active[:, 1]
-    if name == 'sklearn_kmeans':
-        df['y'] = estimator.labels_
+    df["dim1"] = X_active[:, 0]
+    df["dim2"] = X_active[:, 1]
+    if name == "sklearn_kmeans":
+        df["y"] = estimator.labels_
     else:
-        df['y'] = estimator.indices
+        df["y"] = estimator.indices
     plt.close()
     plt.xlim(-0.3, 0.3)
     plt.ylim(-0.1, 0.1)
-    sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
-                    palette=sns.color_palette('hls', color_num), data=df)
+    sns.scatterplot(
+        x="dim1",
+        y="dim2",
+        hue=df.y.tolist(),
+        palette=sns.color_palette("hls", color_num),
+        data=df,
+    )
     # plt.show()
-    plt.savefig('./{}.png'.format(name))
+    plt.savefig("./{}.png".format(name))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from linkefl.common.factory import messenger_factory
 
-    active_ip = 'localhost'
+    active_ip = "localhost"
     active_port = 20001
-    passive_ip = 'localhost'
+    passive_ip = "localhost"
     passive_port = 30001
 
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
-                                   role=Const.ACTIVE_NAME,
-                                   active_ip=active_ip,
-                                   active_port=active_port,
-                                   passive_ip=passive_ip,
-                                   passive_port=passive_port)
-    print('Active party started, listening...')
+    _messenger = messenger_factory(
+        messenger_type=Const.FAST_SOCKET,
+        role=Const.ACTIVE_NAME,
+        active_ip=active_ip,
+        active_port=active_port,
+        passive_ip=passive_ip,
+        passive_port=passive_port,
+    )
+    print("Active party started, listening...")
 
-
-    dataset_name = 'epsilon'
+    dataset_name = "epsilon"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
 
-    active_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
-                                                   role=Const.ACTIVE_NAME,
-                                                   root='../data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option,
-                                                   seed=_random_state)
+    active_trainset = NumpyDataset.buildin_dataset(
+        dataset_name=dataset_name,
+        role=Const.ACTIVE_NAME,
+        root="../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+        seed=_random_state,
+    )
 
     print(active_trainset.features.shape)
 
@@ -432,25 +500,30 @@ if __name__ == '__main__':
     # y[13], y[16] = 2, 2
 
     n_cluster = 3
-    active = ActiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
+    active = ActiveConstrainedSeedKMeans(
+        messenger=_messenger,
+        crypto_type=None,
+        n_clusters=n_cluster,
+        n_init=10,
+        verbose=False,
+    )
 
     begin_fit_predict = time.time()
     fit_predict = active.fit_predict(X_active, y)
     end_fit_predict = time.time()
 
     score = active.score(X_active)
-    print('score', score)
+    print("score", score)
 
     # print('total fit time consumed', end_fit - begin_fit)
-    print('total fit_predict time consumed', end_fit_predict - begin_fit_predict)
+    print("total fit_predict time consumed", end_fit_predict - begin_fit_predict)
 
-    print('fit predict', fit_predict)
+    print("fit predict", fit_predict)
 
-    pca_active = PCA(n_components=2) 
+    pca_active = PCA(n_components=2)
     pca_active.fit(X_active)
     X_active_projection = pca_active.transform(X_active)
 
-    plot(X_active_projection, active, color_num = n_cluster, name='active_kmeans')
+    plot(X_active_projection, active, color_num=n_cluster, name="active_kmeans")
 
-    print('X_active_projection', X_active_projection[0:10, :])
-
+    print("X_active_projection", X_active_projection[0:10, :])

@@ -41,7 +41,7 @@ if __name__ == "__main__":
     max_bin = 16
     colsample_bytree = 1
     saving_model = True
-    model_name = 'passive1_tree_model.model'
+    model_name = "passive1_tree_model.model"
 
     # 1. Load dataset
     passive_trainset = NumpyDataset.from_csv(

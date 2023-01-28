@@ -1,29 +1,29 @@
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 
 from linkefl.modelzoo.util import TorchModuleType, make_nn_module
 
 
 class TabResNet(nn.Module):
-    def __init__(self,
-                 *,
-                 d_in,
-                 d_hidden,
-                 d_out,
-                 n_blocks=2,
-                 d_main=None,
-                 dropout_first=0.5,
-                 dropout_second=0.5,
-                 activation: TorchModuleType = 'ReLU',
-                 normalization: TorchModuleType = 'BatchNorm1d',
+    def __init__(
+        self,
+        *,
+        d_in,
+        d_hidden,
+        d_out,
+        n_blocks=2,
+        d_main=None,
+        dropout_first=0.5,
+        dropout_second=0.5,
+        activation: TorchModuleType = "ReLU",
+        normalization: TorchModuleType = "BatchNorm1d",
     ) -> None:
         super(TabResNet, self).__init__()
         if d_main is None:
             d_main = d_in
 
         self.first_layer = nn.Linear(d_in, d_main)
-        self.blocks = nn.Sequential(*
-            [
+        self.blocks = nn.Sequential(
+            *[
                 TabResNet.Block(
                     d_main=d_main,
                     d_hidden=d_hidden,
@@ -34,7 +34,8 @@ class TabResNet(nn.Module):
                     normalization=normalization,
                     activation=activation,
                     skip_connection=True,
-                ) for _ in range(n_blocks)
+                )
+                for _ in range(n_blocks)
             ]
         )
         self.head = TabResNet.Head(
@@ -53,17 +54,19 @@ class TabResNet(nn.Module):
 
     class Block(nn.Module):
         """The main building block of TabResNet."""
-        def __init__(self,
-                     *,
-                     d_main: int,
-                     d_hidden: int,
-                     bias_first: bool,
-                     bias_second: bool,
-                     dropout_first: float,
-                     dropout_second: float,
-                     normalization: TorchModuleType,
-                     activation: TorchModuleType,
-                     skip_connection: bool,
+
+        def __init__(
+            self,
+            *,
+            d_main: int,
+            d_hidden: int,
+            bias_first: bool,
+            bias_second: bool,
+            dropout_first: float,
+            dropout_second: float,
+            normalization: TorchModuleType,
+            activation: TorchModuleType,
+            skip_connection: bool,
         ) -> None:
             super().__init__()
             self.normalization = make_nn_module(normalization, d_main)
@@ -88,13 +91,15 @@ class TabResNet(nn.Module):
 
     class Head(nn.Module):
         """The final module of TabResNet."""
-        def __init__(self,
-                     *,
-                     d_in: int,
-                     d_out: int,
-                     bias: bool,
-                     normalization: TorchModuleType,
-                     activation: TorchModuleType,
+
+        def __init__(
+            self,
+            *,
+            d_in: int,
+            d_out: int,
+            bias: bool,
+            normalization: TorchModuleType,
+            activation: TorchModuleType,
         ) -> None:
             super().__init__()
             self.normalization = make_nn_module(normalization, d_in)

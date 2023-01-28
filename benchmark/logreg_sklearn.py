@@ -1,75 +1,77 @@
 import argparse
 
 import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
-from linkefl.feature import add_intercept, scale, parse_label
+from linkefl.feature import add_intercept, parse_label, scale
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str)
+    parser.add_argument("--dataset", type=str)
     args = parser.parse_args()
 
     epochs = 100
     passive_feat_frac = 0.0
 
-    if args.dataset == 'cancer':
-        _penalty = 'l2'
+    if args.dataset == "cancer":
+        _penalty = "l2"
         _lambda = 0.01
 
-    elif args.dataset == 'digits':
-        _penalty = 'l2'
+    elif args.dataset == "digits":
+        _penalty = "l2"
         _lambda = 0.01
 
-    elif args.dataset == 'epsilon':
-        _penalty = 'l2'
+    elif args.dataset == "epsilon":
+        _penalty = "l2"
         _lambda = 0.01
 
-    elif args.dataset == 'census':
-        _penalty = 'l1'
+    elif args.dataset == "census":
+        _penalty = "l1"
         _lambda = 0.005
 
-    elif args.dataset == 'credit':
-        _penalty = 'l2'
+    elif args.dataset == "credit":
+        _penalty = "l2"
         _lambda = 0.001
 
-    elif args.dataset == 'default_credit':
-        _penalty = 'l2'
+    elif args.dataset == "default_credit":
+        _penalty = "l2"
         _lambda = 0.01
 
-    elif args.dataset == 'covertype':
-        _penalty = 'l2'
+    elif args.dataset == "covertype":
+        _penalty = "l2"
         _lambda = 0.01
 
-    elif args.dataset == 'higgs':
-        _penalty = 'l2'
+    elif args.dataset == "higgs":
+        _penalty = "l2"
         _lambda = 0.01
 
     else:
-        raise ValueError('dataset is not supported.')
-
+        raise ValueError("dataset is not supported.")
 
     # load dataset
-    active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                   dataset_name=args.dataset,
-                                                   root='data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=Const.SEQUENCE)
-    active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                  dataset_name=args.dataset,
-                                                  root='data',
-                                                  train=False,
-                                                  download=True,
-                                                  passive_feat_frac=passive_feat_frac,
-                                                  feat_perm_option=Const.SEQUENCE)
+    active_trainset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=args.dataset,
+        root="data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=Const.SEQUENCE,
+    )
+    active_testset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=args.dataset,
+        root="data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=Const.SEQUENCE,
+    )
     active_trainset = add_intercept(scale(parse_label(active_trainset)))
     active_testset = add_intercept(scale(parse_label(active_testset)))
     x_train = active_trainset.features
@@ -78,10 +80,9 @@ if __name__ == '__main__':
     y_test = active_testset.labels
 
     # initialize classifier
-    clf = LogisticRegression(penalty=_penalty,
-                             C=1./_lambda,
-                             solver='liblinear',
-                             max_iter=epochs)
+    clf = LogisticRegression(
+        penalty=_penalty, C=1.0 / _lambda, solver="liblinear", max_iter=epochs
+    )
 
     pipe = make_pipeline(StandardScaler(), clf)
 
@@ -99,7 +100,6 @@ if __name__ == '__main__':
     f1 = f1_score(y_test, y_pred)
     auc = roc_auc_score(y_test, y_score)
 
-    print('Acc: {:.5f}'.format(acc))
-    print('Auc: {:.5f}'.format(auc))
-    print('f1: {:.5f}'.format(f1))
-
+    print("Acc: {:.5f}".format(acc))
+    print("Auc: {:.5f}".format(auc))
+    print("f1: {:.5f}".format(f1))

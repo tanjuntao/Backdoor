@@ -1,17 +1,18 @@
-from torch.utils.data import Dataset
-from linkefl.dataio import NumpyDataset
 import io
+import os
 import random
 from typing import Union
-import os
 from urllib.error import URLError
-import numpy as np
 
+import numpy as np
+from torch.utils.data import Dataset
+
+from linkefl.dataio import NumpyDataset
 from linkefl.util import urlretrive
 
-class myData(Dataset):
-    def __init__(self, name,root, train, download):
 
+class myData(Dataset):
+    def __init__(self, name, root, train, download):
         def _check_exists(dataset_name, root_, train_, resources_):
             if train_:
                 filename_ = resources_[dataset_name][0]
@@ -34,15 +35,15 @@ class myData(Dataset):
             "higgs": ("higgs-train.csv", "higgs-test.csv"),
             "year": ("year-train.csv", "year-test.csv"),
             "nyc_taxi": ("nyc-taxi-train.csv", "nyc-taxi-test.csv"),
-            "avazu": ("avazu-train.csv", "avazu-test.csv")
+            "avazu": ("avazu-train.csv", "avazu-test.csv"),
         }
-        BASE_URL = 'http://47.96.163.59:80/datasets/'
-        root = os.path.join(root, 'tabular')
+        BASE_URL = "http://47.96.163.59:80/datasets/"
+        root = os.path.join(root, "tabular")
 
         if download:
             if _check_exists(name, root, train, resources):
                 # if data files have already been downloaded, then skip this branch
-                print('Data files have already been downloaded.')
+                print("Data files have already been downloaded.")
             else:
                 # download data files from web server
                 os.makedirs(root, exist_ok=True)
@@ -50,32 +51,32 @@ class myData(Dataset):
                 fpath = os.path.join(root, filename)
                 full_url = BASE_URL + filename
                 try:
-                    print('Downloading {} to {}'.format(full_url, fpath))
+                    print("Downloading {} to {}".format(full_url, fpath))
                     urlretrive(full_url, fpath)
                 except URLError as error:
-                    raise RuntimeError('Failed to download {} with error message: {}'
-                                       .format(full_url, error))
-                print('Done!')
+                    raise RuntimeError(
+                        "Failed to download {} with error message: {}".format(
+                            full_url, error
+                        )
+                    )
+                print("Done!")
         if not _check_exists(name, root, train, resources):
-            raise RuntimeError('Dataset not found. You can use download=True to get it.')
+            raise RuntimeError(
+                "Dataset not found. You can use download=True to get it."
+            )
 
         # ===== 1. Load dataset =====
         if train:
             np_csv = np.genfromtxt(
-                os.path.join(root, resources[name][0]),
-                delimiter=',',
-                encoding="utf-8"
+                os.path.join(root, resources[name][0]), delimiter=",", encoding="utf-8"
             )
         else:
             np_csv = np.genfromtxt(
-                os.path.join(root, resources[name][1]),
-                delimiter=',',
-                encoding="utf-8"
+                os.path.join(root, resources[name][1]), delimiter=",", encoding="utf-8"
             )
-        self._ids = np_csv[:, 0] # no need to convert to integers here
-        self._labels = np_csv[:, 1] # no need to convert to integers here
+        self._ids = np_csv[:, 0]  # no need to convert to integers here
+        self._labels = np_csv[:, 1]  # no need to convert to integers here
         self._feats = np_csv[:, 2:]
-
 
     def __getitem__(self, index):
         """
@@ -88,4 +89,3 @@ class myData(Dataset):
 
     def __len__(self):
         return len(self._feats)
-

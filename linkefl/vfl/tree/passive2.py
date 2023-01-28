@@ -1,7 +1,7 @@
 import pandas as pd
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory_disconnection, logger_factory
+from linkefl.common.factory import logger_factory, messenger_factory_disconnection
 from linkefl.dataio import NumpyDataset
 from linkefl.vfl.tree import PassiveTreeParty
 
@@ -21,20 +21,24 @@ if __name__ == "__main__":
 
     # 1. Load datasets
     print("Loading dataset...")
-    passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
-                                                    dataset_name=dataset_name,
-                                                    root='../data',
-                                                    train=True,
-                                                    download=True,
-                                                    passive_feat_frac=passive_feat_frac,
-                                                    feat_perm_option=feat_perm_option)
-    passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
-                                                   dataset_name=dataset_name,
-                                                   root='../data',
-                                                   train=False,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+    passive_trainset = NumpyDataset.buildin_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_name=dataset_name,
+        root="../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+    passive_testset = NumpyDataset.buildin_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_name=dataset_name,
+        root="../data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
     _, passive_trainset = NumpyDataset.feature_split(passive_trainset, 2)
     _, passive_testset = NumpyDataset.feature_split(passive_testset, 2)
     print("Done")
@@ -51,7 +55,7 @@ if __name__ == "__main__":
     messenger = messenger_factory_disconnection(
         messenger_type=Const.FAST_SOCKET_V1,
         role=Const.PASSIVE_NAME,
-        model_type='Tree',
+        model_type="Tree",
         active_ip=active_ip,
         active_port=active_port,
         passive_ip=passive_ip,
@@ -66,13 +70,15 @@ if __name__ == "__main__":
         messenger=messenger,
         logger=logger,
         saving_model=True,
-        model_path="./models/passive_party_2"
+        model_path="./models/passive_party_2",
     )
     passive_party.train(passive_trainset, passive_testset)
     # passive_party.online_inference(passive_testset, "xxx.model")
 
     # test
-    feature_importance_info = pd.DataFrame(passive_party.feature_importances_(importance_type='cover'))
+    feature_importance_info = pd.DataFrame(
+        passive_party.feature_importances_(importance_type="cover")
+    )
     print(feature_importance_info)
 
     # 4. Close messenger, finish training

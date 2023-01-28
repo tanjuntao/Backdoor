@@ -1,11 +1,11 @@
 import multiprocessing
-import time
-from multiprocessing.pool import Pool, ThreadPool
 import os
 import random
+import time
+from multiprocessing.pool import Pool, ThreadPool
 
 import gmpy2
-from phe import paillier, EncodedNumber, EncryptedNumber
+from phe import EncodedNumber, EncryptedNumber, paillier
 from phe.util import mulmod
 
 
@@ -59,8 +59,7 @@ def target_enc_thread(plaintexts, pkey, start, end):
     return True
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pub_key, priv_key = paillier.generate_paillier_keypair(n_length=1024)
 
     n_workers = os.cpu_count()
@@ -86,12 +85,15 @@ if __name__ == '__main__':
             end_ = (idx + 1) * quotient
             if idx == n_workers - 1:
                 end_ += remainder
-            result = mp_pool.apply_async(target_enc_pool, args=(shared_data, pub_key, start_, end_))
+            result = mp_pool.apply_async(
+                target_enc_pool, args=(shared_data, pub_key, start_, end_)
+            )
             async_results.append(result)
 
         for idx, result in enumerate(async_results):
-            assert result.get() is True, "worker process did not finish " \
-                                         "within default timeout"
+            assert (
+                result.get() is True
+            ), "worker process did not finish within default timeout"
             if idx == len(async_results) - 1:
                 print(priv_key.decrypt(shared_data[-1]))
 
@@ -114,19 +116,21 @@ if __name__ == '__main__':
             end_ = (idx + 1) * quotient
             if idx == n_workers - 1:
                 end_ += remainder
-            result = thread_pool.apply_async(target_enc_thread, args=(data, pub_key, start_, end_))
+            result = thread_pool.apply_async(
+                target_enc_thread, args=(data, pub_key, start_, end_)
+            )
             async_results.append(result)
 
         for idx, result in enumerate(async_results):
-            assert result.get() is True, "worker process did not finish " \
-                                         "within default timeout"
+            assert (
+                result.get() is True
+            ), "worker process did not finish within default timeout"
             if idx == len(async_results) - 1:
                 print(priv_key.decrypt(data[-1]))
 
         print(f"epoch {i} finished.\n")
         # time.sleep(1)
     thread_end = time.time()
-
 
     # test if pool can be applied by different target function
     pool_start = time.time()
@@ -145,11 +149,14 @@ if __name__ == '__main__':
             end_ = (idx + 1) * quotient
             if idx == n_workers - 1:
                 end_ += remainder
-            result = mp_pool.apply_async(target_enc_pool, args=(shared_data, pub_key, start_, end_))
+            result = mp_pool.apply_async(
+                target_enc_pool, args=(shared_data, pub_key, start_, end_)
+            )
             async_results.append(result)
         for idx, result in enumerate(async_results):
-            assert result.get() is True, "worker process did not finish " \
-                                         "within default timeout"
+            assert (
+                result.get() is True
+            ), "worker process did not finish within default timeout"
             if idx == len(async_results) - 1:
                 print(priv_key.decrypt(shared_data[-1]))
 
@@ -159,18 +166,20 @@ if __name__ == '__main__':
             end_ = (idx + 1) * quotient
             if idx == n_workers - 1:
                 end_ += remainder
-            result = mp_pool.apply_async(target_dec_pool, args=(shared_data, priv_key, start_, end_))
+            result = mp_pool.apply_async(
+                target_dec_pool, args=(shared_data, priv_key, start_, end_)
+            )
             async_results.append(result)
         for idx, result in enumerate(async_results):
-            assert result.get() is True, "worker process did not finish " \
-                                         "within default timeout"
+            assert (
+                result.get() is True
+            ), "worker process did not finish within default timeout"
             if idx == len(async_results) - 1:
                 print(shared_data[-1])
 
         print(f"epoch {i} finished.\n")
         # time.sleep(1)
     pool_end = time.time()
-
 
     mp_pool.close()
     thread_pool.close()

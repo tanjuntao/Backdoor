@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
-import torch
 import pandas as pd
-from pandas import DataFrame,Series
 import scipy
+import torch
+from pandas import DataFrame, Series
 from scipy.stats import chi
 
 
@@ -34,14 +34,14 @@ class BaseChiBin(ABC):
         self.bin = dict()
 
     def _chi(self, arr):
-        '''Calculate chi-square value.
+        """Calculate chi-square value.
 
         Parameters
         ----------
         arr : 2D ndarray.
             Frequency statistics table.
-        '''
-        assert (arr.ndim == 2)
+        """
+        assert arr.ndim == 2
         # Calculate total frequency for each row.
         R_N = arr.sum(axis=1)
         # total frequency per column
@@ -53,20 +53,21 @@ class BaseChiBin(ABC):
         E = (E.T * R_N).T
         square = (arr - E) ** 2 / E
         # When the expected frequency is 0,
-        # it is meaningless to do the divisor, and it will not be included in the chi-square value.
+        # it is meaningless to do the divisor,
+        # and it will not be included in the chi-square value.
         square[E == 0] = 0
         # chi-square value
         v = square.sum()
         return v
 
     def _chiMerge(self, y):
-        '''Find the cutoff point of chi-square binning.
+        """Find the cutoff point of chi-square binning.
 
         Parameters
         ----------
         y：ndarry
         Return: The dividing point after each feature binning.
-        '''
+        """
         cutoffs = dict()
         features = self.dataset.features
         for i in self.idxes:
@@ -82,7 +83,7 @@ class BaseChiBin(ABC):
                 minidx = None
                 # 从第1组开始，依次取两组计算卡方值，并判断是否小于当前最小的卡方
                 for j in range(len(freq) - 1):
-                    v = self._chi(freq[j:j + 2])
+                    v = self._chi(freq[j : j + 2])
                     if minvalue is None or (minvalue > v):  # 小于当前最小卡方，更新最小值
                         minvalue = v
                         minidx = j
@@ -103,7 +104,7 @@ class BaseChiBin(ABC):
         return cutoffs
 
     def _value2group(self, x, cutoffs):
-        '''Transform the value of a variable into the corresponding group.
+        """Transform the value of a variable into the corresponding group.
 
         Parameters
         ----------
@@ -113,21 +114,22 @@ class BaseChiBin(ABC):
             Cut-off point for each group.
         ----------
         Return : The group corresponding to x, such as group1. Start with group1.
-        '''
+        """
         # Cut-off points are sorted from small to large.
         cutoffs = sorted(cutoffs)
         num_groups = len(cutoffs)
 
-        # Exception: less than the starting value of the first group. Put it directly in the first group here.
+        # Exception: less than the starting value of the first group.
+        # Put it directly in the first group here.
         if x < cutoffs[0]:
-            return 'group1'
+            return "group1"
 
         for i in range(1, num_groups):
             if cutoffs[i - 1] <= x < cutoffs[i]:
-                return 'group{}'.format(i)
+                return "group{}".format(i)
 
         # The last group, and it may also include some very large outliers.
-        return 'group{}'.format(num_groups)
+        return "group{}".format(num_groups)
 
     def _chi_bin(self, y):
         cutoffs = self._chiMerge(y)
@@ -135,14 +137,20 @@ class BaseChiBin(ABC):
         if isinstance(features, np.ndarray):
             data = pd.DataFrame(features)
             for i in self.idxes:
-                self.bin[i] = data.iloc[:, i].apply(self._value2group, args=(cutoffs[i],)).values
+                self.bin[i] = (
+                    data.iloc[:, i].apply(self._value2group, args=(cutoffs[i],)).values
+                )
         elif isinstance(features, torch.Tensor):
             data = features.numpy()
             data = pd.DataFrame(data)
             for i in self.idxes:
-                self.bin[i] = data.iloc[:, i].apply(self._value2group, args=(cutoffs[i],)).values
+                self.bin[i] = (
+                    data.iloc[:, i].apply(self._value2group, args=(cutoffs[i],)).values
+                )
         else:
-            raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
+            raise TypeError(
+                "dataset should be an instance of numpy.ndarray or torch.Tensor"
+            )
 
 
 class ActiveChiBin(BaseChiBin):
@@ -158,7 +166,8 @@ class ActiveChiBin(BaseChiBin):
 
     def chi_bin(self):
         y = self.dataset.labels
-        for msger in self.messenger: msger.send(y)
+        for msger in self.messenger:
+            msger.send(y)
         super()._chi_bin(y)
 
         return self.bin

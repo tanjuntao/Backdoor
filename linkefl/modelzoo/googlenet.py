@@ -66,7 +66,7 @@ class GoogLeNet(nn.Module):
         )
         self.group1 = nn.Sequential(
             Inception(192, 64, 96, 128, 16, 32, 32),
-            Inception(256, 128, 128, 192, 32, 96, 64)
+            Inception(256, 128, 128, 192, 32, 96, 64),
         )
         self.group2 = nn.Sequential(
             Inception(480, 192, 96, 208, 16, 48, 64),
@@ -77,7 +77,7 @@ class GoogLeNet(nn.Module):
         )
         self.group3 = nn.Sequential(
             Inception(832, 256, 160, 320, 32, 128, 128),
-            Inception(832, 384, 192, 384, 48, 128, 128)
+            Inception(832, 384, 192, 384, 48, 128, 128),
         )
         self.avgpool = nn.AvgPool2d(8, stride=1)
         self.linear = nn.Linear(1024, self.num_classes)

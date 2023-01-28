@@ -2,10 +2,11 @@ import numpy as np
 
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.vfl.linear import BaseLinearPassive
 from linkefl.feature.woe import PassiveWoe, TestWoe
+from linkefl.vfl.linear import BaseLinearPassive
 
-class Testwoe():
+
+class Testwoe:
     def __init__(self, dataset, woe_features, messenger, split, bin_woe):
         self.split = split
         self.bin_woe = bin_woe
@@ -15,7 +16,6 @@ class Testwoe():
 
     def cal_woe(self):
         features = self.dataset.features
-        ids = np.array(self.dataset.ids)
         if isinstance(features, np.ndarray):
             features = features.astype(float)
             sam_num = self.dataset.n_samples
@@ -24,33 +24,37 @@ class Testwoe():
                 cur_woe_list = self.bin_woe[woe_features_idx]
                 for sam_idx in range(sam_num):
                     bin_idx = 0
-                    while(bin_idx < len(cur_split)):
+                    while bin_idx < len(cur_split):
                         if features[sam_idx, woe_features_idx] <= cur_split[bin_idx]:
                             break
                         bin_idx += 1
-                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[bin_idx]
+                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[
+                        bin_idx
+                    ]
+
 
 class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
-    def __init__(self,
-                 epochs,
-                 batch_size,
-                 learning_rate,
-                 messenger,
-                 crypto_type,
-                 logger,
-                 *,
-                 rank=1,
-                 penalty=Const.L2,
-                 reg_lambda=0.01,
-                 precision=0.001,
-                 random_state=None,
-                 using_pool=False,
-                 num_workers=-1,
-                 val_freq=1,
-                 saving_model=False,
-                 model_path='./models',
-                 model_name=None,
-                 ):
+    def __init__(
+        self,
+        epochs,
+        batch_size,
+        learning_rate,
+        messenger,
+        crypto_type,
+        logger,
+        *,
+        rank=1,
+        penalty=Const.L2,
+        reg_lambda=0.01,
+        precision=0.001,
+        random_state=None,
+        using_pool=False,
+        num_workers=-1,
+        val_freq=1,
+        saving_model=False,
+        model_path="./models",
+        model_name=None,
+    ):
         super(PassiveLogReg, self).__init__(
             epochs=epochs,
             batch_size=batch_size,
@@ -69,7 +73,7 @@ class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
             saving_model=saving_model,
             model_path=model_path,
             model_name=model_name,
-            task='classification'
+            task="classification",
         )
 
     def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
@@ -79,18 +83,18 @@ class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
         return self.predict(testset)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from linkefl.common.factory import logger_factory, messenger_factory
     from linkefl.dataio import NumpyDataset
     from linkefl.feature.transform import scale
 
     # 0. Set parameters
-    _dataset_name = 'credit'
+    _dataset_name = "credit"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
-    active_ip = 'localhost'
+    active_ip = "localhost"
     active_port = 20002
-    passive_ip = 'localhost'
+    passive_ip = "localhost"
     passive_port = 20001
     _epochs = 100
     _batch_size = -1
@@ -102,31 +106,37 @@ if __name__ == '__main__':
     _using_pool = False
 
     # 3. Initialize messenger
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
-                                   role=Const.PASSIVE_NAME,
-                                   active_ip=active_ip,
-                                   active_port=active_port,
-                                   passive_ip=passive_ip,
-                                   passive_port=passive_port)
+    _messenger = messenger_factory(
+        messenger_type=Const.FAST_SOCKET,
+        role=Const.PASSIVE_NAME,
+        active_ip=active_ip,
+        active_port=active_port,
+        passive_ip=passive_ip,
+        passive_port=passive_port,
+    )
 
-    _messenger.send('begin')
+    _messenger.send("begin")
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
-    print('Loading dataset...')
-    passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
-                                                    dataset_name=_dataset_name,
-                                                    root='../../data',
-                                                    train=True,
-                                                    download=True,
-                                                    passive_feat_frac=passive_feat_frac,
-                                                    feat_perm_option=feat_perm_option)
-    passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
-                                                   dataset_name=_dataset_name,
-                                                   root='../../data',
-                                                   train=False,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+    print("Loading dataset...")
+    passive_trainset = NumpyDataset.buildin_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_name=_dataset_name,
+        root="../../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+    passive_testset = NumpyDataset.buildin_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_name=_dataset_name,
+        root="../../data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
     # raise()
     passive_trainset = scale(passive_trainset)
     passive_testset = scale(passive_testset)
@@ -134,22 +144,26 @@ if __name__ == '__main__':
 
     passive_woe = PassiveWoe(passive_trainset, [0, 1, 2, 3, 4], _messenger)
     bin_bounds, bin_woe, bin_iv = passive_woe.cal_woe()
-    test_woe = Testwoe(passive_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
+    test_woe = Testwoe(
+        passive_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe
+    )
     test_woe.cal_woe()
 
     print(passive_trainset.features.shape, passive_testset.features.shape)
     _logger = logger_factory(role=Const.PASSIVE_NAME)
-    passive_party = PassiveLogReg(epochs=_epochs,
-                                  batch_size=_batch_size,
-                                  learning_rate=_learning_rate,
-                                  messenger=_messenger,
-                                  crypto_type=_crypto_type,
-                                  logger=_logger,
-                                  penalty=_penalty,
-                                  reg_lambda=_reg_lambda,
-                                  random_state=_random_state,
-                                  using_pool=_using_pool,
-                                  saving_model=False)
+    passive_party = PassiveLogReg(
+        epochs=_epochs,
+        batch_size=_batch_size,
+        learning_rate=_learning_rate,
+        messenger=_messenger,
+        crypto_type=_crypto_type,
+        logger=_logger,
+        penalty=_penalty,
+        reg_lambda=_reg_lambda,
+        random_state=_random_state,
+        using_pool=_using_pool,
+        saving_model=False,
+    )
 
     passive_party.train(passive_trainset, passive_testset)
     w_p = passive_party.params

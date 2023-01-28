@@ -7,26 +7,27 @@ from torch.utils.data import DataLoader
 
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.dataio import TorchDataset, MediaDataset
+from linkefl.dataio import MediaDataset, TorchDataset
 from linkefl.modelzoo import ResNet18
 from linkefl.vfl.nn.enc_layer import PassiveEncLayer
 
 
 class PassiveNeuralNetwork(BaseModelComponent):
-    def __init__(self,
-                 epochs : int,
-                 batch_size : int,
-                 learning_rate : float,
-                 models : dict,
-                 optimizers : dict,
-                 messenger,
-                 cryptosystem,
-                 *,
-                 device='cpu',
-                 precision=0.001,
-                 random_state=None,
-                 saving_model=False,
-                 model_path='./models',
+    def __init__(
+        self,
+        epochs: int,
+        batch_size: int,
+        learning_rate: float,
+        models: dict,
+        optimizers: dict,
+        messenger,
+        cryptosystem,
+        *,
+        device="cpu",
+        precision=0.001,
+        random_state=None,
+        saving_model=False,
+        model_path="./models",
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -45,24 +46,26 @@ class PassiveNeuralNetwork(BaseModelComponent):
         self.model_name = "{time}-{role}-{model_type}".format(
             time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
             role=Const.PASSIVE_NAME,
-            model_type=Const.VERTICAL_NN
+            model_type=Const.VERTICAL_NN,
         )
 
     def _sync_pubkey(self):
-        print('Training protocol started.')
-        print('Sending public key...')
+        print("Training protocol started.")
+        print("Sending public key...")
         self.messenger.send(self.cryptosystem.pub_key)
-        print('Done.')
+        print("Done.")
 
     def _init_dataloader(self, dataset, shuffle=False):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle)
         return dataloader
 
-    def train(self, trainset : TorchDataset, testset : TorchDataset):
-        assert isinstance(trainset, TorchDataset), \
-            'trainset should be an instance of TorchDataset'
-        assert isinstance(testset, TorchDataset), \
-            'testset should be an instance of TorchDataset'
+    def train(self, trainset: TorchDataset, testset: TorchDataset):
+        assert isinstance(
+            trainset, TorchDataset
+        ), "trainset should be an instance of TorchDataset"
+        assert isinstance(
+            testset, TorchDataset
+        ), "testset should be an instance of TorchDataset"
         train_dataloader = self._init_dataloader(trainset)
         test_dataloader = self._init_dataloader(testset)
 
@@ -75,7 +78,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
                 messenger=self.messenger,
                 cryptosystem=self.cryptosystem,
                 random_state=self.random_state,
-                precision=self.precision
+                precision=self.precision,
             )
 
         for model in self.models.values():
@@ -83,7 +86,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
 
         start_time = time.time()
         for epoch in range(self.epochs):
-            print('Epoch: {}'.format(epoch))
+            print("Epoch: {}".format(epoch))
             for batch_idx, X in enumerate(train_dataloader):
                 # print(f"batch: {batch_idx}")
                 # 1. forward
@@ -114,17 +117,25 @@ class PassiveNeuralNetwork(BaseModelComponent):
                 # if batch_idx == 1:
                 #     break
 
-            scores = self.validate(testset, existing_loader=test_dataloader)
+            scores = self.validate(  # noqa: F841
+                testset, existing_loader=test_dataloader
+            )
             is_best = self.messenger.recv()
             if is_best:
-                print(colored('Best model updated.', 'red'))
+                print(colored("Best model updated.", "red"))
 
         # close pool
-        if hasattr(self, 'enc_layer'):
+        if hasattr(self, "enc_layer"):
             self.enc_layer.close_pool()
 
-        print(colored('Total training and validation time: {}'
-                      .format(time.time() - start_time), 'red'))
+        print(
+            colored(
+                "Total training and validation time: {}".format(
+                    time.time() - start_time
+                ),
+                "red",
+            )
+        )
 
     def validate(self, testset, existing_loader=None):
         if existing_loader is None:
@@ -154,18 +165,18 @@ class PassiveNeuralNetwork(BaseModelComponent):
         return self.validate(testset)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from linkefl.common.factory import crypto_factory, messenger_factory
     from linkefl.util import num_input_nodes
-    from linkefl.vfl.nn.model import MLPModel, CutLayer
+    from linkefl.vfl.nn.model import CutLayer, MLPModel
 
     # 0. Set parameters
-    dataset_name = 'cifar10'
+    dataset_name = "cifar10"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
-    active_ip = 'localhost'
+    active_ip = "localhost"
     active_port = 20000
-    passive_ip = 'localhost'
+    passive_ip = "localhost"
     passive_port = 30000
     _epochs = 100
     _batch_size = 100
@@ -174,10 +185,10 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
     _key_size = 1024
     _random_state = None
-    _device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    _device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # 1. Load datasets
-    print('Loading dataset...')
+    print("Loading dataset...")
     # passive_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
     #                                                 role=Const.PASSIVE_NAME,
     #                                                 root='../data',
@@ -197,18 +208,18 @@ if __name__ == '__main__':
     passive_trainset = MediaDataset(
         role=Const.PASSIVE_NAME,
         dataset_name=dataset_name,
-        root='../data',
+        root="../data",
         train=True,
         download=True,
     )
     passive_testset = MediaDataset(
         role=Const.PASSIVE_NAME,
         dataset_name=dataset_name,
-        root='../data',
+        root="../data",
         train=False,
         download=True,
     )
-    print('Done.')
+    print("Done.")
 
     # 2. Create PyTorch models and optimizers
     # input_nodes = num_input_nodes(
@@ -247,37 +258,40 @@ if __name__ == '__main__':
     cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
     _models = {"bottom": bottom_model, "cut": cut_layer}
     _optimizers = {
-        name:
-            torch.optim.SGD(
-                model.parameters(),
-                lr=_learning_rate,
-                momentum=0.9,
-                weight_decay=5e-4
-            ) for name, model in _models.items()
+        name: torch.optim.SGD(
+            model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
+        )
+        for name, model in _models.items()
     }
 
     # 3. Initialize messenger and cryptosystem
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
-                                   role=Const.PASSIVE_NAME,
-                                   active_ip=active_ip,
-                                   active_port=active_port,
-                                   passive_ip=passive_ip,
-                                   passive_port=passive_port)
-    _crypto = crypto_factory(crypto_type=_crypto_type,
-                             key_size=_key_size,
-                             num_enc_zeros=100,
-                             gen_from_set=False)
+    _messenger = messenger_factory(
+        messenger_type=Const.FAST_SOCKET,
+        role=Const.PASSIVE_NAME,
+        active_ip=active_ip,
+        active_port=active_port,
+        passive_ip=passive_ip,
+        passive_port=passive_port,
+    )
+    _crypto = crypto_factory(
+        crypto_type=_crypto_type,
+        key_size=_key_size,
+        num_enc_zeros=100,
+        gen_from_set=False,
+    )
 
     # 4. Initialize vertical NN protocol and start fed training
-    passive_party = PassiveNeuralNetwork(epochs=_epochs,
-                                         batch_size=_batch_size,
-                                         learning_rate=_learning_rate,
-                                         models=_models,
-                                         optimizers=_optimizers,
-                                         messenger=_messenger,
-                                         cryptosystem=_crypto,
-                                         device=_device,
-                                         random_state=_random_state,)
+    passive_party = PassiveNeuralNetwork(
+        epochs=_epochs,
+        batch_size=_batch_size,
+        learning_rate=_learning_rate,
+        models=_models,
+        optimizers=_optimizers,
+        messenger=_messenger,
+        cryptosystem=_crypto,
+        device=_device,
+        random_state=_random_state,
+    )
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training

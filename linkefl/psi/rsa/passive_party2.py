@@ -6,11 +6,11 @@ from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
 from linkefl.psi import RSAPSIPassive
 
-if __name__ == '__main__':
-    ######   Option 1: split the protocol   ######
+if __name__ == "__main__":
+    #   Option 1: split the protocol
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()
-    parser.add_argument('--phase', type=str)
+    parser.add_argument("--phase", type=str)
     args = parser.parse_args()
 
     # # 1. Get sample IDs
@@ -39,16 +39,18 @@ if __name__ == '__main__':
     # _messenger.close()
 
     # '''
-    ######   Option 2: run the whole protocol   ######
+    #   Option 2: run the whole protocol
     # 1. Get sample IDs
     _ids = gen_dummy_ids(size=1000, option=Const.SEQUENCE)
 
     # 2. Initialize messenger
-    _messenger = FastSocket(role=Const.PASSIVE_NAME,
-                            active_ip='127.0.0.1',
-                            active_port=20001,
-                            passive_ip='127.0.0.1',
-                            passive_port=30001)
+    _messenger = FastSocket(
+        role=Const.PASSIVE_NAME,
+        active_ip="127.0.0.1",
+        active_port=20001,
+        passive_ip="127.0.0.1",
+        passive_port=30001,
+    )
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     # 3. Start the RSA-Blind-Signature protocol
     passive_party = RSAPSIPassive(_messenger, _logger)

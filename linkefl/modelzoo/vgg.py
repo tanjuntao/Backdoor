@@ -5,17 +5,75 @@ from linkefl.modelzoo.util import TorchModuleType, make_nn_module
 
 class VGG(nn.Module):
     cfg = {
-        'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-        'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
-        'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-        'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+        "VGG11": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
+        "VGG13": [
+            64,
+            64,
+            "M",
+            128,
+            128,
+            "M",
+            256,
+            256,
+            "M",
+            512,
+            512,
+            "M",
+            512,
+            512,
+            "M",
+        ],
+        "VGG16": [
+            64,
+            64,
+            "M",
+            128,
+            128,
+            "M",
+            256,
+            256,
+            256,
+            "M",
+            512,
+            512,
+            512,
+            "M",
+            512,
+            512,
+            512,
+            "M",
+        ],
+        "VGG19": [
+            64,
+            64,
+            "M",
+            128,
+            128,
+            "M",
+            256,
+            256,
+            256,
+            256,
+            "M",
+            512,
+            512,
+            512,
+            512,
+            "M",
+            512,
+            512,
+            512,
+            512,
+            "M",
+        ],
     }
 
-    def __init__(self,
-                 vgg_name,
-                 in_channel,
-                 num_classes=10,
-                 activation: TorchModuleType = 'ReLU',
+    def __init__(
+        self,
+        vgg_name,
+        in_channel,
+        num_classes=10,
+        activation: TorchModuleType = "ReLU",
     ):
         super(VGG, self).__init__()
         self.in_channel = in_channel
@@ -36,50 +94,50 @@ class VGG(nn.Module):
         layers = []
         in_channels = self.in_channel
         for x in cfg:
-            if x == 'M':
+            if x == "M":
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             else:
                 layers += [
                     nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
                     nn.BatchNorm2d(x),
-                    self.activation(inplace=True)
+                    self.activation(inplace=True),
                 ]
                 in_channels = x
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
 
 
-def VGG11(in_channel, num_classes=10, activation: TorchModuleType = 'ReLU'):
+def VGG11(in_channel, num_classes=10, activation: TorchModuleType = "ReLU"):
     return VGG(
-        vgg_name='VGG11',
+        vgg_name="VGG11",
         in_channel=in_channel,
         num_classes=num_classes,
-        activation=activation
+        activation=activation,
     )
 
 
-def VGG13(in_channel, num_classes=10, activation: TorchModuleType = 'ReLU'):
+def VGG13(in_channel, num_classes=10, activation: TorchModuleType = "ReLU"):
     return VGG(
-        vgg_name='VGG13',
+        vgg_name="VGG13",
         in_channel=in_channel,
         num_classes=num_classes,
-        activation=activation
+        activation=activation,
     )
 
 
-def VGG16(in_channel, num_classes=10, activation: TorchModuleType = 'ReLU'):
+def VGG16(in_channel, num_classes=10, activation: TorchModuleType = "ReLU"):
     return VGG(
-        vgg_name='VGG16',
+        vgg_name="VGG16",
         in_channel=in_channel,
         num_classes=num_classes,
-        activation=activation
+        activation=activation,
     )
 
 
-def VGG19(in_channel, num_classes=10, activation: TorchModuleType = 'ReLU'):
+def VGG19(in_channel, num_classes=10, activation: TorchModuleType = "ReLU"):
     return VGG(
-        vgg_name='VGG19',
+        vgg_name="VGG19",
         in_channel=in_channel,
         num_classes=num_classes,
-        activation=activation
+        activation=activation,
     )

@@ -1,9 +1,12 @@
 # from .progress import progress_bar
 from .utils import (
-    sigmoid,
-    save_params, load_params,
-    load_data, save_data,
-    load_model, save_model,
+    load_data,
+    load_model,
+    load_params,
     num_input_nodes,
-    urlretrive
+    save_data,
+    save_model,
+    save_params,
+    sigmoid,
+    urlretrive,
 )

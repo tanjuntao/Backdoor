@@ -11,20 +11,21 @@ from linkefl.modelio import TorchModelIO
 
 
 class PassiveNeuralNetwork:
-    def __init__(self,
-                 epochs,
-                 batch_size,
-                 model,
-                 optimizer,
-                 messenger,
-                 crypto_type,
-                 logger,
-                 *,
-                 precision=0.001,
-                 random_state=None,
-                 saving_model=False,
-                 model_path='./models',
-                 model_name=None,
+    def __init__(
+        self,
+        epochs,
+        batch_size,
+        model,
+        optimizer,
+        messenger,
+        crypto_type,
+        logger,
+        *,
+        precision=0.001,
+        random_state=None,
+        saving_model=False,
+        model_path="./models",
+        model_name=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -39,11 +40,14 @@ class PassiveNeuralNetwork:
         self.saving_model = saving_model
         self.model_path = model_path
         if model_name is None:
-            self.model_name = "{time}-{role}-{model_type}".format(
-                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                role=Const.PASSIVE_NAME,
-                model_type=Const.VERTICAL_NN
-            ) + ".model"
+            self.model_name = (
+                "{time}-{role}-{model_type}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.PASSIVE_NAME,
+                    model_type=Const.VERTICAL_NN,
+                )
+                + ".model"
+            )
         else:
             self.model_name = model_name
 
@@ -52,10 +56,12 @@ class PassiveNeuralNetwork:
         return dataloader
 
     def train(self, trainset, testset):
-        assert isinstance(trainset, TorchDataset), 'trainset should be an instance ' \
-                                                   'of TorchDataset'
-        assert isinstance(testset, TorchDataset), 'testset should be an instance' \
-                                                  'of TorchDataset'
+        assert isinstance(
+            trainset, TorchDataset
+        ), "trainset should be an instance of TorchDataset"
+        assert isinstance(
+            testset, TorchDataset
+        ), "testset should be an instanceof TorchDataset"
         train_dataloader = self._init_dataloader(trainset)
         test_dataloader = self._init_dataloader(testset)
 
@@ -66,7 +72,7 @@ class PassiveNeuralNetwork:
                 outputs = self.model(X)
                 self.messenger.send(outputs.data)
 
-                grads = self.messenger.recv() # blocking
+                grads = self.messenger.recv()  # blocking
                 self.optimizer.zero_grad()
                 outputs.backward(grads)
                 self.optimizer.step()
@@ -74,24 +80,31 @@ class PassiveNeuralNetwork:
             self.validate(testset, existing_loader=test_dataloader)
             is_best = self.messenger.recv()
             if is_best:
-                print(colored('Best model updated.', 'red'))
+                print(colored("Best model updated.", "red"))
                 if self.saving_model:
-                    # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    # model_name = self.model_name + "-" + str(trainset.n_samples) + \
+                    #              "_samples" + ".model"
                     model_name = self.model_name
-                    TorchModelIO.save(self.model,
-                                      self.model_path,
-                                      model_name,
-                                      epoch=epoch,
-                                      optimizer=self.optimizer)
+                    TorchModelIO.save(
+                        self.model,
+                        self.model_path,
+                        model_name,
+                        epoch=epoch,
+                        optimizer=self.optimizer,
+                    )
             print(f"Epoch {epoch+1} finished.\n")
-        print(colored('Total training and validation time: {:.2f}'
-                      .format(time.time() - start_time), 'red'))
+        print(
+            colored(
+                "Total training and validation time: {:.2f}".format(
+                    time.time() - start_time
+                ),
+                "red",
+            )
+        )
 
     def validate(self, testset, existing_loader=None):
         scores = PassiveNeuralNetwork._validate_util(
-            testset, self.messenger,
-            model=self.model,
-            existing_loader=existing_loader
+            testset, self.messenger, model=self.model, existing_loader=existing_loader
         )
         return scores
 
@@ -110,10 +123,15 @@ class PassiveNeuralNetwork:
         #         pred = _messenger.recv() # pred for specific usage
 
     @staticmethod
-    def online_inference(dataset, messenger,
-                         model_arch, model_name, model_path='./models',
-                         optimizer_arch=None,
-                         infer_step=64):
+    def online_inference(
+        dataset,
+        messenger,
+        model_arch,
+        model_name,
+        model_path="./models",
+        optimizer_arch=None,
+        infer_step=64,
+    ):
         scores = PassiveNeuralNetwork._validate_util(
             dataset,
             messenger,
@@ -121,21 +139,30 @@ class PassiveNeuralNetwork:
             model_path=model_path,
             model_name=model_name,
             optimizer_arch=optimizer_arch,
-            infer_step=infer_step
+            infer_step=infer_step,
         )
         return scores
 
     @staticmethod
-    def _validate_util(dataset, messenger, *,
-                       model=None,
-                       model_arch=None, model_path='./models', model_name=None,
-                       optimizer_arch=None,
-                       existing_loader=None, infer_step=64):
-        assert isinstance(dataset, TorchDataset), 'dataset should be an instance ' \
-                                                  'of TorchDataset'
+    def _validate_util(
+        dataset,
+        messenger,
+        *,
+        model=None,
+        model_arch=None,
+        model_path="./models",
+        model_name=None,
+        optimizer_arch=None,
+        existing_loader=None,
+        infer_step=64,
+    ):
+        assert isinstance(
+            dataset, TorchDataset
+        ), "dataset should be an instance of TorchDataset"
         if model is None:
-            model, _, _ = TorchModelIO.load(model_arch, model_path, model_name,
-                                            optimizer_arch=optimizer_arch)
+            model, _, _ = TorchModelIO.load(
+                model_arch, model_path, model_name, optimizer_arch=optimizer_arch
+            )
         if existing_loader is None:
             dataloader = DataLoader(dataset, batch_size=infer_step, shuffle=False)
         else:
@@ -151,18 +178,18 @@ class PassiveNeuralNetwork:
         return scores
 
 
-if __name__ == '__main__':
-    from linkefl.common.factory import messenger_factory, logger_factory
+if __name__ == "__main__":
+    from linkefl.common.factory import logger_factory, messenger_factory
     from linkefl.util import num_input_nodes
     from linkefl.vfl.nn.model import PassiveBottomModel
 
     # 0. Set parameters
-    dataset_name = 'tab_mnist'
+    dataset_name = "tab_mnist"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
-    active_ip = 'localhost'
+    active_ip = "localhost"
     active_port = 20000
-    passive_ip = 'localhost'
+    passive_ip = "localhost"
     passive_port = 30000
     _epochs = 10
     _batch_size = 200
@@ -170,21 +197,25 @@ if __name__ == '__main__':
     _crypto_type = Const.PLAIN
 
     # 1. Load datasets
-    print('Loading dataset...')
-    passive_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                                    role=Const.PASSIVE_NAME,
-                                                    root='../data',
-                                                    train=True,
-                                                    download=True,
-                                                    passive_feat_frac=passive_feat_frac,
-                                                    feat_perm_option=feat_perm_option)
-    passive_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                                   role=Const.PASSIVE_NAME,
-                                                   root='../data',
-                                                   train=False,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+    print("Loading dataset...")
+    passive_trainset = TorchDataset.buildin_dataset(
+        dataset_name=dataset_name,
+        role=Const.PASSIVE_NAME,
+        root="../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+    passive_testset = TorchDataset.buildin_dataset(
+        dataset_name=dataset_name,
+        role=Const.PASSIVE_NAME,
+        root="../data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
     # passive_trainset = BuildinTorchDataset(dataset_name=dataset_name,
     #                                        role=Const.PASSIVE_NAME,
     #                                        train=True,
@@ -195,16 +226,18 @@ if __name__ == '__main__':
     #                                       train=False,
     #                                       passive_feat_frac=passive_feat_frac,
     #                                       feat_perm_option=feat_perm_option)
-    print('Done.')
+    print("Done.")
     # for epsilon dataset, scale() must be applied.
     # passive_trainset = scale(passive_trainset)
     # passive_testset = scale(passive_testset)
 
     # 2. Create PyTorch model and optimizer
-    input_nodes = num_input_nodes(dataset_name=dataset_name,
-                                  role=Const.PASSIVE_NAME,
-                                  passive_feat_frac=passive_feat_frac)
-    all_nodes = [input_nodes, 256, 128] # mnist & fashion_mnist
+    input_nodes = num_input_nodes(
+        dataset_name=dataset_name,
+        role=Const.PASSIVE_NAME,
+        passive_feat_frac=passive_feat_frac,
+    )
+    all_nodes = [input_nodes, 256, 128]  # mnist & fashion_mnist
     # all_nodes = [input_nodes, 15, 10] # criteo
     # all_nodes = [input_nodes, 10, 5] # avazu
     # all_nodes = [input_nodes, 20, 10] # census
@@ -215,30 +248,33 @@ if __name__ == '__main__':
     _optimizer = torch.optim.SGD(passive_bottom_model.parameters(), lr=_learning_rate)
 
     # 3. Initialize messenger
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
-                                   role=Const.PASSIVE_NAME,
-                                   active_ip=active_ip,
-                                   active_port=active_port,
-                                   passive_ip=passive_ip,
-                                   passive_port=passive_port)
-    _logger = logger_factory(role=Const.PASSIVE_NAME,
-                             writing_file=False,
-                             writing_http=False)
+    _messenger = messenger_factory(
+        messenger_type=Const.FAST_SOCKET,
+        role=Const.PASSIVE_NAME,
+        active_ip=active_ip,
+        active_port=active_port,
+        passive_ip=passive_ip,
+        passive_port=passive_port,
+    )
+    _logger = logger_factory(
+        role=Const.PASSIVE_NAME, writing_file=False, writing_http=False
+    )
 
     # 4. Initilize NN protocol and start training
-    passive_party = PassiveNeuralNetwork(epochs=_epochs,
-                                         batch_size=_batch_size,
-                                         model=passive_bottom_model,
-                                         optimizer=_optimizer,
-                                         messenger=_messenger,
-                                         crypto_type=_crypto_type,
-                                         logger=_logger,
-                                         saving_model=False)
+    passive_party = PassiveNeuralNetwork(
+        epochs=_epochs,
+        batch_size=_batch_size,
+        model=passive_bottom_model,
+        optimizer=_optimizer,
+        messenger=_messenger,
+        crypto_type=_crypto_type,
+        logger=_logger,
+        saving_model=False,
+    )
     passive_party.train(passive_trainset, passive_testset)
 
     # 5. Close messenger, finish training
     _messenger.close()
-
 
     # # For online inference
     # _scores = PassiveNeuralNetwork.online_inference(
@@ -249,4 +285,3 @@ if __name__ == '__main__':
     #     optimizer_arch=_optimizer
     # )
     # print(_scores)
-

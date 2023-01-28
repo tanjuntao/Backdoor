@@ -7,13 +7,13 @@ class BasePartialCryptoSystem(ABC):
         pass
 
     @abstractmethod
-    def encrypt_vector(self, plain_vector,
-                       using_pool=False, n_workers=None, pool=None):
+    def encrypt_vector(self, plain_vector, using_pool=False, n_workers=None, pool=None):
         pass
 
 
 class BaseCryptoSystem(ABC):
     """Base class of cryptosystem"""
+
     def __init__(self, key_size=1024):
         """Initialize a cryptosystem.
 
@@ -38,13 +38,13 @@ class BaseCryptoSystem(ABC):
         pass
 
     @abstractmethod
-    def encrypt_vector(self, plain_vector,
-                       using_pool=False, n_workers=None, pool=None):
+    def encrypt_vector(self, plain_vector, using_pool=False, n_workers=None, pool=None):
         """Encrypt a vector with more than one plaintext message"""
         pass
 
     @abstractmethod
-    def decrypt_vector(self, cipher_vector,
-                       using_pool=False, n_workers=None, pool=None):
+    def decrypt_vector(
+        self, cipher_vector, using_pool=False, n_workers=None, pool=None
+    ):
         """Decrypt a vector of ciphertext"""
         pass

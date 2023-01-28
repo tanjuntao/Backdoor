@@ -2,29 +2,29 @@ import copy
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.decomposition import PCA
 import torch
+from sklearn.decomposition import PCA
 
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 
 
-
 class PassiveConstrainedSeedKMeans:
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
 
-    def __init__(self,
-                 messenger,
-                 crypto_type,
-                 n_clusters=2,
-                 *,
-                 n_init=10,
-                 max_iter=30,
-                 tol=0.0001,
-                 verbose=False,
-                 invalide_label=-1,
-                 random_state=0,
-                 ):
+    def __init__(
+        self,
+        messenger,
+        crypto_type,
+        n_clusters=2,
+        *,
+        n_init=10,
+        max_iter=30,
+        tol=0.0001,
+        verbose=False,
+        invalide_label=-1,
+        random_state=0,
+    ):
         """Initialization a constrained seed kmeans estimator.
         Args:
             n_clusters: The number of clusters.
@@ -53,15 +53,18 @@ class PassiveConstrainedSeedKMeans:
     def _check_params(self, X_passive):
         """Check if the parameters of the algorithm and the inputs to it are valid."""
         if type(X_passive) not in (np.ndarray, torch.Tensor):
-            raise TypeError(f"Type of X_passive can only take numpy.ndarray and "
-                            f"torch.Tensor, but got {type(X_passive)} instead.")
+            raise TypeError(
+                "Type of X_passive can only take numpy.ndarray and "
+                f"torch.Tensor, but got {type(X_passive)} instead."
+            )
 
         if self.n_clusters > X_passive.shape[0]:
-            raise ValueError(f"The number of clusters mube be less than the "
-                             f"number of samples.")
+            raise ValueError(
+                "The number of clusters mube be less than the number of samples."
+            )
 
         if self.max_iter <= 0:
-            raise ValueError(f"The number of maximum iteration must larger than zero.")
+            raise ValueError("The number of maximum iteration must larger than zero.")
 
     def _init_centroids(self, X_passive):
         """Initialize cluster centers with little samples having label."""
@@ -71,32 +74,36 @@ class PassiveConstrainedSeedKMeans:
         elif type(X_passive) == torch.Tensor:
             pkg = torch
         else:
-            raise TypeError('Data type is not supported, please check it again.')
+            raise TypeError("Data type is not supported, please check it again.")
 
         n_seed_centroids = self.messenger.recv()
 
         if self.verbose:
-            print('file receive', n_seed_centroids)
+            print("file receive", n_seed_centroids)
 
         labeled_idxes = self.messenger.recv()
-           
-        centers_passive = pkg.empty((self.n_clusters, X_passive.shape[1]), dtype=X_passive.dtype)
+
+        centers_passive = pkg.empty(
+            (self.n_clusters, X_passive.shape[1]), dtype=X_passive.dtype
+        )
         # First, initialize seed centers using samples with label
         for i in range(n_seed_centroids):
             seed_samples = X_passive[labeled_idxes[i]]
             centers_passive[i] = seed_samples.mean(axis=0)
 
         if self.verbose:
-            print('centers_passive', centers_passive)
+            print("centers_passive", centers_passive)
 
         # # Then, initilize the remaining centers with random samples from X_passive
-        unlabel_idxes = self.messenger.recv() # np.where returns a tuple
+        unlabel_idxes = self.messenger.recv()  # np.where returns a tuple
         if self.verbose:
-            print('unlabeled index', unlabel_idxes)
+            print("unlabeled index", unlabel_idxes)
 
         if len(unlabel_idxes) < self.n_clusters - n_seed_centroids:
             np.random.seed(self.random_state)
-            idx = np.random.randint(X_passive.shape[0], size=self.n_clusters - n_seed_centroids)
+            idx = np.random.randint(
+                X_passive.shape[0], size=self.n_clusters - n_seed_centroids
+            )
 
             for i in range(n_seed_centroids, self.n_clusters):
                 centers_passive[i] = X_passive[idx[i - n_seed_centroids]]
@@ -107,7 +114,7 @@ class PassiveConstrainedSeedKMeans:
                 centers_passive[i] = X_passive[idx]
 
         if self.verbose:
-            print('final passive centers:', centers_passive)
+            print("final passive centers:", centers_passive)
 
         return centers_passive
 
@@ -116,7 +123,7 @@ class PassiveConstrainedSeedKMeans:
         # indices = copy.copy(y)
         # if type(indices) == list:
         #     indices = np.array(indices)
-        n_samples, n_features = X_passive.shape[0], X_passive.shape[1]
+        n_samples = X_passive.shape[0]
         cur_centers = init_centers_passive
         new_centers_passive = copy.deepcopy(init_centers_passive)
 
@@ -134,7 +141,10 @@ class PassiveConstrainedSeedKMeans:
                 # print(i)
 
                 # if type(X_passive) == np.ndarray:
-                #     min_idx = np.linalg.norm(cur_centers - X_passive[i], axis=1).argmin()
+                #     min_idx = np.linalg.norm(
+                #         cur_centers - X_passive[i],
+                #         axis=1
+                #     ).argmin()
                 # else:
                 #     min_idx = torch.norm(cur_centers - X_passive[i], dim=1).argmin()
                 # indices[i] = min_idx
@@ -156,7 +166,9 @@ class PassiveConstrainedSeedKMeans:
                 # a sample from X_passive.
                 if passive_cluster_samples.shape[0] == 0:
                     np.random.seed(self.random_state)
-                    new_centers_passive[i] = X_passive[np.random.choice(n_samples, 1, replace=False)]
+                    new_centers_passive[i] = X_passive[
+                        np.random.choice(n_samples, 1, replace=False)
+                    ]
                 else:
                     new_centers_passive[i] = passive_cluster_samples.mean(axis=0)
 
@@ -164,29 +176,43 @@ class PassiveConstrainedSeedKMeans:
             inertia_passive = 0
             for i in range(self.n_clusters):
                 if type(X_passive) == np.ndarray:
-                    inertia_passive += np.linalg.norm(X_passive[indices == i] - new_centers_passive[i], axis=1).sum()
+                    inertia_passive += np.linalg.norm(
+                        X_passive[indices == i] - new_centers_passive[i], axis=1
+                    ).sum()
                 else:
-                    inertia_passive += torch.norm(X_passive[indices == i] - new_centers_passive[i], dim=1).sum().item()
+                    inertia_passive += (
+                        torch.norm(
+                            X_passive[indices == i] - new_centers_passive[i], dim=1
+                        )
+                        .sum()
+                        .item()
+                    )
 
             self.messenger.send(inertia_passive)
 
             # if self.verbose:
-            #     print('Iteration {}, inertia_passive: {}'.format(iter_, inertia_passive))
+            #     print('Iteration {}, inertia_passive: {}'
+            #           .format(iter_, inertia_passive))
 
             # Check if KMeans converges
             if type(X_passive) == np.ndarray:
-                difference_passive = np.linalg.norm(new_centers_passive - cur_centers, ord='fro')
+                difference_passive = np.linalg.norm(
+                    new_centers_passive - cur_centers, ord="fro"
+                )
             else:
-                difference_passive = torch.norm(new_centers_passive - cur_centers, p='fro')
+                difference_passive = torch.norm(
+                    new_centers_passive - cur_centers, p="fro"
+                )
 
             self.messenger.send(difference_passive)
 
             if difference_passive < self.tol:
                 if self.verbose:
-                    print('Converged at iteration {}.\n'.format(iter_))
+                    print("Converged at iteration {}.\n".format(iter_))
                 break
 
-            # ATTENSION: Avoid using direct assignment like cur_centers = new_centers_passive
+            # ATTENSION: Avoid using direct assignment
+            # like cur_centers = new_centers_passive
             # This will cause cur_centers and new_cneters to point at the same
             # object in the memory. To fix this, you must create a new object.
             cur_centers = copy.deepcopy(new_centers_passive)
@@ -203,20 +229,19 @@ class PassiveConstrainedSeedKMeans:
         Returns:
             self: The estimator itself.
         """
-        self.messenger.send('start signal.')
+        self.messenger.send("start signal.")
         self._check_params(X_passive)
 
         self.n_init = self.messenger.recv()
 
         # run constrained seed KMeans n_init times in order to choose the best one
-        best_inertia = None
         best_centers_passive = None
         for i in range(self.n_init):
             init_centers_passive = self._init_centroids(X_passive)
             if self.verbose:
-                print('Initialization complete')
+                print("Initialization complete")
             new_centers_passive, indices = self._kmeans(X_passive, init_centers_passive)
-            if self.messenger.recv() == True:
+            if self.messenger.recv() is True:
                 best_centers_passive = new_centers_passive
 
         self.cluster_centers_passive_ = best_centers_passive
@@ -236,9 +261,13 @@ class PassiveConstrainedSeedKMeans:
 
         for i in range(n_samples):
             if type(X_passive) == np.ndarray:
-                min_norm_passive = np.linalg.norm(self.cluster_centers_passive_ - X_passive[i], axis=1)
+                min_norm_passive = np.linalg.norm(
+                    self.cluster_centers_passive_ - X_passive[i], axis=1
+                )
             else:
-                min_norm_passive = torch.norm(self.cluster_centers_passive_ - X_passive[i], dim=1)
+                min_norm_passive = torch.norm(
+                    self.cluster_centers_passive_ - X_passive[i], dim=1
+                )
             self.messenger.send(min_norm_passive)
 
         self.indices = self.messenger.recv()
@@ -269,10 +298,14 @@ class PassiveConstrainedSeedKMeans:
         output_passive = pkg.empty((n_samples, self.n_clusters), dtype=X_passive.dtype)
         for i in range(n_samples):
             if type(X_passive) == np.ndarray:
-                output_passive[i] = np.linalg.norm(self.cluster_centers_passive_ - X_passive[i], axis=1)
+                output_passive[i] = np.linalg.norm(
+                    self.cluster_centers_passive_ - X_passive[i], axis=1
+                )
             else:
-                output_passive[i] = torch.norm(self.cluster_centers_passive_ - X_passive[i], dim=1)
-            
+                output_passive[i] = torch.norm(
+                    self.cluster_centers_passive_ - X_passive[i], dim=1
+                )
+
         self.messenger.send(output_passive)
 
         return output_passive
@@ -288,14 +321,19 @@ class PassiveConstrainedSeedKMeans:
 
         for i in range(n_samples):
             if type(X_passive) == np.ndarray:
-                interia_passive += np.linalg.norm(self.cluster_centers_passive_ - X_passive[i], axis=1).min()
+                interia_passive += np.linalg.norm(
+                    self.cluster_centers_passive_ - X_passive[i], axis=1
+                ).min()
             else:
-                interia_passive += torch.norm(self.cluster_centers_passive_ - X_passive[i], dim=1).min().item()
+                interia_passive += (
+                    torch.norm(self.cluster_centers_passive_ - X_passive[i], dim=1)
+                    .min()
+                    .item()
+                )
 
         self.messenger.send(interia_passive)
 
         return -1 * interia_passive
-
 
 
 def plot(X_passive, estimator, color_num, name):
@@ -303,70 +341,80 @@ def plot(X_passive, estimator, color_num, name):
     import seaborn as sns
 
     df = pd.DataFrame()
-    df['dim1'] = X_passive[:, 0]
-    df['dim2'] = X_passive[:, 1]
-    if name == 'sklearn_kmeans':
-        df['y'] = estimator.labels_
+    df["dim1"] = X_passive[:, 0]
+    df["dim2"] = X_passive[:, 1]
+    if name == "sklearn_kmeans":
+        df["y"] = estimator.labels_
     else:
-        df['y'] = estimator.indices
+        df["y"] = estimator.indices
     plt.close()
     plt.xlim(-0.3, 0.3)
     plt.ylim(-0.1, 0.1)
-    sns.scatterplot(x='dim1', y='dim2', hue=df.y.tolist(),
-                    palette=sns.color_palette('hls', color_num), data=df)
+    sns.scatterplot(
+        x="dim1",
+        y="dim2",
+        hue=df.y.tolist(),
+        palette=sns.color_palette("hls", color_num),
+        data=df,
+    )
     # plt.show()
-    plt.savefig('./{}.png'.format(name))
+    plt.savefig("./{}.png".format(name))
 
 
-
-
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     from linkefl.common.factory import messenger_factory
 
-    active_ip = 'localhost'
+    active_ip = "localhost"
     active_port = 20001
-    passive_ip = 'localhost'
+    passive_ip = "localhost"
     passive_port = 30001
 
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
-                                   role=Const.PASSIVE_NAME,
-                                   active_ip=active_ip,
-                                   active_port=active_port,
-                                   passive_ip=passive_ip,
-                                   passive_port=passive_port)
+    _messenger = messenger_factory(
+        messenger_type=Const.FAST_SOCKET,
+        role=Const.PASSIVE_NAME,
+        active_ip=active_ip,
+        active_port=active_port,
+        passive_ip=passive_ip,
+        passive_port=passive_port,
+    )
 
-
-    dataset_name = 'epsilon'
+    dataset_name = "epsilon"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
 
-    passive_trainset = NumpyDataset.buildin_dataset(dataset_name=dataset_name,
-                                                   role=Const.PASSIVE_NAME,
-                                                   root='../data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option,
-                                                   seed=_random_state)
+    passive_trainset = NumpyDataset.buildin_dataset(
+        dataset_name=dataset_name,
+        role=Const.PASSIVE_NAME,
+        root="../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+        seed=_random_state,
+    )
 
     print(passive_trainset.features.shape)
 
     X_passive = passive_trainset.features
 
     n_cluster = 3
-    passive = PassiveConstrainedSeedKMeans(messenger=_messenger, crypto_type=None, n_clusters=n_cluster, n_init=10, verbose=False)
+    passive = PassiveConstrainedSeedKMeans(
+        messenger=_messenger,
+        crypto_type=None,
+        n_clusters=n_cluster,
+        n_init=10,
+        verbose=False,
+    )
 
     passive.fit_predict(X_passive)
 
     passive.score(X_passive)
 
-    pca_passive = PCA(n_components=2) 
+    pca_passive = PCA(n_components=2)
     pca_passive.fit(X_passive)
     X_passive_projection = pca_passive.transform(X_passive)
 
-    plot(X_passive_projection, passive, color_num = n_cluster, name='passive_kmeans')
+    plot(X_passive_projection, passive, color_num=n_cluster, name="passive_kmeans")
 
-    print('X_passive_projection', X_passive_projection[0:10, :])
-
+    print("X_passive_projection", X_passive_projection[0:10, :])

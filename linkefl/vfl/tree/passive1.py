@@ -1,10 +1,13 @@
 import pandas as pd
 
 from linkefl.common.const import Const
-from linkefl.common.factory import messenger_factory, messenger_factory_disconnection, logger_factory
+from linkefl.common.factory import (
+    logger_factory,
+    messenger_factory,
+    messenger_factory_disconnection,
+)
 from linkefl.dataio import NumpyDataset
 from linkefl.vfl.tree import PassiveTreeParty
-
 
 if __name__ == "__main__":
     # 0. Set parameters
@@ -23,20 +26,24 @@ if __name__ == "__main__":
 
     # 1. Load datasets
     print("Loading dataset...")
-    passive_trainset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
-                                                    dataset_name=dataset_name,
-                                                    root='../data',
-                                                    train=True,
-                                                    download=True,
-                                                    passive_feat_frac=passive_feat_frac,
-                                                    feat_perm_option=feat_perm_option)
-    passive_testset = NumpyDataset.buildin_dataset(role=Const.PASSIVE_NAME,
-                                                   dataset_name=dataset_name,
-                                                   root='../data',
-                                                   train=False,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
+    passive_trainset = NumpyDataset.buildin_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_name=dataset_name,
+        root="../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+    passive_testset = NumpyDataset.buildin_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_name=dataset_name,
+        root="../data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
     passive_trainset, _ = NumpyDataset.feature_split(passive_trainset, 2)
     passive_testset, _ = NumpyDataset.feature_split(passive_testset, 2)
     # passive_trainset = NumpyDataset.feature_split(passive_trainset, 1)
@@ -77,7 +84,9 @@ if __name__ == "__main__":
 
     passive_party.train(passive_trainset, passive_testset)
 
-    feature_importance_info = pd.DataFrame(passive_party.feature_importances_(importance_type='cover'))
+    feature_importance_info = pd.DataFrame(
+        passive_party.feature_importances_(importance_type="cover")
+    )
     print(feature_importance_info)
 
     # passive_party.online_inference(passive_testset, "xxx.model")

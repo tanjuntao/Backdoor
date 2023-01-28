@@ -1,5 +1,6 @@
 import os
 import random
+
 import numpy as np
 
 
@@ -11,7 +12,9 @@ def _find_bin(vec, max_bin):
     sorted_vec = np.sort(vec)
 
     bin_data_rate = 1 / max_bin
-    bin_last_pos = [sorted_vec[int((i + 1) * bin_data_rate * len(vec)) - 1] for i in range(max_bin)]
+    bin_last_pos = [
+        sorted_vec[int((i + 1) * bin_data_rate * len(vec)) - 1] for i in range(max_bin)
+    ]
     vec_bin_end = np.unique(bin_last_pos)
 
     vec_bin_index = np.empty_like(vec, dtype=int)
@@ -33,8 +36,10 @@ def get_bin_info(x_train, max_bin):
         max_bin: max bin number for a feature point
 
     Returns:
-        bin_index: bin index of each feature point in the complete feature hist (a column)，size = sample * feature
-        bin_split: split point in the complete feature hist (a column)，size = feature * bin_of_this_feature
+        bin_index: bin index of each feature point in the
+            complete feature hist (a column)，size = sample * feature
+        bin_split: split point in the
+            complete feature hist (a column)，size = feature * bin_of_this_feature
     """
 
     bin_index = np.empty_like(x_train, dtype=int)
@@ -43,10 +48,12 @@ def get_bin_info(x_train, max_bin):
         # find hist for each feature point
         bin_index[:, i], bin_split[i] = _find_bin(x_train[:, i], max_bin)
 
-    # fill the empty place in bin_split to solve the influence of different bin_num (seems no influence right now)
+    # fill the empty place in bin_split to solve the influence of different
+    # bin_num (seems no influence right now)
     # bin_split = np.array(list(itertools.zip_longest(*bin_split, fillvalue=None))).T
 
     return bin_index, bin_split
+
 
 def random_sampling(grad, hess, sample_rate):
     """
@@ -86,14 +93,18 @@ def goss_sampling(grad, hess, top_rate, other_rate):
         abs_g_sum_arr = np.abs(grad)
 
     # abs_g_list_arr = g_sum_arr
-    sorted_idx = np.argsort(-abs_g_sum_arr, kind='stable')  # stable sample result
+    sorted_idx = np.argsort(-abs_g_sum_arr, kind="stable")  # stable sample result
 
     sample_num = len(abs_g_sum_arr)
     a_part_num = int(sample_num * top_rate)
     b_part_num = int(sample_num * other_rate)
 
     if a_part_num == 0 or b_part_num == 0:
-        raise ValueError('subsampled result is 0: top sample {}, other sample {}'.format(a_part_num, b_part_num))
+        raise ValueError(
+            "subsampled result is 0: top sample {}, other sample {}".format(
+                a_part_num, b_part_num
+            )
+        )
 
     # index of a part
     a_sample_idx = sorted_idx[:a_part_num]
@@ -121,6 +132,7 @@ def goss_sampling(grad, hess, top_rate, other_rate):
 def wrap_message(name, *, content):
     return {"name": name, "content": content}
 
+
 def get_latest_filename(filedir):
     if os.path.exists(filedir):
         file_list = os.listdir(filedir)
@@ -128,8 +140,9 @@ def get_latest_filename(filedir):
         raise ValueError("not exist filedir.")
 
     # sort by create time
-    file_list.sort(key=lambda fn:os.path.getmtime(os.path.join(filedir, fn)))
+    file_list.sort(key=lambda fn: os.path.getmtime(os.path.join(filedir, fn)))
     return file_list[-1]
+
 
 # def _greedy_find_bin(vec, max_bin):
 #     """传入 feature，返回每个值所在 bin 编号和划分点
@@ -226,7 +239,9 @@ def get_latest_filename(filedir):
 #                 is_big_count_value[i]
 #                 or cur_cnt_bin >= mean_bin_size
 #                 or i == len(distinct_vec) - 1
-#                 or (is_big_count_value[i + 1] and cur_cnt_bin >= max(1, mean_bin_size / 2))
+#                 or (is_big_count_value[i + 1]
+#                     and cur_cnt_bin >= max(1, mean_bin_size / 2)
+#                 )
 #             ):
 #                 vec_bin_end.append(data)
 #                 cur_cnt_bin = 0

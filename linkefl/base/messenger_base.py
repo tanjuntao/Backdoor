@@ -6,6 +6,7 @@ class BaseMessenger(ABC):
 
     Messenger provides sending and receiving APIs for communication.
     """
+
     @abstractmethod
     def send(self, msg):
         """Send message."""

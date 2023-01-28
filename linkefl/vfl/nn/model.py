@@ -1,28 +1,28 @@
-from typing import Type, Union, Callable
+from typing import Callable, Type, Union
 
 import torch.random
-from torch import nn
-from torch import Tensor
+from torch import Tensor, nn
 
 ModuleType = Union[str, Callable[..., nn.Module]]
 
 
 class MLPModel(nn.Module):
-    def __init__(self,
-                 num_nodes,
-                 activation='relu',
-                 activate_input=False,
-                 activate_output=False,
-                 random_state=None
-        ):
+    def __init__(
+        self,
+        num_nodes,
+        activation="relu",
+        activate_input=False,
+        activate_output=False,
+        random_state=None,
+    ):
         super(MLPModel, self).__init__()
-        assert activation in ('relu',), f"{activation} is not supported now."
+        assert activation in ("relu",), f"{activation} is not supported now."
         if random_state is not None:
             torch.random.manual_seed(random_state)
         modules = []
         n_layers = len(num_nodes) - 1
         for i in range(n_layers):
-            modules.append(nn.Linear(num_nodes[i], num_nodes[i+1]))
+            modules.append(nn.Linear(num_nodes[i], num_nodes[i + 1]))
             modules.append(nn.ReLU())
         if activate_input:
             modules.insert(0, nn.ReLU())
@@ -41,15 +41,15 @@ def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:
             cls = getattr(nn, module_type)
         except AttributeError as err:
             raise ValueError(
-                    f'Failed to construct the module {module_type} with the arguments {args}'
-                ) from err
+                f"Failed to construct the module {module_type} with the arguments"
+                f" {args}"
+            ) from err
         return cls(*args)
     else:
         return module_type(*args)
 
 
 class ResNet(nn.Module):
-
     class Block(nn.Module):
         """The main building block of `ResNet`."""
 
@@ -170,17 +170,17 @@ class ResNet(nn.Module):
     #     d_out: int,
     # ) -> 'ResNet':
 
-        # return cls(
-        #     d_in=d_in,
-        #     n_blocks=n_blocks,
-        #     d_main=d_main,
-        #     d_hidden=d_hidden,
-        #     dropout_first=dropout_first,
-        #     dropout_second=dropout_second,
-        #     normalization='BatchNorm1d',
-        #     activation='ReLU',
-        #     d_out=d_out,
-        # )
+    # return cls(
+    #     d_in=d_in,
+    #     n_blocks=n_blocks,
+    #     d_main=d_main,
+    #     d_hidden=d_hidden,
+    #     dropout_first=dropout_first,
+    #     dropout_second=dropout_second,
+    #     normalization='BatchNorm1d',
+    #     activation='ReLU',
+    #     d_out=d_out,
+    # )
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.first_layer(x)
@@ -196,7 +196,7 @@ class CutLayer(nn.Module):
         self.out_nodes = out_nodes
         if random_state is not None:
             torch.random.manual_seed(random_state)
-        self.linear = nn.Linear(in_nodes, out_nodes) # no activation
+        self.linear = nn.Linear(in_nodes, out_nodes)  # no activation
 
     def forward(self, x):
         outputs = self.linear(x)
@@ -205,11 +205,13 @@ class CutLayer(nn.Module):
 
 class BottomModel(nn.Module):
     """Bottom model base class."""
+
     def __init__(self, num_nodes: list):
         """Initialize model.
 
         Args:
-            num_nodes[List]: number of neurons of each layer of RSAPSIPassive's MLP model.
+            num_nodes[List]: number of neurons of each layer
+                of passive party's MLP model.
         """
         super(BottomModel, self).__init__()
 
@@ -226,6 +228,7 @@ class BottomModel(nn.Module):
 
 class PassiveBottomModel(BottomModel):
     """RSAPSIPassive bottom model arthitecture."""
+
     def __init__(self, num_nodes: list):
         super(PassiveBottomModel, self).__init__(num_nodes)
 
@@ -236,6 +239,7 @@ class PassiveBottomModel(BottomModel):
 
 class ActiveBottomModel(BottomModel):
     """RSAPSIActive bottom model architecture."""
+
     def __init__(self, num_nodes: list):
         super(ActiveBottomModel, self).__init__(num_nodes)
 
@@ -246,6 +250,7 @@ class ActiveBottomModel(BottomModel):
 
 class IntersectionModel(nn.Module):
     """Intersection model arthitecture."""
+
     def __init__(self, num_nodes):
         """Initialize intersection model.
 
@@ -268,6 +273,7 @@ class IntersectionModel(nn.Module):
 
 class TopModel(nn.Module):
     """Top model arthitecture."""
+
     def __init__(self, num_nodes):
         super(TopModel, self).__init__()
         modules = []
@@ -284,6 +290,7 @@ class TopModel(nn.Module):
 
 class SubstituteModel(TopModel):
     """RSAPSIPassive's local substitute model architecture."""
+
     def __init__(self, num_nodes, alice_bottom_model, fine_tuning=False):
         super(SubstituteModel, self).__init__(num_nodes)
         self.alice_bottom_model = alice_bottom_model

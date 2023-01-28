@@ -9,7 +9,11 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, messenger_factory, partial_crypto_factory
+from linkefl.common.factory import (
+    crypto_factory,
+    messenger_factory,
+    partial_crypto_factory,
+)
 from linkefl.config import BaseConfig
 from linkefl.crypto.paillier import cipher_matmul, encode
 from linkefl.dataio import NumpyDataset
@@ -25,7 +29,7 @@ class BaseLinear(ABC):
         if self.random_state is not None:
             np.random.seed(self.random_state)
         else:
-            np.random.seed(None) # explicitly set the seed to None
+            np.random.seed(None)  # explicitly set the seed to None
         params = np.random.normal(0, 1.0, size)
         return params
 
@@ -34,7 +38,7 @@ class BaseLinear(ABC):
 
     @classmethod
     def from_config(cls, config):
-        raise NotImplementedError('should not call abstract class method')
+        raise NotImplementedError("should not call abstract class method")
 
     @abstractmethod
     def _sync_pubkey(self):
@@ -58,26 +62,27 @@ class BaseLinear(ABC):
 
 
 class BaseLinearPassive(BaseLinear):
-    def __init__(self,
-                 epochs,
-                 batch_size,
-                 learning_rate,
-                 messenger,
-                 crypto_type,
-                 logger,
-                 *,
-                 rank=1,
-                 penalty=Const.L2,
-                 reg_lambda=0.01,
-                 precision=0.001,
-                 random_state=None,
-                 using_pool=False,
-                 num_workers=-1,
-                 val_freq=1,
-                 saving_model=False,
-                 model_path='./models',
-                 model_name=None,
-                 task='classification',
+    def __init__(
+        self,
+        epochs,
+        batch_size,
+        learning_rate,
+        messenger,
+        crypto_type,
+        logger,
+        *,
+        rank=1,
+        penalty=Const.L2,
+        reg_lambda=0.01,
+        precision=0.001,
+        random_state=None,
+        using_pool=False,
+        num_workers=-1,
+        val_freq=1,
+        saving_model=False,
+        model_path="./models",
+        model_name=None,
+        task="classification",
     ):
         super(BaseLinearPassive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -95,55 +100,67 @@ class BaseLinearPassive(BaseLinear):
             if num_workers == -1:
                 num_workers = os.cpu_count()
             self.executor_pool = multiprocessing.pool.ThreadPool(num_workers)
-            self.scheduler_pool = multiprocessing.pool.ThreadPool(8) # fix n_threads to 8
+            self.scheduler_pool = multiprocessing.pool.ThreadPool(
+                8
+            )  # fix n_threads to 8
         else:
             self.executor_pool = None
             self.scheduler_pool = None
         self.val_freq = val_freq
         self.saving_model = saving_model
         self.model_path = model_path
-        model_type = Const.VERTICAL_LOGREG if task=='classification' else Const.VERTICAL_LINREG
+        model_type = (
+            Const.VERTICAL_LOGREG if task == "classification" else Const.VERTICAL_LINREG
+        )
         if model_name is None:
-            model_name = "{time}-{role}-{model_type}".format(
-                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                role=Const.PASSIVE_NAME + str(rank),
-                model_type=model_type
-            ) + ".model"
+            model_name = (
+                "{time}-{role}-{model_type}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.PASSIVE_NAME + str(rank),
+                    model_type=model_type,
+                )
+                + ".model"
+            )
         self.model_name = model_name
         self.logger = logger
 
     @classmethod
     def from_config(cls, config):
-        assert isinstance(config, BaseConfig), 'config object should be an ' \
-                                               'instance of BaseConfig class.'
+        assert isinstance(
+            config, BaseConfig
+        ), "config object should be an instance of BaseConfig class."
         # initialize messenger
-        messenger = messenger_factory(messenger_type=config.MESSENGER_TYPE,
-                                      role=config.ROLE,
-                                      active_ip=config.ACTIVE_IP,
-                                      active_port=config.ACTIVE_PORT,
-                                      passive_ip=config.PASSIVE_IP,
-                                      passive_port=config.PASSIVE_PORT,
-                                      verbose=config.VERBOSE)
+        messenger = messenger_factory(
+            messenger_type=config.MESSENGER_TYPE,
+            role=config.ROLE,
+            active_ip=config.ACTIVE_IP,
+            active_port=config.ACTIVE_PORT,
+            passive_ip=config.PASSIVE_IP,
+            passive_port=config.PASSIVE_PORT,
+            verbose=config.VERBOSE,
+        )
 
-        return cls(epochs=config.EPOCHS,
-                   batch_size=config.BATCH_SIZE,
-                   learning_rate=config.LEARNING_RATE,
-                   messenger=messenger,
-                   crypto_type=config.CRYPTO_TYPE,
-                   penalty=config.PENALTY,
-                   reg_lambda=config.REG_LAMBDA,
-                   precision=config.PRECISION,
-                   random_state=config.RANDOM_STATE,
-                   using_pool=config.USING_POOL,
-                   num_workers=config.NUM_WORKERS,
-                   val_freq=config.VAL_FREQ)
+        return cls(
+            epochs=config.EPOCHS,
+            batch_size=config.BATCH_SIZE,
+            learning_rate=config.LEARNING_RATE,
+            messenger=messenger,
+            crypto_type=config.CRYPTO_TYPE,
+            penalty=config.PENALTY,
+            reg_lambda=config.REG_LAMBDA,
+            precision=config.PRECISION,
+            random_state=config.RANDOM_STATE,
+            using_pool=config.USING_POOL,
+            num_workers=config.NUM_WORKERS,
+            val_freq=config.VAL_FREQ,
+        )
 
     def _sync_pubkey(self):
-        self.logger.log('[PASSIVE] Requesting publie key...')
+        self.logger.log("[PASSIVE] Requesting publie key...")
         signal = Const.START_SIGNAL
         self.messenger.send(signal)
         public_key = self.messenger.recv()
-        self.logger.log('[PASSIVE] Done!')
+        self.logger.log("[PASSIVE] Done!")
         return public_key
 
     def _gradient(self, enc_residue, batch_idxes, executor_pool, scheduler_pool):
@@ -152,14 +169,11 @@ class BaseLinearPassive(BaseLinear):
             enc_train_grad = self._grad(enc_residue, batch_idxes)
         else:
             enc_train_grad = self._grad_pool(
-                enc_residue,
-                batch_idxes,
-                executor_pool,
-                scheduler_pool
+                enc_residue, batch_idxes, executor_pool, scheduler_pool
             )
 
         # compute gradient of regularization term
-        params = getattr(self, 'params')
+        params = getattr(self, "params")
         if self.penalty == Const.NONE:
             reg_grad = np.zeros(len(params))
         elif self.penalty == Const.L1:
@@ -167,20 +181,22 @@ class BaseLinearPassive(BaseLinear):
         elif self.penalty == Const.L2:
             reg_grad = self.reg_lambda * params
         else:
-            raise ValueError('Regularization method not supported now.')
-        enc_reg_grad = np.array(getattr(self, 'cryptosystem').encrypt_vector(reg_grad))
+            raise ValueError("Regularization method not supported now.")
+        enc_reg_grad = np.array(getattr(self, "cryptosystem").encrypt_vector(reg_grad))
 
         return enc_train_grad + enc_reg_grad
 
     def _grad(self, enc_residue, batch_idxes):
         if self.crypto_type == Const.PLAIN:
             # using x_train if crypto type is PLAIN
-            enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
-                                   getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
+            enc_train_grad = -1 * (
+                enc_residue[:, np.newaxis] * getattr(self, "x_train")[batch_idxes]
+            ).mean(axis=0)
         else:
             # using x_encode if crypto type is Paillier or FastPaillier
-            enc_train_grad = -1 * (enc_residue[:, np.newaxis] *
-                                   getattr(self, 'x_encode')[batch_idxes]).mean(axis=0)
+            enc_train_grad = -1 * (
+                enc_residue[:, np.newaxis] * getattr(self, "x_encode")[batch_idxes]
+            ).mean(axis=0)
 
         return enc_train_grad
 
@@ -188,12 +204,14 @@ class BaseLinearPassive(BaseLinear):
         if self.crypto_type == Const.PLAIN:
             raise RuntimeError("you should not use pool when crypto type is Plain.")
 
-        x_encode = getattr(self, 'x_encode')
+        x_encode = getattr(self, "x_encode")
         enc_train_grad = cipher_matmul(
-            cipher_matrix=enc_residue[np.newaxis, :], # remember to add an addition axis
+            cipher_matrix=enc_residue[
+                np.newaxis, :
+            ],  # remember to add an addition axis
             plain_matrix=x_encode[batch_idxes],
             executor_pool=executor_pool,
-            scheduler_pool=scheduler_pool
+            scheduler_pool=scheduler_pool,
         )
         # don't forget to multiply (-1/bs) to average the gradients
         enc_train_grad = (-1 / len(batch_idxes)) * enc_train_grad.flatten()
@@ -213,34 +231,38 @@ class BaseLinearPassive(BaseLinear):
         return true_grad
 
     def train(self, trainset, testset):
-        assert isinstance(trainset, NumpyDataset), 'trainset should be an instance ' \
-                                                   'of NumpyDataset'
-        assert isinstance(testset, NumpyDataset), 'testset should be an instance' \
-                                                  'of NumpyDataset'
-        setattr(self, 'x_train', trainset.features)
-        setattr(self, 'x_val', testset.features)
+        assert isinstance(
+            trainset, NumpyDataset
+        ), "trainset should be an instance of NumpyDataset"
+        assert isinstance(
+            testset, NumpyDataset
+        ), "testset should be an instanceof NumpyDataset"
+        setattr(self, "x_train", trainset.features)
+        setattr(self, "x_val", testset.features)
         # init model parameters
         params = self._init_weights(trainset.n_features)
-        setattr(self, 'params', params)
+        setattr(self, "params", params)
 
         # obtain public key from active party and init cryptosystem
         public_key = self._sync_pubkey()
-        cryptosystem = partial_crypto_factory(crypto_type=self.crypto_type,
-                                              public_key=public_key,
-                                              num_enc_zeros=10,
-                                              gen_from_set=False)
-        setattr(self, 'cryptosystem', cryptosystem)
+        cryptosystem = partial_crypto_factory(
+            crypto_type=self.crypto_type,
+            public_key=public_key,
+            num_enc_zeros=10,
+            gen_from_set=False,
+        )
+        setattr(self, "cryptosystem", cryptosystem)
 
         # encode the training dataset if the crypto type belongs to Paillier family
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            print('encoding dataset...')
+            print("encoding dataset...")
             x_encode = encode(
-                raw_data=getattr(self, 'x_train'),
+                raw_data=getattr(self, "x_train"),
                 raw_pub_key=public_key,
-                precision=self.precision
+                precision=self.precision,
             )
-            print('Done!')
-            setattr(self, 'x_encode', x_encode)
+            print("Done!")
+            setattr(self, "x_encode", x_encode)
 
         bs = self.batch_size if self.batch_size != -1 else trainset.n_samples
         n_samples = trainset.n_samples
@@ -251,9 +273,9 @@ class BaseLinearPassive(BaseLinear):
 
         commu_plus_compu_time = 0
         # Main Training Loop Here
-        self.logger.log('Start collaborative model training...')
+        self.logger.log("Start collaborative model training...")
         for epoch in range(self.epochs):
-            self.logger.log('Epoch: {}'.format(epoch))
+            self.logger.log("Epoch: {}".format(epoch))
             all_idxes = np.arange(n_samples)
             np.random.seed(epoch)
             np.random.shuffle(all_idxes)
@@ -265,7 +287,9 @@ class BaseLinearPassive(BaseLinear):
                 batch_idxes = all_idxes[start:end]
 
                 # Calculate wx and send it to active party
-                wx = np.matmul(getattr(self, 'x_train')[batch_idxes], getattr(self, 'params'))
+                wx = np.matmul(
+                    getattr(self, "x_train")[batch_idxes], getattr(self, "params")
+                )
                 _begin = time.time()
                 self.messenger.send(wx)
 
@@ -273,10 +297,7 @@ class BaseLinearPassive(BaseLinear):
                 enc_residue = self.messenger.recv()
                 commu_plus_compu_time += time.time() - _begin
                 enc_grad = self._gradient(
-                    enc_residue,
-                    batch_idxes,
-                    self.executor_pool,
-                    self.scheduler_pool
+                    enc_residue, batch_idxes, self.executor_pool, self.scheduler_pool
                 )
                 enc_mask_grad, perm = BaseLinearPassive._mask_grad(enc_grad)
                 _begin = time.time()
@@ -286,7 +307,7 @@ class BaseLinearPassive(BaseLinear):
                 mask_grad = self.messenger.recv()
                 true_grad = BaseLinearPassive._unmask_grad(mask_grad, perm)
                 commu_plus_compu_time += time.time() - _begin
-                self._gradient_descent(getattr(self, 'params'), true_grad)
+                self._gradient_descent(getattr(self, "params"), true_grad)
 
             # validate the performance of the current model
             if epoch % self.val_freq == 0:
@@ -294,11 +315,14 @@ class BaseLinearPassive(BaseLinear):
                 is_best = self.messenger.recv()
                 if is_best:
                     # save_params(self.params, role=Const.PASSIVE_NAME)
-                    self.logger.log('Best model updates.')
+                    self.logger.log("Best model updates.")
                     if self.saving_model:
-                        # the use of deepcopy here is to avoid saving other self attrbiutes
-                        model_params = copy.deepcopy(getattr(self, 'params'))
-                        NumpyModelIO.save(model_params, self.model_path, self.model_name)
+                        # the use of deepcopy here
+                        # is to avoid saving other self attrbiutes
+                        model_params = copy.deepcopy(getattr(self, "params"))
+                        NumpyModelIO.save(
+                            model_params, self.model_path, self.model_name
+                        )
 
         # after training release the multiprocessing pool
         if self.executor_pool is not None:
@@ -307,25 +331,29 @@ class BaseLinearPassive(BaseLinear):
             self.executor_pool.join()
             self.scheduler_pool.join()
 
-        self.logger.log('Finish model training.')
-        self.logger.log('The summation of communication time and computation time is '
-              '{:.4f}s. In order to obtain the communication time only, you should'
-              'substract the computation time which is printed in the console'
-              'of active party.'.format(commu_plus_compu_time))
+        self.logger.log("Finish model training.")
+        self.logger.log(
+            "The summation of communication time and computation time is "
+            "{:.4f}s. In order to obtain the communication time only, you should"
+            "substract the computation time which is printed in the console"
+            "of active party.".format(commu_plus_compu_time)
+        )
 
     def validate(self, valset):
-        assert isinstance(valset, NumpyDataset), 'valset should be an instance ' \
-                                                 'of NumpyDataset'
-        wx = np.matmul(valset.features, getattr(self, 'params'))
+        assert isinstance(
+            valset, NumpyDataset
+        ), "valset should be an instance of NumpyDataset"
+        wx = np.matmul(valset.features, getattr(self, "params"))
         self.messenger.send(wx)
 
     def predict(self, testset):
         self.validate(testset)
 
     @staticmethod
-    def online_inference(dataset, model_name, messenger, model_path='./models'):
-        assert isinstance(dataset, NumpyDataset), 'inference dataset should be an' \
-                                                  'instance of NumpyDataset'
+    def online_inference(dataset, model_name, messenger, model_path="./models"):
+        assert isinstance(
+            dataset, NumpyDataset
+        ), "inference dataset should be aninstance of NumpyDataset"
         model_params = NumpyModelIO.load(model_path, model_name)
         wx = np.matmul(dataset.features, model_params)
         messenger.send(wx)
@@ -334,26 +362,27 @@ class BaseLinearPassive(BaseLinear):
 
 
 class BaseLinearActive(BaseLinear):
-    def __init__(self,
-                 epochs,
-                 batch_size,
-                 learning_rate,
-                 messenger,
-                 cryptosystem,
-                 logger,
-                 *,
-                 penalty=Const.L2,
-                 reg_lambda=0.01,
-                 crypto_type=Const.PAILLIER,
-                 precision=0.001,
-                 random_state=None,
-                 using_pool=False,
-                 num_workers=-1,
-                 val_freq=1,
-                 saving_model=False,
-                 model_path='./models',
-                 model_name=None,
-                 task='classification',
+    def __init__(
+        self,
+        epochs,
+        batch_size,
+        learning_rate,
+        messenger,
+        cryptosystem,
+        logger,
+        *,
+        penalty=Const.L2,
+        reg_lambda=0.01,
+        crypto_type=Const.PAILLIER,
+        precision=0.001,
+        random_state=None,
+        using_pool=False,
+        num_workers=-1,
+        val_freq=1,
+        saving_model=False,
+        model_path="./models",
+        model_name=None,
+        task="classification",
     ):
         super(BaseLinearActive, self).__init__(learning_rate, random_state)
         self.epochs = epochs
@@ -380,13 +409,18 @@ class BaseLinearActive(BaseLinear):
         self.val_freq = val_freq
         self.saving_model = saving_model
         self.model_path = model_path
-        model_type = Const.VERTICAL_LOGREG if task == 'classification' else Const.VERTICAL_LINREG
+        model_type = (
+            Const.VERTICAL_LOGREG if task == "classification" else Const.VERTICAL_LINREG
+        )
         if model_name is None:
-            model_name = "{time}-{role}-{model_type}".format(
-                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                role=Const.ACTIVE_NAME,
-                model_type=model_type
-            ) + ".model"
+            model_name = (
+                "{time}-{role}-{model_type}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.ACTIVE_NAME,
+                    model_type=model_type,
+                )
+                + ".model"
+            )
         self.model_name = model_name
         self.pics_path = os.path.join(model_path, "vfl_logreg")
         if not os.path.exists(self.pics_path):
@@ -395,57 +429,66 @@ class BaseLinearActive(BaseLinear):
 
     @classmethod
     def from_config(cls, config):
-        assert isinstance(config, BaseConfig), 'config object should be an ' \
-                                               'instance of BaseConfig class.'
+        assert isinstance(
+            config, BaseConfig
+        ), "config object should be an instance of BaseConfig class."
         # initialize messenger
-        messenger = messenger_factory(messenger_type=config.MESSENGER_TYPE,
-                                      role=config.ROLE,
-                                      active_ip=config.ACTIVE_IP,
-                                      active_port=config.ACTIVE_PORT,
-                                      passive_ip=config.PASSIVE_IP,
-                                      passive_port=config.PASSIVE_PORT,
-                                      verbose=config.VERBOSE)
+        messenger = messenger_factory(
+            messenger_type=config.MESSENGER_TYPE,
+            role=config.ROLE,
+            active_ip=config.ACTIVE_IP,
+            active_port=config.ACTIVE_PORT,
+            passive_ip=config.PASSIVE_IP,
+            passive_port=config.PASSIVE_PORT,
+            verbose=config.VERBOSE,
+        )
         # initialize cryptosystem
-        crypto = crypto_factory(crypto_type=config.CRYPTO_TYPE,
-                                key_size=config.KEY_SIZE,
-                                num_enc_zeros=config.NUM_ENC_ZEROS,
-                                gen_from_set=config.GEN_FROM_SET)
+        crypto = crypto_factory(
+            crypto_type=config.CRYPTO_TYPE,
+            key_size=config.KEY_SIZE,
+            num_enc_zeros=config.NUM_ENC_ZEROS,
+            gen_from_set=config.GEN_FROM_SET,
+        )
 
-        return cls(epochs=config.EPOCHS,
-                   batch_size=config.BATCH_SIZE,
-                   learning_rate=config.LEARNING_RATE,
-                   messenger=messenger,
-                   cryptosystem=crypto,
-                   penalty=config.PENALTY,
-                   reg_lambda=config.REG_LAMBDA,
-                   crypto_type=config.CRYPTO_TYPE,
-                   precision=config.PRECISION,
-                   random_state=config.RANDOM_STATE,
-                   is_multi_thread=config.IS_MULTI_THREAD)
+        return cls(
+            epochs=config.EPOCHS,
+            batch_size=config.BATCH_SIZE,
+            learning_rate=config.LEARNING_RATE,
+            messenger=messenger,
+            cryptosystem=crypto,
+            penalty=config.PENALTY,
+            reg_lambda=config.REG_LAMBDA,
+            crypto_type=config.CRYPTO_TYPE,
+            precision=config.PRECISION,
+            random_state=config.RANDOM_STATE,
+            is_multi_thread=config.IS_MULTI_THREAD,
+        )
 
     def _sync_pubkey(self):
         for msger in self.messenger:
             signal = msger.recv()
             if signal == Const.START_SIGNAL:
-                print('Training protocol started.')
-                print('[ACTIVE] Sending public key to passive party...')
+                print("Training protocol started.")
+                print("[ACTIVE] Sending public key to passive party...")
                 msger.send(self.cryptosystem.pub_key)
 
             else:
-                raise ValueError('Invalid signal, exit.')
-        print('[ACTIVE] Sending public key done!')
+                raise ValueError("Invalid signal, exit.")
+        print("[ACTIVE] Sending public key done!")
 
     def _residue(self, y_true, y_hat):
         return y_true - y_hat
 
     def _grad(self, residue, batch_idxes):
-        if not hasattr(self, 'x_train'):
-            raise AttributeError('x_train is not added to this object')
-        if not hasattr(self, 'params'):
-            raise AttributeError('params is not added to this object')
+        if not hasattr(self, "x_train"):
+            raise AttributeError("x_train is not added to this object")
+        if not hasattr(self, "params"):
+            raise AttributeError("params is not added to this object")
 
-        train_grad = -1 * (residue[:, np.newaxis] * getattr(self, 'x_train')[batch_idxes]).mean(axis=0)
-        params = getattr(self, 'params')
+        train_grad = -1 * (
+            residue[:, np.newaxis] * getattr(self, "x_train")[batch_idxes]
+        ).mean(axis=0)
+        params = getattr(self, "params")
         if self.penalty == Const.NONE:
             reg_grad = np.zeros(len(params))
         elif self.penalty == Const.L1:
@@ -453,15 +496,15 @@ class BaseLinearActive(BaseLinear):
         elif self.penalty == Const.L2:
             reg_grad = self.reg_lambda * params
         else:
-            raise ValueError('Regularization method not supported now.')
+            raise ValueError("Regularization method not supported now.")
 
         return train_grad + reg_grad
 
     def train(self, trainset, testset):
-        raise NotImplementedError('should not call this method within base class')
+        raise NotImplementedError("should not call this method within base class")
 
     def validate(self, valset):
-        raise NotImplementedError('should not call this method within base class')
+        raise NotImplementedError("should not call this method within base class")
 
     def predict(self, testset):
-        raise NotImplementedError('should not call this method within base class')
+        raise NotImplementedError("should not call this method within base class")

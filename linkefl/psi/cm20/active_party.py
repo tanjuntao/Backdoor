@@ -28,26 +28,30 @@ except ImportError:
     }
     py_version = str(sys.version_info[0]) + str(sys.version_info[1])
     platform = sys.platform
-    if platform not in ('linux', 'darwin'):
-        raise RuntimeError('Currently only Linux and macOS are supported OS platform, '
-                           'but you are in a {} platform.'.format(platform))
-    key = py_version + '-' + platform
+    if platform not in ("linux", "darwin"):
+        raise RuntimeError(
+            "Currently only Linux and macOS are supported OS platform, "
+            "but you are in a {} platform.".format(platform)
+        )
+    key = py_version + "-" + platform
     filename = resources[key]
     this_directory = os.path.abspath(os.path.dirname(__file__))
     fpath = os.path.join(this_directory, filename)
     base_url = "http://47.96.163.59:80/wheels/"
     full_url = base_url + filename
     try:
-        print('Downloading {} to {}'.format(full_url, fpath))
+        print("Downloading {} to {}".format(full_url, fpath))
         urlretrive(full_url, fpath)
     except URLError as error:
-        raise RuntimeError('Failed to download {} with error message: {}'
-                           .format(full_url, error))
+        raise RuntimeError(
+            "Failed to download {} with error message: {}".format(full_url, error)
+        )
     # This static error message can be safely ignored if there is no downloading error.
     # If the downloading process completes successfully, there will always be a .so file
     # under the current directory that can be imported into this module.
     from linkefl.psi.cm20.PsiPython import PsiReceiver
-    print('Done!')
+
+    print("Done!")
 
 
 class CM20PSIActive(BasePSIComponent):
@@ -140,7 +144,7 @@ class CM20PSIActive(BasePSIComponent):
 
 if __name__ == "__main__":
     from linkefl.common.factory import logger_factory
-    from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
+    from linkefl.dataio import NumpyDataset, TorchDataset, gen_dummy_ids
     from linkefl.messenger import FastSocket
 
     # 1. get sample IDs

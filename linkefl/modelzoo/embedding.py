@@ -3,13 +3,14 @@ from torch import nn
 
 
 class Embedding(nn.Module):
-    def __init__(self,
-                 input_length: int,
-                 cat_idxes: list,
-                 cat_size_dict: dict,
-                 cat_dim_dict: dict = None,
-                 cat_dropout_rate: float = 0.1,
-                 random_state: int = None
+    def __init__(
+        self,
+        input_length: int,
+        cat_idxes: list,
+        cat_size_dict: dict,
+        cat_dim_dict: dict = None,
+        cat_dropout_rate: float = 0.1,
+        random_state: int = None,
     ):
         """
 
@@ -32,8 +33,10 @@ class Embedding(nn.Module):
         if random_state is not None:
             torch.random.manual_seed(random_state)
         if cat_dim_dict is None:
-            cat_dim_dict = {idx: Embedding.embedding_dim_rule(size)
-                            for idx, size in cat_size_dict.items()}
+            cat_dim_dict = {
+                idx: Embedding.embedding_dim_rule(size)
+                for idx, size in cat_size_dict.items()
+            }
 
         embeddings = {}
         for idx in cat_idxes:
@@ -44,7 +47,6 @@ class Embedding(nn.Module):
         self.embeddings = nn.ModuleDict(embeddings)
         self.cat_dropout = nn.Dropout(cat_dropout_rate)
         self.cont_bn = nn.BatchNorm1d(self.n_cont)
-
 
     def forward(self, x):
         """
@@ -80,5 +82,5 @@ class Embedding(nn.Module):
     @staticmethod
     def embedding_dim_rule(size):
         # This rule is adapted from FastAi.
-        # ref: https://forums.fast.ai/t/size-of-embedding-for-categorical-variables/42608/2
+        # ref: https://forums.fast.ai/t/size-of-embedding-for-categorical-variables/42608/2  # noqa: E501
         return min(50, (size + 1) // 2)

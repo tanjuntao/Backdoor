@@ -4,28 +4,29 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from linkefl.hfl.training_method import Train_server, Train_client
 from linkefl.hfl.socket_hfl import messenger
+from linkefl.hfl.training_method import Train_client, Train_server
 
 
 class Server:
-    def __init__(self,
-                 HOST,
-                 PORT,
-                 world_size,
-                 partyid,
-                 model,
-                 aggregator='FedAvg',
-                 lossfunction=F.nll_loss,
-                 device=torch.device('cpu'),
-                 epoch=10,
-                 mu=0.01,
-                 E=30,
-                 kp=0.1,
-                 batch_size=64,
-                 BUFSIZ=1024000000,
-                 model_name="NeuralNetwork"):
-
+    def __init__(
+        self,
+        HOST,
+        PORT,
+        world_size,
+        partyid,
+        model,
+        aggregator="FedAvg",
+        lossfunction=F.nll_loss,
+        device=torch.device("cpu"),
+        epoch=10,
+        mu=0.01,
+        E=30,
+        kp=0.1,
+        batch_size=64,
+        BUFSIZ=1024000000,
+        model_name="NeuralNetwork",
+    ):
         """
         HOST:联邦学习server的ip
         PORT:端口号
@@ -54,31 +55,84 @@ class Server:
         self.iter = iter
         self.kp = kp
         self.model_name = model_name
+
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         return dataloader
 
-    def train(self,testset):
+    def train(self, testset):
         # server
-        role = 'server'
-        server = messenger(self.HOST, self.PORT, role='server', partyid=self.partyid, world_size=self.world_size)
+        server = messenger(
+            self.HOST,
+            self.PORT,
+            role="server",
+            partyid=self.partyid,
+            world_size=self.world_size,
+        )
 
         if self.aggregator == "FedAvg":
-            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
+            self.model = Train_server.train_basic(
+                self.epoch,
+                self.world_size,
+                server,
+                self.model,
+                self.device,
+                testset,
+                self.lossfunction,
+            )
         elif self.aggregator == "FedAvg_seq":
-            self.model = Train_server.train_FedAvg_seq(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
+            self.model = Train_server.train_FedAvg_seq(
+                self.epoch,
+                self.world_size,
+                server,
+                self.model,
+                self.device,
+                testset,
+                self.lossfunction,
+            )
         elif self.aggregator == "FedProx":
-            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
+            self.model = Train_server.train_basic(
+                self.epoch,
+                self.world_size,
+                server,
+                self.model,
+                self.device,
+                testset,
+                self.lossfunction,
+            )
         elif self.aggregator == "Scaffold":
-            self.model = Train_server.train_Scaffold(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
+            self.model = Train_server.train_Scaffold(
+                self.epoch,
+                self.world_size,
+                server,
+                self.model,
+                self.device,
+                testset,
+                self.lossfunction,
+            )
         elif self.aggregator == "PersonalizedFed":
-            self.model = Train_server.train_PersonalizedFed(self.epoch, self.world_size, server, self.model,
-                                                            self.device,self.kp,testset,self.lossfunction)
+            self.model = Train_server.train_PersonalizedFed(
+                self.epoch,
+                self.world_size,
+                server,
+                self.model,
+                self.device,
+                self.kp,
+                testset,
+                self.lossfunction,
+            )
         elif self.aggregator == "FedDP":
-            self.model = Train_server.train_basic(self.epoch, self.world_size, server, self.model, self.device,testset,self.lossfunction)
+            self.model = Train_server.train_basic(
+                self.epoch,
+                self.world_size,
+                server,
+                self.model,
+                self.device,
+                testset,
+                self.lossfunction,
+            )
 
     def test(self, testset):
-
         test_loss = 0
         correct = 0
         test_set = self._init_dataloader(testset)
@@ -95,8 +149,11 @@ class Server:
 
         test_loss /= num_batches
         accuracy = 100.00 * correct / len(test_set.dataset)
-        print('\nTest set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n'.format(
-            test_loss, correct, len(test_set.dataset), accuracy))
+        print(
+            "\nTest set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n".format(
+                test_loss, correct, len(test_set.dataset), accuracy
+            )
+        )
 
         return accuracy, test_loss
 
@@ -105,30 +162,31 @@ class Server:
 
 
 class Client:
-    def __init__(self,
-                 HOST,
-                 PORT,
-                 world_size,
-                 partyid,
-                 model,
-                 optimizer,
-                 aggregator='FedAvg',
-                 lossfunction=F.nll_loss,
-                 device=torch.device('cpu'),
-                 epoch=10,
-                 mu=0.01,
-                 E=30,
-                 lr=0.01,
-                 kp=0.1,
-                 BUFSIZ=1024000000,
-                 batch_size=64,
-                 iter=5,
-                 dp_mechanism='Laplace',
-                 dp_clip=10,
-                 dp_epsilon=1,
-                 dp_delta=1e-5,
-                 model_name="NeuralNetwork"):
-
+    def __init__(
+        self,
+        HOST,
+        PORT,
+        world_size,
+        partyid,
+        model,
+        optimizer,
+        aggregator="FedAvg",
+        lossfunction=F.nll_loss,
+        device=torch.device("cpu"),
+        epoch=10,
+        mu=0.01,
+        E=30,
+        lr=0.01,
+        kp=0.1,
+        BUFSIZ=1024000000,
+        batch_size=64,
+        iter=5,
+        dp_mechanism="Laplace",
+        dp_clip=10,
+        dp_epsilon=1,
+        dp_delta=1e-5,
+        model_name="NeuralNetwork",
+    ):
         """
         HOST:联邦学习server的ip
         PORT:端口号
@@ -157,7 +215,7 @@ class Client:
         self.BUFSIZ = BUFSIZ
         self.batch_size = batch_size
         self.iter = iter
-        self.model_name=model_name
+        self.model_name = model_name
         # FedProx
         self.mu = mu
 
@@ -192,10 +250,15 @@ class Client:
         else:
             raise Exception("Invalid aggregation rule")
 
-    def train(self, trainset,testset):
-
-        role = 'client'
-        client = messenger(self.HOST, self.PORT, role=role, partyid=self.partyid, world_size=self.world_size)
+    def train(self, trainset, testset):
+        role = "client"
+        client = messenger(
+            self.HOST,
+            self.PORT,
+            role=role,
+            partyid=self.partyid,
+            world_size=self.world_size,
+        )
 
         train_set = self._init_dataloader(trainset)
 
@@ -206,33 +269,105 @@ class Client:
         # train_method = self.get_aggregator()
 
         if self.aggregator == "FedAvg":
-            self.model = Train_client.train_basic(client, self.partyid, self.epoch, train_set, self.model,
-                                                  optimizer, lf, self.iter, self.device, num_batches,testset)
+            self.model = Train_client.train_basic(
+                client,
+                self.partyid,
+                self.epoch,
+                train_set,
+                self.model,
+                optimizer,
+                lf,
+                self.iter,
+                self.device,
+                num_batches,
+                testset,
+            )
 
         elif self.aggregator == "FedAvg_seq":
-            self.model = Train_client.train_basic(client, self.partyid, self.epoch, train_set, self.model,
-                                                  optimizer, lf, self.iter, self.device, num_batches,testset)
+            self.model = Train_client.train_basic(
+                client,
+                self.partyid,
+                self.epoch,
+                train_set,
+                self.model,
+                optimizer,
+                lf,
+                self.iter,
+                self.device,
+                num_batches,
+                testset,
+            )
 
         elif self.aggregator == "FedProx":
-            self.model = Train_client.train_FedProx(client, self.partyid, self.epoch, train_set, self.model,
-                                                    optimizer, lf, self.iter, self.device, num_batches, self.mu,testset)
+            self.model = Train_client.train_FedProx(
+                client,
+                self.partyid,
+                self.epoch,
+                train_set,
+                self.model,
+                optimizer,
+                lf,
+                self.iter,
+                self.device,
+                num_batches,
+                self.mu,
+                testset,
+            )
 
         elif self.aggregator == "Scaffold":
-            self.model = Train_client.train_Scaffold(client, self.partyid, self.epoch, train_set, self.model,
-                                                     optimizer, lf, self.iter, self.device, num_batches, self.E,
-                                                     self.lr,testset)
+            self.model = Train_client.train_Scaffold(
+                client,
+                self.partyid,
+                self.epoch,
+                train_set,
+                self.model,
+                optimizer,
+                lf,
+                self.iter,
+                self.device,
+                num_batches,
+                self.E,
+                self.lr,
+                testset,
+            )
 
         elif self.aggregator == "PersonalizedFed":
-            self.model = Train_client.train_PersonalizedFed(client, self.partyid, self.epoch, train_set, self.model,
-                                                            optimizer, lf, self.iter, self.device, num_batches, self.kp,testset)
+            self.model = Train_client.train_PersonalizedFed(
+                client,
+                self.partyid,
+                self.epoch,
+                train_set,
+                self.model,
+                optimizer,
+                lf,
+                self.iter,
+                self.device,
+                num_batches,
+                self.kp,
+                testset,
+            )
 
         elif self.aggregator == "FedDP":
-            self.model = Train_client.train_FedDP(client, self.partyid, self.epoch, train_set, self.model,
-                                                  optimizer, lf, self.iter, self.device, num_batches, self.lr,
-                                                  self.dp_mechanism, self.dp_clip, self.dp_epsilon, self.dp_delta,testset)
+            self.model = Train_client.train_FedDP(
+                client,
+                self.partyid,
+                self.epoch,
+                train_set,
+                self.model,
+                optimizer,
+                lf,
+                self.iter,
+                self.device,
+                num_batches,
+                self.lr,
+                self.dp_mechanism,
+                self.dp_clip,
+                self.dp_epsilon,
+                self.dp_delta,
+                testset,
+            )
 
     def test(self, testset):
-
         test_loss = 0
         correct = 0
         test_set = self._init_dataloader(testset)
@@ -248,8 +383,11 @@ class Client:
             correct += y_pred.eq(target.data.view_as(y_pred)).long().cpu().sum()
         test_loss /= num_batches
         accuracy = 100.00 * correct / len(test_set.dataset)
-        print('\nTest set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n'.format(
-            test_loss, correct, len(test_set.dataset), accuracy))
+        print(
+            "\nTest set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n".format(
+                test_loss, correct, len(test_set.dataset), accuracy
+            )
+        )
 
         return accuracy, test_loss
 

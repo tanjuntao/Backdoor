@@ -7,10 +7,9 @@ import random
 import time
 
 import gmpy2
-from phe import generate_paillier_keypair, EncodedNumber
+from phe import EncodedNumber, generate_paillier_keypair
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     pub_key, priv_key = generate_paillier_keypair(n_length=1024)
     n = pub_key.n
     nsquare = pub_key.nsquare
@@ -27,7 +26,7 @@ if __name__ == '__main__':
     start_time = time.time()
     for encoding in encoded_data:
         gmpy2.powmod(ciphertext, encoding.encoding, nsquare)
-    print('naive powmod time: {}'.format(time.time() - start_time))
+    print("naive powmod time: {}".format(time.time() - start_time))
 
     # option 2: MUCH faster
     start_time = time.time()
@@ -35,4 +34,4 @@ if __name__ == '__main__':
         # nec_cipher = int(gmpy2.invert(ciphertext, nsquare))
         neg_encoding = n - encoding.encoding
         gmpy2.powmod(nec_cipher, neg_encoding, nsquare)
-    print('neg cipher time: {}'.format(time.time() - start_time))
+    print("neg cipher time: {}".format(time.time() - start_time))

@@ -1,6 +1,5 @@
 import numpy as np
 
-
 # def goss_sampling(grad, hess):
 #     """
 #     GOSS 单边采样，基于light GBM的思想；
@@ -16,8 +15,9 @@ import numpy as np
 #     a_part_num = int(sample_num * SBTConfig.TOP_RATE)
 #     b_part_num = int(sample_num * SBTConfig.OTHER_RATE)
 #
-#     if a_part_num == 0 or b_part_num == 0:
-#         raise ValueError("subsampled result is 0: top sample {}, other sample {}".format(a_part_num, b_part_num))
+#    if a_part_num == 0 or b_part_num == 0:
+#        raise ValueError("subsampled result is 0: top sample {}, o"
+#                         "ther sample {}".format(a_part_num, b_part_num))
 #
 #     # index of a part
 #     a_sample_idx = sorted_idx[:a_part_num]
@@ -66,6 +66,7 @@ def leaf_weight(gh, sample_tag, reg_lambda):
     weight = -(g_sum / (h_sum + reg_lambda))
 
     return weight
+
 
 # todo: add reg_gamma to limit leaf node num.
 def _structure_score(bin_gh, reg_lambda):
@@ -167,8 +168,9 @@ def find_split(hist_list, task, reg_lambda):
     max_gain = None
 
     for hist_id, hist in enumerate(hist_list):
-        # hist.bin_gh: 3d array in binary，featureNum * binNum * 2
-        #              4d array in multi，featureNum * binNum * config["train"]["classNum"] * 2
+        # hist.bin_gh:
+        # 3d array in binary，featureNum * binNum * 2
+        # 4d array in multi，featureNum * binNum * config["train"]["classNum"] * 2
         if hist is None:
             continue
 
@@ -177,9 +179,13 @@ def find_split(hist_list, task, reg_lambda):
                 left_bin_gh, right_bin_gh = np.split(feature_bin_gh, [split_id + 1])
 
                 if task == "binary" or task == "regression":
-                    gain = _split_gain(feature_bin_gh, left_bin_gh, right_bin_gh, reg_lambda)
+                    gain = _split_gain(
+                        feature_bin_gh, left_bin_gh, right_bin_gh, reg_lambda
+                    )
                 elif task == "multi":
-                    gain = _split_gain_multi(feature_bin_gh, left_bin_gh, right_bin_gh, reg_lambda)
+                    gain = _split_gain_multi(
+                        feature_bin_gh, left_bin_gh, right_bin_gh, reg_lambda
+                    )
                 else:
                     raise ValueError("No such task label.")
 
@@ -190,4 +196,3 @@ def find_split(hist_list, task, reg_lambda):
                     max_gain = gain
 
     return max_hist_id, max_feature_id, max_split_id, max_gain
-

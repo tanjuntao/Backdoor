@@ -5,7 +5,7 @@ import time
 
 import gmpy2
 from line_profiler_pycharm import profile
-from phe import paillier, EncodedNumber, EncryptedNumber
+from phe import EncodedNumber, EncryptedNumber, paillier
 from tqdm import tqdm, trange
 
 
@@ -37,8 +37,16 @@ def fast_enc_mul_list(plain_vector, enc_number, thread_pool):
     # fast
     result_vector = [None] * len(plain_vector)
     async_results = []
-    async_results.append(thread_pool.apply_async(_target_enc_mul_list, args=(ciphertext, pos_exps, nsquare)))
-    async_results.append(thread_pool.apply_async(_target_enc_mul_list, args=(ciphertext_inverse, neg_exps, nsquare)))
+    async_results.append(
+        thread_pool.apply_async(
+            _target_enc_mul_list, args=(ciphertext, pos_exps, nsquare)
+        )
+    )
+    async_results.append(
+        thread_pool.apply_async(
+            _target_enc_mul_list, args=(ciphertext_inverse, neg_exps, nsquare)
+        )
+    )
     pos_res = async_results[0].get()
     neg_res = async_results[1].get()
 
@@ -60,22 +68,24 @@ def enc_mul_list(plain_vector, enc_number):
     return [val * enc_number for val in plain_vector]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pub_key, priv_key = paillier.generate_paillier_keypair(n_length=1024)
     size = 100000
     epochs = 10
     precision = 0.0001
     residue = 0.123456
     enc_residue = pub_key.encrypt(residue)
-    random_data = [random.random() - 0.5 for _ in range(size)] # offset be 0.5
+    random_data = [random.random() - 0.5 for _ in range(size)]  # offset be 0.5
     print(residue * random_data[-1])
-    encoded_data = [EncodedNumber.encode(pub_key, val, precision) for val in tqdm(random_data)]
+    encoded_data = [
+        EncodedNumber.encode(pub_key, val, precision) for val in tqdm(random_data)
+    ]
 
     # option 1
     start_time = time.time()
     for _ in trange(epochs):
         result = enc_mul_list(encoded_data, enc_residue)
-    print('Elapsed time: {}'.format(time.time() - start_time))
+    print("Elapsed time: {}".format(time.time() - start_time))
     print(priv_key.decrypt(result[-1]))
 
     # option 2
@@ -83,6 +93,6 @@ if __name__ == '__main__':
     start_time = time.time()
     for _ in trange(epochs):
         fast_result = fast_enc_mul_list(encoded_data, enc_residue, pool)
-    print('Elapsed time: {}'.format(time.time() - start_time))
+    print("Elapsed time: {}".format(time.time() - start_time))
     print(priv_key.decrypt(fast_result[-1]))
     pool.close()
