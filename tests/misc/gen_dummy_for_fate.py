@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 
-
 n_samples = 10000
 ids = np.arange(n_samples, dtype=int)
 ys = np.zeros(n_samples, dtype=int)

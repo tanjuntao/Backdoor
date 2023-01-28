@@ -1,6 +1,6 @@
 from typing import Union
 
-from linkefl.base import BasePSIComponent, BaseTransformComponent, BaseModelComponent
+from linkefl.base import BaseModelComponent, BasePSIComponent, BaseTransformComponent
 from linkefl.dataio import NumpyDataset, TorchDataset
 
 
@@ -18,7 +18,11 @@ class PipeLine:
             assert isinstance(component, BaseTransformComponent)
         assert isinstance(components[-1], BaseModelComponent)
 
-    def fit(self, trainset: Union[NumpyDataset, TorchDataset], validset: Union[NumpyDataset, TorchDataset]):
+    def fit(
+        self,
+        trainset: Union[NumpyDataset, TorchDataset],
+        validset: Union[NumpyDataset, TorchDataset],
+    ):
         for component in self.components[:-1]:
             trainset = component.fit(trainset, role=self.role)
             validset = component.fit(validset, role=self.role)

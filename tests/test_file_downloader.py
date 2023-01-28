@@ -3,9 +3,8 @@ import urllib
 import requests
 from tqdm import tqdm
 
-
-url = 'http://47.96.163.59:80/download/criteo-train.csv'
-local_filename = 'criteo-train.csv'
+url = "http://47.96.163.59:80/download/criteo-train.csv"
+local_filename = "criteo-train.csv"
 
 
 # option 1: use requests
@@ -24,5 +23,3 @@ with open(local_filename, "wb") as fh:
                     break
                 pbar.update(chunk_size)
                 fh.write(chunk)
-
-

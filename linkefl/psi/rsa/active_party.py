@@ -16,11 +16,12 @@ from linkefl.dataio import NumpyDataset, TorchDataset
 
 
 class RSAPSIActive(BasePSIComponent):
-    def __init__(self,
-                 messenger: List[BaseMessenger],
-                 cryptosystem: RSA,
-                 logger: GlobalLogger,
-                 num_workers: int = -1
+    def __init__(
+        self,
+        messenger: List[BaseMessenger],
+        cryptosystem: RSA,
+        logger: GlobalLogger,
+        num_workers: int = -1,
     ):
         self.messenger = messenger
         self.cryptosystem = cryptosystem
@@ -29,7 +30,7 @@ class RSAPSIActive(BasePSIComponent):
             num_workers = os.cpu_count()
         self.num_workers = num_workers
 
-        self.HASHED_IDS_FILENAME = 'hashed_signed_ids.pkl'
+        self.HASHED_IDS_FILENAME = "hashed_signed_ids.pkl"
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
     def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.ACTIVE_NAME):
@@ -41,7 +42,7 @@ class RSAPSIActive(BasePSIComponent):
 
     def run(self, ids):
         # 1. sync RSA public key
-        self.logger.log('Active party starts PSI, listening...')
+        self.logger.log("Active party starts PSI, listening...")
         self._sync_pubkey()
         start = time.time()
 
@@ -49,140 +50,142 @@ class RSAPSIActive(BasePSIComponent):
         for msger in self.messenger:
             blinded_ids = msger.recv()
             signed_blinded_ids = self.cryptosystem.sign_vector(
-                blinded_ids,
-                using_pool=True,
-                n_workers=self.num_workers
+                blinded_ids, using_pool=True, n_workers=self.num_workers
             )
             msger.send(signed_blinded_ids)
-        self.logger.log('Active party sends signed blinded ids back to passive party.')
+        self.logger.log("Active party sends signed blinded ids back to passive party.")
         self.logger.log_component(
             name=Const.RSA_PSI,
             status=Const.RUNNING,
             begin=start,
             end=None,
             duration=time.time() - start,
-            progress=0.4
+            progress=0.4,
         )
 
         # 3. signing and hashing its own ids
         signed_ids = self.cryptosystem.sign_vector(
-            ids,
-            using_pool=True,
-            n_workers=self.num_workers
+            ids, using_pool=True, n_workers=self.num_workers
         )
         active_hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
-        self.logger.log('Active party finished signing and hashing its own ids.')
+        self.logger.log("Active party finished signing and hashing its own ids.")
         self.logger.log_component(
             name=Const.RSA_PSI,
             status=Const.RUNNING,
             begin=start,
             end=None,
             duration=time.time() - start,
-            progress=0.8
+            progress=0.8,
         )
 
         # 4. receiving hashed signed ids from passive party
-        if len(self.messenger) == 1: # single passive party
+        if len(self.messenger) == 1:  # single passive party
             passive_hashed_signed_ids = self.messenger[0].recv()
-        else: # multi passive parties (>=2)
+        else:  # multi passive parties (>=2)
             passive_hashed_signed_ids = None
             for msger in self.messenger:
-                curr_hashed_signed_ids = msger.recv() # a python list
-                curr_hashed_signed_ids = set(curr_hashed_signed_ids) # convert to python set
+                curr_hashed_signed_ids = msger.recv()  # a python list
+                curr_hashed_signed_ids = set(
+                    curr_hashed_signed_ids
+                )  # convert to python set
                 if passive_hashed_signed_ids is None:
                     passive_hashed_signed_ids = curr_hashed_signed_ids
                     continue
                 # compute python set intersection via & operator
-                passive_hashed_signed_ids = passive_hashed_signed_ids & curr_hashed_signed_ids
-            passive_hashed_signed_ids = list(passive_hashed_signed_ids) # convert back to list
+                passive_hashed_signed_ids = (
+                    passive_hashed_signed_ids & curr_hashed_signed_ids
+                )
+            passive_hashed_signed_ids = list(
+                passive_hashed_signed_ids
+            )  # convert back to list
 
         # 5. find the intersection
         intersections = RSAPSIActive._intersect(
-            ids,
-            active_hashed_signed_ids,
-            passive_hashed_signed_ids
+            ids, active_hashed_signed_ids, passive_hashed_signed_ids
         )
-        self.logger.log('Size of intersection: {}'.format(len(intersections)))
+        self.logger.log("Size of intersection: {}".format(len(intersections)))
         for msger in self.messenger:
             msger.send(intersections)
 
-        self.logger.log('Total protocol execution time: {:.5f}'.format(time.time() - start))
+        self.logger.log(
+            "Total protocol execution time: {:.5f}".format(time.time() - start)
+        )
         self.logger.log_component(
             name=Const.RSA_PSI,
             status=Const.SUCCESS,
             begin=start,
             end=time.time(),
             duration=time.time() - start,
-            progress=1.0
+            progress=1.0,
         )
         return intersections
 
     def run_offline(self, ids):
-        print('[ACTIVE] Start the offline protocol...')
+        print("[ACTIVE] Start the offline protocol...")
         begin = time.time()
         signed_ids = self.cryptosystem.sign_vector(
-            ids,
-            using_pool=True,
-            n_workers=self.num_workers
+            ids, using_pool=True, n_workers=self.num_workers
         )
-        print('Signing self id set time: {:.5f}'.format(time.time() - begin))
+        print("Signing self id set time: {:.5f}".format(time.time() - begin))
         hashed_signed_ids = RSAPSIActive._hash_set(signed_ids)
-        del signed_ids # save momory
+        del signed_ids  # save momory
 
-        target_dir = os.path.join(Path.home(), '.linkefl')
+        target_dir = os.path.join(Path.home(), ".linkefl")
         if not os.path.exists(target_dir):
             os.mkdir(target_dir)
         full_path = os.path.join(target_dir, self.HASHED_IDS_FILENAME)
-        with open(full_path, 'wb') as f:
+        with open(full_path, "wb") as f:
             pickle.dump(hashed_signed_ids, f)
-        print('[ACTIVE] Finish the offline protocol.')
+        print("[ACTIVE] Finish the offline protocol.")
 
     def run_online(self, ids):
-        print('[ACTIVE] Started the online protocol, listening...')
+        print("[ACTIVE] Started the online protocol, listening...")
         self._sync_pubkey()
 
         for msger in self.messenger:
             blinded_ids = msger.recv()
             begin = time.time()
             signed_blinded_ids = self.cryptosystem.sign_vector(
-                blinded_ids,
-                using_pool=True,
-                n_workers=self.num_workers
+                blinded_ids, using_pool=True, n_workers=self.num_workers
             )
-            print('Signing passive id set time: {:.5f}'.format(time.time() - begin))
+            print("Signing passive id set time: {:.5f}".format(time.time() - begin))
             msger.send(signed_blinded_ids)
 
-        if len(self.messenger) == 1: # single passive party
+        if len(self.messenger) == 1:  # single passive party
             passive_hashed_signed_ids = self.messenger[0].recv()
-        else: # multi passive parties (>=2)
+        else:  # multi passive parties (>=2)
             passive_hashed_signed_ids = None
             for msger in self.messenger:
-                curr_hashed_signed_ids = msger.recv() # a python list
-                curr_hashed_signed_ids = set(curr_hashed_signed_ids) # convert to python set
+                curr_hashed_signed_ids = msger.recv()  # a python list
+                curr_hashed_signed_ids = set(
+                    curr_hashed_signed_ids
+                )  # convert to python set
                 if passive_hashed_signed_ids is None:
                     passive_hashed_signed_ids = curr_hashed_signed_ids
                     continue
                 # compute python set intersection via & operator
-                passive_hashed_signed_ids = passive_hashed_signed_ids & curr_hashed_signed_ids
-            passive_hashed_signed_ids = list(passive_hashed_signed_ids) # convert back to list
-        full_path = os.path.join(Path.home(), '.linkefl', self.HASHED_IDS_FILENAME)
-        with open(full_path, 'rb') as f:
+                passive_hashed_signed_ids = (
+                    passive_hashed_signed_ids & curr_hashed_signed_ids
+                )
+            passive_hashed_signed_ids = list(
+                passive_hashed_signed_ids
+            )  # convert back to list
+        full_path = os.path.join(Path.home(), ".linkefl", self.HASHED_IDS_FILENAME)
+        with open(full_path, "rb") as f:
             active_hashed_signed_ids = pickle.load(f)
         begin = time.time()
         intersections = RSAPSIActive._intersect(
-            ids,
-            active_hashed_signed_ids,
-            passive_hashed_signed_ids
+            ids, active_hashed_signed_ids, passive_hashed_signed_ids
         )
         del active_hashed_signed_ids  # save memory
-        del passive_hashed_signed_ids # save memory
-        print('Intersection time: {}'.format(time.time() - begin))
-        print(colored('Size of intersection: {}'.format(len(intersections)), 'red'))
+        del passive_hashed_signed_ids  # save memory
+        print("Intersection time: {}".format(time.time() - begin))
+        print(colored("Size of intersection: {}".format(len(intersections)), "red"))
         for msger in self.messenger:
             msger.send(intersections)
 
         os.remove(full_path)
-        print('[ACTIVE] Finish the online protocol.')
+        print("[ACTIVE] Finish the online protocol.")
 
         return intersections
 
@@ -195,7 +198,7 @@ class RSAPSIActive(BasePSIComponent):
                 msger.send([n, e])
             else:
                 raise ValueError("Invalid start signal.")
-        self.logger.log('[ACTIVE] Finish sending RSA public key.')
+        self.logger.log("[ACTIVE] Finish sending RSA public key.")
 
     @staticmethod
     def _hash_set(signed_set):
@@ -212,21 +215,21 @@ class RSAPSIActive(BasePSIComponent):
             if hash_val in passive_hashed_set:
                 intersections.append(ids[idx])
 
-        # Before this function returns, the Python GC will delete the passive_hashed_set,
+        # Before this function returns, the Python GC will delete the passive_hashed_set
         # which is REALLY time-consuming if the set size is big, e.g, >= 40 million.
         return intersections
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
-    from linkefl.dataio import gen_dummy_ids, NumpyDataset, TorchDataset
+    from linkefl.dataio import NumpyDataset, TorchDataset, gen_dummy_ids
     from linkefl.messenger import FastSocket
 
-    ######   Option 1: split the protocol   ######
+    #   Option 1: split the protocol
     # Initialize command line arguments parser
     parser = argparse.ArgumentParser()
-    parser.add_argument('--phase', type=str)
+    parser.add_argument("--phase", type=str)
     args = parser.parse_args()
 
     # # 1. get sample IDs
@@ -260,16 +263,18 @@ if __name__ == '__main__':
     # _messenger.close()
 
     # '''
-    ######   Option 2: run the whole protocol   ######
+    #  Option 2: run the whole protocol
     # 1. get sample IDs
     _ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
 
     # 2. Initialize messenger
-    _messenger1 = FastSocket(role=Const.ACTIVE_NAME,
-                            active_ip='127.0.0.1',
-                            active_port=20000,
-                            passive_ip='127.0.0.1',
-                            passive_port=30000)
+    _messenger1 = FastSocket(
+        role=Const.ACTIVE_NAME,
+        active_ip="127.0.0.1",
+        active_port=20000,
+        passive_ip="127.0.0.1",
+        passive_port=30000,
+    )
     # _messenger2 = FastSocket(role=Const.ACTIVE_NAME,
     #                          active_ip='127.0.0.1',
     #                          active_port=20001,

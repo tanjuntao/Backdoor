@@ -1,19 +1,19 @@
 import os.path
+from typing import Any, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-
-from typing import Optional, Any
 from PrettyPrint import PrettyPrintTree
 from sklearn.metrics import precision_recall_curve, roc_curve
 
 # TODO：fix ereor "circular import"
 # import linkefl
 
-Axes = Any              # real type is matplotlib.axes.Axes
-GraphvizSource = Any    # real type is graphviz.Source
-ActiveTreeParty = Any   # real type is linkefl.vfl.tree.ActiveTreeParty
+Axes = Any  # real type is matplotlib.axes.Axes
+GraphvizSource = Any  # real type is graphviz.Source
+ActiveTreeParty = Any  # real type is linkefl.vfl.tree.ActiveTreeParty
+
 
 class Plot(object):
     def __init__(self):
@@ -31,21 +31,21 @@ class Plot(object):
 
     @staticmethod
     def plot_importance(
-            booster: ActiveTreeParty,
-            importance_type: str = "split",
-            max_num_features: Optional[int] = 20,
-            title: str = "Feature importance",
-            xlabel: str = "Importance score",
-            ylabel: str = "Features",
-            # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
-            figsize: Optional[tuple] = (14, 8),
-            height: float = 0.2,
-            xlim: Optional[tuple] = None,
-            ylim: Optional[tuple] = None,
-            grid: bool = True,
-            show_values: bool = True,
-            precision: Optional[int] = 3,
-            file_dir: str = './models',
+        booster: ActiveTreeParty,
+        importance_type: str = "split",
+        max_num_features: Optional[int] = 20,
+        title: str = "Feature importance",
+        xlabel: str = "Importance score",
+        ylabel: str = "Features",
+        # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
+        figsize: Optional[tuple] = (14, 8),
+        height: float = 0.2,
+        xlim: Optional[tuple] = None,
+        ylim: Optional[tuple] = None,
+        grid: bool = True,
+        show_values: bool = True,
+        precision: Optional[int] = 3,
+        file_dir: str = "./models",
     ) -> Axes:
         """Plot importance based on fitted trees.
         Parameters
@@ -58,7 +58,8 @@ class Plot(object):
             * "cover" is the average coverage of splits which use the feature
               where coverage is defined as the number of samples affected by the split
         max_num_features : int, default None
-            Maximum number of top features displayed on plot. If None, all features will be displayed.
+            Maximum number of top features displayed on plot.
+            If None, all features will be displayed.
         height : float, default 0.2
             Bar height, passed to ax.barh()
         xlim : tuple, default None
@@ -75,7 +76,7 @@ class Plot(object):
         show_values : bool, default True
             Show values on plot. To disable, pass False.
         precision : int or None, optional (default=3)
-            Used to restrict the display of floating point values to a certain precision.
+            Used to restrict the display of floating point values to a certain precision
         Returns
         -------
         ax : matplotlib Axes
@@ -83,7 +84,7 @@ class Plot(object):
         try:
             import matplotlib.pyplot as plt
         except ImportError as e:
-            raise ImportError('You must install matplotlib to plot importance') from e
+            raise ImportError("You must install matplotlib to plot importance") from e
 
         # if isinstance(booster, ActiveTreeParty):
         #     importance_info = booster.feature_importances_(importance_type)
@@ -97,7 +98,10 @@ class Plot(object):
             importance_info = booster.feature_importances_(importance_type)
 
         # deal feature importance message
-        features, values = importance_info['features'], importance_info[f'importance_{importance_type}']
+        features, values = (
+            importance_info["features"],
+            importance_info[f"importance_{importance_type}"],
+        )
         tuples = sorted(zip(features, values), key=lambda x: x[1])
 
         if max_num_features is not None and max_num_features > 0:
@@ -106,32 +110,35 @@ class Plot(object):
 
         # set ax
         if figsize is not None:
-            _check_not_tuple_of_2_elements(figsize, 'figsize')
+            _check_not_tuple_of_2_elements(figsize, "figsize")
         fig, ax = plt.subplots(1, 1, figsize=figsize)
 
         ylocs = np.arange(len(values))
-        ax.barh(ylocs, values, align='center', height=height)
+        ax.barh(ylocs, values, align="center", height=height)
 
         gap = min(1, max(values) * 0.02)  # avoid errors when the value is less than 1
         if show_values is True:
             for x, y in zip(values, ylocs):
-                ax.text(x + gap, y,
-                        _float2str(x, precision) if importance_type == 'gain' else x,
-                        va='center')
+                ax.text(
+                    x + gap,
+                    y,
+                    _float2str(x, precision) if importance_type == "gain" else x,
+                    va="center",
+                )
 
         ax.set_yticks(ylocs)
         ax.set_yticklabels(features)
 
         # Set the x-axis scope
         if xlim is not None:
-            _check_not_tuple_of_2_elements(xlim, 'xlim')
+            _check_not_tuple_of_2_elements(xlim, "xlim")
         else:
             xlim = (0, max(values) * 1.1)
         ax.set_xlim(xlim)
 
         # Set the y-axis scope
         if ylim is not None:
-            _check_not_tuple_of_2_elements(ylim, 'ylim')
+            _check_not_tuple_of_2_elements(ylim, "ylim")
         else:
             ylim = (-1, len(values))
         ax.set_ylim(ylim)
@@ -151,40 +158,44 @@ class Plot(object):
     def plot_train_test_loss(train_loss, test_loss, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(list(range(len(train_loss))), train_loss, label='train_loss')  # color='darkorange'
-        ax.plot(list(range(len(test_loss))), test_loss, label='test_loss')
+        ax.plot(
+            list(range(len(train_loss))), train_loss, label="train_loss"
+        )  # color='darkorange'
+        ax.plot(list(range(len(test_loss))), test_loss, label="test_loss")
         # ax.set_xlim(0, len(test_loss)-0.95)
         # ax.set_ylim(0, 1.02)
         ax.xaxis.set_major_locator(plt.MultipleLocator(1))
-        ax.grid(True, linestyle='-.')
-        ax.set_title('train_test_loss')
-        ax.set_ylabel('loss', labelpad=5, loc='center')
-        ax.set_xlabel('epoch', labelpad=5, loc='center')
-        plt.legend(loc='best')
+        ax.grid(True, linestyle="-.")
+        ax.set_title("train_test_loss")
+        ax.set_ylabel("loss", labelpad=5, loc="center")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        plt.legend(loc="best")
 
-        plt.savefig(f'{file_dir}/train_test_loss.png')
+        plt.savefig(f"{file_dir}/train_test_loss.png")
         plt.close()
 
     @staticmethod
     def plot_train_test_auc(train_auc, test_auc, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(list(range(len(train_auc))), train_auc, label='train_auc')  # color='darkorange'
-        ax.plot(list(range(len(test_auc))), test_auc, label='test_auc')
+        ax.plot(
+            list(range(len(train_auc))), train_auc, label="train_auc"
+        )  # color='darkorange'
+        ax.plot(list(range(len(test_auc))), test_auc, label="test_auc")
         # ax.set_xlim(0, len(train_auc) - 0.95)
         # ax.set_ylim(0, 1.02)
         ax.xaxis.set_major_locator(plt.MultipleLocator(1))
-        ax.grid(True, linestyle='-.')
-        ax.set_title('train_test_auc')
-        ax.set_ylabel('loss', labelpad=5, loc='center')
-        ax.set_xlabel('epoch', labelpad=5, loc='center')
-        plt.legend(loc='best')
+        ax.grid(True, linestyle="-.")
+        ax.set_title("train_test_auc")
+        ax.set_ylabel("loss", labelpad=5, loc="center")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        plt.legend(loc="best")
 
-        plt.savefig(f'{file_dir}/train_test_auc.png')
+        plt.savefig(f"{file_dir}/train_test_auc.png")
         plt.close()
 
     @classmethod
-    def plot_binary_mertics(cls, labels, y_probs, file_dir: str='./models'):
+    def plot_binary_mertics(cls, labels, y_probs, file_dir: str = "./models"):
         cls._plot_pr(labels, y_probs, file_dir)
         cls._plot_roc(labels, y_probs, file_dir)
         cls._plot_ks(labels, y_probs, file_dir)
@@ -196,13 +207,13 @@ class Plot(object):
 
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(recall, precision, ls='-', linewidth=2.0)
-        ax.grid(True, linestyle='-.')
-        ax.set_xlabel('recall', labelpad=5, loc='center')
-        ax.set_ylabel('precision', labelpad=5, loc='center')
-        ax.set_title('PR Curve')
+        ax.plot(recall, precision, ls="-", linewidth=2.0)
+        ax.grid(True, linestyle="-.")
+        ax.set_xlabel("recall", labelpad=5, loc="center")
+        ax.set_ylabel("precision", labelpad=5, loc="center")
+        ax.set_title("PR Curve")
 
-        plt.savefig(f'{file_dir}/PR_Curve.png')
+        plt.savefig(f"{file_dir}/PR_Curve.png")
         plt.close()
 
     @classmethod
@@ -211,13 +222,13 @@ class Plot(object):
 
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(fpr, tpr, ls='-', linewidth=2.0)
-        ax.grid(True, linestyle='-.')
-        ax.set_xlabel('false positive rate', labelpad=5, loc='center')
-        ax.set_ylabel('true positive rate', labelpad=5, loc='center')
-        ax.set_title('ROC Curve')
+        ax.plot(fpr, tpr, ls="-", linewidth=2.0)
+        ax.grid(True, linestyle="-.")
+        ax.set_xlabel("false positive rate", labelpad=5, loc="center")
+        ax.set_ylabel("true positive rate", labelpad=5, loc="center")
+        ax.set_title("ROC Curve")
 
-        plt.savefig(f'{file_dir}/ROC_Curve.png')
+        plt.savefig(f"{file_dir}/ROC_Curve.png")
         plt.close()
 
     @classmethod
@@ -227,40 +238,40 @@ class Plot(object):
 
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(thresholds, tpr, ls='-', linewidth=2.0)
-        ax.plot(thresholds, fpr, ls='-', linewidth=2.0)
-        ax.plot(thresholds, tpr - fpr, ls='-', linewidth=2.0)
-        ax.grid(True, linestyle='-.')
-        ax.set_xlabel('threshold', labelpad=5, loc='center')
-        ax.set_title('KS Curve')
+        ax.plot(thresholds, tpr, ls="-", linewidth=2.0)
+        ax.plot(thresholds, fpr, ls="-", linewidth=2.0)
+        ax.plot(thresholds, tpr - fpr, ls="-", linewidth=2.0)
+        ax.grid(True, linestyle="-.")
+        ax.set_xlabel("threshold", labelpad=5, loc="center")
+        ax.set_title("KS Curve")
 
-        plt.legend(['tpr', 'fpr', 'tpr-fpr'])
-        plt.savefig(f'{file_dir}/KS_Curve.png')
+        plt.legend(["tpr", "fpr", "tpr-fpr"])
+        plt.savefig(f"{file_dir}/KS_Curve.png")
         plt.close()
 
     @classmethod
     def _plot_lift(cls, label, y_prob, file_dir):
         result = pd.DataFrame([label, y_prob]).T
-        result.columns = ['target', 'proba']
-        result = result.sort_values(['proba', 'target'], ascending=False).reset_index()
+        result.columns = ["target", "proba"]
+        result = result.sort_values(["proba", "target"], ascending=False).reset_index()
 
-        del result['index']
+        del result["index"]
         result.set_index((result.index + 1) / result.shape[0], inplace=True)
-        result['bad_sum'] = result['target'].cumsum()
-        result['count_sum'] = [i + 1 for i in range(result.shape[0])]
-        result['rate'] = result['bad_sum'] / result['count_sum']
-        result['lift'] = result['rate'] / (result['target'].sum() / result.shape[0])
+        result["bad_sum"] = result["target"].cumsum()
+        result["count_sum"] = [i + 1 for i in range(result.shape[0])]
+        result["rate"] = result["bad_sum"] / result["count_sum"]
+        result["lift"] = result["rate"] / (result["target"].sum() / result.shape[0])
 
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(result['lift'])   # color='darkorange'
-        ax.grid(True, linestyle='-.')
-        ax.set_title('Lift Curve')
-        ax.set_ylabel('lift', labelpad=5, loc='center')
-        ax.set_xlabel('predict positive ratio', labelpad=5, loc='center')
+        ax.plot(result["lift"])  # color='darkorange'
+        ax.grid(True, linestyle="-.")
+        ax.set_title("Lift Curve")
+        ax.set_ylabel("lift", labelpad=5, loc="center")
+        ax.set_xlabel("predict positive ratio", labelpad=5, loc="center")
         ax.set_xticks([i / 10 for i in range(11)])
 
-        plt.savefig(f'{file_dir}/Lift_Curve.png')
+        plt.savefig(f"{file_dir}/Lift_Curve.png")
         plt.close()
 
 
@@ -277,12 +288,16 @@ def tree_to_str(tree, tree_structure):
     root = tree.root
     _prepare_print_val(tree, root)
 
-    orientation = PrettyPrintTree.HORIZONTAL if tree_structure == "HORIZONTAL" else PrettyPrintTree.VERTICAL
+    orientation = (
+        PrettyPrintTree.HORIZONTAL
+        if tree_structure == "HORIZONTAL"
+        else PrettyPrintTree.VERTICAL
+    )
 
     pt = PrettyPrintTree(
         get_children=lambda x: x.children if x else [],
         get_val=lambda x: x.print_val if x else "",
-        default_orientation = orientation,
+        default_orientation=orientation,
         border=True,
         color=None,
         return_instead_of_print=True,
@@ -296,7 +311,7 @@ def _prepare_print_val(tree, root):
     if not root:
         return
 
-    if root.value != None:
+    if root.value is not None:
         # leaf node
         print_val = f"value: {root.value: .3f}"
     else:
@@ -309,8 +324,8 @@ def _prepare_print_val(tree, root):
         else:
             print_val = f"passive_party_{root.party_id}\n"
             print_val += f"record_id: {root.record_id}\n"
-            print_val += f"feature: encrypt\n"
-            print_val += f"threshold: encrypt"
+            print_val += "feature: encrypt\n"
+            print_val += "threshold: encrypt"
 
     root.print_val = print_val
     root.children = []
@@ -322,19 +337,22 @@ def _prepare_print_val(tree, root):
         _prepare_print_val(tree, root.right_branch)
         root.children.append(root.right_branch)
 
-def _check_not_tuple_of_2_elements(obj: Any, obj_name: str = 'obj') -> None:
+
+def _check_not_tuple_of_2_elements(obj: Any, obj_name: str = "obj") -> None:
     """Check object is not tuple or does not have 2 elements."""
     if not isinstance(obj, tuple) or len(obj) != 2:
         raise TypeError(f"{obj_name} must be a tuple of 2 elements.")
 
+
 def _float2str(value: float, precision: Optional[int] = None) -> str:
-    return (f"{value:.{precision}f}"
-            if precision is not None and not isinstance(value, str)
-            else str(value))
+    return (
+        f"{value:.{precision}f}"
+        if precision is not None and not isinstance(value, str)
+        else str(value)
+    )
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # feature_num = 20
     # features = [f'active_feature{i}' for i in range(feature_num)]
     #
@@ -361,7 +379,7 @@ if __name__ == '__main__':
     #
     # train_loss = np.array([0.97, 0.5, 0.25, 0.125, 0.05, 0.04, 0.03])
     # train_auc = np.array([0.5, 0.7, 0.85, 0.9, 0.92, 0.94, 0.95])
-   #  test_loss = np.array([0.87, 0.4, 0.25, 0.105, 0.08, 0.07, 0.06])
+    #  test_loss = np.array([0.87, 0.4, 0.25, 0.105, 0.08, 0.07, 0.06])
     train_loss = np.array([0.97, 0.95, 0.91, 0.9])
     test_loss = np.array([0.87, 0.85, 0.81, 0.8])
 

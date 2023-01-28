@@ -8,7 +8,9 @@ from linkefl.dataio import NumpyDataset, TorchDataset
 try:
     from linkefl.psi.cm20.PsiPython import PsiSender
 except ImportError:
-    raise RuntimeError("Script launching order error. You should launch active party first.")
+    raise RuntimeError(
+        "Script launching order error. You should launch active party first."
+    )
 
 
 class CM20PSIPassive(BasePSIComponent):
@@ -44,7 +46,7 @@ class CM20PSIPassive(BasePSIComponent):
         passive_ids_len = len(ids)
 
         start = time.time()
-        self.messenger.send(Const.START_SIGNAL) # send starting signal
+        self.messenger.send(Const.START_SIGNAL)  # send starting signal
 
         # 1. sync seed and number of ids
         seed = self.messenger.recv()

@@ -1,10 +1,10 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 
 class SimpleCNN(nn.Module):
-    def __init__(self,num_classes=10,num_channels=1):
+    def __init__(self, num_classes=10, num_channels=1):
         super(SimpleCNN, self).__init__()
         self.conv1 = nn.Conv2d(num_channels, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
@@ -22,22 +22,31 @@ class SimpleCNN(nn.Module):
         return out
 
 
-
 class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, in_planes, planes, stride=1):
         super(BasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=1, padding=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(planes)
 
         self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion*planes:
+        if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
+                nn.Conv2d(
+                    in_planes,
+                    self.expansion * planes,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.expansion * planes),
             )
 
     def forward(self, x):
@@ -55,16 +64,26 @@ class Bottleneck(nn.Module):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv2 = nn.Conv2d(
+            planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )
         self.bn2 = nn.BatchNorm2d(planes)
-        self.conv3 = nn.Conv2d(planes, self.expansion*planes, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(self.expansion*planes)
+        self.conv3 = nn.Conv2d(
+            planes, self.expansion * planes, kernel_size=1, bias=False
+        )
+        self.bn3 = nn.BatchNorm2d(self.expansion * planes)
 
         self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion*planes:
+        if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
+                nn.Conv2d(
+                    in_planes,
+                    self.expansion * planes,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.expansion * planes),
             )
 
     def forward(self, x):
@@ -77,20 +96,22 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, num_blocks, num_classes=10,num_channels=3):
+    def __init__(self, block, num_blocks, num_classes=10, num_channels=3):
         super(ResNet, self).__init__()
         self.in_planes = 64
 
-        self.conv1 = nn.Conv2d(num_channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            num_channels, 64, kernel_size=3, stride=1, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(64)
         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
         self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = nn.Linear(512*block.expansion, num_classes)
+        self.linear = nn.Linear(512 * block.expansion, num_classes)
 
     def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
+        strides = [stride] + [1] * (num_blocks - 1)
         layers = []
         for stride in strides:
             layers.append(block(self.in_planes, planes, stride))
@@ -109,40 +130,44 @@ class ResNet(nn.Module):
         return out
 
 
-def ResNet18(num_classes=10,num_channels=3):
-    return ResNet(BasicBlock, [2,2,2,2],num_classes,num_channels)
+def ResNet18(num_classes=10, num_channels=3):
+    return ResNet(BasicBlock, [2, 2, 2, 2], num_classes, num_channels)
 
-def ResNet34(num_classes=10,num_channels=3):
-    return ResNet(BasicBlock, [3,4,6,3],num_classes,num_channels)
 
-def ResNet50(num_classes=10,num_channels=3):
-    return ResNet(Bottleneck, [3,4,6,3],num_classes,num_channels)
+def ResNet34(num_classes=10, num_channels=3):
+    return ResNet(BasicBlock, [3, 4, 6, 3], num_classes, num_channels)
 
-def ResNet101(num_classes=10,num_channels=3):
-    return ResNet(Bottleneck, [3,4,23,3],num_classes,num_channels)
 
-def ResNet152(num_classes=10,num_channels=3):
-    return ResNet(Bottleneck, [3,8,36,3],num_classes,num_channels)
+def ResNet50(num_classes=10, num_channels=3):
+    return ResNet(Bottleneck, [3, 4, 6, 3], num_classes, num_channels)
+
+
+def ResNet101(num_classes=10, num_channels=3):
+    return ResNet(Bottleneck, [3, 4, 23, 3], num_classes, num_channels)
+
+
+def ResNet152(num_classes=10, num_channels=3):
+    return ResNet(Bottleneck, [3, 8, 36, 3], num_classes, num_channels)
+
 
 class LogReg(nn.Module):
-    def __init__(self,in_features=2,out_feautes =2):
+    def __init__(self, in_features=2, out_feautes=2):
         super(LogReg, self).__init__()
-        self.features=nn.Linear(in_features, out_features=out_feautes)
+        self.features = nn.Linear(in_features, out_features=out_feautes)
         # self.sigmoid=nn.Sigmoid()
-    def forward(self,x):
+
+    def forward(self, x):
         x = x.to(torch.float32)
         x = self.features(x)
         # out = self.sigmoid(x)
         # out = out.squeeze(-1)
         return x
 
-def Nets(model_name,num_classes,num_channels):
 
-    if model_name == 'SimpleCNN':
-        return SimpleCNN(num_classes,num_channels)
+def Nets(model_name, num_classes, num_channels):
+    if model_name == "SimpleCNN":
+        return SimpleCNN(num_classes, num_channels)
     # elif model_name == 'VGG16':
     #     return VGG16(num_classes,num_channels)
-    elif model_name == 'ResNet18':
-        return ResNet18(num_classes,num_channels)
-
-
+    elif model_name == "ResNet18":
+        return ResNet18(num_classes, num_channels)

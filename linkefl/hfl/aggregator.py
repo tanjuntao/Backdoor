@@ -1,12 +1,14 @@
 import copy
+
 import numpy as np
+import torch
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import StepLR
+
 from linkefl.hfl.dp_mechanism import gradient_clip
-import torch
+
 
 class Aggregator_server:
-
     @staticmethod
     def FedAvg(recDatas):
         num_local_dataset = [data["num_dataset"] for data in recDatas]
@@ -19,7 +21,9 @@ class Aggregator_server:
         net = {}
         for i in range(len(nets[0].keys())):
             keys = [list(net.keys())[i] for net in nets]
-            net[keys[0]] = np.sum([np.array(nets[j][keys[0]]) * w[j] for j in range(len(nets))], axis=0)
+            net[keys[0]] = np.sum(
+                [np.array(nets[j][keys[0]]) * w[j] for j in range(len(nets))], axis=0
+            )
             net[keys[0]] = net[keys[0]].tolist()
 
         return net
@@ -37,37 +41,40 @@ class Aggregator_server:
         net = {}
         for i in range(len(nets[0].keys())):
             keys = [list(net.keys())[i] for net in nets]
-            net[keys[0]] = np.mean([np.array(nets[j][keys[0]]) for j in range(len(nets))], axis=0)
+            net[keys[0]] = np.mean(
+                [np.array(nets[j][keys[0]]) for j in range(len(nets))], axis=0
+            )
             net[keys[0]] = net[keys[0]].tolist()
         return net
 
     @staticmethod
     def FedProx(recDatas):
-
         nets = [data["net"] for data in recDatas]
         net = {}
         for i in range(len(nets[0].keys())):
             keys = [list(net.keys())[i] for net in nets]
-            net[keys[0]] = np.mean([np.array(nets[j][keys[0]]) for j in range(len(nets))], axis=0)
+            net[keys[0]] = np.mean(
+                [np.array(nets[j][keys[0]]) for j in range(len(nets))], axis=0
+            )
             net[keys[0]] = net[keys[0]].tolist()
 
         return net
 
     @staticmethod
     def Scaffold(recDatas):
-
         nets = [data["net"] for data in recDatas]
         net = {}
         for i in range(len(nets[0].keys())):
             keys = [list(net.keys())[i] for net in nets]
-            net[keys[0]] = np.mean([np.array(nets[j][keys[0]]) for j in range(len(nets))], axis=0)
+            net[keys[0]] = np.mean(
+                [np.array(nets[j][keys[0]]) for j in range(len(nets))], axis=0
+            )
             net[keys[0]] = net[keys[0]].tolist()
 
         return net
 
     @staticmethod
     def PersonalizedFed(recDatas, kp):
-
         num_local_dataset = [data["num_dataset"] for data in recDatas]
         sum = 0
 
@@ -76,11 +83,13 @@ class Aggregator_server:
         w = [i / sum for i in num_local_dataset]
         nets = [data["net"] for data in recDatas]
         net = {}
-        total = (len(nets[0].keys()))
+        total = len(nets[0].keys())
         n = 0
         for i in range(len(nets[0].keys())):
             keys = [list(net.keys())[i] for net in nets]
-            net[keys[0]] = np.sum([np.array(nets[j][keys[0]]) * w[j] for j in range(len(nets))], axis=0)
+            net[keys[0]] = np.sum(
+                [np.array(nets[j][keys[0]]) * w[j] for j in range(len(nets))], axis=0
+            )
             net[keys[0]] = net[keys[0]].tolist()
             n += 1
             if n > int(total * (1 - kp)):
@@ -90,16 +99,13 @@ class Aggregator_server:
 
 
 class Aggregator_client:
-
     @staticmethod
     def FedAvg(train_set, model, optimizer, lf, iter, device):
-
         model.train()
         for i in range(iter):
             epoch_loss = 0.0
             for data, target in train_set:
                 data, target = data.to(device), target.to(device)
-                # data, target = Variable(data).to(torch.float32), Variable(target).to(torch.float32)
                 data, target = Variable(data), Variable(target).to(torch.long)
                 optimizer.zero_grad()
                 output = model(data)
@@ -112,7 +118,6 @@ class Aggregator_client:
 
     @staticmethod
     def FedAvg_seq(train_set, model, optimizer, lf, iter, device):
-
         model.train()
         for i in range(iter):
             epoch_loss = 0.0
@@ -130,14 +135,11 @@ class Aggregator_client:
 
     @staticmethod
     def FedProx(train_set, model, optimizer, lf, iter, device, mu=0.01):
-
         global_model = copy.deepcopy(model)
         model.train()
         for i in range(iter):
-
             epoch_loss = 0.0
             for data, target in train_set:
-
                 proximal_term = 0.0
                 for w, w_t in zip(model.parameters(), global_model.parameters()):
                     proximal_term += (w - w_t).norm(2)
@@ -154,9 +156,9 @@ class Aggregator_client:
         return model.state_dict(), epoch_loss
 
     @staticmethod
-    def Scaffold(train_set, model, optimizer, lf, iter, device,
-                 server_control, client_control):
-
+    def Scaffold(
+        train_set, model, optimizer, lf, iter, device, server_control, client_control
+    ):
         lr_step = StepLR(optimizer, step_size=10, gamma=0.1)
 
         model.train()

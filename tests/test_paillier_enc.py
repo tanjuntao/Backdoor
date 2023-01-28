@@ -2,11 +2,11 @@ import concurrent.futures
 import multiprocessing
 import os
 import random
-import time
 import threading
+import time
 
 import gmpy2
-from phe import generate_paillier_keypair, EncodedNumber, EncryptedNumber
+from phe import EncodedNumber, EncryptedNumber, generate_paillier_keypair
 from phe.util import mulmod
 
 from linkefl.crypto import Paillier
@@ -39,8 +39,9 @@ def enc_vector(plain_vector, public_key, release_gil=False, n_threads=os.cpu_cou
         end = (idx + 1) * quotient
         if idx == n_threads - 1:
             end += remainder
-        t = threading.Thread(target=target_func,
-                             args=(randoms, start, end, n, nsquare, release_gil))
+        t = threading.Thread(
+            target=target_func, args=(randoms, start, end, n, nsquare, release_gil)
+        )
         threads.append(t)
         t.start()
     for t in threads:
@@ -59,7 +60,7 @@ def enc_vector(plain_vector, public_key, release_gil=False, n_threads=os.cpu_cou
     return encrypted_vector
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     size = 40000
     offset = 100
     paillier = Paillier(key_size=1024)
@@ -71,7 +72,7 @@ if __name__ == '__main__':
 
     start = time.time()
     result = [pub_key.encrypt(val) for val in large_plaintexts]
-    print('small plaintexts encryption time: {}'.format(time.time() - start))
+    print("small plaintexts encryption time: {}".format(time.time() - start))
     # print(priv_key.decrypt(result[0]))
 
     # start = time.time()
@@ -85,11 +86,10 @@ if __name__ == '__main__':
 
     start_time = time.time()
     ciphers = enc_vector(large_plaintexts, pub_key, release_gil=True)
-    print('multi thread elapsed time: {}'.format(time.time() - start_time))
+    print("multi thread elapsed time: {}".format(time.time() - start_time))
     # print(priv_key.decrypt(ciphers[0]))
 
     start_time = time.time()
     pool = multiprocessing.Pool(os.cpu_count())
     ciphers = paillier.encrypt_data(small_plaintexts, pool)
-    print('pool elapsed time: {}'.format(time.time() - start_time))
-
+    print("pool elapsed time: {}".format(time.time() - start_time))

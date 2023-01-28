@@ -1,14 +1,20 @@
 import datetime
-import time
 import os
+import time
 from collections import defaultdict
 from multiprocessing import Pool
 from typing import List
 
 import numpy as np
 from scipy.special import softmax
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    roc_auc_score,
+)
 
 from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
@@ -19,8 +25,13 @@ from linkefl.util import sigmoid
 from linkefl.vfl.tree import DecisionTree
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
 from linkefl.vfl.tree.error import DisconnectedError
-from linkefl.vfl.tree.loss_functions import CrossEntropyLoss, MultiCrossEntropyLoss, MeanSquaredErrorLoss
+from linkefl.vfl.tree.loss_functions import (
+    CrossEntropyLoss,
+    MeanSquaredErrorLoss,
+    MultiCrossEntropyLoss,
+)
 from linkefl.vfl.tree.plotting import Plot, tree_to_str
+
 
 class ActiveTreeParty(BaseModelComponent):
     def __init__(
@@ -76,7 +87,15 @@ class ActiveTreeParty(BaseModelComponent):
             n_processes: number of processes in multiprocessing
         """
 
-        self._check_parameters(training_mode, task, n_labels, compress, sampling_method, messengers, drop_protection)
+        self._check_parameters(
+            training_mode,
+            task,
+            n_labels,
+            compress,
+            sampling_method,
+            messengers,
+            drop_protection,
+        )
 
         self.n_trees = n_trees
         self.task = task
@@ -99,11 +118,14 @@ class ActiveTreeParty(BaseModelComponent):
             self.pool = None
 
         if model_name is None:
-            self.model_name = "{time}-{role}-{model_type}".format(
-                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                role=Const.ACTIVE_NAME,
-                model_type=Const.VERTICAL_SBT,
-            ) + ".model"
+            self.model_name = (
+                "{time}-{role}-{model_type}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.ACTIVE_NAME,
+                    model_type=Const.VERTICAL_SBT,
+                )
+                + ".model"
+            )
         else:
             self.model_name = model_name
 
@@ -144,20 +166,36 @@ class ActiveTreeParty(BaseModelComponent):
                 colsample_bytree=colsample_bytree,
                 pool=self.pool,
                 drop_protection=drop_protection,
-                reconnect_ports=reconnect_ports
+                reconnect_ports=reconnect_ports,
             )
             for _ in range(n_trees)
         ]
 
         self.feature_importance_info = {
-            "split": defaultdict(int),          # Total number of splits
-            "gain": defaultdict(float),         # Total revenue
-            "cover": defaultdict(float)         # Total sample covered
+            "split": defaultdict(int),  # Total number of splits
+            "gain": defaultdict(float),  # Total revenue
+            "cover": defaultdict(float),  # Total sample covered
         }
 
-    def _check_parameters(self, training_mode, task, n_labels, compress, sampling_method, messengers, drop_protection):
-        assert training_mode in ("lightgbm", "xgboost"), "training_mode should be lightgbm or xgboost"
-        assert task in ("regression", "binary", "multi"), "task should be regression or binary or multi"
+    def _check_parameters(
+        self,
+        training_mode,
+        task,
+        n_labels,
+        compress,
+        sampling_method,
+        messengers,
+        drop_protection,
+    ):
+        assert training_mode in (
+            "lightgbm",
+            "xgboost",
+        ), "training_mode should be lightgbm or xgboost"
+        assert task in (
+            "regression",
+            "binary",
+            "multi",
+        ), "task should be regression or binary or multi"
         assert n_labels >= 2, "n_labels should be at least 2"
         assert sampling_method in ("uniform", "goss"), "sampling method not supported"
 
@@ -175,7 +213,7 @@ class ActiveTreeParty(BaseModelComponent):
 
         if task == "regression":
             assert (
-                    task == "regression" and n_labels == 2
+                task == "regression" and n_labels == 2
             ), "regression task should set n_labels as 2"
 
         if drop_protection is True:
@@ -185,8 +223,7 @@ class ActiveTreeParty(BaseModelComponent):
                 ), "current messenger type does not support drop protection."
 
     def fit(self, trainset, testset, role=Const.ACTIVE_NAME):
-        """set for pipeline func.
-        """
+        """set for pipeline func."""
         self.train(trainset, testset)
 
     def train(self, trainset, testset):
@@ -230,7 +267,7 @@ class ActiveTreeParty(BaseModelComponent):
                     begin=start_time,
                     end=time.time(),
                     duration=time.time() - start_time,
-                    progress=tree_id / len(self.trees)
+                    progress=tree_id / len(self.trees),
                 )
 
                 train_loss = self.loss.loss(labels, outputs)
@@ -241,9 +278,13 @@ class ActiveTreeParty(BaseModelComponent):
 
                 while True:
                     try:
-                        tree.messengers_validTag = self.messengers_validTag         # update messengers tag
+                        tree.messengers_validTag = (
+                            self.messengers_validTag
+                        )  # update messengers tag
                         tree.fit(gradient, hessian, bin_index, bin_split)
-                        self.messengers_validTag = tree.messengers_validTag         # update messengers tag
+                        self.messengers_validTag = (
+                            tree.messengers_validTag
+                        )  # update messengers tag
 
                         raw_outputs += self.learning_rate * tree.update_pred
 
@@ -312,7 +353,7 @@ class ActiveTreeParty(BaseModelComponent):
                     begin=start_time,
                     end=time.time(),
                     duration=time.time() - start_time,
-                    progress=tree_id / len(self.trees)
+                    progress=tree_id / len(self.trees),
                 )
 
                 loss = self.loss.loss(labels_onehot, outputs)
@@ -321,13 +362,17 @@ class ActiveTreeParty(BaseModelComponent):
 
                 while True:
                     try:
-                        tree.messengers_validTag = self.messengers_validTag  # update messengers tag
+                        tree.messengers_validTag = (
+                            self.messengers_validTag
+                        )  # update messengers tag
                         tree.fit(gradient, hessian, bin_index, bin_split)
 
                         raw_outputs += self.learning_rate * tree.update_pred
                         outputs = softmax(raw_outputs, axis=1)
 
-                        self.messengers_validTag = tree.messengers_validTag  # update messengers tag
+                        self.messengers_validTag = (
+                            tree.messengers_validTag
+                        )  # update messengers tag
                         self._merge_tree_info(tree.feature_importance_info)
                         self.logger.log(f"tree {tree_id} finished")
 
@@ -362,15 +407,19 @@ class ActiveTreeParty(BaseModelComponent):
             begin=start_time,
             end=time.time(),
             duration=time.time() - start_time,
-            progress=1.0
+            progress=1.0,
         )
         self.logger.log("train finished")
-        self.logger.log("Total training and validation time: {:.4f}".format(time.time() - start_time))
+        self.logger.log(
+            "Total training and validation time: {:.4f}".format(
+                time.time() - start_time
+            )
+        )
 
         if self.pool is not None:
             self.pool.close()
 
-        if self.saving_model:       # save training files.
+        if self.saving_model:  # save training files.
             model_structure = self._save_model()
             for messenger_id, messenger in enumerate(self.messengers):
                 if self.messengers_validTag[messenger_id]:
@@ -386,19 +435,23 @@ class ActiveTreeParty(BaseModelComponent):
             tree_strs = self.get_tree_str_structures(tree_structure="VERTICAL")
             Plot.plot_trees(tree_strs, self.pics_path)
 
-
     def score(self, testset, role=Const.ACTIVE_NAME):
-        """set for pipeline func.
-        """
+        """set for pipeline func."""
         return self._validate(testset)
 
     @staticmethod
-    def online_inference(dataset, task, n_labels, messengers, logger,
-                         model_name, model_path='./models'):
-        assert isinstance(dataset, NumpyDataset), 'inference dataset should be an ' \
-                                                  'instance of NumpyDataset'
-        model_params, feature_importance_info, learning_rate, tree_structure = \
-            NumpyModelIO.load(model_path, model_name)
+    def online_inference(
+        dataset, task, n_labels, messengers, logger, model_name, model_path="./models"
+    ):
+        assert isinstance(
+            dataset, NumpyDataset
+        ), "inference dataset should be an instance of NumpyDataset"
+        (
+            model_params,
+            feature_importance_info,
+            learning_rate,
+            tree_structure,
+        ) = NumpyModelIO.load(model_path, model_name)
 
         trees = [
             DecisionTree(
@@ -407,7 +460,7 @@ class ActiveTreeParty(BaseModelComponent):
                 crypto_type=None,
                 crypto_system=None,
                 messengers=messengers,
-                logger=logger
+                logger=logger,
             )
             for _ in range(len(model_params))
         ]
@@ -479,33 +532,41 @@ class ActiveTreeParty(BaseModelComponent):
     def feature_importances_(self, importance_type="split"):
         """
         Args:
-            importance_type: choose in ("split", "gain", "cover"), metrics to evaluate the importance of features.
+            importance_type: choose in ("split", "gain", "cover"),
+            metrics to evaluate the importance of features.
 
         Returns:
             dict, include features and importance values.
         """
-        assert importance_type in ("split", "gain", "cover"), "Not support evaluation way"
+        assert importance_type in (
+            "split",
+            "gain",
+            "cover",
+        ), "Not support evaluation way"
 
         keys = np.array(list(self.feature_importance_info[importance_type].keys()))
         values = np.array(list(self.feature_importance_info[importance_type].values()))
 
-        if importance_type != 'split':      # The "gain" and "cover" indicators are calculated as mean values
-            split_nums = np.array(list(self.feature_importance_info['split'].values()))
-            split_nums[split_nums==0] = 1   # Avoid division by zero
+        if (
+            importance_type != "split"
+        ):  # The "gain" and "cover" indicators are calculated as mean values
+            split_nums = np.array(list(self.feature_importance_info["split"].values()))
+            split_nums[split_nums == 0] = 1  # Avoid division by zero
             values = values / split_nums
 
         ascend_index = values.argsort()
         features, values = keys[ascend_index[::-1]], values[ascend_index[::-1]]
         result = {
-            'features': list(features),
-            f'importance_{importance_type}': list(values)
+            "features": list(features),
+            f"importance_{importance_type}": list(values),
         }
 
         return result
 
     def load_model(self, model_name, model_path="./models"):
-        model_params, feature_importance_info, lr, tree_structure = \
-            NumpyModelIO.load(model_path, model_name)
+        model_params, feature_importance_info, lr, tree_structure = NumpyModelIO.load(
+            model_path, model_name
+        )
 
         if len(self.trees) != len(model_params):
             self.trees = [
@@ -515,7 +576,7 @@ class ActiveTreeParty(BaseModelComponent):
                     crypto_type=self.crypto_type,
                     crypto_system=self.crypto_system,
                     messengers=self.messengers,
-                    logger=self.logger
+                    logger=self.logger,
                 )
                 for _ in range(len(model_params))
             ]
@@ -528,8 +589,11 @@ class ActiveTreeParty(BaseModelComponent):
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
 
-    def get_tree_str_structures(self, tree_structure: str="VERTICAL"):
-        assert tree_structure in ["VERTICAL", "HORIZONTAL"], "tree_structure should be VERTICAL or HORIZONTAL"
+    def get_tree_str_structures(self, tree_structure: str = "VERTICAL"):
+        assert tree_structure in [
+            "VERTICAL",
+            "HORIZONTAL",
+        ], "tree_structure should be VERTICAL or HORIZONTAL"
         tree_strs = {}
 
         for tree_id, tree in enumerate(self.trees, 1):
@@ -540,8 +604,8 @@ class ActiveTreeParty(BaseModelComponent):
         return tree_strs
 
     def get_tree_structures(self):
-        """tree_id : 1-based
-        """
+        """tree_id : 1-based"""
+
         def _pre_order_traverse(root):
             nonlocal data
 
@@ -551,7 +615,7 @@ class ActiveTreeParty(BaseModelComponent):
 
             node_info = ""
 
-            if root.value != None:
+            if root.value is not None:
                 # leaf node
                 node_info += f"leaf value: {root.value: .4f},"
             else:
@@ -564,8 +628,8 @@ class ActiveTreeParty(BaseModelComponent):
                 else:
                     node_info += f"passive_party_{root.party_id},"
                     node_info += f"record_id: {root.record_id},"
-                    node_info += f"split_feature: encrypt,"
-                    node_info += f"split_value: encrypt,"
+                    node_info += "split_feature: encrypt,"
+                    node_info += "split_value: encrypt,"
 
             data += f"{node_info};"
 
@@ -582,7 +646,6 @@ class ActiveTreeParty(BaseModelComponent):
             tree_structures[f"tree{tree_id}"] = data
 
         return tree_structures
-
 
     def _validate_tree(self, testset, tree, raw_outputs_test=None):
         assert isinstance(
@@ -704,11 +767,17 @@ class ActiveTreeParty(BaseModelComponent):
     def _merge_tree_info(self, feature_importance_info_tree):
         if feature_importance_info_tree is not None:
             for key in feature_importance_info_tree["split"].keys():
-                self.feature_importance_info["split"][key] += feature_importance_info_tree["split"][key]
+                self.feature_importance_info["split"][
+                    key
+                ] += feature_importance_info_tree["split"][key]
             for key in feature_importance_info_tree["gain"].keys():
-                self.feature_importance_info["gain"][key] += feature_importance_info_tree["gain"][key]
+                self.feature_importance_info["gain"][
+                    key
+                ] += feature_importance_info_tree["gain"][key]
             for key in feature_importance_info_tree["cover"].keys():
-                self.feature_importance_info["cover"][key] += feature_importance_info_tree["cover"][key]
+                self.feature_importance_info["cover"][
+                    key
+                ] += feature_importance_info_tree["cover"][key]
 
         self.logger.log("merge tree information done")
 
@@ -721,17 +790,23 @@ class ActiveTreeParty(BaseModelComponent):
             model_params,
             self.feature_importance_info,
             self.learning_rate,
-            model_structure
+            model_structure,
         ]
         NumpyModelIO.save(saved_data, self.model_path, model_name)
 
         self.logger.log(f"Save model {model_name} success.")
         return model_structure
 
+
 if __name__ == "__main__":
     import pandas as pd
 
-    from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory, messenger_factory_disconnection
+    from linkefl.common.factory import (
+        crypto_factory,
+        logger_factory,
+        messenger_factory,
+        messenger_factory_disconnection,
+    )
     from linkefl.feature.transform import parse_label
 
     # 0. Set parameters
@@ -742,37 +817,49 @@ if __name__ == "__main__":
     feat_perm_option = Const.SEQUENCE
 
     n_trees = 2
-    task = "binary"     # multi, binary, regression
+    task = "binary"  # multi, binary, regression
     n_labels = 2
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
 
     n_processes = 6
 
-    active_ips = ["localhost", ]
-    active_ports = [21001, ]
-    passive_ips = ["localhost", ]
-    passive_ports = [20001, ]
+    active_ips = [
+        "localhost",
+    ]
+    active_ports = [
+        21001,
+    ]
+    passive_ips = [
+        "localhost",
+    ]
+    passive_ports = [
+        20001,
+    ]
 
     drop_protection = False
     reconnect_ports = [30003]
 
     # 1. Load datasets
     print("Loading dataset...")
-    active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                   dataset_name=dataset_name,
-                                                   root='../data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
-    active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                  dataset_name=dataset_name,
-                                                  root='../data',
-                                                  train=False,
-                                                  download=True,
-                                                  passive_feat_frac=passive_feat_frac,
-                                                  feat_perm_option=feat_perm_option)
+    active_trainset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root="../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+    active_testset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root="../data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
     active_trainset = parse_label(active_trainset)
     active_testset = parse_label(active_testset)
     print("Done")
@@ -805,7 +892,7 @@ if __name__ == "__main__":
             messenger_factory_disconnection(
                 messenger_type=Const.FAST_SOCKET_V1,
                 role=Const.ACTIVE_NAME,
-                model_type='Tree',                   # used as tag to verify data
+                model_type="Tree",  # used as tag to verify data
                 active_ip=active_ip,
                 active_port=active_port,
                 passive_ip=passive_ip,
@@ -826,8 +913,8 @@ if __name__ == "__main__":
         crypto_system=crypto_system,
         messengers=messengers,
         logger=logger,
-        training_mode="lightgbm",       # "lightgbm", "xgboost"
-        sampling_method='uniform',
+        training_mode="lightgbm",  # "lightgbm", "xgboost"
+        sampling_method="uniform",
         max_depth=6,
         max_num_leaves=8,
         subsample=0.6,
@@ -843,7 +930,9 @@ if __name__ == "__main__":
 
     active_party.train(active_trainset, active_testset)
 
-    # feature_importance_info = pd.DataFrame(active_party.feature_importances_(importance_type='cover'))
+    # feature_importance_info = pd.DataFrame(
+    #     active_party.feature_importances_(importance_type='cover')
+    # )
     # print(feature_importance_info)
 
     # ax = plot_importance(active_party, importance_type='split')
@@ -855,4 +944,3 @@ if __name__ == "__main__":
     # 5. Close messenger, finish training
     for messenger in messengers:
         messenger.close()
-

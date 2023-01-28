@@ -2,7 +2,6 @@ from typing import Callable, Type, Union
 
 from torch import nn
 
-
 TorchModuleType = Union[str, Callable[..., nn.Module]]
 
 
@@ -12,7 +11,8 @@ def make_nn_module(module_type: TorchModuleType, *args) -> nn.Module:
             cls = getattr(nn, module_type)
         except AttributeError as err:
             raise ValueError(
-                f'Failed to construct the module {module_type} with the arguments {args}'
+                f"Failed to construct the module {module_type} with the arguments"
+                f" {args}"
             ) from err
         return cls(*args)
     else:

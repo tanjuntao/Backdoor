@@ -1,45 +1,48 @@
 import argparse
 
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import r2_score, mean_squared_error
 
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.feature import add_intercept, scale
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, required=True)
+    parser.add_argument("--dataset", type=str, required=True)
     args = parser.parse_args()
 
-    if args.dataset in {'diabetes', 'year', 'nyc-taxi'}:
+    if args.dataset in {"diabetes", "year", "nyc-taxi"}:
         dataset_name = args.dataset
 
     else:
-        raise ValueError('dataset is not supported.')
+        raise ValueError("dataset is not supported.")
 
     passive_feat_frac = 0.0
 
     # load dataset
-    active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                   dataset_name=dataset_name,
-                                                   root='data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=Const.SEQUENCE)
-    active_testset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
-                                                  dataset_name=dataset_name,
-                                                  root='data',
-                                                  train=False,
-                                                  download=True,
-                                                  passive_feat_frac=passive_feat_frac,
-                                                  feat_perm_option=Const.SEQUENCE)
+    active_trainset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root="data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=Const.SEQUENCE,
+    )
+    active_testset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root="data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=Const.SEQUENCE,
+    )
     # active_trainset = scale(add_intercept(active_trainset))
     # active_testset = scale(add_intercept(active_testset))
     active_trainset = add_intercept(scale(active_trainset))
@@ -51,10 +54,10 @@ if __name__ == '__main__':
 
     # initialize model
     regr = LinearRegression()
-    # regr = RandomForestRegressor(max_features='1.0', 
+    # regr = RandomForestRegressor(max_features='1.0',
     #                              criterion='absolute_error',
-    #                              oob_score=True, 
-    #                              random_state=99, 
+    #                              oob_score=True,
+    #                              random_state=99,
     #                              n_jobs=-1)
 
     # pipe = make_pipeline(StandardScaler(), regr)
@@ -70,6 +73,5 @@ if __name__ == '__main__':
     mse = mean_squared_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
 
-    print('MSE: {:.5f}'.format(mse))
-    print('r2: {:.5f}'.format(r2))
-
+    print("MSE: {:.5f}".format(mse))
+    print("r2: {:.5f}".format(r2))

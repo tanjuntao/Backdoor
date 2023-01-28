@@ -1,5 +1,3 @@
-
-
 class Singleton(object):
     _instance = None
 
@@ -15,7 +13,7 @@ class Singleton(object):
         self.password = password
 
 
-if __name__ == '__main__':
-    a = Singleton(name='a', password='aaa')
-    b = Singleton('b', 'bbb') # override a's attributes
+if __name__ == "__main__":
+    a = Singleton(name="a", password="aaa")
+    b = Singleton("b", "bbb")  # override a's attributes
     print(a is b)

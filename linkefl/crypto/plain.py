@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from linkefl.base import BasePartialCryptoSystem, BaseCryptoSystem
+from linkefl.base import BaseCryptoSystem, BasePartialCryptoSystem
 from linkefl.common.const import Const
 
 
@@ -14,8 +14,7 @@ class PartialPlain(BasePartialCryptoSystem):
     def encrypt(self, plaintext):
         return plaintext
 
-    def encrypt_vector(self, plain_vector,
-                       using_pool=False, n_workers=None, pool=None):
+    def encrypt_vector(self, plain_vector, using_pool=False, n_workers=None, pool=None):
         if type(plain_vector) == list:
             return plain_vector.copy()
         elif type(plain_vector) == np.ndarray:
@@ -23,12 +22,15 @@ class PartialPlain(BasePartialCryptoSystem):
         elif type(plain_vector) == torch.Tensor:
             return list(plain_vector.numpy())
         else:
-            raise TypeError("Only Python list, Numpy Array, and PyTorch Tensor can be"
-                            " passed to this method.")
+            raise TypeError(
+                "Only Python list, Numpy Array, and PyTorch Tensor can be"
+                " passed to this method."
+            )
 
 
 class Plain(BaseCryptoSystem):
     """Pseudo cryptosystem."""
+
     def __init__(self, key_size=0):
         super(Plain, self).__init__(key_size)
         # this line takes no effect, just for API consistency
@@ -44,8 +46,7 @@ class Plain(BaseCryptoSystem):
     def decrypt(self, ciphertext):
         return ciphertext
 
-    def encrypt_vector(self, plain_vector,
-                       using_pool=False, n_workers=None, pool=None):
+    def encrypt_vector(self, plain_vector, using_pool=False, n_workers=None, pool=None):
         if type(plain_vector) == list:
             return plain_vector.copy()
         elif type(plain_vector) == np.ndarray:
@@ -53,11 +54,16 @@ class Plain(BaseCryptoSystem):
         elif type(plain_vector) == torch.Tensor:
             return list(plain_vector.numpy())
         else:
-            raise TypeError("Only Python list, Numpy Array, and PyTorch Tensor can be"
-                            " passed to this method.")
+            raise TypeError(
+                "Only Python list, Numpy Array, and PyTorch Tensor can be"
+                " passed to this method."
+            )
 
-    def decrypt_vector(self, cipher_vector,
-                       using_pool=False, n_workers=None, pool=None):
-        assert type(cipher_vector) in (list, np.ndarray), \
-            "cipher_vector's dtype can only be Python list or Numpy array."
+    def decrypt_vector(
+        self, cipher_vector, using_pool=False, n_workers=None, pool=None
+    ):
+        assert type(cipher_vector) in (
+            list,
+            np.ndarray,
+        ), "cipher_vector's dtype can only be Python list or Numpy array."
         return [val for val in cipher_vector]

@@ -210,7 +210,9 @@ class PCA(BaseTransformComponent):
             # raw_dataset[:, offset:] = X_transform
         elif isinstance(raw_dataset, torch.Tensor):
             X_transform = pca.fit_transform(raw_dataset[:, offset:].numpy())
-            raw_dataset = torch.cat((raw_dataset[:, :offset], torch.from_numpy(X_transform)), dim=1)
+            raw_dataset = torch.cat(
+                (raw_dataset[:, :offset], torch.from_numpy(X_transform)), dim=1
+            )
             # raw_dataset[:, offset:] = torch.from_numpy(X_transform)
         else:
             raise TypeError("invalid datatype")

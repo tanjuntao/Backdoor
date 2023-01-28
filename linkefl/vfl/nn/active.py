@@ -14,21 +14,22 @@ from linkefl.modelio import TorchModelIO
 
 
 class ActiveNeuralNetwork:
-    def __init__(self,
-                 epochs,
-                 batch_size,
-                 models,
-                 optimizers,
-                 loss_fn,
-                 messenger,
-                 crypto_type,
-                 logger,
-                 *,
-                 precision=0.001,
-                 random_state=None,
-                 saving_model=False,
-                 model_path='./models',
-                 model_name=None,
+    def __init__(
+        self,
+        epochs,
+        batch_size,
+        models,
+        optimizers,
+        loss_fn,
+        messenger,
+        crypto_type,
+        logger,
+        *,
+        precision=0.001,
+        random_state=None,
+        saving_model=False,
+        model_path="./models",
+        model_name=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -44,11 +45,14 @@ class ActiveNeuralNetwork:
         self.saving_model = saving_model
         self.model_path = model_path
         if model_name is None:
-            self.model_name = "{time}-{role}-{model_type}".format(
-                time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                role=Const.ACTIVE_NAME,
-                model_type=Const.VERTICAL_NN
-            ) + ".model"
+            self.model_name = (
+                "{time}-{role}-{model_type}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.ACTIVE_NAME,
+                    model_type=Const.VERTICAL_NN,
+                )
+                + ".model"
+            )
         else:
             self.model_name = model_name
 
@@ -57,10 +61,12 @@ class ActiveNeuralNetwork:
         return dataloader
 
     def train(self, trainset, testset):
-        assert isinstance(trainset, TorchDataset), 'trainset should be an instance ' \
-                                                   'of TorchDataset'
-        assert isinstance(testset, TorchDataset), 'testset should be an instance ' \
-                                                  'of TorchDataset'
+        assert isinstance(
+            trainset, TorchDataset
+        ), "trainset should be an instance of TorchDataset"
+        assert isinstance(
+            testset, TorchDataset
+        ), "testset should be an instance of TorchDataset"
         train_dataloader = self._init_dataloader(trainset)
         test_dataloader = self._init_dataloader(testset)
 
@@ -69,7 +75,7 @@ class ActiveNeuralNetwork:
         start_time = None
         best_acc, best_auc = 0, 0
         for epoch in range(self.epochs):
-            print('Epoch: {}'.format(epoch + 1))
+            print("Epoch: {}".format(epoch + 1))
             for batch_idx, (X, y) in enumerate(train_dataloader):
                 passive_data = self.messenger.recv()
                 if start_time is None:
@@ -97,38 +103,52 @@ class ActiveNeuralNetwork:
 
             is_best = False
             scores = self.validate(testset, existing_loader=test_dataloader)
-            curr_acc, curr_auc, curr_loss = scores['acc'], scores['auc'], scores['loss']
-            self.logger.log_metric(epoch,
-                                   curr_loss,
-                                   scores['acc'], scores['auc'], 0,
-                                   total_epoch=self.epochs)
+            curr_acc, curr_auc, curr_loss = scores["acc"], scores["auc"], scores["loss"]
+            self.logger.log_metric(
+                epoch,
+                curr_loss,
+                scores["acc"],
+                scores["auc"],
+                0,
+                total_epoch=self.epochs,
+            )
             if curr_acc > best_acc:
-                print(colored('Best model update.\n', 'red'))
+                print(colored("Best model update.\n", "red"))
                 is_best = True
                 best_acc = curr_acc
                 if self.saving_model:
-                    # model_name = self.model_name + "-" + str(trainset.n_samples) + "_samples" + ".model"
+                    # model_name = self.model_name + "-" + str(trainset.n_samples) +\
+                    #              "_samples" + ".model"
                     model_name = self.model_name
-                    TorchModelIO.save(self.models,
-                                      self.model_path,
-                                      model_name,
-                                      epoch=epoch,
-                                      optimizer=self.optimizers)
+                    TorchModelIO.save(
+                        self.models,
+                        self.model_path,
+                        model_name,
+                        epoch=epoch,
+                        optimizer=self.optimizers,
+                    )
             if curr_auc > best_auc:
                 best_auc = curr_auc
             self.messenger.send(is_best)
 
-        print(colored('Total training and validation time: {:.4f}'
-                      .format(time.time() - start_time), 'red'))
-        print(colored('Best testing accuracy: {:.5f}'.format(best_acc), 'red'))
-        print(colored('Best testing auc: {:.5f}'.format(best_auc), 'red'))
+        print(
+            colored(
+                "Total training and validation time: {:.4f}".format(
+                    time.time() - start_time
+                ),
+                "red",
+            )
+        )
+        print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
+        print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
 
     def validate(self, testset, existing_loader=None):
         scores = ActiveNeuralNetwork._validate_util(
-            testset, self.messenger,
+            testset,
+            self.messenger,
             model=self.models,
             existing_loader=existing_loader,
-            loss_fn=self.loss_fn
+            loss_fn=self.loss_fn,
         )
         return scores
         # assert isinstance(testset, TorchDataset), 'testset should be an instance ' \
@@ -172,10 +192,16 @@ class ActiveNeuralNetwork:
         #     return acc, auc
 
     @staticmethod
-    def online_inference(dataset, messenger,
-                         model_arch, model_name, model_path='./models',
-                         optimizer_arch=None,
-                         infer_step=64, loss_fn=None):
+    def online_inference(
+        dataset,
+        messenger,
+        model_arch,
+        model_name,
+        model_path="./models",
+        optimizer_arch=None,
+        infer_step=64,
+        loss_fn=None,
+    ):
         scores = ActiveNeuralNetwork._validate_util(
             dataset,
             messenger,
@@ -184,21 +210,31 @@ class ActiveNeuralNetwork:
             model_name=model_name,
             optimizer_arch=optimizer_arch,
             infer_step=infer_step,
-            loss_fn=loss_fn
+            loss_fn=loss_fn,
         )
         return scores
 
     @staticmethod
-    def _validate_util(dataset, messenger, *,
-                       model=None,
-                       model_arch=None, model_path='./models', model_name=None,
-                       optimizer_arch=None,
-                       existing_loader=None, infer_step=64, loss_fn=None):
-        assert isinstance(dataset, TorchDataset), 'dataset should be an instance' \
-                                                  'of TorchDataset'
+    def _validate_util(
+        dataset,
+        messenger,
+        *,
+        model=None,
+        model_arch=None,
+        model_path="./models",
+        model_name=None,
+        optimizer_arch=None,
+        existing_loader=None,
+        infer_step=64,
+        loss_fn=None,
+    ):
+        assert isinstance(
+            dataset, TorchDataset
+        ), "dataset should be an instanceof TorchDataset"
         if model is None:
-            model, _, _ = TorchModelIO.load(model_arch, model_path, model_name,
-                                            optimizer_arch=optimizer_arch)
+            model, _, _ = TorchModelIO.load(
+                model_arch, model_path, model_name, optimizer_arch=optimizer_arch
+            )
         if existing_loader is None:
             dataloader = DataLoader(dataset, batch_size=infer_step, shuffle=False)
         else:
@@ -235,32 +271,29 @@ class ActiveNeuralNetwork:
                 auc = roc_auc_score(labels, probs)
             else:
                 auc = 0
-            print(f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
-                  f" Auc: {(100 * auc):>0.2f}%,"
-                  f" Avg loss: {test_loss:>8f}")
+            print(
+                f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
+                f" Auc: {(100 * auc):>0.2f}%,"
+                f" Avg loss: {test_loss:>8f}"
+            )
 
-            scores = {
-                "acc": acc,
-                "auc": auc,
-                "loss": test_loss,
-                "preds": preds
-            }
+            scores = {"acc": acc, "auc": auc, "loss": test_loss, "preds": preds}
             messenger.send(scores)
             return scores
 
 
-if __name__ == '__main__':
-    from linkefl.common.factory import messenger_factory, logger_factory
+if __name__ == "__main__":
+    from linkefl.common.factory import logger_factory, messenger_factory
     from linkefl.util import num_input_nodes
     from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
 
     # 0. Set parameters
-    dataset_name = 'tab_mnist'
+    dataset_name = "tab_mnist"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
-    active_ip = 'localhost'
+    active_ip = "localhost"
     active_port = 20000
-    passive_ip = 'localhost'
+    passive_ip = "localhost"
     passive_port = 30000
     _epochs = 10
     _batch_size = 200
@@ -269,21 +302,25 @@ if __name__ == '__main__':
     _loss_fn = nn.CrossEntropyLoss()
 
     # 1. Load datasets
-    print('Loading dataset...')
-    active_trainset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                                   role=Const.ACTIVE_NAME,
-                                                   root='../data',
-                                                   train=True,
-                                                   download=True,
-                                                   passive_feat_frac=passive_feat_frac,
-                                                   feat_perm_option=feat_perm_option)
-    active_testset = TorchDataset.buildin_dataset(dataset_name=dataset_name,
-                                                  role=Const.ACTIVE_NAME,
-                                                  root='../data',
-                                                  train=False,
-                                                  download=True,
-                                                  passive_feat_frac=passive_feat_frac,
-                                                  feat_perm_option=feat_perm_option)
+    print("Loading dataset...")
+    active_trainset = TorchDataset.buildin_dataset(
+        dataset_name=dataset_name,
+        role=Const.ACTIVE_NAME,
+        root="../data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+    active_testset = TorchDataset.buildin_dataset(
+        dataset_name=dataset_name,
+        role=Const.ACTIVE_NAME,
+        root="../data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
     # active_trainset = BuildinTorchDataset(dataset_name=dataset_name,
     #                                       role=Const.ACTIVE_NAME,
     #                                       train=True,
@@ -294,15 +331,17 @@ if __name__ == '__main__':
     #                                      train=False,
     #                                      passive_feat_frac=passive_feat_frac,
     #                                      feat_perm_option=feat_perm_option)
-    print('Done.')
+    print("Done.")
     # for epsilon dataset, scale() must be applied.
     # active_trainset = scale(active_trainset)
     # active_testset = scale(active_testset)
 
     # 2. Created PyTorch models and associated optimizers
-    input_nodes = num_input_nodes(dataset_name=dataset_name,
-                                  role=Const.ACTIVE_NAME,
-                                  passive_feat_frac=passive_feat_frac)
+    input_nodes = num_input_nodes(
+        dataset_name=dataset_name,
+        role=Const.ACTIVE_NAME,
+        passive_feat_frac=passive_feat_frac,
+    )
     # mnist & fashion_mnist
     bottom_nodes = [input_nodes, 256, 128]
     intersect_nodes = [128, 128, 10]
@@ -342,47 +381,54 @@ if __name__ == '__main__':
     intersect_model = IntersectionModel(intersect_nodes)
     top_model = TopModel(top_nodes)
     _models = [bottom_model, intersect_model, top_model]
-    _optimizers = [torch.optim.SGD(model.parameters(), lr=_learning_rate)
-                   for model in _models]
+    _optimizers = [
+        torch.optim.SGD(model.parameters(), lr=_learning_rate) for model in _models
+    ]
 
     # 3. Initialize messenger
-    _messenger = messenger_factory(messenger_type=Const.FAST_SOCKET,
-                                   role=Const.ACTIVE_NAME,
-                                   active_ip=active_ip,
-                                   active_port=active_port,
-                                   passive_ip=passive_ip,
-                                   passive_port=passive_port)
-    _logger = logger_factory(role=Const.ACTIVE_NAME,
-                             writing_file=False,
-                             writing_http=False)
-    print('Active party started, listening...')
+    _messenger = messenger_factory(
+        messenger_type=Const.FAST_SOCKET,
+        role=Const.ACTIVE_NAME,
+        active_ip=active_ip,
+        active_port=active_port,
+        passive_ip=passive_ip,
+        passive_port=passive_port,
+    )
+    _logger = logger_factory(
+        role=Const.ACTIVE_NAME, writing_file=False, writing_http=False
+    )
+    print("Active party started, listening...")
 
     # 4. Initialize NN protocol and start training
-    active_party = ActiveNeuralNetwork(epochs=_epochs,
-                                       batch_size=_batch_size,
-                                       models=_models,
-                                       optimizers=_optimizers,
-                                       loss_fn=_loss_fn,
-                                       messenger=_messenger,
-                                       crypto_type=_crypto_type,
-                                       logger=_logger,
-                                       saving_model=True,)
+    active_party = ActiveNeuralNetwork(
+        epochs=_epochs,
+        batch_size=_batch_size,
+        models=_models,
+        optimizers=_optimizers,
+        loss_fn=_loss_fn,
+        messenger=_messenger,
+        crypto_type=_crypto_type,
+        logger=_logger,
+        saving_model=True,
+    )
     # active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training
     _messenger.close()
 
-    model, _, _, = TorchModelIO.load(_models, './models', '20230112_011446-active_party-vertical_nn')
+    model, _, _, = TorchModelIO.load(
+        _models, "./models", "20230112_011446-active_party-vertical_nn"
+    )
     bottom_model, cut_model, top_model = model
     from torchinfo import summary
+
     # summary(bottom_model, input_size=(200, 1, 392))
     # summary(cut_model, input_size=(200, 1, 256))
     # summary(top_model, input_size=(200, 1, 10))
 
     model_stats = summary(bottom_model, (200, 1, 392), verbose=0)
     print(str(model_stats))
-    print('done.')
-
+    print("done.")
 
     # # For online inference
     # _scores = ActiveNeuralNetwork.online_inference(
@@ -393,5 +439,3 @@ if __name__ == '__main__':
     #     optimizer_arch=_optimizers,
     # )
     # print(_scores)
-
-

@@ -1,13 +1,12 @@
 import os.path
+from typing import Any, Optional
 
-import shap
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import xgboost as xgb
-import matplotlib.pyplot as plt
 import seaborn as sns
-
-from typing import Optional, Any
+import shap
+import xgboost as xgb
 from xgboost import XGBClassifier, XGBRegressor
 
 from linkefl.dataio import NumpyDataset
@@ -19,16 +18,17 @@ class FeatureEvaluation(object):
         pass
 
     @classmethod
-    def tree_importance(cls,
-                        trainset: NumpyDataset,
-                        task: str="binary",
-                        evaluation_way: str="xgboost",
-                        importance_type: str="gain",
-                        save_pic: bool=True,
-                        max_num_features_plot: int=25,
-                        pic_path: str="./eval_results"):
-        """Measure feature importance based on tree model.
-        """
+    def tree_importance(
+        cls,
+        trainset: NumpyDataset,
+        task: str = "binary",
+        evaluation_way: str = "xgboost",
+        importance_type: str = "gain",
+        save_pic: bool = True,
+        max_num_features_plot: int = 25,
+        pic_path: str = "./eval_results",
+    ):
+        """Measure feature importance based on tree model."""
 
         # 0. param check
         assert isinstance(
@@ -38,38 +38,43 @@ class FeatureEvaluation(object):
         # 1. set model and train
         if task == "regression":
             model = XGBRegressor(eval_metric="rmse")
-            model.fit(X=trainset.features, y=trainset.labels,
-                      verbose=False)
+            model.fit(X=trainset.features, y=trainset.labels, verbose=False)
         elif task == "binary":
             model = XGBClassifier(eval_metric="logloss")
-            model.fit(X=trainset.features, y=trainset.labels,
-                      verbose=False)
+            model.fit(X=trainset.features, y=trainset.labels, verbose=False)
         elif task == "multi":
             model = XGBClassifier(eval_metric="mlogloss")
-            model.fit(X=trainset.features, y=trainset.labels,
-                      verbose=False)
+            model.fit(X=trainset.features, y=trainset.labels, verbose=False)
         else:
             raise ValueError("Unsupported task class.")
 
         # 2. feature evaluation
-        if evaluation_way == 'xgboost':
+        if evaluation_way == "xgboost":
             importances = model.feature_importances_
             ranking = np.argsort(importances)[::-1]
 
             if save_pic:
-                xgb.plot_importance(model, importance_type=importance_type, max_num_features=max_num_features_plot)  # 'weight', 'gain', 'cover'
-                plt.xlabel(f'{importance_type}', labelpad=5, loc='center')
-                plt.savefig(os.path.join(pic_path, 'feature_importance_gain.png'), bbox_inches='tight')
+                xgb.plot_importance(
+                    model,
+                    importance_type=importance_type,
+                    max_num_features=max_num_features_plot,
+                )  # 'weight', 'gain', 'cover'
+                plt.xlabel(f"{importance_type}", labelpad=5, loc="center")
+                plt.savefig(
+                    os.path.join(pic_path, "feature_importance_gain.png"),
+                    bbox_inches="tight",
+                )
                 plt.close()
                 print("save importance fig success.")
 
-        elif evaluation_way == 'shap':
+        elif evaluation_way == "shap":
             explainer = shap.Explainer(model)
             shap_values = explainer(trainset.features)
             if task == "regression" or task == "binary":
                 # in binary case, shape of shap_values is (n_samples, n_features)
-                importances = np.mean(np.abs(shap_values.values),
-                                      axis=0)  # summation along the vertical axis
+                importances = np.mean(
+                    np.abs(shap_values.values), axis=0
+                )  # summation along the vertical axis
                 ranking = np.argsort(importances)[::-1]
             elif task == "multi":
                 # in multiclass case, shape of shap_values is
@@ -77,8 +82,9 @@ class FeatureEvaluation(object):
 
                 # first compute mean along the n_classes axis, then compute mean
                 # along the n_samples axis
-                importances = np.mean(np.mean(np.abs(shap_values.values), axis=2),
-                                      axis=0)
+                importances = np.mean(
+                    np.mean(np.abs(shap_values.values), axis=2), axis=0
+                )
                 ranking = np.argsort(importances)[::-1]
         else:
             raise ValueError("Unsupported evaluation way.")
@@ -86,14 +92,15 @@ class FeatureEvaluation(object):
         return importances, ranking
 
     @classmethod
-    def collinearity_anay(cls,
-                          dateset: NumpyDataset,
-                          evaluation_way: str="pearson",
-                          save_pic: bool = True,
-                          max_num_features_plot: int=5,
-                          pic_path: str="./eval_results"):
-        """Using Variance Inflation Factor for characteristic collinearity analysis.
-        """
+    def collinearity_anay(
+        cls,
+        dateset: NumpyDataset,
+        evaluation_way: str = "pearson",
+        save_pic: bool = True,
+        max_num_features_plot: int = 5,
+        pic_path: str = "./eval_results",
+    ):
+        """Using Variance Inflation Factor for characteristic collinearity analysis."""
         # 0. param check
         assert isinstance(
             dateset, NumpyDataset
@@ -111,45 +118,62 @@ class FeatureEvaluation(object):
 
         if save_pic:
             corr = np.array(corr)
-            bound = max_num_features_plot if corr.shape[1] > max_num_features_plot else corr.shape[1]
+            bound = (
+                max_num_features_plot
+                if corr.shape[1] > max_num_features_plot
+                else corr.shape[1]
+            )
             corr_plot = corr[:bound, :bound]
-            sns.heatmap(corr_plot, linewidths=0.1, vmax=1.0, square=True,linecolor='white', annot=True)
-            plt.savefig(os.path.join(pic_path, 'collinearity_anay.png'))
+            sns.heatmap(
+                corr_plot,
+                linewidths=0.1,
+                vmax=1.0,
+                square=True,
+                linecolor="white",
+                annot=True,
+            )
+            plt.savefig(os.path.join(pic_path, "collinearity_anay.png"))
             plt.close()
             print("save collinearity_anay.png success.")
 
         return corr
 
     @classmethod
-    def calculate_psi(cls, trainset, testset,
-                      save_pic: bool = True,
-                      max_num_features_plot: int=10,
-                      pic_path: str="./eval_results"):
+    def calculate_psi(
+        cls,
+        trainset,
+        testset,
+        save_pic: bool = True,
+        max_num_features_plot: int = 10,
+        pic_path: str = "./eval_results",
+    ):
         psi_all = []
         for i in range(trainset.features.shape[1]):
-            psi, _ = cls._calculate_feature_psi(trainset.features[:, i], testset.features[:, i])
+            psi, _ = cls._calculate_feature_psi(
+                trainset.features[:, i], testset.features[:, i]
+            )
             psi_all.append(psi)
 
         if save_pic:
-            features = [f'f{i}' for i in range(len(psi_all))]
+            features = [f"f{i}" for i in range(len(psi_all))]
             tuples = sorted(zip(features, psi_all), key=lambda x: x[1])
-            tuples = tuples[: max_num_features_plot]
+            tuples = tuples[:max_num_features_plot]
             features_plot, values_plot = zip(*tuples)
 
             cls._plot_bar(features_plot, values_plot, pic_path=pic_path)
             plt.close()
-            
+
         return psi_all
 
     @classmethod
     def _calculate_feature_psi(cls, base_list, test_list, bins=20, min_sample=10):
         try:
-            base_df = pd.DataFrame(base_list, columns=['score'])
-            test_df = pd.DataFrame(test_list, columns=['score'])
+            base_df = pd.DataFrame(base_list, columns=["score"])
+            test_df = pd.DataFrame(test_list, columns=["score"])
 
             # 1.去除缺失值后，统计两个分布的样本量
-            base_notnull_cnt = len(list(base_df['score'].dropna()))
-            test_notnull_cnt = len(list(test_df['score'].dropna()))
+            base_notnull_cnt = len(list(base_df["score"].dropna()))
+            test_notnull_cnt = len(list(test_df["score"].dropna()))
 
             # 空分箱
             base_null_cnt = len(base_df) - base_notnull_cnt
@@ -162,7 +186,7 @@ class FeatureEvaluation(object):
                 q_list = [x / bin_num for x in range(1, bin_num)]
                 break_list = []
                 for q in q_list:
-                    bk = base_df['score'].quantile(q)
+                    bk = base_df["score"].quantile(q)
                     break_list.append(bk)
                 break_list = sorted(list(set(break_list)))  # 去重复后排序
                 score_bin_list = [-np.inf] + break_list + [np.inf]
@@ -176,23 +200,33 @@ class FeatureEvaluation(object):
             for i in range(len(score_bin_list) - 1):
                 left = round(score_bin_list[i + 0], 4)
                 right = round(score_bin_list[i + 1], 4)
-                bucket_list.append("(" + str(left) + ',' + str(right) + ']')
+                bucket_list.append("(" + str(left) + "," + str(right) + "]")
 
-                base_cnt = base_df[(base_df.score > left) & (base_df.score <= right)].shape[0]
+                base_cnt = base_df[
+                    (base_df.score > left) & (base_df.score <= right)
+                ].shape[0]
                 base_cnt_list.append(base_cnt)
 
-                test_cnt = test_df[(test_df.score > left) & (test_df.score <= right)].shape[0]
+                test_cnt = test_df[
+                    (test_df.score > left) & (test_df.score <= right)
+                ].shape[0]
                 test_cnt_list.append(test_cnt)
 
             # 5.汇总统计结果
-            stat_df = pd.DataFrame({"bucket": bucket_list, "base_cnt": base_cnt_list, "test_cnt": test_cnt_list})
-            stat_df['base_dist'] = stat_df['base_cnt'] / len(base_df)
-            stat_df['test_dist'] = stat_df['test_cnt'] / len(test_df)
+            stat_df = pd.DataFrame(
+                {
+                    "bucket": bucket_list,
+                    "base_cnt": base_cnt_list,
+                    "test_cnt": test_cnt_list,
+                }
+            )
+            stat_df["base_dist"] = stat_df["base_cnt"] / len(base_df)
+            stat_df["test_dist"] = stat_df["test_cnt"] / len(test_df)
 
             def sub_psi(row):
                 # 6.计算PSI
-                base_list = row['base_dist']
-                test_dist = row['test_dist']
+                base_list = row["base_dist"]
+                test_dist = row["test_dist"]
                 # 处理某分箱内样本量为0的情况
                 if base_list == 0 and test_dist == 0:
                     return 0
@@ -203,62 +237,63 @@ class FeatureEvaluation(object):
 
                 return (test_dist - base_list) * np.log(test_dist / base_list)
 
-            stat_df['psi'] = stat_df.apply(lambda row: sub_psi(row), axis=1)
-            stat_df = stat_df[['bucket', 'base_cnt', 'base_dist', 'test_cnt', 'test_dist', 'psi']]
-            psi = stat_df['psi'].sum()
+            stat_df["psi"] = stat_df.apply(lambda row: sub_psi(row), axis=1)
+            stat_df = stat_df[
+                ["bucket", "base_cnt", "base_dist", "test_cnt", "test_dist", "psi"]
+            ]
+            psi = stat_df["psi"].sum()
 
-        except:
-            print('error!!!')
+        except Exception:
+            print("error!!!")
             psi = np.nan
             stat_df = None
 
         return psi, stat_df
 
     @classmethod
-    def _plot_bar(cls,
-                  features: list,
-                  values: list,
-                  title: str = "psi anay",
-                  xlabel: str = "psi score",
-                  ylabel: str = "Features",
-                  # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
-                  figsize: Optional[tuple] = (10, 6),
-                  height: float = 0.2,
-                  xlim: Optional[tuple] = None,
-                  ylim: Optional[tuple] = None,
-                  grid: bool = True,
-                  show_values: bool = True,
-                  precision: Optional[int] = 5,
-                  pic_path: str = './eval_results',
-                  ):
+    def _plot_bar(
+        cls,
+        features: list,
+        values: list,
+        title: str = "psi anay",
+        xlabel: str = "psi score",
+        ylabel: str = "Features",
+        # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
+        figsize: Optional[tuple] = (10, 6),
+        height: float = 0.2,
+        xlim: Optional[tuple] = None,
+        ylim: Optional[tuple] = None,
+        grid: bool = True,
+        show_values: bool = True,
+        precision: Optional[int] = 5,
+        pic_path: str = "./eval_results",
+    ):
         # set ax
         if figsize is not None:
-            cls._check_not_tuple_of_2_elements(figsize, 'figsize')
+            cls._check_not_tuple_of_2_elements(figsize, "figsize")
         fig, ax = plt.subplots(1, 1, figsize=figsize)
 
         ylocs = np.arange(len(values))
-        ax.barh(ylocs, values, align='center', height=height)
+        ax.barh(ylocs, values, align="center", height=height)
 
         gap = min(1, max(values) * 0.02)  # avoid errors when the value is less than 1
         if show_values is True:
             for x, y in zip(values, ylocs):
-                ax.text(x + gap, y,
-                        cls._float2str(x, precision),
-                        va='center')
+                ax.text(x + gap, y, cls._float2str(x, precision), va="center")
 
         ax.set_yticks(ylocs)
         ax.set_yticklabels(features)
 
         # Set the x-axis scope
         if xlim is not None:
-            cls._check_not_tuple_of_2_elements(xlim, 'xlim')
+            cls._check_not_tuple_of_2_elements(xlim, "xlim")
         else:
             xlim = (0, max(values) * 1.1)
         ax.set_xlim(xlim)
 
         # Set the y-axis scope
         if ylim is not None:
-            cls._check_not_tuple_of_2_elements(ylim, 'ylim')
+            cls._check_not_tuple_of_2_elements(ylim, "ylim")
         else:
             ylim = (-1, len(values))
         ax.set_ylim(ylim)
@@ -271,25 +306,28 @@ class FeatureEvaluation(object):
             ax.set_ylabel(ylabel)
         ax.grid(grid)
 
-        plt.savefig(os.path.join(pic_path, 'psi_anay.png'), pad_inches="tight")
-        
+        plt.savefig(os.path.join(pic_path, "psi_anay.png"), pad_inches="tight")
+
         return ax
 
     @staticmethod
-    def _check_not_tuple_of_2_elements(obj: Any, obj_name: str = 'obj') -> None:
+    def _check_not_tuple_of_2_elements(obj: Any, obj_name: str = "obj") -> None:
         """Check object is not tuple or does not have 2 elements."""
         if not isinstance(obj, tuple) or len(obj) != 2:
             raise TypeError(f"{obj_name} must be a tuple of 2 elements.")
 
     @staticmethod
     def _float2str(value: float, precision: Optional[int] = None) -> str:
-        return (f"{value:.{precision}f}"
-                if precision is not None and not isinstance(value, str)
-                else str(value))
+        return (
+            f"{value:.{precision}f}"
+            if precision is not None and not isinstance(value, str)
+            else str(value)
+        )
+
 
 if __name__ == "__main__":
-    from linkefl.dataio import NumpyDataset
     from linkefl.common.const import Const
+    from linkefl.dataio import NumpyDataset
 
     np_dataset = NumpyDataset.from_csv(
         role=Const.ACTIVE_NAME,

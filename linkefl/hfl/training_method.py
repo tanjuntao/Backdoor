@@ -5,7 +5,7 @@ from math import ceil
 import torch
 from torch.utils.data import DataLoader
 
-from linkefl.hfl.aggregator import Aggregator_server, Aggregator_client
+from linkefl.hfl.aggregator import Aggregator_client, Aggregator_server
 from linkefl.hfl.dp_mechanism import add_dp
 
 
@@ -17,8 +17,8 @@ def modelpara_to_list(para):
         para[key] = para[key].cpu().numpy().tolist()
     return para
 
-def test(model, testset,lossfunction,device):
 
+def test(model, testset, lossfunction, device):
     test_loss = 0
     correct = 0
     batch_size = 32
@@ -36,10 +36,14 @@ def test(model, testset,lossfunction,device):
 
     test_loss /= num_batches
     accuracy = 100.00 * correct / len(test_set.dataset)
-    print('Test set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n'.format(
-        test_loss, correct, len(test_set.dataset), accuracy))
+    print(
+        "Test set:\nAverage loss: {:.4f} \nAccuracy: {}/{} ({:.2f}%)\n".format(
+            test_loss, correct, len(test_set.dataset), accuracy
+        )
+    )
 
     return accuracy, test_loss
+
 
 # list to tensor
 def list_to_tensor(data):
@@ -49,12 +53,10 @@ def list_to_tensor(data):
 
 
 class Train_server:
-
     @staticmethod
-    def train_basic(epoch, world_size, server, model, device,testset,lossfunction):
+    def train_basic(epoch, world_size, server, model, device, testset, lossfunction):
         aggregator = Aggregator_server.FedAvg
         for j in range(epoch):
-
             recDatas = []
             for i in range(world_size):
                 recData = server.rec(id=i + 1)
@@ -77,15 +79,16 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-            print('epoch:', j)
-            test(model, testset,lossfunction,device)
+            print("epoch:", j)
+            test(model, testset, lossfunction, device)
         return model
 
     @staticmethod
-    def train_FedAvg_seq(epoch, world_size, server, model, device,testset,lossfunction):
+    def train_FedAvg_seq(
+        epoch, world_size, server, model, device, testset, lossfunction
+    ):
         aggregator = Aggregator_server.FedAvg_seq
         for j in range(epoch):
-
             recDatas = []
             for i in range(world_size):
                 recData = server.rec(id=i + 1)
@@ -108,13 +111,14 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-            print('epoch:', j)
-            test(model, testset,lossfunction,device)
+            print("epoch:", j)
+            test(model, testset, lossfunction, device)
         return model
 
     @staticmethod
-    def train_Scaffold(epoch, world_size, server, model, device,testset,lossfunction,E=30):
-
+    def train_Scaffold(
+        epoch, world_size, server, model, device, testset, lossfunction, E=30
+    ):
         server_control = {}
         server_delta_control = {}
         server_delta_y = {}
@@ -137,7 +141,6 @@ class Train_server:
         aggregator = Aggregator_server.FedAvg
 
         for j in range(epoch):
-
             recDatas = []
             for i in range(world_size):
                 recData = server.rec(id=i + 1)
@@ -152,7 +155,9 @@ class Train_server:
             # list to tensor
             for i in range(len(recDatas)):
                 recDatas[i]["control"] = list_to_tensor(recDatas[i]["control"])
-                recDatas[i]["delta_control"] = list_to_tensor(recDatas[i]["delta_control"])
+                recDatas[i]["delta_control"] = list_to_tensor(
+                    recDatas[i]["delta_control"]
+                )
 
             # 更新control
             x = {}
@@ -175,9 +180,9 @@ class Train_server:
 
             data = {}
             data["net"] = new_net
-            data["control"] = (server_control)
-            data["delta_control"] = (server_delta_control)
-            data["delta_y"] = (server_delta_y)
+            data["control"] = server_control
+            data["delta_control"] = server_delta_control
+            data["delta_y"] = server_delta_y
 
             # 向 client返回参数
             for i in range(world_size):
@@ -190,16 +195,16 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-            print('epoch:', j)
-            test(model, testset,lossfunction,device)
+            print("epoch:", j)
+            test(model, testset, lossfunction, device)
         return model
 
     @staticmethod
-    def train_PersonalizedFed(epoch, world_size, server, model, device, kp,testset,lossfunction):
-
+    def train_PersonalizedFed(
+        epoch, world_size, server, model, device, kp, testset, lossfunction
+    ):
         aggregator = Aggregator_server.PersonalizedFed
         for j in range(epoch):
-
             recDatas = []
             for i in range(world_size):
                 recData = server.rec(id=i + 1)
@@ -222,25 +227,45 @@ class Train_server:
 
             # 加载参数到网络
             model.load_state_dict(new_net)
-            print('epoch:', j)
-            test(model, testset,lossfunction,device)
+            print("epoch:", j)
+            test(model, testset, lossfunction, device)
         return model
 
 
 class Train_client:
-
     @staticmethod
-    def train_basic(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches,testset):
+    def train_basic(
+        client,
+        partyid,
+        epoch,
+        train_set,
+        model,
+        optimizer,
+        lf,
+        iter,
+        device,
+        num_batches,
+        testset,
+    ):
         model.train()
         aggregator = Aggregator_client.FedAvg
         for epoch in range(epoch):
             # 模型训练
 
-            client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device)
+            client_net, epoch_loss = aggregator(
+                train_set, model, optimizer, lf, iter, device
+            )
 
-            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
+            print(
+                "\npartyid: ",
+                partyid,
+                ", epoch: ",
+                epoch,
+                ", train loss: ",
+                epoch_loss / num_batches,
+            )
 
-            test(model, testset,lf,device)
+            test(model, testset, lf, device)
             # tensor to list
             client_net = dict(client_net)
             for key in client_net:
@@ -264,17 +289,38 @@ class Train_client:
         return model
 
     @staticmethod
-    def train_FedProx(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, mu,testset):
+    def train_FedProx(
+        client,
+        partyid,
+        epoch,
+        train_set,
+        model,
+        optimizer,
+        lf,
+        iter,
+        device,
+        num_batches,
+        mu,
+        testset,
+    ):
         model.train()
         aggregator = Aggregator_client.FedProx
         for epoch in range(epoch):
             # 模型训练
 
-            client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device, mu)
+            client_net, epoch_loss = aggregator(
+                train_set, model, optimizer, lf, iter, device, mu
+            )
 
-            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
-            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
-            test(model, testset,lf,device)
+            print(
+                "\npartyid: ",
+                partyid,
+                ", epoch: ",
+                epoch,
+                ", train loss: ",
+                epoch_loss / num_batches,
+            )
+            test(model, testset, lf, device)
             # tensor to list
             client_net = dict(client_net)
             for key in client_net:
@@ -298,10 +344,21 @@ class Train_client:
         return model
 
     @staticmethod
-    def train_Scaffold(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches,testset,
-                       E=30,
-                       lr=0.01):
-
+    def train_Scaffold(
+        client,
+        partyid,
+        epoch,
+        train_set,
+        model,
+        optimizer,
+        lf,
+        iter,
+        device,
+        num_batches,
+        testset,
+        E=30,
+        lr=0.01,
+    ):
         model.train()
         aggregator = Aggregator_client.Scaffold
 
@@ -328,12 +385,26 @@ class Train_client:
         for epoch in range(epoch):
             # 模型训练
 
-            model, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device,
-                                           server_control, server_delta_y)
+            model, epoch_loss = aggregator(
+                train_set,
+                model,
+                optimizer,
+                lf,
+                iter,
+                device,
+                server_control,
+                server_delta_y,
+            )
 
-            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
-            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
-            test(model, testset,lf,device)
+            print(
+                "\npartyid: ",
+                partyid,
+                ", epoch: ",
+                epoch,
+                ", train loss: ",
+                epoch_loss / num_batches,
+            )
+            test(model, testset, lf, device)
 
             client_net = model.state_dict()
 
@@ -344,9 +415,15 @@ class Train_client:
 
             for k, v in global_model.named_parameters():
                 local_steps = E * len(train_set.dataset)
-                client_control[k] = client_control[k] - server_control[k] + (v.data - temp[k]) / (local_steps * lr)
+                client_control[k] = (
+                    client_control[k]
+                    - server_control[k]
+                    + (v.data - temp[k]) / (local_steps * lr)
+                )
                 client_delta_y[k] = temp[k] - v.data
-                client_delta_control[k] = - server_control[k] + (v.data - temp[k]) / (local_steps * lr)
+                client_delta_control[k] = -server_control[k] + (v.data - temp[k]) / (
+                    local_steps * lr
+                )
 
             # tensor to list
             client_net = dict(client_net)
@@ -383,18 +460,38 @@ class Train_client:
         return model
 
     @staticmethod
-    def train_PersonalizedFed(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, kp,testset):
-
+    def train_PersonalizedFed(
+        client,
+        partyid,
+        epoch,
+        train_set,
+        model,
+        optimizer,
+        lf,
+        iter,
+        device,
+        num_batches,
+        kp,
+        testset,
+    ):
         model.train()
         aggregator = Aggregator_client.FedAvg
         for epoch in range(epoch):
             # 模型训练
 
-            client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device)
+            client_net, epoch_loss = aggregator(
+                train_set, model, optimizer, lf, iter, device
+            )
 
-            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
-            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
-            test(model, testset,lf,device)
+            print(
+                "\npartyid: ",
+                partyid,
+                ", epoch: ",
+                epoch,
+                ", train loss: ",
+                epoch_loss / num_batches,
+            )
+            test(model, testset, lf, device)
 
             # tensor to list
             client_net = dict(client_net)
@@ -410,7 +507,7 @@ class Train_client:
             client.send(data)
             new_net = client.rec()
 
-            total = (len(new_net.keys()))
+            total = len(new_net.keys())
             # 加载新的网络参数
             n = 0
             for key in new_net:
@@ -425,23 +522,47 @@ class Train_client:
         return model
 
     @staticmethod
-    def train_FedDP(client, partyid, epoch, train_set, model, optimizer, lf, iter, device, num_batches, lr,
-                    dp_mechanism, dp_clip, dp_epsilon, dp_delta,testset):
+    def train_FedDP(
+        client,
+        partyid,
+        epoch,
+        train_set,
+        model,
+        optimizer,
+        lf,
+        iter,
+        device,
+        num_batches,
+        lr,
+        dp_mechanism,
+        dp_clip,
+        dp_epsilon,
+        dp_delta,
+        testset,
+    ):
         model.train()
         aggregator = Aggregator_client.FedDP
         for epoch in range(epoch):
             # 模型训练
 
-            client_net, epoch_loss = aggregator(train_set, model, optimizer, lf, iter, device, dp_mechanism, dp_clip)
+            client_net, epoch_loss = aggregator(
+                train_set, model, optimizer, lf, iter, device, dp_mechanism, dp_clip
+            )
 
-            # print('partyid: ', partyid, ', epoch ', epoch, ': ', epoch_loss / num_batches)
-            print('\npartyid: ', partyid, ', epoch: ', epoch, ', train loss: ', epoch_loss / num_batches)
-            test(model, testset,lf,device)
-
+            print(
+                "\npartyid: ",
+                partyid,
+                ", epoch: ",
+                epoch,
+                ", train loss: ",
+                epoch_loss / num_batches,
+            )
+            test(model, testset, lf, device)
 
             # 添加差分隐私
-            num_dataset = len(train_set.dataset)
-            client_net = add_dp(client_net, lr, dp_clip, dp_mechanism, dp_epsilon, dp_delta, device)
+            client_net = add_dp(
+                client_net, lr, dp_clip, dp_mechanism, dp_epsilon, dp_delta, device
+            )
 
             # tensor to list
             client_net = dict(client_net.state_dict())

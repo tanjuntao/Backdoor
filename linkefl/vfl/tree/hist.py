@@ -12,7 +12,9 @@ class ActiveHist:
     def __sub__(self, other):
         """overload __sub__"""
 
-        return ActiveHist(task=self.task, n_labels=self.n_labels, bin_gh=self.bin_gh - other.bin_gh)
+        return ActiveHist(
+            task=self.task, n_labels=self.n_labels, bin_gh=self.bin_gh - other.bin_gh
+        )
 
     @classmethod
     def compute_hist(cls, task, n_labels, sample_tag, bin_index, gh):
@@ -22,7 +24,9 @@ class ActiveHist:
         if task == "binary" or task == "regression":
             bin_gh = np.zeros((bin_index.shape[1], bin_num, 2), dtype=gh.dtype)
         elif task == "multi":
-            bin_gh = np.zeros((bin_index.shape[1], bin_num, n_labels, 2), dtype=gh.dtype)
+            bin_gh = np.zeros(
+                (bin_index.shape[1], bin_num, n_labels, 2), dtype=gh.dtype
+            )
         else:
             raise ValueError("No such task label.")
 
@@ -35,7 +39,16 @@ class ActiveHist:
         return cls(task, n_labels, bin_gh)
 
     @classmethod
-    def decrypt_hist(cls, task, n_labels, bin_gh_enc, h_length, r, crypto_system: BaseCryptoSystem, pool):
+    def decrypt_hist(
+        cls,
+        task,
+        n_labels,
+        bin_gh_enc,
+        h_length,
+        r,
+        crypto_system: BaseCryptoSystem,
+        pool,
+    ):
         """decrypt hist received from passive party, binary only"""
 
         bin_gh_int = crypto_system.decrypt_data(bin_gh_enc, pool)
@@ -43,7 +56,18 @@ class ActiveHist:
         return cls.splitgh_hist(task, n_labels, bin_gh_int, h_length, r)
 
     @classmethod
-    def decompress_hist(cls, task, n_labels, capacity, bin_gh_compress, h_length, gh_length, r, crypto_system, pool):
+    def decompress_hist(
+        cls,
+        task,
+        n_labels,
+        capacity,
+        bin_gh_compress,
+        h_length,
+        gh_length,
+        r,
+        crypto_system,
+        pool,
+    ):
         """decompress and decrypt hist received from passive party, binary only"""
 
         shape = bin_gh_compress["shape"]
@@ -67,13 +91,23 @@ class ActiveHist:
 
     @classmethod
     def decompress_multi_hist(
-        cls, task, n_labels, capacity, bin_gh_compress_multi, h_length, gh_length, r, crypto_system, pool
+        cls,
+        task,
+        n_labels,
+        capacity,
+        bin_gh_compress_multi,
+        h_length,
+        gh_length,
+        r,
+        crypto_system,
+        pool,
     ):
         """decrypt and decompress hist received from passive party, multi only"""
         bin_gh_compress_multi = crypto_system.decrypt_data(bin_gh_compress_multi, pool)
 
         bin_gh_int = np.zeros(
-            (bin_gh_compress_multi.shape[0], bin_gh_compress_multi.shape[1], n_labels), dtype=np.object
+            (bin_gh_compress_multi.shape[0], bin_gh_compress_multi.shape[1], n_labels),
+            dtype=np.object,
         )
 
         last_count = n_labels % capacity
@@ -99,7 +133,9 @@ class ActiveHist:
                 bin_gh_int[i, j, :] = target
 
         bin_gradient = np.array(bin_gh_int >> h_length, dtype=np.float64) / (1 << r)
-        bin_hessian = np.array(bin_gh_int % (1 << h_length), dtype=np.float64) / (1 << r)
+        bin_hessian = np.array(bin_gh_int % (1 << h_length), dtype=np.float64) / (
+            1 << r
+        )
 
         bin_gh = np.stack((bin_gradient, bin_hessian), axis=3)
 
@@ -110,7 +146,9 @@ class ActiveHist:
         """split unencrypted gh and transform g, h from big int back to float"""
 
         bin_gradient = np.array(bin_gh_int >> h_length, dtype=np.float64) / (1 << r)
-        bin_hessian = np.array(bin_gh_int % (1 << h_length), dtype=np.float64) / (1 << r)
+        bin_hessian = np.array(bin_gh_int % (1 << h_length), dtype=np.float64) / (
+            1 << r
+        )
 
         bin_gh = np.stack((bin_gradient, bin_hessian), axis=2)
 
@@ -124,7 +162,8 @@ class PassiveHist:
         Args:
             task: binary or multi
             sample_tag: denote whether sample shows in current hist, size = sample
-            bin_index: bin index of each feature point in the complete feature hist (a column), size = sample * feature
+            bin_index: bin index of each feature point in the
+                complete feature hist (a column), size = sample * feature
             gh_data: gh_int received from active party, size = sample
         """
 
@@ -139,7 +178,9 @@ class PassiveHist:
         if self.task == "binary" or self.task == "regression":
             bin_gh_data = np.zeros((bin_index.shape[1], bin_num), dtype=gh_data.dtype)
         elif self.task == "multi":
-            bin_gh_data = np.zeros((bin_index.shape[1], bin_num, gh_data.shape[1]), dtype=gh_data.dtype)
+            bin_gh_data = np.zeros(
+                (bin_index.shape[1], bin_num, gh_data.shape[1]), dtype=gh_data.dtype
+            )
         else:
             raise ValueError("Not support task label.")
 
@@ -158,8 +199,11 @@ class PassiveHist:
 
         bin_nonzero = self.bin_gh_data[target]  # extract all non-zero data
 
-        # pad 0 at end so that len(bin_nonzero) % capacity = 0, and then reshape to (capacity, -1)
-        bin_nonzero = np.pad(bin_nonzero, (0, (-len(bin_nonzero)) % capacity), "constant").reshape((capacity, -1))
+        # pad 0 at end so that len(bin_nonzero) % capacity = 0,
+        # and then reshape to (capacity, -1)
+        bin_nonzero = np.pad(
+            bin_nonzero, (0, (-len(bin_nonzero)) % capacity), "constant"
+        ).reshape((capacity, -1))
 
         for i in range(capacity):
             bin_nonzero[i] *= 1 << (padding * i)

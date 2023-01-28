@@ -6,7 +6,7 @@ import time
 
 import gmpy2
 from line_profiler_pycharm import profile
-from phe import paillier, EncodedNumber
+from phe import EncodedNumber, paillier
 from phe.util import mulmod
 from tqdm import tqdm, trange
 
@@ -17,8 +17,10 @@ def dec_vector(cipher_vector, private_key):
 
 
 def dec_vector_thread(cipher_vector, private_key, thread_pool):
-    ciphertexts = [encrypted_number.ciphertext(be_secure=False)
-                   for encrypted_number in cipher_vector]
+    ciphertexts = [
+        encrypted_number.ciphertext(be_secure=False)
+        for encrypted_number in cipher_vector
+    ]
     exponents = [encrypted_number.exponent for encrypted_number in cipher_vector]
     n_workers = thread_pool._processes
     data_size = len(cipher_vector)
@@ -31,13 +33,16 @@ def dec_vector_thread(cipher_vector, private_key, thread_pool):
         if idx == n_workers - 1:
             end += remainder
         # target function will modify shared_data in-place
-        result = thread_pool.apply_async(_target_dec_thread,
-                                         args=(ciphertexts, exponents, private_key, start, end))
+        result = thread_pool.apply_async(
+            _target_dec_thread, args=(ciphertexts, exponents, private_key, start, end)
+        )
         async_results.append(result)
     for idx, result in enumerate(async_results):
-        assert result.get() is True, "worker process did not finish " \
-                                     "within default timeout"
+        assert (
+            result.get() is True
+        ), "worker process did not finish within default timeout"
     return ciphertexts
+
 
 def _target_dec_thread(ciphertexts, exponents, private_key, start, end):
     p, psquare, hp = private_key.p, private_key.psquare, private_key.hp
@@ -75,12 +80,14 @@ def dec_vector_pool(cipher_vector, private_key, n_workers=None, process_pool=Non
         if idx == n_workers - 1:
             end += remainder
         # target function will modify shared_data in-place
-        result = process_pool.apply_async(_target_dec_pool,
-                                          args=(shared_data, private_key, start, end))
+        result = process_pool.apply_async(
+            _target_dec_pool, args=(shared_data, private_key, start, end)
+        )
         async_results.append(result)
     for idx, result in enumerate(async_results):
-        assert result.get() is True, "worker process did not finish " \
-                                     "within default timeout"
+        assert (
+            result.get() is True
+        ), "worker process did not finish within default timeout"
 
     return [item for item in shared_data]
 
@@ -91,47 +98,38 @@ def _target_dec_pool(ciphertexts, private_key, start, end):
     return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pub_key, priv_key = paillier.generate_paillier_keypair(n_length=1024)
     size = 100
     random_data = [random.random() for _ in range(size)]
     print(random_data[-1])
-    print('start encryption...')
+    print("start encryption...")
     enc_data = []
     for rand in tqdm(random_data):
         enc_data.append(pub_key.encrypt(rand))
-    print('done.')
+    print("done.")
 
     # single process
     start_time = time.time()
     dec_result = dec_vector(cipher_vector=enc_data, private_key=priv_key)
-    print('single process elapsed time: {}'.format(time.time() - start_time))
+    print("single process elapsed time: {}".format(time.time() - start_time))
 
     # multiple threads
     start_time = time.time()
     thread_pool = multiprocessing.pool.ThreadPool(os.cpu_count())
-    print('thread pool creation time: {}'.format(time.time() - start_time))
+    print("thread pool creation time: {}".format(time.time() - start_time))
     start_time = time.time()
-    dec_result_threadpool = dec_vector_thread(
-        enc_data,
-        priv_key,
-        thread_pool
-    )
-    print('multiple threads elapsed time: {}'.format(time.time() - start_time))
+    dec_result_threadpool = dec_vector_thread(enc_data, priv_key, thread_pool)
+    print("multiple threads elapsed time: {}".format(time.time() - start_time))
     print(dec_result_threadpool[-1])
     thread_pool.close()
 
     # multiple processes
     start_time = time.time()
     pool = multiprocessing.pool.Pool(os.cpu_count())
-    print('pool creation time: {}'.format(time.time() - start_time))
+    print("pool creation time: {}".format(time.time() - start_time))
     start_time = time.time()
-    dec_result_pool = dec_vector_pool(
-        enc_data,
-        priv_key,
-        process_pool=pool
-    )
-    print('multiple processes elapsed time: {}'.format(time.time() - start_time))
+    dec_result_pool = dec_vector_pool(enc_data, priv_key, process_pool=pool)
+    print("multiple processes elapsed time: {}".format(time.time() - start_time))
     print(dec_result_pool[-1])
     pool.close()
-

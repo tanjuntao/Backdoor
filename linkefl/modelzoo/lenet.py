@@ -5,10 +5,11 @@ from linkefl.modelzoo.util import TorchModuleType, make_nn_module
 
 
 class LeNet(nn.Module):
-    def __init__(self,
-                 in_channel,
-                 num_classes=10,
-                 activation: TorchModuleType = 'ReLU',
+    def __init__(
+        self,
+        in_channel,
+        num_classes=10,
+        activation: TorchModuleType = "ReLU",
     ):
         super(LeNet, self).__init__()
         self.activation = make_nn_module(activation)
@@ -16,7 +17,7 @@ class LeNet(nn.Module):
         # input size should be [in_channel, 32, 32]
         self.conv1 = nn.Conv2d(in_channel, 6, 5)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16*5*5, 120)
+        self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, self.num_classes)
 
@@ -28,5 +29,5 @@ class LeNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.activation((self.fc1(out)))
         out = self.activation((self.fc2(out)))
-        out = self.fc3(out) # logits
+        out = self.fc3(out)  # logits
         return out

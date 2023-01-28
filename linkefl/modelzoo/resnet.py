@@ -3,26 +3,21 @@ import torch.nn.functional as F
 
 
 class BasicBlock(nn.Module):
-    expansion = 1 # for increasing channel
+    expansion = 1  # for increasing channel
 
     def __init__(self, in_planes, planes, stride=1):
         super(BasicBlock, self).__init__()
         self.conv1 = nn.Conv2d(
-            in_planes,
-            planes,
-            kernel_size=3,
-            stride=stride,
-            padding=1,
-            bias=False
-        ) # when stride equals 2, the resulution will drop to half of the original
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )  # when stride equals 2, the resulution will drop to half of the original
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(
             planes,
-            self.expansion * planes, # block output channel
+            self.expansion * planes,  # block output channel
             kernel_size=3,
             stride=1,
             padding=1,
-            bias=False
+            bias=False,
         )
         self.bn2 = nn.BatchNorm2d(self.expansion * planes)
 
@@ -33,12 +28,14 @@ class BasicBlock(nn.Module):
         # both these two cases need to apply one 1x1 conv2d on the shortcut connection
         if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes,
-                          self.expansion * planes,
-                          kernel_size=1,
-                          stride=stride,
-                          bias=False),
-                nn.BatchNorm2d(self.expansion * planes)
+                nn.Conv2d(
+                    in_planes,
+                    self.expansion * planes,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.expansion * planes),
             )
 
     def forward(self, x):
@@ -50,43 +47,34 @@ class BasicBlock(nn.Module):
 
 
 class Bottleneck(nn.Module):
-    expansion = 4 # for increasing channel
+    expansion = 4  # for increasing channel
 
     def __init__(self, in_planes, planes, stride=1):
         super(Bottleneck, self).__init__()
         self.conv1 = nn.Conv2d(
-            in_planes,
-            planes,
-            kernel_size=1,
-            bias=False
-        ) # stride defaults to 1
+            in_planes, planes, kernel_size=1, bias=False
+        )  # stride defaults to 1
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(
-            planes,
-            planes,
-            kernel_size=3,
-            stride=stride,
-            padding=1,
-            bias=False
-        ) # when stride equals 2, the resulution will drop to half of the original
+            planes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )  # when stride equals 2, the resulution will drop to half of the original
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(
-            planes,
-            self.expansion * planes,
-            kernel_size=1,
-            bias=False
+            planes, self.expansion * planes, kernel_size=1, bias=False
         )
         self.bn3 = nn.BatchNorm2d(self.expansion * planes)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes,
-                          self.expansion * planes,
-                          kernel_size=1,
-                          stride=stride,
-                          bias=False),
-                nn.BatchNorm2d(self.expansion * planes)
+                nn.Conv2d(
+                    in_planes,
+                    self.expansion * planes,
+                    kernel_size=1,
+                    stride=stride,
+                    bias=False,
+                ),
+                nn.BatchNorm2d(self.expansion * planes),
             )
 
     def forward(self, x):
@@ -102,7 +90,9 @@ class ResNet(nn.Module):
     def __init__(self, block, num_blocks, in_channel, num_classes=10):
         super(ResNet, self).__init__()
         self.in_planes = 64
-        self.conv1 = nn.Conv2d(in_channel, 64, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            in_channel, 64, kernel_size=3, stride=1, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(64)
         self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
@@ -116,7 +106,7 @@ class ResNet(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = F.avg_pool2d(out, 4) # the resulution now is 4x4
+        out = F.avg_pool2d(out, 4)  # the resulution now is 4x4
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out

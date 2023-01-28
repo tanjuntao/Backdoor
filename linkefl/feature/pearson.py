@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
 import random
+from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
@@ -34,19 +34,27 @@ class ActivePearsonVfl(BasePearsonVfl):
 
             # The active party sends the encrypted vector Y_meanY to the passive party.
             enc_ymeany = np.array(self.cryptosystem.encrypt_vector(y_meany))
-            for msger in self.messenger: msger.send(enc_ymeany)
+            for msger in self.messenger:
+                msger.send(enc_ymeany)
 
-            # The active party receives the encrypted cov(X, Y) and stdx_r from the passive party.
-            for msger in self.messenger: enc_cov = msger.recv()
-            for msger in self.messenger: stdx_r = msger.recv()
+            # The active party receives the encrypted cov(X, Y)
+            # and stdx_r from the passive party.
+            for msger in self.messenger:
+                enc_cov = msger.recv()
+            for msger in self.messenger:
+                stdx_r = msger.recv()
 
-            # The active party calculates the pearson_r and sends it to the passive party.
+            # The active party calculates the pearson_r
+            # and sends it to the passive party.
             cov = np.array(self.cryptosystem.decrypt_vector(enc_cov))
             pearson_r = cov / (stdx_r * stdy)
-            for msger in self.messenger: msger.send(pearson_r)
+            for msger in self.messenger:
+                msger.send(pearson_r)
 
         else:
-            raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
+            raise TypeError(
+                "dataset should be an instance of numpy.ndarray or torch.Tensor"
+            )
 
     def pearson_single(self):
         features = self.dataset.features
@@ -64,7 +72,7 @@ class PassivePearsonVfl(BasePearsonVfl):
         x = self.dataset.features
         if isinstance(x, np.ndarray) or isinstance(x, torch.Tensor):
             if isinstance(x, torch.Tensor):
-                 x = x.numpy()
+                x = x.numpy()
             n_samples = self.dataset.n_samples
             n_features = self.dataset.n_features
 
@@ -101,5 +109,6 @@ class PassivePearsonVfl(BasePearsonVfl):
             return pearson
 
         else:
-            raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
-
+            raise TypeError(
+                "dataset should be an instance of numpy.ndarray or torch.Tensor"
+            )

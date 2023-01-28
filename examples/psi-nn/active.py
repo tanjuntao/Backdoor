@@ -1,5 +1,5 @@
-from termcolor import colored
 import torch
+from termcolor import colored
 from torch import nn
 
 from linkefl.common.const import Const
@@ -8,20 +8,22 @@ from linkefl.crypto import RSA
 from linkefl.dataio import TorchDataset
 from linkefl.messenger import FastSocket
 from linkefl.psi.rsa import RSAPSIActive
-from linkefl.vfl.nn import ActiveBottomModel, IntersectionModel, TopModel
-from linkefl.vfl.nn import ActiveNeuralNetwork
+from linkefl.vfl.nn import (
+    ActiveBottomModel,
+    ActiveNeuralNetwork,
+    IntersectionModel,
+    TopModel,
+)
 
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 0. Set parameters
-    trainset_path = '/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-active-train.csv'
-    testset_path = '/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-active-test.csv'
+    trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-active-train.csv"  # noqa: E501
+    testset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-credit-active-test.csv"  # noqa: E501
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
-    active_ip = 'localhost'
+    active_ip = "localhost"
     active_port = 20000
-    passive_ip = 'localhost'
+    passive_ip = "localhost"
     passive_port = 30000
     _epochs = 80
     _batch_size = 64
@@ -38,14 +40,12 @@ if __name__ == '__main__':
     active_trainset = TorchDataset.from_csv(
         role=Const.ACTIVE_NAME,
         abs_path=trainset_path,
-        dataset_type=Const.CLASSIFICATION
+        dataset_type=Const.CLASSIFICATION,
     )
     active_testset = TorchDataset.from_csv(
-        role=Const.ACTIVE_NAME,
-        abs_path=testset_path,
-        dataset_type=Const.CLASSIFICATION
+        role=Const.ACTIVE_NAME, abs_path=testset_path, dataset_type=Const.CLASSIFICATION
     )
-    print(colored('1. Finish loading dataset.', 'red'))
+    print(colored("1. Finish loading dataset.", "red"))
 
     # # 2. Feature transformation
     # active_trainset = scale(add_intercept(active_trainset))
@@ -53,37 +53,44 @@ if __name__ == '__main__':
     # print(colored('2. Finish transforming features', 'red'))
 
     # 3. Run PSI
-    print(colored('3. PSI protocol started, computing...', 'red'))
-    messenger = FastSocket(role=Const.ACTIVE_NAME,
-                           active_ip=active_ip,
-                           active_port=active_port,
-                           passive_ip=passive_ip,
-                           passive_port=passive_port)
+    print(colored("3. PSI protocol started, computing...", "red"))
+    messenger = FastSocket(
+        role=Const.ACTIVE_NAME,
+        active_ip=active_ip,
+        active_port=active_port,
+        passive_ip=passive_ip,
+        passive_port=passive_port,
+    )
     psi_crypto = RSA()
     active_psi = RSAPSIActive([messenger], psi_crypto, _logger)
     common_ids = active_psi.run(active_trainset.ids)
     active_trainset.filter(common_ids)
-    print(colored('3. Finish psi protocol', 'red'))
+    print(colored("3. Finish psi protocol", "red"))
 
     # 4. VFL training
     bottom_model = ActiveBottomModel(bottom_nodes)
     intersect_model = IntersectionModel(intersect_nodes)
     top_model = TopModel(top_nodes)
     _models = [bottom_model, intersect_model, top_model]
-    _optimizers = [torch.optim.SGD(model.parameters(), lr=_learning_rate)
-                   for model in _models]
-    vfl_crypto = crypto_factory(crypto_type=_crypto_type,
-                                key_size=_key_size,
-                                num_enc_zeros=10000,
-                                gen_from_set=False)
-    active_vfl = ActiveNeuralNetwork(epochs=_epochs,
-                                     batch_size=_batch_size,
-                                     models=_models,
-                                     optimizers=_optimizers,
-                                     loss_fn=_loss_fn,
-                                     messenger=messenger,
-                                     crypto_type=_crypto_type,
-                                     saving_model=True)
+    _optimizers = [
+        torch.optim.SGD(model.parameters(), lr=_learning_rate) for model in _models
+    ]
+    vfl_crypto = crypto_factory(
+        crypto_type=_crypto_type,
+        key_size=_key_size,
+        num_enc_zeros=10000,
+        gen_from_set=False,
+    )
+    active_vfl = ActiveNeuralNetwork(
+        epochs=_epochs,
+        batch_size=_batch_size,
+        models=_models,
+        optimizers=_optimizers,
+        loss_fn=_loss_fn,
+        messenger=messenger,
+        crypto_type=_crypto_type,
+        saving_model=True,
+    )
     active_vfl.train(active_trainset, active_testset)
 
     # 5. inference
@@ -92,7 +99,6 @@ if __name__ == '__main__':
 
     # 6. Close messenger, finish training
     messenger.close()
-
 
     # For online inference, you only need to substitute the model name
     # scores = ActiveNeuralNetwork.online_inference(

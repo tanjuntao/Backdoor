@@ -4,8 +4,7 @@ from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
 from linkefl.psi.cm20 import CM20PSIActive
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     # 1. get sample IDs
     _ids = gen_dummy_ids(size=10_000_000, option=Const.SEQUENCE)
 
