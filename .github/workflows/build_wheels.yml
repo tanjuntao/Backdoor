@@ -3,6 +3,14 @@ name: Build Binary Wheels
 on:
   release:
     types: [published]
+  pull_request:
+    types:
+      - closed  # a PR is automatically closed when it is merged
+    branches:
+      - master  # when target branch is master
+    paths:
+      - '**.py'  # only changed python files will trigger the workflow
+  # manually run this workflow on any specified branch
   workflow_dispatch:
 
 jobs:

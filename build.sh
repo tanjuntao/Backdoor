@@ -12,7 +12,7 @@ fi
 # build python package
 python3 -m pip install --upgrade pip wheel setuptools -i https://pypi.tuna.tsinghua.edu.cn/simple
 python3 -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-python3 setup.py build_ext --inplace
+python3 setup.py build_ext -j 8 --inplace # use 8 threads for parallel compilation
 python3 setup.py sdist bdist_wheel
 
 # remove the generated C files and compiled files by Cython
