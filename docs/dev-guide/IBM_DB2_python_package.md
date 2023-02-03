@@ -164,4 +164,3 @@ def _get_selected_fields(db_type, cursor, table, target_fields, excluding_fields
 ```
 
 这里单独把 db2 列出来是因为 db2 获取表头不需要 cursor，但需要 connection 参数（我们在 _get_selected_fields 参数中添加 conn=None）
-

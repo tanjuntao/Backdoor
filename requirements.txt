@@ -24,4 +24,3 @@ torchinfo
 torchvision
 tqdm
 xgboost
-

@@ -11,4 +11,3 @@ Welcome to LinkeFL's documentation!
 
    getting_started
    user_guide
-

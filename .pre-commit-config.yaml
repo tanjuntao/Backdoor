@@ -22,15 +22,15 @@ repos:
     hooks:
       - id: flake8
         stages: [commit, manual]
-#  - repo: https://github.com/dimaka-wix/commit-msg-hook.git
-#    rev: v0.3.4
-#    hooks:
-#      - id: commit-msg-hook
-#        stages: [commit-msg, prepare-commit-msg, manual]
+  - repo: https://github.com/dimaka-wix/commit-msg-hook.git
+    rev: v0.3.4
+    hooks:
+      - id: commit-msg-hook
+        stages: [commit-msg, prepare-commit-msg, manual]
   - repo: local
     hooks:
-      - id: wheel-build-check
-        name: build-wheel
+      - id: wheel-building-checker
+        name: wheel-building-checker
         description: "Check Cython build before every push"
         entry: bash build.sh
         language: system

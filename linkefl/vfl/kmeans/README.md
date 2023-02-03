@@ -121,7 +121,7 @@
 ##### 主动方
 
 ```python
-    pca_active = PCA(n_components=2) 
+    pca_active = PCA(n_components=2)
     pca_active.fit(X_active)
     X_active_projection = pca_active.transform(X_active)
 
@@ -131,10 +131,9 @@
 ##### 被动方
 
 ```python
-    pca_passive = PCA(n_components=2) 
+    pca_passive = PCA(n_components=2)
     pca_passive.fit(X_passive)
     X_passive_projection = pca_passive.transform(X_passive)
 
     plot(X_passive_projection, passive, color_num = n_cluster, name='passive_kmeans')
 ```
-

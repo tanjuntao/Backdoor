@@ -5,7 +5,7 @@
 3. 新建另一个终端窗口，`python passive.py`，启动被动方
 4. 程序自动完成参数设置，数据读取，特征工程，隐私集合求交，vertical LR 模型训练和测试任务。
 
-# 二、从零开始实现纵向 vertical LR 
+# 二、从零开始实现纵向 vertical LR
 
 ## 0. 设置参数
 
@@ -175,4 +175,3 @@ print(colored("All Done.", "red"))
 messenger.close()
 print(colored('All Done.', 'red'))
 ```
-

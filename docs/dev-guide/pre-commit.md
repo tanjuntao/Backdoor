@@ -11,7 +11,7 @@
    - Format imports with `isort`
    - Format modified codes with `black`
    - Check code linting with `flake8`
-   
+
    Nothing needs to be done in this step. The config file is already written.
 
 3. Install `pre-commit` in `.git\hooks\pre-commit`

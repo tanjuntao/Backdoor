@@ -6,7 +6,7 @@
 
 Create a new Python file named `alice.py` and fill with the following code in it.
 
-```python 
+```python
 # active.py
 import argparse
 
@@ -27,7 +27,7 @@ key_size = 1024
 # generate dummy ids
 active_ids = gen_dummy_ids(size=active_size, option='random')
 
-# initialize messenger 
+# initialize messenger
 active_socket = FastSocketMessenger(role='active_party',
                                     active_ip=active_ip,
                                     active_port=active_port,
@@ -44,19 +44,19 @@ if args.phase == 'offline':
     # initialize rsa cryptosystem from scratch
     rsa_crypto = RSACrypto(key_size=key_size)
     # initialize rsa based psi protocol
-    active_party = RSAPSIActive(ids=active_ids, 
-                                messenger=active_socket, 
+    active_party = RSAPSIActive(ids=active_ids,
+                                messenger=active_socket,
                                 cryptosystem=rsa_crypto)
     # start the offline phase
     active_party.run_offline()
 
 elif args.phase == 'online':
-    # initialize rsa cryptosystem from existing private key, which is generated 
+    # initialize rsa cryptosystem from existing private key, which is generated
     # at the offline phase
     rsa_crypto = RSACrypto.from_private()
     # initialize rsa based psi protocol
-    active_party = RSAPSIActive(ids=active_ids, 
-                                messenger=active_socket, 
+    active_party = RSAPSIActive(ids=active_ids,
+                                messenger=active_socket,
                                 cryptosystem=rsa_crypto)
     # start the online phase
     active_party.run_online()
@@ -148,5 +148,5 @@ if __name__ == '__main__':
     $ python3 passive.py --phase=online
     ```
 
-4. Get the size of the intersection from both the terminal at 
-the active party and the terminal at the passive party. 
+4. Get the size of the intersection from both the terminal at
+the active party and the terminal at the passive party.

@@ -13,6 +13,8 @@
 import os
 import sys
 
+import linkefl
+
 sys.path.insert(0, os.path.abspath("../.."))
 
 
@@ -23,7 +25,6 @@ copyright = "2022, USTC LINKE Lab, Data Group, Federated Learning and Data Quali
 author = "USTC LINKE Lab, Data Group, Federated Learning and Data Quality Team"
 
 # The full version, including alpha/beta/rc tags
-import linkefl
 
 release = linkefl.__version__
 

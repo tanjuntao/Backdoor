@@ -1,8 +1,8 @@
-## Sklearn Benchmark 
+## Sklearn Benchmark
 
 ### A. Classification
 
-|                   | Penalty        | Acc         | Auc         | F1-score    |     
+|                   | Penalty        | Acc         | Auc         | F1-score    |
 | -----------       | -----------    | ----------- | ----------- | ----------- |
 | Cancer            | l2-norm, 0.01  | 0.95614     | 0.97904     | 0.96296     |
 | Digits            | l2-norm, 0.01  | 0.91667     | 0.97202     | 0.92105     |
@@ -15,9 +15,8 @@
 
 ### B. Regression
 
-|             | MSE         | R2          |  
+|             | MSE         | R2          |
 | ----------- | ----------- | ----------- |
 | Diabetes    | 1713.65118  | 0.70035     |
 | Year        | 91.22927    | 0.23711     |
 | Nyc-taxi    | 0.23642     | 0.30468     |
-
