@@ -7,6 +7,7 @@
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![linter - flake8](https://img.shields.io/badge/linter-flake8-orange)](https://https://flake8.pycqa.org/en/latest/)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
 
 LinkeFL is a versatile federated learning framework including both horizonal FL and vertical FL, which is developed by [USTC Linke Lab](http://linke.ustc.edu.cn/).
@@ -16,10 +17,10 @@ LinkeFL is a versatile federated learning framework including both horizonal FL 
 * Simulation of horizonal federated model training on one single machine
 * Horizonal federated model training on multiple machines with or without GPU
 * Private set intersection (PSI) using RSA Blind signature protocol
-* Vertical federated logistic regression model training with Paillier homomorphic encryption 
-* Vertical federated XGBoost model training 
+* Vertical federated logistic regression model training with Paillier homomorphic encryption
+* Vertical federated XGBoost model training
 * Vertical federated neural network model training
-* Split learning 
+* Split learning
 * Data privacy techniques such as homomorphic encryption, differential privacy
 
 
@@ -56,29 +57,29 @@ find . -type f -name "*.pyd" -exec rm {} \; # Windows
 ```
 
 ### build wheels and install
-If you need to build Python wheel for software delivering, you can use the `build.sh` script. The generated `.whl` file be within `LinkeFL/sdist` directory.
+If you need to build Python wheel for software delivering, you can use the `build.sh` script. The generated `.whl` file be within `LinkeFL/dist` directory.
 ``` shell
 git clone git@github.com:Linke-Data/LinkeFL.git && cd LinkeFL && bash build.sh
 ```
-Then you can goto the `sdist` directory and install LinkeFL via
+Then you can goto the `dist` directory and install LinkeFL via
 ``` shell
 pip3 install *.whl
 ```
 
-## Examples 
+## Examples
 * [Running PSI protocol alone](./examples/psi-alone/README.md)
 * [Running verticalLR model training along with PSI](./examples/psi-lr/README.md)
 * [Running verticalSBT model training along with PSI](./examples/psi-tree/README.md)
 * [Running verticalNN model training along with PSI](./examples/psi-nn/README.md)
 
-## API references 
+## API references
 Follow the [API building guide](./docs/README.md) to locally build the API documentation
-and then view it using your browser. 
+and then view it using your browser.
 
 ## Contribution
-Please first read the [developer guide](./docs/dev_guide.md) before making any pull request. 
+Please first read the [developer guide](./docs/dev_guide.md) before making any pull request.
 
-## Contact 
+## Contact
 If you have any questions, feel free to contact the following core developers:
 
 * Juntao Tan: tjt@mail.ustc.edu.cn
