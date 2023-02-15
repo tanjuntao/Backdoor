@@ -22,6 +22,28 @@ class SimpleCNN(nn.Module):
         return out
 
 
+node_1 = 10
+node_2=10
+class MLP(nn.Module):
+    def __init__(self,num_classes,in_features):
+        super(MLP, self).__init__()
+        self.linear1 = torch.nn.Linear(in_features, node_1)
+        self.relu = torch.nn.ReLU()
+        self.linear2 = torch.nn.Linear(node_1, node_2)
+        self.relu2 = torch.nn.ReLU()
+        self.linear3 = torch.nn.Linear(node_2, num_classes)
+
+    def forward(self,x):
+        x = x.to(torch.float32)
+        x = self.linear1(x)
+        x = self.relu(x)
+        x = self.linear2(x)
+        x = self.relu2(x)
+        x = self.linear3(x)
+        return x
+
+
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -163,11 +185,12 @@ class LogReg(nn.Module):
         # out = out.squeeze(-1)
         return x
 
-
-def Nets(model_name, num_classes, num_channels):
+def Nets(model_name, num_classes, num_channels=3,in_features=10):
     if model_name == "SimpleCNN":
         return SimpleCNN(num_classes, num_channels)
     # elif model_name == 'VGG16':
     #     return VGG16(num_classes,num_channels)
     elif model_name == "ResNet18":
         return ResNet18(num_classes, num_channels)
+    elif model_name == "MLP":
+        return MLP(num_classes, in_features)
