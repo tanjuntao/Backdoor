@@ -326,6 +326,61 @@ class Plot(object):
         plt.savefig(f"{file_dir}/residual_analysis.png")
         plt.close()
 
+    @staticmethod
+    def plot_iv(iv_dict, file_dir="./models"):
+        '''
+        _, _, iv_dict = woe.cal_woe()
+        woe is in [ActiveWoe(), PassiveWoe()]
+        Then iv_dict is the input of this function
+        '''
+        feature_list = list(iv_dict.keys())
+        iv_list = [iv_dict[key] for key in feature_list]
+        fig, ax = plt.subplots()
+        ax.barh(feature_list, iv_list)
+        ax.set_xlabel('IV values')
+        ax.set_ylabel('Feature Ids')
+        ax.set_title('Feature IV Analysis')
+        plt.savefig(f"{file_dir}/iv_analysis.png")
+        plt.close()
+
+    @staticmethod
+    def plot_bimodal_distribution(data_1, data_2, bins_value=50, file_dir="./models"):
+
+        from scipy.stats import norm
+
+        data = np.concatenate((data_1, data_2))
+        counts, bins = np.histogram(data, bins=bins_value)
+        bins = bins[:-1] + (bins[1] - bins[0]) / 2
+        probs = counts / float(counts.sum())
+        pdf_1 = norm.pdf(bins, data_1.mean(), data_1.std())
+        pdf_2 = norm.pdf(bins, data_2.mean(), data_2.std())
+        plt.plot(bins, probs, label='Data')  # 绘制数据的折线图，添加标签 'Data'
+        plt.plot(bins, pdf_1 + pdf_2, label='PDF')  # 绘制两个正态分布曲线之和的折线图，添加标签 'PDF'
+        plt.title('Bimodal Distribution')
+        plt.xlabel('Value')
+        plt.ylabel('Frequency')
+        plt.legend(loc="best")
+        plt.savefig(f"{file_dir}/bimodal_distribution.png")
+        plt.close()
+
+    @staticmethod
+    def plot_ordered_lorenz_curve(label, y_prob, file_dir="./models"):
+
+        label_ranking = np.argsort(label)
+        label = label[label_ranking]
+        cum_l = np.cumsum(label) / label.sum()
+        y_prob = y_prob[label_ranking]
+
+        plt.plot(y_prob, cum_l)
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlabel('percentage x')
+        plt.ylabel('percentage y')
+        plt.title('Lorenz curve')
+        plt.legend(loc="best")
+
+        plt.savefig(f"{file_dir}/ordered_lorenz_curve.png")
+        plt.close()
+
 def tree_to_str(tree, tree_structure):
     """
 
