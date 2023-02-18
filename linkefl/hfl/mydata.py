@@ -78,6 +78,7 @@ class myData(Dataset):
         self._labels = np_csv[:, 1]  # no need to convert to integers here
         self._feats = np_csv[:, 2:]
 
+
     def __getitem__(self, index):
         """
         # 已知样本index,返回样本的值（样本和样本label）。
@@ -89,3 +90,27 @@ class myData(Dataset):
 
     def __len__(self):
         return len(self._feats)
+
+class myData_v1(Dataset):
+    def __init__(self, path):
+
+        # ===== 1. Load dataset =====
+        np_csv = np.genfromtxt(path, delimiter=",", encoding="utf-8")
+        self._ids = np_csv[:, 0]  # no need to convert to integers here
+        self._labels = np_csv[:, 1]  # no need to convert to integers here
+        self._feats = np_csv[:, 2:]
+
+
+    def __getitem__(self, index):
+        """
+        # 已知样本index,返回样本的值（样本和样本label）。
+        # 通常是根据读取一个存放了 样本路径和标签信息的txt文档获得具体的数据。
+        :param index: 样本的index
+        :return: 样本，label
+        """
+        return self._feats[index], self._labels[index]
+
+    def __len__(self):
+        return len(self._feats)
+    def n_features(self):
+        return self._feats.shape[1]
