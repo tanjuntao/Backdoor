@@ -18,7 +18,7 @@ def modelpara_to_list(para):
     return para
 
 
-def test(model, testset, lossfunction, device):
+def test(model, testset, lossfunction, device,epoch=0):
     test_loss = 0
     correct = 0
     batch_size = 32
@@ -42,6 +42,7 @@ def test(model, testset, lossfunction, device):
         )
     )
 
+
     return accuracy, test_loss
 
 
@@ -54,7 +55,7 @@ def list_to_tensor(data):
 
 class Train_server:
     @staticmethod
-    def train_basic(epoch, world_size, server, model, device, testset, lossfunction):
+    def train_basic(epoch, world_size, server, model, device, testset, lossfunction,logger):
         aggregator = Aggregator_server.FedAvg
         for j in range(epoch):
             recDatas = []
@@ -80,7 +81,15 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            test(model, testset, lossfunction, device)
+            acc,test_loss = test(model, testset, lossfunction, device,epoch)
+            logger.log_metric(
+                j,
+                test_loss,
+                acc.item()/100,
+                0,
+                0,
+                total_epoch=epoch,
+            )
         return model
 
     @staticmethod

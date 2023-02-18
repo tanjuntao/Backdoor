@@ -6,6 +6,7 @@ from torchvision import datasets, transforms
 from linkefl.hfl.hfl import Server
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils.Nets import LogReg, Nets
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 
 
 def setServer():
@@ -20,6 +21,7 @@ def setServer():
             lossfunction=lossfunction,
             device=device,
             epoch=epoch,
+            logger=logger_factory("active_party")
         )
 
     elif aggregator == "FedProx":
@@ -94,6 +96,7 @@ if __name__ == "__main__":
     lossfunction = nn.CrossEntropyLoss()
     role = "server"
 
+    _logger = logger_factory(role="active_party")
     # # FedProx
     # aggregator = 'FedProx'
     mu = 0.02

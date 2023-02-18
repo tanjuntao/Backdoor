@@ -16,6 +16,7 @@ class Server:
         world_size,
         partyid,
         model,
+        logger,
         aggregator="FedAvg",
         lossfunction=F.nll_loss,
         device=torch.device("cpu"),
@@ -55,7 +56,7 @@ class Server:
         self.iter = iter
         self.kp = kp
         self.model_name = model_name
-
+        self.logger = logger
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         return dataloader
@@ -79,6 +80,7 @@ class Server:
                 self.device,
                 testset,
                 self.lossfunction,
+                self.logger,
             )
         elif self.aggregator == "FedAvg_seq":
             self.model = Train_server.train_FedAvg_seq(
