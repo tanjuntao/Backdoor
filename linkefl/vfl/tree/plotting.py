@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from PrettyPrint import PrettyPrintTree
+import seaborn as sns
 from sklearn.metrics import precision_recall_curve, roc_curve
 
 # TODO：fix ereor "circular import"
@@ -154,6 +155,7 @@ class Plot(object):
         plt.savefig(f"{file_dir}/importance.png", pad_inches="tight")
         return ax
 
+
     @staticmethod
     def plot_train_test_loss(train_loss, test_loss, file_dir="./models"):
         fig = plt.figure()
@@ -166,12 +168,12 @@ class Plot(object):
         # ax.set_ylim(0, 1.02)
         ax.xaxis.set_major_locator(plt.MultipleLocator(1))
         ax.grid(True, linestyle="-.")
-        ax.set_title("train_test_loss")
+        ax.set_title("Convergence Analysis")
         ax.set_ylabel("loss", labelpad=5, loc="center")
         ax.set_xlabel("epoch", labelpad=5, loc="center")
         plt.legend(loc="best")
 
-        plt.savefig(f"{file_dir}/train_test_loss.png")
+        plt.savefig(f"{file_dir}/convergence_analysis_loss.png")
         plt.close()
 
     @staticmethod
@@ -186,12 +188,12 @@ class Plot(object):
         # ax.set_ylim(0, 1.02)
         ax.xaxis.set_major_locator(plt.MultipleLocator(1))
         ax.grid(True, linestyle="-.")
-        ax.set_title("train_test_auc")
+        ax.set_title("Convergence Index Analysis")
         ax.set_ylabel("loss", labelpad=5, loc="center")
         ax.set_xlabel("epoch", labelpad=5, loc="center")
         plt.legend(loc="best")
 
-        plt.savefig(f"{file_dir}/train_test_auc.png")
+        plt.savefig(f"{file_dir}/convergence_index_analysis_loss.png")
         plt.close()
 
     @classmethod
@@ -274,6 +276,110 @@ class Plot(object):
         plt.savefig(f"{file_dir}/Lift_Curve.png")
         plt.close()
 
+    @staticmethod
+    def plot_predict_distribution(y_prob, bins=10, file_dir="./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.grid(True, linestyle="-.")
+
+        frequency_each, _, _= ax.hist(x=y_prob, bins=bins, range=(0, 1), color="steelblue")
+        indexes = [1/(2*bins)+1/bins*i for i in range(bins)]
+        for x, y in zip(indexes, frequency_each):
+            plt.text(x, y+0.1, f"{y}", horizontalalignment='center')
+
+        ax.set_title("Predict Probability Distribution")
+        ax.set_ylabel("Count", labelpad=5, loc="center")
+        ax.set_xlabel("Predict Value", labelpad=5, loc="center")
+        # plt.show()
+        plt.savefig(f"{file_dir}/predict_probability_distribution.png")
+        plt.close()
+
+    @staticmethod
+    def plot_predict_prob_box(y_prob, file_dir="./models"):
+
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.grid(True, linestyle="-.")
+
+        labels = ["predict result"]
+        ax.boxplot(y_prob, labels=labels, showmeans=True, meanline=True)
+
+        ax.set_title("Predict Probability Box")
+        ax.set_ylabel("value", labelpad=5, loc="center")
+
+        plt.savefig(f"{file_dir}/predict_prob_box.png")
+        plt.close()
+
+    @staticmethod
+    def plot_residual(label, y_prob, file_dir="./models"):
+        residual = label - y_prob
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.grid(True, linestyle="-.")
+
+        ax.plot(list(range(len(residual))), residual, ls="-", linewidth=2.0)
+        # c='#2d85f0'
+
+        ax.set_title("Residual Curve")
+        ax.set_ylabel("residual value", labelpad=5, loc="center")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        plt.savefig(f"{file_dir}/residual_analysis.png")
+        plt.close()
+
+    @staticmethod
+    def plot_iv(iv_dict, file_dir="./models"):
+        '''
+        _, _, iv_dict = woe.cal_woe()
+        woe is in [ActiveWoe(), PassiveWoe()]
+        Then iv_dict is the input of this function
+        '''
+        feature_list = list(iv_dict.keys())
+        iv_list = [iv_dict[key] for key in feature_list]
+        fig, ax = plt.subplots()
+        ax.barh(feature_list, iv_list)
+        ax.set_xlabel('IV values')
+        ax.set_ylabel('Feature Ids')
+        ax.set_title('Feature IV Analysis')
+        plt.savefig(f"{file_dir}/iv_analysis.png")
+        plt.close()
+
+    @staticmethod
+    def plot_bimodal_distribution(data_1, data_2, bins_value=50, file_dir="./models"):
+
+        from scipy.stats import norm
+
+        data = np.concatenate((data_1, data_2))
+        counts, bins = np.histogram(data, bins=bins_value)
+        bins = bins[:-1] + (bins[1] - bins[0]) / 2
+        probs = counts / float(counts.sum())
+        pdf_1 = norm.pdf(bins, data_1.mean(), data_1.std())
+        pdf_2 = norm.pdf(bins, data_2.mean(), data_2.std())
+        plt.plot(bins, probs, label='Data')  # 绘制数据的折线图，添加标签 'Data'
+        plt.plot(bins, pdf_1 + pdf_2, label='PDF')  # 绘制两个正态分布曲线之和的折线图，添加标签 'PDF'
+        plt.title('Bimodal Distribution')
+        plt.xlabel('Value')
+        plt.ylabel('Frequency')
+        plt.legend(loc="best")
+        plt.savefig(f"{file_dir}/bimodal_distribution.png")
+        plt.close()
+
+    @staticmethod
+    def plot_ordered_lorenz_curve(label, y_prob, file_dir="./models"):
+
+        label_ranking = np.argsort(label)
+        label = label[label_ranking]
+        cum_l = np.cumsum(label) / label.sum()
+        y_prob = y_prob[label_ranking]
+
+        plt.plot(y_prob, cum_l)
+        plt.plot([0, 1], [0, 1], 'k--')
+        plt.xlabel('percentage x')
+        plt.ylabel('percentage y')
+        plt.title('Lorenz curve')
+        plt.legend(loc="best")
+
+        plt.savefig(f"{file_dir}/ordered_lorenz_curve.png")
+        plt.close()
 
 def tree_to_str(tree, tree_structure):
     """
@@ -380,9 +486,15 @@ if __name__ == "__main__":
     # train_loss = np.array([0.97, 0.5, 0.25, 0.125, 0.05, 0.04, 0.03])
     # train_auc = np.array([0.5, 0.7, 0.85, 0.9, 0.92, 0.94, 0.95])
     #  test_loss = np.array([0.87, 0.4, 0.25, 0.105, 0.08, 0.07, 0.06])
-    train_loss = np.array([0.97, 0.95, 0.91, 0.9])
-    test_loss = np.array([0.87, 0.85, 0.81, 0.8])
+    # train_loss = np.array([0.97, 0.95, 0.91, 0.9])
+    # test_loss = np.array([0.87, 0.85, 0.81, 0.8])
 
     # Plot.plot_convergence(train_loss, train_auc)
     # Plot.plot_fit(train_loss, test_loss)
-    Plot.plot_train_test_loss(train_loss, test_loss)
+    # Plot.plot_train_test_loss(train_loss, test_loss)
+
+    y_label = [1 for _ in range(10)] + [0 for _ in range(10)]
+    y_prob = np.random.random(20)
+    Plot.plot_predict_distribution(y_prob, bins=10)
+    # Plot.plot_residual(y_label, y_prob)
+    # Plot.plot_predict_prob_box(y_prob)

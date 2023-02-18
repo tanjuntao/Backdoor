@@ -180,7 +180,7 @@ if __name__ == "__main__":
     passive_port = 30000
     _epochs = 100
     _batch_size = 100
-    _learning_rate = 0.01
+    _learning_rate = 0.001
     _passive_in_nodes = 10
     _crypto_type = Const.PLAIN
     _key_size = 1024
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         role=Const.PASSIVE_NAME,
         dataset_name=dataset_name,
         root="../data",
-        train=True,
+        train=False,
         download=True,
     )
     passive_testset = MediaDataset(

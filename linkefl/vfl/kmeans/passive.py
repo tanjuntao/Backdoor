@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_samples
 
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
@@ -336,7 +337,7 @@ class PassiveConstrainedSeedKMeans:
         return -1 * interia_passive
 
 
-def plot(X_passive, estimator, color_num, name):
+def pca_plot(X_passive, estimator, x_lim_left, x_lim_right, y_lim_down, y_lim_up, color_num, name):
     import pandas as pd
     import seaborn as sns
 
@@ -348,8 +349,8 @@ def plot(X_passive, estimator, color_num, name):
     else:
         df["y"] = estimator.indices
     plt.close()
-    plt.xlim(-0.3, 0.3)
-    plt.ylim(-0.1, 0.1)
+    plt.xlim(x_lim_left, x_lim_right)
+    plt.ylim(y_lim_down, y_lim_up)
     sns.scatterplot(
         x="dim1",
         y="dim2",
@@ -359,6 +360,23 @@ def plot(X_passive, estimator, color_num, name):
     )
     # plt.show()
     plt.savefig("./{}.png".format(name))
+    plt.close()
+
+
+def sil_plot(X_passive, estimator, n_cluster, name):
+    silhouette_values = silhouette_samples(X_passive, estimator.indices)
+    sil_per_cls = [[], [], []]
+    for cls_idx in range(n_cluster):
+        for idx in range(len(estimator.indices)):
+            if estimator.indices[idx] == cls_idx:
+                sil_per_cls[cls_idx].append(silhouette_values[idx])
+    
+    plt.boxplot(sil_per_cls)
+    # plt.show()
+    plt.title('Silhouette Coefficient Distribution for Each Cluster')
+    plt.savefig("./{}_silhoutte.png".format(name))
+    plt.close()
+
 
 
 if __name__ == "__main__":
@@ -378,7 +396,7 @@ if __name__ == "__main__":
         passive_port=passive_port,
     )
 
-    dataset_name = "epsilon"
+    dataset_name = "digits"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
@@ -403,7 +421,7 @@ if __name__ == "__main__":
         messenger=_messenger,
         crypto_type=None,
         n_clusters=n_cluster,
-        n_init=10,
+        n_init=2,
         verbose=False,
     )
 
@@ -415,6 +433,18 @@ if __name__ == "__main__":
     pca_passive.fit(X_passive)
     X_passive_projection = pca_passive.transform(X_passive)
 
-    plot(X_passive_projection, passive, color_num=n_cluster, name="passive_kmeans")
+    x_lim_left = 1.2 * X_passive_projection[:, 0].min()
+    x_lim_right = 1.2 * X_passive_projection[:, 0].max()
+    y_lim_down = 1.2 * X_passive_projection[:, 1].min()
+    y_lim_up = 1.2 * X_passive_projection[:, 1].max()
 
-    print("X_passive_projection", X_passive_projection[0:10, :])
+    pca_plot(X_passive_projection, passive, 
+             x_lim_left=x_lim_left,
+             x_lim_right=x_lim_right,
+             y_lim_down=y_lim_down,
+             y_lim_up=y_lim_up,
+             color_num=n_cluster, name="{}_passive_kmeans".format(dataset_name))
+    
+    sil_plot(X_passive=X_passive, estimator=passive, n_cluster=n_cluster, name='{}_passive_kmeans'.format(dataset_name))
+
+    # print("X_passive_projection", X_passive_projection[0:10, :])

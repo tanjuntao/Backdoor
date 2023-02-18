@@ -1,6 +1,7 @@
 import hashlib
 import os
 import pickle
+import random
 import time
 from pathlib import Path
 from typing import List, Union
@@ -22,6 +23,7 @@ class RSAPSIActive(BasePSIComponent):
         cryptosystem: RSA,
         logger: GlobalLogger,
         num_workers: int = -1,
+        obfuscated_rate: float = 0,
     ):
         self.messenger = messenger
         self.cryptosystem = cryptosystem
@@ -29,6 +31,7 @@ class RSAPSIActive(BasePSIComponent):
         if num_workers == -1:
             num_workers = os.cpu_count()
         self.num_workers = num_workers
+        self.obfuscated_rate = obfuscated_rate
 
         self.HASHED_IDS_FILENAME = "hashed_signed_ids.pkl"
         self.HERE = os.path.abspath(os.path.dirname(__file__))
@@ -100,12 +103,12 @@ class RSAPSIActive(BasePSIComponent):
             )  # convert back to list
 
         # 5. find the intersection
-        intersections = RSAPSIActive._intersect(
-            ids, active_hashed_signed_ids, passive_hashed_signed_ids
+        intersections, intersection_hashed_ids = RSAPSIActive._intersect(
+            ids, active_hashed_signed_ids, passive_hashed_signed_ids, self.obfuscated_rate
         )
         self.logger.log("Size of intersection: {}".format(len(intersections)))
         for msger in self.messenger:
-            msger.send(intersections)
+            msger.send(intersection_hashed_ids)
 
         self.logger.log(
             "Total protocol execution time: {:.5f}".format(time.time() - start)
@@ -174,15 +177,15 @@ class RSAPSIActive(BasePSIComponent):
         with open(full_path, "rb") as f:
             active_hashed_signed_ids = pickle.load(f)
         begin = time.time()
-        intersections = RSAPSIActive._intersect(
-            ids, active_hashed_signed_ids, passive_hashed_signed_ids
+        intersections, intersection_hashed_ids = RSAPSIActive._intersect(
+            ids, active_hashed_signed_ids, passive_hashed_signed_ids, self.obfuscated_rate
         )
         del active_hashed_signed_ids  # save memory
         del passive_hashed_signed_ids  # save memory
         print("Intersection time: {}".format(time.time() - begin))
         print(colored("Size of intersection: {}".format(len(intersections)), "red"))
         for msger in self.messenger:
-            msger.send(intersections)
+            msger.send(intersection_hashed_ids)
 
         os.remove(full_path)
         print("[ACTIVE] Finish the online protocol.")
@@ -205,8 +208,9 @@ class RSAPSIActive(BasePSIComponent):
         return [hashlib.sha256(str(item).encode()).hexdigest() for item in signed_set]
 
     @staticmethod
-    def _intersect(ids, active_hashed_ids, passive_hashed_ids):
+    def _intersect(ids, active_hashed_ids, passive_hashed_ids, obfuscated_rate):
         intersections = []
+        intersection_hashed_ids = []
         # directly convert Python list to Python set via the inbuild set() function is
         # faster than initilizing an empty set and then adding items sequentially
         # to this set.
@@ -214,10 +218,18 @@ class RSAPSIActive(BasePSIComponent):
         for idx, hash_val in enumerate(active_hashed_ids):
             if hash_val in passive_hashed_set:
                 intersections.append(ids[idx])
+                intersection_hashed_ids.append(hash_val)
+
+        if obfuscated_rate > 0:
+            intersection_hashed_ids += random.choices(
+                passive_hashed_ids,
+                k=min(len(passive_hashed_ids), int(obfuscated_rate * len(intersections))),
+            )
+            intersection_hashed_ids = list(set(intersection_hashed_ids))
 
         # Before this function returns, the Python GC will delete the passive_hashed_set
         # which is REALLY time-consuming if the set size is big, e.g, >= 40 million.
-        return intersections
+        return intersections, intersection_hashed_ids
 
 
 if __name__ == "__main__":
@@ -287,8 +299,9 @@ if __name__ == "__main__":
     _crypto = RSA()
 
     # 4. Start the RSA-Blind-Signature protocol
-    active_party = RSAPSIActive(_messenger, _crypto, _logger)
+    active_party = RSAPSIActive(_messenger, _crypto, _logger, obfuscated_rate=0.5)
     intersections_ = active_party.run(_ids)
+    print(len(intersections_))
 
     # 5. Close messenger
     for msger_ in _messenger:
