@@ -14,6 +14,22 @@ from linkefl.dataio import MediaDataset, TorchDataset
 from linkefl.modelzoo import ResNet18
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 
+def loss_reweight(y):
+    if type(y) == torch.Tensor:
+        y = y.numpy()
+    elif type(y) == np.ndarray:
+        pass
+    else:
+        raise ValueError('Only tensor and ndarray are supported!')
+    
+    unique_labels, count = np.unique(y, return_counts=True)
+
+    weight = 1 / count 
+    weight /= np.sum(weight) 
+    weight *= len(unique_labels) # Normalization for numerical stability
+
+    return torch.FloatTensor(weight)
+
 
 class ActiveNeuralNetwork(BaseModelComponent):
     def __init__(
@@ -340,9 +356,10 @@ if __name__ == "__main__":
     passive_port = 30000
     _epochs = 100
     _batch_size = 100
-    _learning_rate = 0.01
+    _learning_rate = 0.001
     _passive_in_nodes = 10
     _crypto_type = Const.PLAIN
+
     _loss_fn = nn.CrossEntropyLoss()
     _random_state = None
     _device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -369,7 +386,7 @@ if __name__ == "__main__":
         role=Const.ACTIVE_NAME,
         dataset_name=dataset_name,
         root="../data",
-        train=True,
+        train=False,
         download=True,
     )
     active_testset = MediaDataset(
@@ -380,6 +397,12 @@ if __name__ == "__main__":
         download=True,
     )
     print("Done.")
+
+    weight = loss_reweight(active_trainset.labels)
+    _loss_fn = nn.CrossEntropyLoss(weight=weight.to(_device))
+    # _loss_fn = nn.CrossEntropyLoss()
+
+    
 
     # 2. Create PyTorch models and optimizers
     # input_nodes = num_input_nodes(
