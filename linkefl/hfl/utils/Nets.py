@@ -23,7 +23,8 @@ class SimpleCNN(nn.Module):
 
 
 node_1 = 10
-node_2=10
+node_2 = 10
+
 class MLP(nn.Module):
     def __init__(self,num_classes,in_features):
         super(MLP, self).__init__()
@@ -194,3 +195,15 @@ def Nets(model_name, num_classes, num_channels=3,in_features=10):
         return ResNet18(num_classes, num_channels)
     elif model_name == "MLP":
         return MLP(num_classes, in_features)
+
+
+class LinReg(nn.Module):
+    def __init__(self,in_features):
+        super(LinReg, self).__init__()
+        self.linear = nn.Linear(in_features, 1)
+
+    def forward(self, x):
+        x = x.to(torch.float32)
+        out = self.linear(x)
+        return out
+
