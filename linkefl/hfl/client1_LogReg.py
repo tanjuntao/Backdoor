@@ -5,7 +5,7 @@ from torch import nn
 from torchvision import datasets, transforms
 
 from linkefl.hfl.customed_optimizer import ScaffoldOptimizer
-from linkefl.hfl.hfl import Client
+from linkefl.hfl.hfl import Client,inference
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils import Partition, ResNet18
 from linkefl.hfl.utils.Nets import LogReg, Nets
@@ -25,6 +25,8 @@ def setClient():
             device=device,
             epoch=epoch,
             batch_size=batch_size,
+            model_path="./models",
+            model_name=model_name,
         )
 
     elif aggregator == "FedProx":
@@ -109,7 +111,7 @@ if __name__ == "__main__":
     dataset_name = "census"
     # dataset_name = "mnist"
     learningrate = 0.01
-    epoch = 20
+    epoch = 5
     iter = 5
     batch_size = 64
 

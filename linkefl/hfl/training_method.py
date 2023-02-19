@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 from linkefl.hfl.aggregator import Aggregator_client, Aggregator_server
 from linkefl.hfl.dp_mechanism import add_dp
-
+from linkefl.modelio.torch_model import TorchModelIO
 
 # tensor to list
 def modelpara_to_list(para):
@@ -55,7 +55,7 @@ def list_to_tensor(data):
 
 class Train_server:
     @staticmethod
-    def train_basic(epoch, world_size, server, model, device, testset, lossfunction,logger):
+    def train_basic(epoch, world_size, server, model, device, testset, lossfunction,logger,path,name):
         aggregator = Aggregator_server.FedAvg
         for j in range(epoch):
             recDatas = []
@@ -90,6 +90,7 @@ class Train_server:
                 0,
                 total_epoch=epoch,
             )
+        TorchModelIO.save(model,path,name)
         return model
 
     @staticmethod
@@ -255,6 +256,8 @@ class Train_client:
         device,
         num_batches,
         testset,
+        path,
+        name,
     ):
         model.train()
         aggregator = Aggregator_client.FedAvg
@@ -295,6 +298,7 @@ class Train_client:
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
 
+        TorchModelIO.save(model,path, name)
         return model
 
     @staticmethod

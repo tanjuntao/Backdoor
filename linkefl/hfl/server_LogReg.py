@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from torchvision import datasets, transforms
 
-from linkefl.hfl.hfl import Server
+from linkefl.hfl.hfl import Server,inference_hfl
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils.Nets import LogReg, Nets
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
@@ -21,7 +21,9 @@ def setServer():
             lossfunction=lossfunction,
             device=device,
             epoch=epoch,
-            logger=logger_factory("active_party")
+            logger=logger_factory("active_party"),
+            model_path="./models",
+            model_name=model_name,
         )
 
     elif aggregator == "FedProx":
@@ -77,10 +79,11 @@ if __name__ == "__main__":
     PORT = 23705
     world_size = 2
     partyid = 0
+    model_name = "LogReg"
 
     dataset_name = "census"
     # dataset_name = "mnist"
-    epoch = 20
+    epoch = 5
     aggregator = "FedAvg"
     # aggregator = 'FedAvg_seq'
 
@@ -123,7 +126,12 @@ if __name__ == "__main__":
         download=True,
     )
 
+    print(len(Testset))
     print(" Server training...")
     model = server.train(Testset)
     print("Server training done.")
     test_accuracy, test_loss = server.test(Testset)
+
+    results = inference_hfl(Testset,model_arch=LogReg(in_features, num_classes),
+                        model_name=model_name,loss_fn=lossfunction,device=device)
+

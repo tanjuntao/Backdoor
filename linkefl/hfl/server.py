@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from torchvision import datasets, transforms
 
-from linkefl.hfl.hfl import Server
+from linkefl.hfl.hfl import Server,inference
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils.Nets import LogReg, Nets
 

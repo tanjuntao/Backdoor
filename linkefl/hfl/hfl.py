@@ -6,7 +6,8 @@ from torch.utils.data import DataLoader
 
 from linkefl.hfl.socket_hfl import messenger
 from linkefl.hfl.training_method import Train_client, Train_server
-
+from linkefl.modelio import TorchModelIO
+import numpy as np
 
 class Server:
     def __init__(
@@ -26,7 +27,8 @@ class Server:
         kp=0.1,
         batch_size=64,
         BUFSIZ=1024000000,
-        model_name="NeuralNetwork",
+        model_path="./models",
+        model_name=None
     ):
         """
         HOST:联邦学习server的ip
@@ -55,8 +57,9 @@ class Server:
         self.batch_size = batch_size
         self.iter = iter
         self.kp = kp
-        self.model_name = model_name
         self.logger = logger
+        self.model_path = model_path
+        self.model_name = model_name
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         return dataloader
@@ -81,6 +84,8 @@ class Server:
                 testset,
                 self.lossfunction,
                 self.logger,
+                self.model_path,
+                self.model_name,
             )
         elif self.aggregator == "FedAvg_seq":
             self.model = Train_server.train_FedAvg_seq(
@@ -134,6 +139,8 @@ class Server:
                 self.lossfunction,
             )
 
+        server.close()
+
     def test(self, testset):
         test_loss = 0
         correct = 0
@@ -163,6 +170,8 @@ class Server:
         return self.model.state_dict()
 
 
+
+
 class Client:
     def __init__(
         self,
@@ -187,7 +196,8 @@ class Client:
         dp_clip=10,
         dp_epsilon=1,
         dp_delta=1e-5,
-        model_name="NeuralNetwork",
+        model_path="./models",
+        model_name=None,
     ):
         """
         HOST:联邦学习server的ip
@@ -217,7 +227,9 @@ class Client:
         self.BUFSIZ = BUFSIZ
         self.batch_size = batch_size
         self.iter = iter
+        self.model_path = model_path
         self.model_name = model_name
+
         # FedProx
         self.mu = mu
 
@@ -283,6 +295,8 @@ class Client:
                 self.device,
                 num_batches,
                 testset,
+                self.model_path,
+                self.model_name,
             )
 
         elif self.aggregator == "FedAvg_seq":
@@ -395,3 +409,35 @@ class Client:
 
     def get_model_params(self):
         return self.model.state_dict()
+
+
+def inference_hfl(dataset,model_arch,model_name,
+              model_path="./models",loss_fn=None,infer_step=64,device=torch.device("cpu"),optimizer_arch=None):
+
+    #加载模型
+    model, _, _ = TorchModelIO.load(
+        model_arch, model_path, model_name, optimizer_arch=optimizer_arch
+    )
+
+    #加载数据
+    dataloader = DataLoader(dataset, batch_size=infer_step, shuffle=False)
+    num_batches = len(dataloader)
+    test_loss = 0
+    correct = 0
+    labels, probs = np.array([]), np.array([])  # used for computing AUC score
+    preds = []
+    with torch.no_grad():
+        for idx, (data, target) in enumerate(dataloader):
+            data, target = data.to(device), target.to(device).to(torch.long)
+            log_probs = model(data)
+            # test_loss += self.lossfunction(log_probs, target, reduction='sum').item()
+            test_loss += loss_fn(log_probs, target).item()
+            y_pred = log_probs.data.max(1, keepdim=True)[1]
+            correct += y_pred.eq(target.data.view_as(y_pred)).long().cpu().sum()
+            preds.extend(y_pred.numpy().tolist())
+
+    test_loss /= num_batches
+    acc =  correct / len(dataloader.dataset)
+    scores = {"acc": acc/100, "auc": 0, "loss": test_loss, "preds": preds}
+
+    return scores
