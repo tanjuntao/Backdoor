@@ -1141,6 +1141,9 @@ class CommonDataset:
         CommonDataset._plot_bar(
             col_names, info.loc["std", :].values, "std value", "std_plot", path
         )
+        CommonDataset._plot_box(
+            self.features[:, :10], col_names[:10], path
+        )
 
         return static_result
 
@@ -1413,6 +1416,17 @@ class CommonDataset:
         plt.ylabel(ylabel)
         plt.title("{} of Each Feature".format(ylabel))
         plt.savefig(os.path.join(path, "{}.png".format(file_name)), pad_inches="tight")
+        plt.close()
+
+    @staticmethod
+    def _plot_box(data, labels, path):
+        import os
+
+        from matplotlib import pyplot as plt
+
+        plt.boxplot(data, labels=labels, showmeans=True, meanline=True)
+        plt.title("Boxplot of features {}".format(labels))
+        plt.savefig(os.path.join(path, 'box_plot.png'), pad_inches="tight")
         plt.close()
 
 

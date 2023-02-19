@@ -96,7 +96,12 @@ class RSAPSIPassive(BasePSIComponent):
         )
 
         # 4. receive intersection
-        intersections = self.messenger.recv()
+        intersection_hashed_ids = self.messenger.recv()
+        intersections = []
+        for idx, hash_val in enumerate(hashed_signed_ids):
+            if hash_val in intersection_hashed_ids:
+                intersections.append(ids[idx])
+
         self.logger.log("Size of intersection: {}".format(len(intersections)))
 
         self.logger.log(
@@ -153,11 +158,15 @@ class RSAPSIPassive(BasePSIComponent):
         self.messenger.send(hashed_signed_ids)
 
         os.remove(full_path)
-        intersection = self.messenger.recv()
-        print(colored("Size of intersection: {}".format(len(intersection)), "red"))
+        intersection_hashed_ids = self.messenger.recv()
+        intersections = []
+        for idx, hash_val in enumerate(hashed_signed_ids):
+            if hash_val in intersection_hashed_ids:
+                intersections.append(ids[idx])
+        print(colored("Size of intersection: {}".format(len(intersections)), "red"))
         print("Total time: {}".format(time.time() - start_time))
 
-        return intersection
+        return intersections
 
     def _sync_pubkey(self):
         self.logger.log("[PASSIVE] Requesting RSA public key...")
@@ -296,6 +305,7 @@ if __name__ == "__main__":
     # 3. Start the RSA-Blind-Signature protocol
     passive_party = RSAPSIPassive(_messenger, _logger)
     intersections_ = passive_party.run(_ids)
+    print(len(intersections_))
 
     # 4. Close messenger
     _messenger.close()
