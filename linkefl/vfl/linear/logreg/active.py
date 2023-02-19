@@ -11,7 +11,8 @@ from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
-
+from linkefl.vfl.tree.plotting import Plot
+from linkefl.vfl.tree.loss_functions import CrossEntropyLoss
 
 class ActiveLogReg(BaseLinearActive, BaseModelComponent):
     def __init__(
@@ -122,6 +123,9 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         compu_time = 0
         # Main Training Loop Here
         self.logger.log("Start collaborative model training...")
+        residual_record, train_loss_record, test_loss_record = [], [], []
+        train_auc_record, test_auc_record, train_acc_record, test_acc_record, f1_record = [], [], [], [], []
+
         for epoch in range(self.epochs):
             epoch_start_time = time.time()
             self.logger.log("Epoch: {}".format(epoch))
@@ -129,7 +133,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
             all_idxes = np.arange(n_samples)
             np.random.seed(epoch)
             np.random.shuffle(all_idxes)
-            batch_losses = []
+            batch_losses, batch_residuales = [], []
             for batch in range(n_batches):
                 # Choose batch indexes
                 start = batch * bs
@@ -179,13 +183,26 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                 active_grad = self._grad(residue, batch_idxes)
                 self._gradient_descent(getattr(self, "params"), active_grad)
                 batch_losses.append(loss)
+                batch_residuales.append(residue)
 
             # validate model performance
             if epoch % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
+                cur_residue = np.array(residue).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
 
                 scores = self.validate(testset, epoch)
+                train_scores = self.validate(trainset, epoch)
+
+                residual_record.append(cur_residue)
+                f1_record.append(scores["f1"])
+                train_loss_record.append(train_scores["loss"])
+                test_loss_record.append(scores["loss"])
+                train_auc_record.append(train_scores["auc"])
+                test_auc_record.append(scores["auc"])
+                train_acc_record.append(train_scores["acc"])
+                test_acc_record.append(scores["acc"])
+
                 if scores["acc"] > best_acc:
                     best_acc = scores["acc"]
                     is_best = True
@@ -229,6 +246,16 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         print(colored("Computation time: {:.5f}".format(compu_time), "red"))
         print(colored("Elapsed time: {:.5f}s".format(time.time() - start_time), "red"))
 
+        scores = self.validate(testset)
+        Plot.plot_residual(residual_record, self.model_path)
+        Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.model_path)
+        Plot.plot_ordered_lorenz_curve(label=testset.labels, y_prob=scores["probs"], file_dir=self.model_path)
+        Plot.plot_predict_distribution(y_prob=scores["probs"], bins=10, file_dir=self.model_path)
+        Plot.plot_predict_prob_box(y_prob=scores["probs"], file_dir=self.model_path)
+        Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.model_path)
+        Plot.plot_binary_mertics(testset.labels, scores["probs"], self.model_path)
+        Plot.plot_f1_score(f1_record)
+
     def validate(self, valset, epoch=-1):
         assert isinstance(
             valset, NumpyDataset
@@ -241,6 +268,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         probs = sigmoid(full_wx)
         preds = (probs > self.POSITIVE_THRESH).astype(np.int32)
 
+        loss = np.array(self._ce_loss(valset.labels, preds)).mean()
         accuracy = accuracy_score(valset.labels, preds)
         f1 = f1_score(valset.labels, preds)
         auc = roc_auc_score(valset.labels, probs)
@@ -250,7 +278,23 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
 
             Plot.plot_binary_mertics(valset.labels, probs, self.pics_path)
 
-        return {"acc": accuracy, "f1": f1, "auc": auc}
+        return {"loss": loss, "probs": probs, "preds":preds,
+                "acc": accuracy, "f1": f1, "auc": auc}
+
+    def _ce_loss(self, y, y_prob):
+        """
+        The cross-entropy loss class for binary classification
+            Formula : -(sum(y * log(y_prob) + (1 - y) * log(1 - y_prob)) / N)
+
+        Args:
+            y: the input data's labels
+            y_prob: the predict probability.
+
+        Returns:
+            log_loss : float, the binary cross entropy loss
+        """
+        loss = -y * np.log(y_prob) - (1 - y) * np.log(1 - y_prob)
+        return loss
 
     def predict(self, testset):
         return self.validate(testset)

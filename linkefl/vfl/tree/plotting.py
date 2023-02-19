@@ -189,11 +189,11 @@ class Plot(object):
         ax.xaxis.set_major_locator(plt.MultipleLocator(1))
         ax.grid(True, linestyle="-.")
         ax.set_title("Convergence Index Analysis")
-        ax.set_ylabel("loss", labelpad=5, loc="center")
-        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        ax.set_ylabel("Auc", labelpad=5, loc="center")
+        ax.set_xlabel("Epoch", labelpad=5, loc="center")
         plt.legend(loc="best")
 
-        plt.savefig(f"{file_dir}/convergence_index_analysis_loss.png")
+        plt.savefig(f"{file_dir}/convergence_index_analysis_auc.png")
         plt.close()
 
     @classmethod
