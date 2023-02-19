@@ -13,6 +13,8 @@ from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
 
+import matplotlib.pyplot as plt
+
 
 class Testwoe:
     def __init__(self, dataset, woe_features, messenger, split, bin_woe):
@@ -87,6 +89,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         )
         self.POSITIVE_THRESH = positive_thresh
         self.RESIDUE_PRECISION = len(str(residue_precision).split(".")[1])
+        self.gini_list = []
 
     @staticmethod
     def _logloss(y_true, y_hat):
@@ -276,6 +279,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         accuracy = accuracy_score(valset.labels, preds)
         f1 = f1_score(valset.labels, preds)
         auc = roc_auc_score(valset.labels, probs)
+        self.gini_list.append((auc - 0.5) / 0.5)
 
         return {"acc": accuracy, "f1": f1, "auc": auc}
 
@@ -311,6 +315,19 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         for msger in messenger:
             msger.send([scores, preds])
         return scores, preds
+
+def gini_plot(gini_list, file_dir='./model'):
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.plot(list(range(len(gini_list))), gini_list, label="train_auc")
+    ax.xaxis.set_major_locator(plt.MultipleLocator(10))
+    ax.grid(True, linestyle="-.")
+    ax.set_title("gini")
+    ax.set_ylabel("gini value", labelpad=5, loc="center")
+    ax.set_xlabel("epoch", labelpad=20, loc="center")
+    # plt.show()
+    plt.savefig(f"{file_dir}/gini.png")
+    plt.close()
 
 
 if __name__ == "__main__":
@@ -387,6 +404,7 @@ if __name__ == "__main__":
 
     active_woe = ActiveWoe(active_trainset, [0, 1, 2, 3, 4], _messenger)
     bin_bounds, bin_woe, bin_iv = active_woe.cal_woe()
+
     active_trainset = add_intercept(active_trainset)
     test_woe = Testwoe(active_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
     test_woe.cal_woe()
@@ -420,6 +438,8 @@ if __name__ == "__main__":
 
     active_party.train(active_trainset, active_testset)
 
+    # print(active_party.gini_list)
+    gini_plot(active_party.gini_list)
     # Scorecard
     p = 20 / np.log(2)  # 比例因子
     q = 600 - 20 * np.log(50) / np.log(2)  # 等于offset,偏移量
