@@ -5,11 +5,12 @@ from torch import nn
 from torchvision import datasets, transforms
 
 from linkefl.hfl.customed_optimizer import ScaffoldOptimizer
-from linkefl.hfl.hfl import Client,inference_hfl
+from linkefl.hfl.hfl import Client
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils import Partition, ResNet18
-from linkefl.hfl.utils.Nets import LogReg, Nets,LinReg
+from linkefl.hfl.utils.Nets import LogReg, Nets, LinReg
 from linkefl.hfl.utils.lossfunction import MSEloss
+
 
 def setClient():
     if aggregator in {"FedAvg", "FedAvg_seq"}:
@@ -25,8 +26,6 @@ def setClient():
             device=device,
             epoch=epoch,
             batch_size=batch_size,
-            model_path="./models",
-            model_name=model_name,
         )
 
     elif aggregator == "FedProx":
@@ -109,13 +108,19 @@ if __name__ == "__main__":
     partyid = 2
 
     dataset_name = "diabetes"
-    epoch = 10
+    # dataset_name = "mnist"
     learningrate = 0.01
+    epoch = 1000
     iter = 5
-    batch_size = 64
+    batch_size = 1000
+
+    # model_name = 'SimpleCNN'
+    # num_classes = 10
+    # num_channels = 1
+    # model = Nets(model_name, num_classes, num_channels)
+    # lossfunction = nn.CrossEntropyLoss()
 
     # 逻辑回归模型
-    # 线性回归模型
     model_name = "LinearRegression"
     in_features = 10
     model = LinReg(in_features)
@@ -164,6 +169,7 @@ if __name__ == "__main__":
         train=False,
         download=True,
     )
+
     print("Done.")
 
     client = setClient()

@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     data_name = "mnist"
     data_path = "../../../LinkeFL/linkefl/hfl/data"
-    epoch = 5
+    epoch = 1
     aggregator = "FedAvg"
 
     # aggregator = 'FedAvg_seq'
@@ -134,3 +134,4 @@ if __name__ == "__main__":
     results = inference_hfl(Testset,model_arch=Nets(model_name, num_classes, num_channels),
                         model_name=model_name,loss_fn=lossfunction,device=device)
 
+    print(results)

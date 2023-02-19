@@ -3,9 +3,10 @@ import torch
 from torch import nn
 from torchvision import datasets, transforms
 
-from linkefl.hfl.hfl import Server
+from linkefl.hfl.hfl import Server,inference_hfl_linear
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils.Nets import LogReg, Nets,LinReg
+from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
 from linkefl.hfl.utils.lossfunction import MSEloss
 
 
@@ -21,6 +22,9 @@ def setServer():
             lossfunction=lossfunction,
             device=device,
             epoch=epoch,
+            logger=logger_factory("active_party"),
+            model_path="./models",
+            model_name=model_name,
         )
 
     elif aggregator == "FedProx":
@@ -78,15 +82,10 @@ if __name__ == "__main__":
     partyid = 0
 
     dataset_name = "diabetes"
-    epoch = 1000
+    # dataset_name = "mnist"
+    epoch = 10
     aggregator = "FedAvg"
     # aggregator = 'FedAvg_seq'
-
-    # 神经网络模型
-    # model_name = 'SimpleCNN'
-    # num_classes = 10
-    # num_channels = 1
-    # model = Nets(model_name, num_classes, num_channels)
 
     # 逻辑回归模型
     model_name = "LinearRegression"
@@ -97,8 +96,12 @@ if __name__ == "__main__":
 
     learningrate = 0.01
     lossfunction = MSEloss
+
+    model.to(device)
+
     role = "server"
 
+    _logger = logger_factory(role="active_party")
     # # FedProx
     # aggregator = 'FedProx'
     mu = 0.02
@@ -118,7 +121,6 @@ if __name__ == "__main__":
 
     # 加载测试数据
 
-    # 神经网络模型数据，mnist
     Testset = myData(
         name=dataset_name,
         root="../../data",
@@ -126,7 +128,13 @@ if __name__ == "__main__":
         download=True,
     )
 
+    print(len(Testset))
     print(" Server training...")
     model = server.train(Testset)
     print("Server training done.")
     test_accuracy, test_loss = server.test(Testset)
+
+    results = inference_hfl_linear(Testset,model_arch=LinReg(in_features),
+                        model_name=model_name,loss_fn=lossfunction,device=device)
+
+    print(results)
