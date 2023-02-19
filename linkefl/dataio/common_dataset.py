@@ -1304,7 +1304,7 @@ class CommonDataset:
         columns = None,
     ):
         if columns is None:
-            return
+            return df_dataset
         for column in columns:
             df_dataset[column] = pd.to_datetime(df_dataset[column])
         return df_dataset
