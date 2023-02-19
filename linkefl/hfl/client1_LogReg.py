@@ -5,7 +5,7 @@ from torch import nn
 from torchvision import datasets, transforms
 
 from linkefl.hfl.customed_optimizer import ScaffoldOptimizer
-from linkefl.hfl.hfl import Client,inference
+from linkefl.hfl.hfl import Client,inference_hfl
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils import Partition, ResNet18
 from linkefl.hfl.utils.Nets import LogReg, Nets
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     world_size = 2
     partyid = 1
 
-    dataset_name = "census"
+    dataset_name = "digits"
     # dataset_name = "mnist"
     learningrate = 0.01
     epoch = 5
@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
     # 逻辑回归模型
     model_name = "LogisticRegression"
-    in_features = 81
+    in_features = 64
     num_classes = 2
     model = LogReg(in_features, num_classes)
 

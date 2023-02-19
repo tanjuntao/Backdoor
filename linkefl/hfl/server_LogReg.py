@@ -81,15 +81,15 @@ if __name__ == "__main__":
     partyid = 0
     model_name = "LogReg"
 
-    dataset_name = "census"
+    dataset_name = "digits"
     # dataset_name = "mnist"
     epoch = 5
     aggregator = "FedAvg"
     # aggregator = 'FedAvg_seq'
 
     # 逻辑回归模型
-    model_name = "LogisticRegression"
-    in_features = 81
+    model_name = "LogisticRegression_server"
+    in_features = 64
     num_classes = 2
     model = LogReg(in_features, num_classes)
 

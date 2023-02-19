@@ -191,7 +191,7 @@ class Client:
         kp=0.1,
         BUFSIZ=1024000000,
         batch_size=64,
-        iter=5,
+        iter=1,
         dp_mechanism="Laplace",
         dp_clip=10,
         dp_epsilon=1,
