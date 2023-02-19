@@ -448,6 +448,7 @@ class ActiveTreeParty(BaseModelComponent):
             Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
 
             # 预测概率相关
+            Plot.plot_ordered_lorenz_curve(label=testset.labels, y_prob=outputs_test, file_dir=self.pics_path)
             Plot.plot_predict_distribution(y_prob=outputs, bins=10, file_dir=self.pics_path)
             Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_path)
 

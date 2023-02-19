@@ -361,8 +361,7 @@ class Plot(object):
         plt.close()
 
     @staticmethod
-    def plot_residual(label, y_prob, file_dir="./models"):
-        residual = label - y_prob
+    def plot_residual(residual, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
         ax.grid(True, linestyle="-.")
