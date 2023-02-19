@@ -257,6 +257,7 @@ class CommonDataset:
         *,
         target_fields=None,
         excluding_fields=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -295,6 +296,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
                 header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -324,6 +326,7 @@ class CommonDataset:
         *,
         target_fields=None,
         excluding_fields=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -361,6 +364,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
                 header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -390,6 +394,7 @@ class CommonDataset:
         *,
         target_fields=None,
         excluding_fields=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -424,6 +429,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
                 header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -453,6 +459,7 @@ class CommonDataset:
         *,
         target_fields=None,
         excluding_fields=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -496,6 +503,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
                 header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -525,6 +533,7 @@ class CommonDataset:
         *,
         target_fields=None,
         excluding_fields=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -558,6 +567,7 @@ class CommonDataset:
                 df_dataset = pd.DataFrame.from_dict(results)
                 header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -587,6 +597,7 @@ class CommonDataset:
         *,
         target_fields=None,
         excluding_fields=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -613,6 +624,7 @@ class CommonDataset:
 
         df_dataset = pd.read_sql(sql, connection)
         header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -637,6 +649,7 @@ class CommonDataset:
         dataset_type,
         delimiter=",",
         has_header=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -651,6 +664,7 @@ class CommonDataset:
         )
         header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
 
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -681,6 +695,7 @@ class CommonDataset:
         abs_path,
         dataset_type,
         has_header=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -693,6 +708,7 @@ class CommonDataset:
         df_dataset = pd.read_excel(abs_path, header=header_arg, index_col=False)
 
         header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(
             df_dataset, row_threshold=row_threshold, column_threshold=column_threshold
         )
@@ -725,6 +741,7 @@ class CommonDataset:
         data_field="data",
         has_header=True,
         existing_json=None,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -739,6 +756,7 @@ class CommonDataset:
 
         df_dataset = pd.DataFrame.from_dict(raw_data)
         header_type = [str(_type) for _type in df_dataset.dtypes.tolist()]
+        df_dataset = cls._date_data(df_dataset, columns=date_columns)
         df_dataset = cls._clean_data(df_dataset, row_threshold, column_threshold)
         df_dataset = cls._outlier_data(df_dataset, role=role)
         df_dataset = cls._fill_data(df_dataset)
@@ -764,6 +782,7 @@ class CommonDataset:
         post_params=None,
         data_field="data",
         has_header=True,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -782,6 +801,7 @@ class CommonDataset:
             dataset_type=dataset_type,
             data_field=data_field,
             existing_json=existing_json,
+            date_columns=date_columns,
             row_threshold=row_threshold,
             column_threshold=column_threshold,
             mappings=mappings,
@@ -796,6 +816,7 @@ class CommonDataset:
         dataset_type,
         is_local,
         has_header=False,
+        date_columns=None,
         row_threshold=0.3,
         column_threshold=0.3,
         mappings=None,
@@ -829,6 +850,7 @@ class CommonDataset:
                 dataset_type=dataset_type,
                 delimiter=delimiter,
                 has_header=has_header,
+                date_columns=date_columns,
                 row_threshold=row_threshold,
                 column_threshold=column_threshold,
                 mappings=mappings,
@@ -841,6 +863,7 @@ class CommonDataset:
                 abs_path=abs_path,
                 dataset_type=dataset_type,
                 has_header=has_header,
+                date_columns=date_columns,
                 row_threshold=row_threshold,
                 column_threshold=column_threshold,
                 mappings=mappings,
@@ -854,6 +877,7 @@ class CommonDataset:
                 abs_path=abs_path,
                 dataset_type=dataset_type,
                 data_field=data_field,
+                date_columns=date_columns,
                 row_threshold=row_threshold,
                 column_threshold=column_threshold,
                 mappings=mappings,
@@ -1275,6 +1299,17 @@ class CommonDataset:
         return np_dataset, header
 
     @staticmethod
+    def _date_data(
+        df_dataset: pd.DataFrame,
+        columns = None,
+    ):
+        if columns is None:
+            return
+        for column in columns:
+            df_dataset[column] = pd.to_datetime(df_dataset[column])
+        return df_dataset
+
+    @staticmethod
     def _clean_data(
         df_dataset: pd.DataFrame,
         row_threshold: float = 0.3,
@@ -1319,7 +1354,7 @@ class CommonDataset:
                 continue
             column_data_mean = np.mean(column_data)
             column_data_std = np.std(column_data)
-            outliers = np.abs(column_data - column_data_mean) > 3 * column_data_std
+            outliers = np.abs(column_data - column_data_mean) > 1 * column_data_std
             df_dataset.loc[outliers, df_dataset.columns[i]] = pd.NA
         return df_dataset
 
@@ -1430,7 +1465,7 @@ class CommonDataset:
         plt.close()
 
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     # from linkefl.feature.transform import OneHot
     #
     # print("the first df_dataset")
@@ -1507,11 +1542,11 @@ if __name__ == "__main__":
     # print("New")
     # print(new_df_dataset)
 
-    abs_path = "/Users/tanjuntao/LinkeFL-Servicer/data/电商平台精准营销数据202206.csv"
-    np_dataset = CommonDataset.from_csv(
-        role=Const.ACTIVE_NAME,
-        abs_path=abs_path,
-        dataset_type=Const.CLASSIFICATION,
-    )
-    print(np_dataset.header)
-    print(np_dataset.header_type)
+    # abs_path = "/Users/tanjuntao/LinkeFL-Servicer/data/电商平台精准营销数据202206.csv"
+    # np_dataset = CommonDataset.from_csv(
+    #     role=Const.ACTIVE_NAME,
+    #     abs_path=abs_path,
+    #     dataset_type=Const.CLASSIFICATION,
+    # )
+    # print(np_dataset.header)
+    # print(np_dataset.header_type)
