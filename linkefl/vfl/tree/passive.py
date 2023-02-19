@@ -261,7 +261,7 @@ class PassiveTreeParty(BaseModelComponent):
 
         if (
             self.task == "binary"
-            and self.crypto_type == Const.PAILLIER
+            and self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER)
             and self.compress
         ):
             return hist.compress(self.capacity, self.padding)
