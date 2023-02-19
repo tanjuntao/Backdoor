@@ -243,9 +243,8 @@ class ActiveTreeParty(BaseModelComponent):
         bin_index, bin_split = get_bin_info(trainset.features, self.max_bin)
         self.logger.log("Done")
 
-        # record loss and auc for plot fig in binary classification task.
-        self.train_loss, self.test_loss = [], []
-        self.train_auc, self.test_auc = [], []
+        # record data for plot fig
+        self.mertics_record = {}
 
         if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(trainset.labels))  # sum of tree raw outputs
@@ -257,6 +256,10 @@ class ActiveTreeParty(BaseModelComponent):
             else:
                 outputs = raw_outputs.copy()
                 outputs_test = raw_outputs_test.copy()
+
+            residual_record, train_loss_record, test_loss_record = [], [], []
+            train_auc_record, test_auc_record, train_acc_record, test_acc_record, f1_record = [], [], [], [], []
+            MAE_record, MSE_record, SSE_record, R2_record = [], [], [], []
 
             for tree_id, tree in enumerate(self.trees):
                 self.logger.log(f"tree {tree_id} started...")
@@ -311,6 +314,11 @@ class ActiveTreeParty(BaseModelComponent):
                     else:
                         break
 
+                residual = (y-outputs).mean()
+                residual_record.append(residual)
+                train_loss_record.append(train_loss.mean())
+                test_loss_record.append(test_loss.mean())
+
                 if self.task == "binary":
                     self.logger.log_metric(
                         epoch=tree_id,
@@ -320,10 +328,11 @@ class ActiveTreeParty(BaseModelComponent):
                         f1=scores["f1"],
                         total_epoch=self.n_trees,
                     )
-                    self.train_loss.append(train_loss.mean())
-                    self.test_loss.append(test_loss.mean())
-                    self.train_auc.append(roc_auc_score(trainset.labels, outputs))
-                    self.test_auc.append(scores["auc"])
+                    train_auc_record.append(roc_auc_score(trainset.labels, outputs))
+                    test_auc_record.append(scores["auc"])
+                    train_acc_record.append(accuracy_score(trainset.labels, np.round(outputs).astype(int)))
+                    test_acc_record.append(scores["acc"])
+                    f1_record.append(scores["f1"])
                 else:
                     self.logger.log_metric_regression(
                         epoch=tree_id,
@@ -334,6 +343,10 @@ class ActiveTreeParty(BaseModelComponent):
                         r2=scores["r2"],
                         total_epoch=self.n_trees,
                     )
+                    MAE_record.append(scores["mae"])
+                    MSE_record.append(scores["mse"])
+                    SSE_record.append(scores["sse"])
+                    R2_record.append(scores["r2"])
 
         elif self.task == "multi":
             labels_onehot = np.zeros((len(labels), self.n_labels))
@@ -425,15 +438,25 @@ class ActiveTreeParty(BaseModelComponent):
                 if self.messengers_validTag[messenger_id]:
                     messenger.send(model_structure)
 
-            Plot.plot_importance(self, importance_type="split", file_dir=self.pics_path)
-            Plot.plot_train_test_loss(self.train_loss, self.test_loss, self.pics_path)
-
-            if self.task == "binary":
-                Plot.plot_train_test_auc(self.train_auc, self.test_auc, self.pics_path)
-                Plot.plot_binary_mertics(testset.labels, outputs_test, self.pics_path)
-
+            # 输出模型
             tree_strs = self.get_tree_str_structures(tree_structure="VERTICAL")
             Plot.plot_trees(tree_strs, self.pics_path)
+            Plot.plot_importance(self, importance_type="split", file_dir=self.pics_path)
+
+            # 模型拟合相关
+            Plot.plot_residual(residual_record, self.pics_path)
+            Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
+
+            # 预测概率相关
+            Plot.plot_predict_distribution(y_prob=outputs, bins=10, file_dir=self.pics_path)
+            Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_path)
+
+            if self.task == "binary":
+                Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.pics_path)
+                Plot.plot_binary_mertics(testset.labels, outputs_test, self.pics_path)
+                Plot.plot_f1_score(f1_record)
+            else:
+                Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.pics_path)
 
     def score(self, testset, role=Const.ACTIVE_NAME):
         """set for pipeline func."""
@@ -812,12 +835,12 @@ if __name__ == "__main__":
     # 0. Set parameters
     #  binary: cancer, digits, epsilon, census, credit, default_credit, criteo
     #  regression: diabetes
-    dataset_name = "epsilon"
+    dataset_name = "diabetes"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
-    n_trees = 2
-    task = "binary"  # multi, binary, regression
+    n_trees = 20
+    task = "regression"  # multi, binary, regression
     n_labels = 2
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
@@ -917,7 +940,7 @@ if __name__ == "__main__":
         sampling_method="uniform",
         max_depth=6,
         max_num_leaves=8,
-        subsample=0.6,
+        subsample=1,
         top_rate=0.3,
         other_rate=0.7,
         colsample_bytree=1,
