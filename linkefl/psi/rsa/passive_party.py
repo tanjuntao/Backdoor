@@ -191,6 +191,8 @@ class RSAPSIPassive(BasePSIComponent):
 
         e = self.cryptosystem.pub_key.e
         n = self.cryptosystem.pub_key.n
+        if n_processes == 1:
+            return [_target_mp_pool(r, e, n) for r in randoms]
 
         with multiprocessing.Pool(n_processes) as p:
             random_factors = p.map(
