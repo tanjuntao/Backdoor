@@ -1,7 +1,7 @@
 from socket import AF_INET, SOCK_STREAM, socket
 
 import numpy as np
-
+import time
 
 class messenger:
     def __init__(self, HOST, PORT, role, partyid, world_size, BUFSIZ=1024000000):
@@ -26,6 +26,7 @@ class messenger:
             print("server  waiting for connection...")
 
     def send(self, sendData, id=1000):
+        time.sleep(0.5)
         if self.role == "server":
             # server
             tcpSerSock, addr = self.tcpSerSocks[id - 1].accept()
@@ -42,6 +43,7 @@ class messenger:
             # print('client {} send data to server'.format(self.partyid))
 
     def rec(self, id=1000):
+        time.sleep(0.5)
         if self.role == "server":
             # server
             tcpSerSock, addr = self.tcpSerSocks[id - 1].accept()
