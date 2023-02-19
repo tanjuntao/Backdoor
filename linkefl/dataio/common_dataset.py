@@ -1142,7 +1142,7 @@ class CommonDataset:
             col_names, info.loc["std", :].values, "std value", "std_plot", path
         )
         CommonDataset._plot_box(
-            self.features[:, :4], col_names[:4], path
+            self.features[:, :10], col_names[:10], path
         )
 
         return static_result
