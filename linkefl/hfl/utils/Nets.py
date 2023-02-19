@@ -185,9 +185,66 @@ class LogReg(nn.Module):
         # out = self.sigmoid(x)
         # out = out.squeeze(-1)
         return x
+#
+# class LeNet(nn.Module):
+#     def __init__(self,num_classes,num_channels):
+#         super(LeNet, self).__init__()
+#         self.conv = nn.Sequential(
+#             nn.Conv2d(num_channels, 6, 5), # in_channels, out_channels, kernel_size
+#             nn.Sigmoid(),
+#             nn.MaxPool2d(2, 2), # kernel_size, stride
+#             nn.Conv2d(6, 16, 5),
+#             nn.Sigmoid(),
+#             nn.MaxPool2d(2, 2)
+#         )
+#         self.fc = nn.Sequential(
+#             nn.Linear(16*4*4, 120),
+#             nn.Sigmoid(),
+#             nn.Linear(120, 84),
+#             nn.Sigmoid(),
+#             nn.Linear(84, num_classes)
+#         )
+#
+#     def forward(self, img):
+#         feature = self.conv(img)
+#         output = self.fc(feature.view(img.shape[0], -1))
+#         return output
 
-def Nets(model_name, num_classes, num_channels=3,in_features=10):
-    if model_name == "SimpleCNN":
+class LeNet(nn.Module):
+    def __init__(self,num_classes,num_channels):
+        super(LeNet, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(num_channels, 6, 5, 1, 2),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(6, 16, 5),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2)
+        )
+        self.fc1 = nn.Sequential(
+            nn.Linear(16 * 5 * 5, 120),
+            nn.ReLU()
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(120, 84),
+            nn.ReLU()
+        )
+        self.fc3 = nn.Linear(84, num_classes)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = x.view(x.size()[0], -1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        return x
+
+
+def Nets(model_name, num_classes, num_channels=1,in_features=10):
+    if model_name == "CNN":
         return SimpleCNN(num_classes, num_channels)
     # elif model_name == 'VGG16':
     #     return VGG16(num_classes,num_channels)
@@ -195,6 +252,8 @@ def Nets(model_name, num_classes, num_channels=3,in_features=10):
         return ResNet18(num_classes, num_channels)
     elif model_name == "MLP":
         return MLP(num_classes, in_features)
+    elif model_name == "LeNet":
+        return LeNet(num_classes, num_channels)
 
 
 class LinReg(nn.Module):
