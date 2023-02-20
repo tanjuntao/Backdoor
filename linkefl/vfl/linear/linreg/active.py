@@ -91,6 +91,9 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
         setattr(self, "y_train", trainset.labels)
         setattr(self, "y_val", testset.labels)
 
+        Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
+                                       50, self.pics_path)
+
         # initialize model parameters
         params = self._init_weights(trainset.n_features)
         setattr(self, "params", params)

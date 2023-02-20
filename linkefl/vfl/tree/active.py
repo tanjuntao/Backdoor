@@ -245,6 +245,8 @@ class ActiveTreeParty(BaseModelComponent):
 
         # record data for plot fig
         self.mertics_record = {}
+        Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
+                                       50, self.pics_path)
 
         if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(trainset.labels))  # sum of tree raw outputs
