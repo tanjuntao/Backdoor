@@ -11,7 +11,7 @@ from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import partial_crypto_factory
 from linkefl.dataio import MediaDataset, TorchDataset
-from linkefl.modelzoo import ResNet18
+from linkefl.modelzoo import *
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 
 def loss_reweight(y):
@@ -347,7 +347,7 @@ if __name__ == "__main__":
     from linkefl.vfl.nn.model import CutLayer, MLPModel
 
     # 0. Set parameters
-    dataset_name = "cifar10"
+    dataset_name = "mnist"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = "localhost"
@@ -443,7 +443,7 @@ if __name__ == "__main__":
     #                         activate_input=False,
     #                         activate_output=True,
     #                         random_state=_random_state)
-    bottom_model = ResNet18(in_channel=3).to(_device)
+    bottom_model = ResNet18(in_channel=1).to(_device)
     cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
     top_model = MLPModel(
         top_nodes,

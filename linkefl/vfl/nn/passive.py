@@ -184,15 +184,15 @@ if __name__ == "__main__":
     from linkefl.vfl.nn.model import PassiveBottomModel
 
     # 0. Set parameters
-    dataset_name = "tab_mnist"
+    dataset_name = "tab_fashion_mnist"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = "localhost"
     active_port = 20000
     passive_ip = "localhost"
     passive_port = 30000
-    _epochs = 10
-    _batch_size = 200
+    _epochs = 100
+    _batch_size = 64
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN
 

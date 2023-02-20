@@ -288,15 +288,15 @@ if __name__ == "__main__":
     from linkefl.vfl.nn.model import ActiveBottomModel, IntersectionModel, TopModel
 
     # 0. Set parameters
-    dataset_name = "tab_mnist"
+    dataset_name = "tab_fashion_mnist"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = "localhost"
     active_port = 20000
     passive_ip = "localhost"
     passive_port = 30000
-    _epochs = 10
-    _batch_size = 200
+    _epochs = 100
+    _batch_size = 64
     _learning_rate = 0.01
     _crypto_type = Const.PLAIN
     _loss_fn = nn.CrossEntropyLoss()
@@ -411,24 +411,24 @@ if __name__ == "__main__":
         logger=_logger,
         saving_model=True,
     )
-    # active_party.train(active_trainset, active_testset)
+    active_party.train(active_trainset, active_testset)
 
     # 5. Close messenger, finish training
     _messenger.close()
 
-    model, _, _, = TorchModelIO.load(
-        _models, "./models", "20230112_011446-active_party-vertical_nn"
-    )
-    bottom_model, cut_model, top_model = model
-    from torchinfo import summary
-
-    # summary(bottom_model, input_size=(200, 1, 392))
-    # summary(cut_model, input_size=(200, 1, 256))
-    # summary(top_model, input_size=(200, 1, 10))
-
-    model_stats = summary(bottom_model, (200, 1, 392), verbose=0)
-    print(str(model_stats))
-    print("done.")
+    # model, _, _, = TorchModelIO.load(
+    #     _models, "./models", "20230112_011446-active_party-vertical_nn"
+    # )
+    # bottom_model, cut_model, top_model = model
+    # from torchinfo import summary
+    #
+    # # summary(bottom_model, input_size=(200, 1, 392))
+    # # summary(cut_model, input_size=(200, 1, 256))
+    # # summary(top_model, input_size=(200, 1, 10))
+    #
+    # model_stats = summary(bottom_model, (200, 1, 392), verbose=0)
+    # print(str(model_stats))
+    # print("done.")
 
     # # For online inference
     # _scores = ActiveNeuralNetwork.online_inference(
