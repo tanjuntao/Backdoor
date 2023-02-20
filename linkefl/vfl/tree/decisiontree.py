@@ -448,7 +448,7 @@ class DecisionTree:
             self.capacity = self.crypto_system.key_size // self.gh_length
 
             if self.crypto_type == Const.PLAIN:
-                gh_send = np.zeros(sample_num)
+                gh_send = np.zeros(sample_num, dtype=np.object)
                 for i, idx in enumerate(selected_idx):
                     gh_send[idx] = selected_gh_int[i]
             elif self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
@@ -458,7 +458,7 @@ class DecisionTree:
                 )
                 for i, idx in enumerate(selected_idx):
                     gh_send[idx] = selected_gh_enc[i]
-                gh_send = np.array(gh_send)
+                gh_send = np.array(gh_send, dtype=np.object)
             else:
                 raise NotImplementedError
 
