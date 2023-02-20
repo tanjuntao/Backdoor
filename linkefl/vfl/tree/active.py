@@ -455,7 +455,7 @@ class ActiveTreeParty(BaseModelComponent):
             if self.task == "binary":
                 Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.pics_path)
                 Plot.plot_binary_mertics(testset.labels, outputs_test, self.pics_path)
-                Plot.plot_f1_score(f1_record)
+                Plot.plot_f1_score(f1_record, self.pics_path)
             else:
                 Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.pics_path)
 
