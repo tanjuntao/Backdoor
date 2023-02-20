@@ -154,6 +154,14 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
             if epoch % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
+                self.logger.log_metric(
+                    epoch,
+                    cur_loss,
+                    0,
+                    0,
+                    0,
+                    total_epoch=self.epochs,
+                )
                 result = self.validate(testset)
                 val_loss, val_score = result["loss"], result["r2"]
                 if val_loss < best_loss:
