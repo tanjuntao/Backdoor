@@ -220,12 +220,13 @@ class RSAPSIActive(BasePSIComponent):
                 intersections.append(ids[idx])
                 intersection_hashed_ids.append(hash_val)
 
+        passive_hashed_set_rest = passive_hashed_set.difference(intersection_hashed_ids)
         if obfuscated_rate > 0:
-            intersection_hashed_ids += random.choices(
-                passive_hashed_ids,
-                k=min(len(passive_hashed_ids), int(obfuscated_rate * len(intersections))),
+            intersection_hashed_ids += random.sample(
+                passive_hashed_set_rest,
+                k=min(len(passive_hashed_set_rest), int(obfuscated_rate * len(intersections))),
             )
-            intersection_hashed_ids = list(set(intersection_hashed_ids))
+            # intersection_hashed_ids = list(set(intersection_hashed_ids))
 
         # Before this function returns, the Python GC will delete the passive_hashed_set
         # which is REALLY time-consuming if the set size is big, e.g, >= 40 million.
