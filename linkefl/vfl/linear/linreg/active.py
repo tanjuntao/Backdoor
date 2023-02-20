@@ -205,9 +205,9 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
 
         # plot fig
         # 模型拟合相关
-        Plot.plot_residual(residual_record, self.model_path)
-        Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.model_path)
-        Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.model_path)
+        Plot.plot_residual(residual_record, self.pics_path)
+        Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
+        Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.pics_path)
 
 
     def validate(self, valset):

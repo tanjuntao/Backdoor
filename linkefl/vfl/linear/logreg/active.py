@@ -248,14 +248,14 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         print(colored("Elapsed time: {:.5f}s".format(time.time() - start_time), "red"))
 
         scores = self.validate(testset)
-        Plot.plot_residual(residual_record, self.model_path)
-        Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.model_path)
-        Plot.plot_ordered_lorenz_curve(label=testset.labels, y_prob=scores["probs"], file_dir=self.model_path)
-        Plot.plot_predict_distribution(y_prob=scores["probs"], bins=10, file_dir=self.model_path)
-        Plot.plot_predict_prob_box(y_prob=scores["probs"], file_dir=self.model_path)
-        Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.model_path)
-        Plot.plot_binary_mertics(testset.labels, scores["probs"], self.model_path)
-        Plot.plot_f1_score(f1_record)
+        Plot.plot_residual(residual_record, self.pics_path)
+        Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
+        Plot.plot_ordered_lorenz_curve(label=testset.labels, y_prob=scores["probs"], file_dir=self.pics_path)
+        Plot.plot_predict_distribution(y_prob=scores["probs"], bins=10, file_dir=self.pics_path)
+        Plot.plot_predict_prob_box(y_prob=scores["probs"], file_dir=self.pics_path)
+        Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.pics_path)
+        Plot.plot_binary_mertics(testset.labels, scores["probs"], self.pics_path)
+        Plot.plot_f1_score(f1_record, self.pics_path)
 
     def validate(self, valset, epoch=-1):
         assert isinstance(
