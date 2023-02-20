@@ -314,7 +314,7 @@ class ActiveTreeParty(BaseModelComponent):
                     else:
                         break
 
-                residual = (testset.labels-outputs).mean()
+                residual = (testset.labels-outputs_test).mean()
                 residual_record.append(residual)
                 train_loss_record.append(train_loss.mean())
                 test_loss_record.append(test_loss.mean())
