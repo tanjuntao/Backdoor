@@ -188,7 +188,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
             # validate model performance
             if epoch % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
-                cur_residue = np.array(residue).mean()
+                cur_residue = np.array(batch_residuales).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
 
                 scores = self.validate(testset, epoch)
@@ -202,7 +202,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                 test_auc_record.append(scores["auc"])
                 train_acc_record.append(train_scores["acc"])
                 test_acc_record.append(scores["acc"])
-
+                print("2")
                 if scores["acc"] > best_acc:
                     best_acc = scores["acc"]
                     is_best = True
@@ -217,6 +217,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                     scores["f1"],
                     total_epoch=self.epochs,
                 )
+                print("3")
                 if is_best:
                     # save_params(self.params, role='bob')
                     self.logger.log("Best model updates.")
@@ -268,7 +269,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         probs = sigmoid(full_wx)
         preds = (probs > self.POSITIVE_THRESH).astype(np.int32)
 
-        loss = np.array(self._ce_loss(valset.labels, preds)).mean()
+        loss = np.array(self._loss(valset.labels, preds)).mean()
         accuracy = accuracy_score(valset.labels, preds)
         f1 = f1_score(valset.labels, preds)
         auc = roc_auc_score(valset.labels, probs)
@@ -278,23 +279,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
 
             Plot.plot_binary_mertics(valset.labels, probs, self.pics_path)
 
-        return {"loss": loss, "probs": probs, "preds":preds,
-                "acc": accuracy, "f1": f1, "auc": auc}
-
-    def _ce_loss(self, y, y_prob):
-        """
-        The cross-entropy loss class for binary classification
-            Formula : -(sum(y * log(y_prob) + (1 - y) * log(1 - y_prob)) / N)
-
-        Args:
-            y: the input data's labels
-            y_prob: the predict probability.
-
-        Returns:
-            log_loss : float, the binary cross entropy loss
-        """
-        loss = -y * np.log(y_prob) - (1 - y) * np.log(1 - y_prob)
-        return loss
+        return {"loss": loss, "probs": probs, "preds": preds, "acc": accuracy, "f1": f1, "auc": auc}
 
     def predict(self, testset):
         return self.validate(testset)
@@ -355,10 +340,10 @@ if __name__ == "__main__":
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
-    _crypto_type = Const.FAST_PAILLIER
+    _crypto_type = Const.PLAIN
     _random_state = 3347
     _key_size = 1024
-    _using_pool = True
+    _using_pool = False
 
     # 1. Loading datasets and preprocessing
     # Option 1: Scikit-Learn style
