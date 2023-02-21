@@ -20,7 +20,7 @@ if __name__ == "__main__":
     passive_port = [20001, 30001]
     reconnection_port = [20002, 30002]
     world_size = 2
-    _epochs = 100
+    _epochs = 200
     _batch_size = 100
     _learning_rate = 0.01
     _penalty = Const.L2

@@ -28,7 +28,7 @@ if __name__ == "__main__":
     active_port = 30000
     passive_ip = "localhost"
     passive_port = 30001
-    _epochs = 100
+    _epochs = 200
     _batch_size = 100
     _learning_rate = 0.01
     _penalty = Const.L2
