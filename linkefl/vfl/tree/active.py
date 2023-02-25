@@ -30,7 +30,8 @@ from linkefl.vfl.tree.loss_functions import (
     MeanSquaredErrorLoss,
     MultiCrossEntropyLoss,
 )
-from linkefl.vfl.tree.plotting import Plot, tree_to_str
+from linkefl.vfl.utils.evaluate import Evaluate, Plot, TreePrint
+# from linkefl.vfl.tree.plotting import Plot, tree_to_str
 
 
 class ActiveTreeParty(BaseModelComponent):
@@ -328,6 +329,8 @@ class ActiveTreeParty(BaseModelComponent):
                         acc=scores["acc"],
                         auc=scores["auc"],
                         f1=scores["f1"],
+                        ks=scores["ks"],
+                        threshold=scores["threshold"],
                         total_epoch=self.n_trees,
                     )
                     train_auc_record.append(roc_auc_score(trainset.labels, outputs))
@@ -623,7 +626,8 @@ class ActiveTreeParty(BaseModelComponent):
         tree_strs = {}
 
         for tree_id, tree in enumerate(self.trees, 1):
-            tree_str = tree_to_str(tree, tree_structure)
+            tree_str = TreePrint.tree_to_str(tree, tree_structure)
+            # tree_str = tree_to_str(tree, tree_structure)
             tree_strs[f"tree{tree_id}"] = tree_str
 
         self.logger.log(f"Load model {self.model_name} success.")
@@ -707,7 +711,8 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
-            scores = {"acc": acc, "auc": auc, "f1": f1}
+            ks_value, threshold = Evaluate.eval_ks(labels, targets)
+            scores = {"acc": acc, "auc": auc, "f1": f1, "ks": ks_value, "threshold": threshold}
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs_test, axis=1)
@@ -768,7 +773,8 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
-            scores = {"acc": acc, "auc": auc, "f1": f1}
+            ks_value, threshold = Evaluate.eval_ks(labels, targets)
+            scores = {"acc": acc, "auc": auc, "f1": f1, "ks": ks_value, "threshold": threshold}
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs, axis=1)

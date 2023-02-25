@@ -202,6 +202,7 @@ class Plot(object):
         cls._plot_roc(labels, y_probs, file_dir)
         cls._plot_ks(labels, y_probs, file_dir)
         cls._plot_lift(labels, y_probs, file_dir)
+
     @staticmethod
     def plot_regression_metrics(mae, mse, sse, r2, file_dir: str = "./models"):
         fig = plt.figure()
@@ -440,6 +441,7 @@ def tree_to_str(tree, tree_structure):
     Returns:
         str for tree structure.
     """
+
     root = tree.root
     _prepare_print_val(tree, root)
 

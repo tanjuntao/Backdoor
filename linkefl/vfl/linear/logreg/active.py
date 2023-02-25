@@ -11,8 +11,8 @@ from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
-from linkefl.vfl.tree.plotting import Plot
-from linkefl.vfl.tree.loss_functions import CrossEntropyLoss
+# from linkefl.vfl.tree.plotting import Plot
+from linkefl.vfl.utils.evaluate import Evaluate, Plot
 
 class ActiveLogReg(BaseLinearActive, BaseModelComponent):
     def __init__(
@@ -121,7 +121,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         else:
             n_batches = n_samples // bs + 1
 
-        best_acc, best_auc = 0.0, 0.0
+        best_acc, best_auc, best_ks = 0.0, 0.0, 0.0
         start_time = None
         compu_time = 0
         # Main Training Loop Here
@@ -211,12 +211,17 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                 if scores["auc"] > best_auc:
                     best_auc = scores["auc"]
                     is_best = True
+                if scores["ks"] > best_ks:
+                    best_ks = scores["ks"]
+                    is_best = True
                 self.logger.log_metric(
                     epoch,
                     cur_loss,
                     scores["acc"],
                     scores["auc"],
                     scores["f1"],
+                    scores["ks"],
+                    scores["threshold"],
                     total_epoch=self.epochs,
                 )
                 if is_best:
@@ -241,6 +246,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         self.logger.log("Finish model training.")
         self.logger.log("Best history acc: {:.5f}".format(best_acc))
         self.logger.log("Best history auc: {:.5f}".format(best_auc))
+        self.logger.log("Best history ks: {:.5f}".format(best_ks))
         self.logger.log("Computation time: {:.5f}".format(compu_time))
         self.logger.log("Elapsed time: {:.5f}s".format(time.time() - start_time))
         print(colored("Best history acc: {:.5f}".format(best_acc), "red"))
@@ -274,13 +280,15 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         accuracy = accuracy_score(valset.labels, preds)
         f1 = f1_score(valset.labels, preds)
         auc = roc_auc_score(valset.labels, probs)
+        ks_value, threshold = Evaluate.eval_ks(valset.labels, probs)
 
         if epoch == self.epochs - 1:
             from linkefl.vfl.tree.plotting import Plot
 
             Plot.plot_binary_mertics(valset.labels, probs, self.pics_path)
 
-        return {"loss": loss, "probs": probs, "preds": preds, "acc": accuracy, "f1": f1, "auc": auc}
+        return {"loss": loss, "probs": probs, "preds": preds,
+                "acc": accuracy, "f1": f1, "auc": auc, "ks": ks_value, "threshold": threshold}
 
     def predict(self, testset):
         return self.validate(testset)
