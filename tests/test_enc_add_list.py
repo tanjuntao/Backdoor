@@ -10,7 +10,8 @@ import gmpy2
 from phe import EncodedNumber, EncryptedNumber, paillier
 from tqdm import tqdm
 
-from linkefl.crypto import fast_add_ciphers
+from linkefl.crypto.paillier import fast_add_ciphers
+
 
 if __name__ == "__main__":
     size = 10000
@@ -59,11 +60,13 @@ if __name__ == "__main__":
         else:
             exp_2_encs[enc_val.exponent].append(gmpy2.mpz(enc_val.ciphertext(False)))
     min_exponent = min(exp_2_encs.keys())
+    for exp, ciphers in exp_2_encs.items():
+        print(f"exp: {exp}, length of ciphers: {len(ciphers)}")
 
     def target_func(ciphers, curr_exp, min_exp, base, nsquare):
         gmpy2.get_context().allow_release_gil = True
         new_exp = pow(base, curr_exp - min_exp)
-        return gmpy2.powmod_list(ciphers, new_exp, nsquare)
+        return gmpy2.powmod_base_list(ciphers, new_exp, nsquare)
 
     with executor:
         tasks = []
@@ -91,8 +94,10 @@ if __name__ == "__main__":
     print("Elapsed time: {}".format(time.time() - start_time))
     print(priv_key.decrypt(EncryptedNumber(pub_key, int(final_sum_enc), min_exponent)))
 
+    # option 4: use LinkeFL's fast_add_ciphers
     thread_pool = multiprocessing.pool.ThreadPool(os.cpu_count())
     start_time = time.time()
     res = fast_add_ciphers(cipher_vector=enc_data, thread_pool=thread_pool)
-    print("ThreadPool time: {}".format(time.time() - start_time))
+    print("LinkeFL fast_add_ciphers time: {}".format(time.time() - start_time))
     print(priv_key.decrypt(res))
+    thread_pool.close()

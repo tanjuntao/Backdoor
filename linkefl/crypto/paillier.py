@@ -912,51 +912,39 @@ def fast_add_ciphers(cipher_vector, thread_pool=None):
     -------
 
     """
-    assert type(cipher_vector) in (
-        list,
-        np.ndarray,
-    ), "cipher_vector's dtype can only be Python list or Numpy array."
-    exp2cipher = {}
-    for enc_number in cipher_vector:
-        ciphertext = enc_number.ciphertext(be_secure=False)
-        exponent = enc_number.exponent
-        if exponent not in exp2cipher:
-            exp2cipher[exponent] = [gmpy2.mpz(ciphertext)]
-        else:
-            exp2cipher[exponent].append(gmpy2.mpz(ciphertext))
-
-    if thread_pool is None:
-        n_workers = min(os.cpu_count(), len(exp2cipher))
-        thread_pool = multiprocessing.pool.ThreadPool(n_workers)
-
-    min_exp = min(exp2cipher.keys())
-    # print(f"length: {len(exp2cipher)}, "
-    #       f"min: {min(exp2cipher.keys())}, "
-    #       f"max: {max(exp2cipher.keys())}, "
-    #       f"base: {EncodedNumber.BASE}")
     base = EncodedNumber.BASE
     public_key = cipher_vector[0].public_key
     nsquare = public_key.nsquare
-    async_results = []
-    for exp, ciphers in exp2cipher.items():
-        result = thread_pool.apply_async(
-            _target_add_ciphers, args=(ciphers, exp, min_exp, base, nsquare)
-        )
-        async_results.append(result)
-    final_ciphertext = gmpy2.mpz(1)
-    for result in async_results:
-        final_ciphertext = gmpy2.mod(gmpy2.mul(result.get(), final_ciphertext), nsquare)
 
-    return EncryptedNumber(public_key, int(final_ciphertext), min_exp)
+    # cluster the ciphers according to their exponent
+    exp2cluster = {}
+    for enc_val in cipher_vector:
+        if enc_val.exponent not in exp2cluster:
+            exp2cluster[enc_val.exponent] = [gmpy2.mpz(enc_val.ciphertext(False))]
+        else:
+            exp2cluster[enc_val.exponent].append(gmpy2.mpz(enc_val.ciphertext(False)))
 
+    # sum the ciphers (no need to align exponent) in each cluster
+    exp2summation = {exp: None for exp in exp2cluster.keys()}
+    for exp, cluster in exp2cluster.items():
+        cluster_sum = gmpy2.mpz(1)
+        for cipher in cluster:
+            cluster_sum = gmpy2.mod(gmpy2.mul(cluster_sum, cipher), nsquare)
+        exp2summation[exp] = cluster_sum
 
-def _target_add_ciphers(ciphertexts, curr_exp, min_exp, base, nsquare):
-    multiplier = pow(base, curr_exp - min_exp)
-    aligned_ciphers = gmpy2.powmod_base_list(ciphertexts, multiplier, nsquare)
-    result = gmpy2.mpz(1)
-    for ciphertext in aligned_ciphers:
-        result = gmpy2.mod(gmpy2.mul(result, ciphertext), nsquare)
-    return result
+    # align exponent across clusters
+    min_exp = min(exp2summation.keys())
+    for exp, cipher in exp2summation.items():
+        multiplier = pow(base, exp - min_exp)
+        new_cipher = gmpy2.powmod(cipher, multiplier, nsquare)
+        exp2summation[exp] = new_cipher
+
+    # finally sum the aligned ciphers together
+    final_cipher = gmpy2.mpz(1)
+    for cipher in exp2summation.values():
+        final_cipher = gmpy2.mod(gmpy2.mul(final_cipher, cipher), nsquare)
+
+    return EncryptedNumber(public_key, int(final_cipher), min_exp)
 
 
 def fast_mul_ciphers(plain_vector, cipher, thread_pool=None):
