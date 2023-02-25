@@ -220,8 +220,8 @@ class RSAPSIActive(BasePSIComponent):
                 intersections.append(ids[idx])
                 intersection_hashed_ids.append(hash_val)
 
-        passive_hashed_set_rest = passive_hashed_set.difference(intersection_hashed_ids)
         if obfuscated_rate > 0:
+            passive_hashed_set_rest = passive_hashed_set.difference(intersection_hashed_ids)
             intersection_hashed_ids += random.sample(
                 passive_hashed_set_rest,
                 k=min(len(passive_hashed_set_rest), int(obfuscated_rate * len(intersections))),

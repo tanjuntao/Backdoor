@@ -96,7 +96,7 @@ class RSAPSIPassive(BasePSIComponent):
         )
 
         # 4. receive intersection
-        intersection_hashed_ids = self.messenger.recv()
+        intersection_hashed_ids = set(self.messenger.recv())
         intersections = []
         for idx, hash_val in enumerate(hashed_signed_ids):
             if hash_val in intersection_hashed_ids:
@@ -158,7 +158,7 @@ class RSAPSIPassive(BasePSIComponent):
         self.messenger.send(hashed_signed_ids)
 
         os.remove(full_path)
-        intersection_hashed_ids = self.messenger.recv()
+        intersection_hashed_ids = set(self.messenger.recv())
         intersections = []
         for idx, hash_val in enumerate(hashed_signed_ids):
             if hash_val in intersection_hashed_ids:
