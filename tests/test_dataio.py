@@ -86,5 +86,75 @@ if __name__ == "__main__":
     active_trainset.to_csv("vfl_logreg_active.csv", index=False, header=False)
     passive_trainset.to_csv("vfl_logreg_passive.csv", index=False, header=False)
     """
-    pass
+
+    """
+    dummy_dataset = NumpyDataset.dummy_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_type=Const.CLASSIFICATION,
+        n_samples=100000,
+        n_features=10,
+        passive_feat_frac=0.5,
+    )
+    active_trainset, active_testset = NumpyDataset.train_test_split(
+        dummy_dataset, test_size=0.2
+    )
+
+    dummy_dataset = NumpyDataset.dummy_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_type=Const.CLASSIFICATION,
+        n_samples=100000,
+        n_features=10,
+        passive_feat_frac=0.5,
+    )
+    passive_trainset, passive_testset = NumpyDataset.train_test_split(
+        dummy_dataset, test_size=0.2
+    )
+    for name, dataset in zip(
+        ["active_trainset", "active_testset", "passive_trainset", "passive_testset"],
+        [active_trainset, active_testset, passive_trainset, passive_testset],
+    ):
+        print(dataset.ids[-5:])
+        # print(dataset.get_dataset()[:3])
+        # pd_dataset = pd.DataFrame(dataset.get_dataset(), dtype=np.float16)
+        # pd_dataset.to_csv(f"{name}.csv", header=False, index=False)
+
+        np.savetxt(f"{name}.csv", dataset.get_dataset(), delimiter=",")
+    print("Done.")
+    loaded_dataset = NumpyDataset.from_csv(
+        role=Const.ACTIVE_NAME,
+        abs_path="./active_trainset.csv",
+        dataset_type=Const.CLASSIFICATION
+    )
+    print(loaded_dataset.ids[:5])
+    print(loaded_dataset.ids[-5:])
+    """
+    dummy_dataset = NumpyDataset.dummy_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_type=Const.CLASSIFICATION,
+        n_samples=50_0000,
+        n_features=100,
+        passive_feat_frac=0.5,
+    )
+    active_trainset, active_testset = NumpyDataset.train_test_split(
+        dummy_dataset, test_size=0
+    )
+    dummy_dataset = NumpyDataset.dummy_dataset(
+        role=Const.PASSIVE_NAME,
+        dataset_type=Const.CLASSIFICATION,
+        n_samples=100_0000,
+        n_features=100,
+        passive_feat_frac=0.5,
+    )
+    passive_trainset, passive_testset = NumpyDataset.train_test_split(
+        dummy_dataset, test_size=0
+    )
+    passive_new_dataset = passive_trainset.get_dataset()
+    passive_new_dataset[:, 0] = np.arange(20_0000, 120_0000)
+    passive_trainset.set_dataset(passive_new_dataset)
+
+    intersection = set(active_trainset.ids) & set(passive_trainset.ids)
+    print(f"size of intersection: {len(intersection)}")
+    print(active_trainset.get_dataset().shape, passive_trainset.get_dataset().shape)
+    np.savetxt("vfl_nn_active.csv", active_trainset.get_dataset(), delimiter=",")
+    np.savetxt("vfl_nn_passive.csv", passive_trainset.get_dataset(), delimiter=",")
 
