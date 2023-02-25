@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import partial_crypto_factory
+from linkefl.common.factory import logger_factory, partial_crypto_factory
 from linkefl.dataio import MediaDataset, TorchDataset
 from linkefl.modelzoo import *
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
@@ -42,13 +42,16 @@ class ActiveNeuralNetwork(BaseModelComponent):
         loss_fn,
         messenger,
         crypto_type,
+        logger,
         *,
+        val_freq=1,
         device="cpu",
         passive_in_nodes=None,
         precision=0.001,
         random_state=None,
         saving_model=False,
         model_path="./models",
+        model_name=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -58,7 +61,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.loss_fn = loss_fn
         self.messenger = messenger
         self.crypto_type = crypto_type
+        self.logger = logger
         self.device = device
+        self.val_freq = val_freq
         self.passive_in_nodes = passive_in_nodes
         self.precision = precision
         self.random_state = random_state
@@ -66,11 +71,17 @@ class ActiveNeuralNetwork(BaseModelComponent):
             torch.random.manual_seed(random_state)
         self.saving_model = saving_model
         self.model_path = model_path
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.ACTIVE_NAME,
-            model_type=Const.VERTICAL_NN,
-        )
+        if model_name is None:
+            self.model_name = (
+                "{time}-{role}-{model_type}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.ACTIVE_NAME,
+                    model_type=Const.VERTICAL_NN,
+                )
+                + ".model"
+            )
+        else:
+            self.model_name = model_name
 
     def _sync_pubkey(self):
         print("Waiting for public key...")
@@ -117,8 +128,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         start_time = time.time()
         best_acc, best_auc = 0, 0
+        has_validated = False
         for epoch in range(self.epochs):
-            print("Epoch: {}".format(epoch))
+            print(f"Epoch: {epoch}")
+            self.logger.log(f"Epoch {epoch} started...")
             for batch_idx, (X, y) in enumerate(train_dataloader):
                 # print(f"batch: {batch_idx}")
                 # 1. forward
@@ -157,23 +170,29 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 # if batch_idx == 1:
                 #     break
 
-            is_best = False
-            scores = self.validate(testset, existing_loader=test_dataloader)
-            curr_acc, curr_auc = scores["acc"], scores["auc"]
-            if curr_auc == 0:  # multi-class
-                if curr_acc > best_acc:
-                    best_acc = curr_acc
-                    is_best = True
-                    print(colored("Best model updated.", "red"))
-                # no need to update best_auc here, because it always equals zero.
-            else:  # binary-class
-                if curr_auc > best_auc:
-                    best_auc = curr_auc
-                    is_best = True
-                    print(colored("Best model updated.", "red"))
-                if curr_acc > best_acc:
-                    best_acc = curr_acc
-            self.messenger.send(is_best)
+            if (epoch + 1) % self.val_freq == 0:
+                has_validated = True
+                is_best = False
+                scores = self.validate(testset, existing_loader=test_dataloader)
+                curr_acc, curr_auc = scores["acc"], scores["auc"]
+                if curr_auc == 0:  # multi-class
+                    if curr_acc > best_acc:
+                        best_acc = curr_acc
+                        is_best = True
+                        print(colored("Best model updated.", "red"))
+                    # no need to update best_auc here, because it always equals zero.
+                else:  # binary-class
+                    if curr_auc > best_auc:
+                        best_auc = curr_auc
+                        is_best = True
+                        print(colored("Best model updated.", "red"))
+                    if curr_acc > best_acc:
+                        best_acc = curr_acc
+                self.messenger.send(is_best)
+
+        if not has_validated:
+            final_scores = self.validate(testset, existing_loader=test_dataloader)
+            best_acc, best_auc = final_scores["acc"], final_scores["auc"]
 
         # close pool
         if hasattr(self, "enc_layer"):
@@ -189,6 +208,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         )
         print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
+        self.logger.log("Total training and validation time: {:.4f}".format(time.time() - start_time))
+        self.logger.log("Best testing accuracy: {:.5f}".format(best_acc))
+        self.logger.log("Best testing auc: {:.5f}".format(best_auc))
 
     def validate(self, testset, existing_loader=None):
         if existing_loader is None:
@@ -359,6 +381,7 @@ if __name__ == "__main__":
     _learning_rate = 0.001
     _passive_in_nodes = 10
     _crypto_type = Const.PLAIN
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
 
     _loss_fn = nn.CrossEntropyLoss()
     _random_state = None
@@ -480,6 +503,7 @@ if __name__ == "__main__":
         loss_fn=_loss_fn,
         messenger=_messenger,
         crypto_type=_crypto_type,
+        logger=_logger,
         device=_device,
         passive_in_nodes=_passive_in_nodes,
         random_state=_random_state,

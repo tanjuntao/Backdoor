@@ -7,6 +7,7 @@ import time
 from abc import ABC, abstractmethod
 
 import numpy as np
+from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import (
@@ -256,12 +257,14 @@ class BaseLinearPassive(BaseLinear):
         # encode the training dataset if the crypto type belongs to Paillier family
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
             print("encoding dataset...")
+            begin_time = time.time()
             x_encode = encode(
                 raw_data=getattr(self, "x_train"),
                 raw_pub_key=public_key,
                 precision=self.precision,
             )
             print("Done!")
+            print(colored("encoding time: {}".format(time.time() - begin_time), "red"))
             setattr(self, "x_encode", x_encode)
 
         bs = self.batch_size if self.batch_size != -1 else trainset.n_samples

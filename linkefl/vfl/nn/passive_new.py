@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
+from linkefl.common.factory import logger_factory
 from linkefl.dataio import MediaDataset, TorchDataset
 from linkefl.modelzoo import *
 from linkefl.vfl.nn.enc_layer import PassiveEncLayer
@@ -22,12 +23,15 @@ class PassiveNeuralNetwork(BaseModelComponent):
         optimizers: dict,
         messenger,
         cryptosystem,
+        logger,
         *,
+        val_freq=1,
         device="cpu",
         precision=0.001,
         random_state=None,
         saving_model=False,
         model_path="./models",
+        model_name=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -36,6 +40,8 @@ class PassiveNeuralNetwork(BaseModelComponent):
         self.optimizers = optimizers
         self.messenger = messenger
         self.cryptosystem = cryptosystem
+        self.logger = logger
+        self.val_freq = val_freq
         self.device = device
         self.precision = precision
         self.random_state = random_state
@@ -43,11 +49,17 @@ class PassiveNeuralNetwork(BaseModelComponent):
             torch.random.manual_seed(random_state)
         self.saving_model = saving_model
         self.model_path = model_path
-        self.model_name = "{time}-{role}-{model_type}".format(
-            time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-            role=Const.PASSIVE_NAME,
-            model_type=Const.VERTICAL_NN,
-        )
+        if model_name is None:
+            self.model_name = (
+                "{time}-{role}-{model_type}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.PASSIVE_NAME,
+                    model_type=Const.VERTICAL_NN,
+                )
+                + ".model"
+            )
+        else:
+            self.model_name = model_name
 
     def _sync_pubkey(self):
         print("Training protocol started.")
@@ -85,8 +97,10 @@ class PassiveNeuralNetwork(BaseModelComponent):
             model.train()
 
         start_time = time.time()
+        has_validated = False
         for epoch in range(self.epochs):
-            print("Epoch: {}".format(epoch))
+            print(f"Epoch: {epoch}")
+            self.logger.log(f"Epoch {epoch} started...")
             for batch_idx, X in enumerate(train_dataloader):
                 # print(f"batch: {batch_idx}")
                 # 1. forward
@@ -116,13 +130,18 @@ class PassiveNeuralNetwork(BaseModelComponent):
 
                 # if batch_idx == 1:
                 #     break
+            if (epoch + 1) % self.val_freq == 0:
+                has_validated = True
+                scores = self.validate(  # noqa: F841
+                    testset, existing_loader=test_dataloader
+                )
+                is_best = self.messenger.recv()
+                if is_best:
+                    print(colored("Best model updated.", "red"))
 
-            scores = self.validate(  # noqa: F841
-                testset, existing_loader=test_dataloader
-            )
-            is_best = self.messenger.recv()
-            if is_best:
-                print(colored("Best model updated.", "red"))
+        if not has_validated:
+            final_scores = self.validate(testset, existing_loader=test_dataloader)
+            print(f"Acc: {final_scores['acc']}, Auc: {final_scores['auc']}")
 
         # close pool
         if hasattr(self, "enc_layer"):
@@ -136,6 +155,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
                 "red",
             )
         )
+        self.logger.log("Total training and validation time: {}".format(time.time() - start_time))
 
     def validate(self, testset, existing_loader=None):
         if existing_loader is None:
@@ -186,6 +206,7 @@ if __name__ == "__main__":
     _key_size = 1024
     _random_state = None
     _device = "cuda" if torch.cuda.is_available() else "cpu"
+    _logger = logger_factory(role=Const.PASSIVE_NAME)
 
     # 1. Load datasets
     print("Loading dataset...")
@@ -289,6 +310,7 @@ if __name__ == "__main__":
         optimizers=_optimizers,
         messenger=_messenger,
         cryptosystem=_crypto,
+        logger=_logger,
         device=_device,
         random_state=_random_state,
     )
