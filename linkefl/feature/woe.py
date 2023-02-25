@@ -194,6 +194,7 @@ def plot_iv(iv_dict, file_dir="./models"):
     woe is in [ActiveWoe(), PassiveWoe()]
     Then iv_dict is the input of this function
     '''
+    import matplotlib.pyplot as plt
     feature_list = list(iv_dict.keys())
     iv_list = [iv_dict[key] for key in feature_list]
     fig, ax = plt.subplots()

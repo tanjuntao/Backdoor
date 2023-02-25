@@ -205,7 +205,6 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                 test_auc_record.append(scores["auc"])
                 train_acc_record.append(train_scores["acc"])
                 test_acc_record.append(scores["acc"])
-                print("2")
                 if scores["acc"] > best_acc:
                     best_acc = scores["acc"]
                     is_best = True
@@ -220,7 +219,6 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                     scores["f1"],
                     total_epoch=self.epochs,
                 )
-                print("3")
                 if is_best:
                     # save_params(self.params, role='bob')
                     self.logger.log("Best model updates.")
