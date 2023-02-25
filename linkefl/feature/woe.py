@@ -187,3 +187,19 @@ class TestWoe(Basewoe):
                             break
                         bin_idx += 1
                     self.dataset.features[sam_idx, idxes_idx] = cur_woe_list[bin_idx]
+
+def plot_iv(iv_dict, file_dir="./models"):
+    '''
+    _, _, iv_dict = woe.cal_woe()
+    woe is in [ActiveWoe(), PassiveWoe()]
+    Then iv_dict is the input of this function
+    '''
+    feature_list = list(iv_dict.keys())
+    iv_list = [iv_dict[key] for key in feature_list]
+    fig, ax = plt.subplots()
+    ax.barh(feature_list, iv_list)
+    ax.set_xlabel('IV values')
+    ax.set_ylabel('Feature Ids')
+    ax.set_title('Feature IV Analysis')
+    plt.savefig(f"{file_dir}/iv_analysis.png")
+    plt.close()

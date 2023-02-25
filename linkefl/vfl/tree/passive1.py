@@ -11,11 +11,11 @@ from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "epsilon"
+    dataset_name = "diabetes"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
-    task = "binary"
+    task = "regression"
     _crypto_type = Const.FAST_PAILLIER
 
     active_ip = "localhost"
@@ -44,10 +44,10 @@ if __name__ == "__main__":
         passive_feat_frac=passive_feat_frac,
         feat_perm_option=feat_perm_option,
     )
-    passive_trainset, _ = NumpyDataset.feature_split(passive_trainset, 2)
-    passive_testset, _ = NumpyDataset.feature_split(passive_testset, 2)
-    # passive_trainset = NumpyDataset.feature_split(passive_trainset, 1)
-    # passive_testset = NumpyDataset.feature_split(passive_testset, 1)
+    # passive_trainset, _ = NumpyDataset.feature_split(passive_trainset, 2)
+    # passive_testset, _ = NumpyDataset.feature_split(passive_testset, 2)
+    passive_trainset = NumpyDataset.feature_split(passive_trainset, 1)[0]
+    passive_testset = NumpyDataset.feature_split(passive_testset, 1)[0]
     print("Done")
 
     # 2. Initialize messenger

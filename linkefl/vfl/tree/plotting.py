@@ -189,11 +189,11 @@ class Plot(object):
         ax.xaxis.set_major_locator(plt.MultipleLocator(1))
         ax.grid(True, linestyle="-.")
         ax.set_title("Convergence Index Analysis")
-        ax.set_ylabel("loss", labelpad=5, loc="center")
-        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        ax.set_ylabel("Auc", labelpad=5, loc="center")
+        ax.set_xlabel("Epoch", labelpad=5, loc="center")
         plt.legend(loc="best")
 
-        plt.savefig(f"{file_dir}/convergence_index_analysis_loss.png")
+        plt.savefig(f"{file_dir}/convergence_index_analysis_auc.png")
         plt.close()
 
     @classmethod
@@ -202,6 +202,41 @@ class Plot(object):
         cls._plot_roc(labels, y_probs, file_dir)
         cls._plot_ks(labels, y_probs, file_dir)
         cls._plot_lift(labels, y_probs, file_dir)
+    @staticmethod
+    def plot_regression_metrics(mae, mse, sse, r2, file_dir: str = "./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(2, 2, 1)
+        ax.plot(list(range(len(mae))), mae, ls="-", linewidth=2.0)
+        ax.grid(True, linestyle="-.")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        ax.set_ylabel("mae", labelpad=5, loc="center")
+        ax.set_title("MAE Curve")
+
+        ax = fig.add_subplot(2, 2, 2)
+        ax.plot(list(range(len(mse))), mse, ls="-", linewidth=2.0)
+        ax.grid(True, linestyle="-.")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        ax.set_ylabel("mse", labelpad=5, loc="center")
+        ax.set_title("MSE Curve")
+
+        ax = fig.add_subplot(2, 2, 3)
+        ax.plot(list(range(len(sse))), sse, ls="-", linewidth=2.0)
+        ax.grid(True, linestyle="-.")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        ax.set_ylabel("sse", labelpad=5, loc="center")
+        ax.set_title("SSE Curve")
+
+        ax = fig.add_subplot(2, 2, 4)
+        ax.plot(list(range(len(r2))), r2, ls="-", linewidth=2.0)
+        ax.grid(True, linestyle="-.")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        ax.set_ylabel("r2", labelpad=5, loc="center")
+        ax.set_title("R2 Curve")
+
+        plt.tight_layout()
+        plt.savefig(f"{file_dir}/regression_metric.png")
+        # plt.show()
+        plt.close()
 
     @classmethod
     def _plot_pr(cls, label, y_prob, file_dir):
@@ -277,6 +312,21 @@ class Plot(object):
         plt.close()
 
     @staticmethod
+    def plot_f1_score(f1_record, file_dir="./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.grid(True, linestyle="-.")
+
+        ax.plot(list(range(len(f1_record))), f1_record, ls="-", linewidth=2.0)
+        # c='#2d85f0'
+
+        ax.set_title("F1 Record Curve")
+        ax.set_ylabel("f1 score", labelpad=5, loc="center")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        plt.savefig(f"{file_dir}/F1_Curve.png")
+        plt.close()
+
+    @staticmethod
     def plot_predict_distribution(y_prob, bins=10, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
@@ -285,7 +335,7 @@ class Plot(object):
         frequency_each, _, _= ax.hist(x=y_prob, bins=bins, range=(0, 1), color="steelblue")
         indexes = [1/(2*bins)+1/bins*i for i in range(bins)]
         for x, y in zip(indexes, frequency_each):
-            plt.text(x, y+0.1, f"{y}", horizontalalignment='center')
+            plt.text(x, y+0.01, f"{y}", horizontalalignment='center')
 
         ax.set_title("Predict Probability Distribution")
         ax.set_ylabel("Count", labelpad=5, loc="center")
@@ -311,8 +361,7 @@ class Plot(object):
         plt.close()
 
     @staticmethod
-    def plot_residual(label, y_prob, file_dir="./models"):
-        residual = label - y_prob
+    def plot_residual(residual, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
         ax.grid(True, linestyle="-.")
@@ -493,8 +542,9 @@ if __name__ == "__main__":
     # Plot.plot_fit(train_loss, test_loss)
     # Plot.plot_train_test_loss(train_loss, test_loss)
 
-    y_label = [1 for _ in range(10)] + [0 for _ in range(10)]
+    # y_label = [1 for _ in range(10)] + [0 for _ in range(10)]
     y_prob = np.random.random(20)
-    Plot.plot_predict_distribution(y_prob, bins=10)
+    # Plot.plot_predict_distribution(y_prob, bins=10)
+    Plot.plot_regression_metrics(y_prob, y_prob, y_prob, y_prob)
     # Plot.plot_residual(y_label, y_prob)
     # Plot.plot_predict_prob_box(y_prob)

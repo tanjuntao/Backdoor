@@ -1054,6 +1054,7 @@ class CommonDataset:
 
         from linkefl.feature.feature_evaluation import FeatureEvaluation
         from linkefl.feature.woe import Basewoe
+        from linkefl.vfl.tree.plotting import Plot
 
         static_result = {}
         static_result["n_samples"] = self.n_samples
@@ -1096,12 +1097,15 @@ class CommonDataset:
             _, _, iv = Basewoe(dataset=self, idxes=iv_idxes)._cal_woe(
                 self.labels, "active", modify=False
             )
+            # plot feature iv valueddc
+            Plot.plot_iv(iv, path)
             iv = pd.DataFrame(iv, index=[0])
             iv = pd.DataFrame(data=iv.values, index=["iv"], columns=col_names)
             iv_sum = iv.iloc[0, :].sum()
             iv_rate = pd.DataFrame(
                 data=iv.values / iv_sum, index=["iv_rate"], columns=col_names
             )
+
             # Calculate the xgb_importance.
             importance, _ = FeatureEvaluation.tree_importance(self, save_pic=False)
             importance = importance.reshape(1, -1)

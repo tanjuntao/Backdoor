@@ -2,7 +2,14 @@ import copy
 import time
 
 import numpy as np
-from sklearn.metrics import r2_score
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    roc_auc_score,
+)
 from termcolor import colored
 
 from linkefl.base import BaseModelComponent
@@ -10,7 +17,7 @@ from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.linear import BaseLinearActive
-
+from linkefl.vfl.tree.plotting import Plot
 
 class ActiveLinReg(BaseLinearActive, BaseModelComponent):
     def __init__(
@@ -84,6 +91,9 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
         setattr(self, "y_train", trainset.labels)
         setattr(self, "y_val", testset.labels)
 
+        Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
+                                       50, self.pics_path)
+
         # initialize model parameters
         params = self._init_weights(trainset.n_features)
         setattr(self, "params", params)
@@ -104,12 +114,15 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
         compu_time = 0
         # Main Training Loop Here
         self.logger.log("Start collaborative model training...")
+        residual_record, train_loss_record, test_loss_record = [], [], []
+        MAE_record, MSE_record, SSE_record, R2_record = [], [], [], []
+
         for epoch in range(self.epochs):
             is_best = False
             all_idxes = np.arange(n_samples)
             np.random.seed(epoch)
             np.random.shuffle(all_idxes)
-            batch_losses = []
+            batch_losses, batch_residuales = [], []
             for batch in range(n_batches):
                 # Choose batch indexes
                 start = batch * bs
@@ -149,10 +162,12 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                 active_grad = self._grad(residue, batch_idxes)
                 self._gradient_descent(getattr(self, "params"), active_grad)
                 batch_losses.append(loss)
+                batch_residuales.append(residue)
 
             # validate model performance
             if epoch % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
+                cur_residue = np.array(batch_residuales).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
                 self.logger.log_metric(
                     epoch,
@@ -178,6 +193,14 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                             model_params, self.model_path, self.model_name
                         )
 
+                residual_record.append(cur_residue)
+                train_loss_record.append(cur_loss)
+                test_loss_record.append(result["loss"])
+                MAE_record.append(result["mae"])
+                MSE_record.append(result["mse"])
+                SSE_record.append(result["sse"])
+                R2_record.append(result["r2"])
+
                 for msger in self.messenger:
                     msger.send(is_best)
 
@@ -191,6 +214,13 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
         print(colored("Computation time: {:.5f}".format(compu_time), "red"))
         print(colored("Elapsed time: {:.5f}s".format(time.time() - start_time), "red"))
 
+        # plot fig
+        # 模型拟合相关
+        Plot.plot_residual(residual_record, self.pics_path)
+        Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
+        Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.pics_path)
+
+
     def validate(self, valset):
         assert isinstance(
             valset, NumpyDataset
@@ -202,9 +232,13 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
             full_wx += passive_wx
         y_pred = full_wx
         loss = ((valset.labels - y_pred) ** 2).mean()
+        mae = mean_absolute_error(valset.labels, y_pred)
+        mse = mean_squared_error(valset.labels, y_pred)
+        sse = mse * len(valset.labels)
         r2 = r2_score(valset.labels, y_pred)
+        scores = {"loss": loss, "mae": mae, "mse": mse, "sse": sse, "r2": r2}
 
-        return {"loss": loss, "r2": r2}
+        return scores
 
     def predict(self, testset):
         return self.validate(testset)
