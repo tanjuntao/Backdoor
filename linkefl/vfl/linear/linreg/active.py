@@ -91,8 +91,8 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
         setattr(self, "y_train", trainset.labels)
         setattr(self, "y_val", testset.labels)
 
-        Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
-                                       50, self.pics_path)
+        # Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
+        #                                50, self.pics_path)
 
         # initialize model parameters
         params = self._init_weights(trainset.n_features)
@@ -165,7 +165,7 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                 batch_residuales.append(residue)
 
             # validate model performance
-            if epoch % self.val_freq == 0:
+            if (epoch + 1) % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
                 cur_residue = np.array(batch_residuales).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")

@@ -168,10 +168,10 @@ class Plot(object):
         plt.close()
 
     @classmethod
-    def plot_binary_mertics(cls, labels, y_probs, file_dir: str = "./models"):
+    def plot_binary_mertics(cls, labels, y_probs, cut_point=500, file_dir: str = "./models"):
         cls._plot_pr(labels, y_probs, file_dir)
         cls._plot_roc(labels, y_probs, file_dir)
-        cls._plot_ks(labels, y_probs, file_dir)
+        cls._plot_ks(labels, y_probs, cut_point=cut_point, file_dir=file_dir)
         cls._plot_lift(labels, y_probs, file_dir)
 
     @staticmethod
@@ -541,7 +541,7 @@ class Plot(object):
 
         # set ax
         if figsize is not None:
-            _check_not_tuple_of_2_elements(figsize, "figsize")
+            Plot._check_not_tuple_of_2_elements(figsize, "figsize")
         fig, ax = plt.subplots(1, 1, figsize=figsize)
 
         ylocs = np.arange(len(values))
@@ -553,7 +553,7 @@ class Plot(object):
                 ax.text(
                     x + gap,
                     y,
-                    _float2str(x, precision) if importance_type == "gain" else x,
+                    Plot._float2str(x, precision) if importance_type == "gain" else x,
                     va="center",
                 )
 
@@ -562,14 +562,14 @@ class Plot(object):
 
         # Set the x-axis scope
         if xlim is not None:
-            _check_not_tuple_of_2_elements(xlim, "xlim")
+            Plot._check_not_tuple_of_2_elements(xlim, "xlim")
         else:
             xlim = (0, max(values) * 1.1)
         ax.set_xlim(xlim)
 
         # Set the y-axis scope
         if ylim is not None:
-            _check_not_tuple_of_2_elements(ylim, "ylim")
+            Plot._check_not_tuple_of_2_elements(ylim, "ylim")
         else:
             ylim = (-1, len(values))
         ax.set_ylim(ylim)

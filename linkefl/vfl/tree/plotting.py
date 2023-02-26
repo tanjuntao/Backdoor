@@ -4,7 +4,6 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from PrettyPrint import PrettyPrintTree
 import seaborn as sns
 from sklearn.metrics import precision_recall_curve, roc_curve
 
@@ -441,6 +440,10 @@ def tree_to_str(tree, tree_structure):
     Returns:
         str for tree structure.
     """
+    try:
+        from PrettyPrint import PrettyPrintTree
+    except ImportError as e:
+        raise ImportError("You must install PrettyPrint to plot tree") from e
 
     root = tree.root
     _prepare_print_val(tree, root)

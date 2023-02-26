@@ -100,7 +100,7 @@ class GlobalLogger:
 
         return instance
 
-    def log_metric(self, epoch, loss, acc, auc, f1, total_epoch, level="info"):
+    def log_metric(self, epoch, loss, acc, auc, f1, ks, ks_threashold, total_epoch, level="info"):
         json_msg = json.dumps(
             {
                 "metricLog": {
@@ -109,6 +109,8 @@ class GlobalLogger:
                     "acc": round(acc, GlobalLogger.FLOAT_PRECISION),
                     "auc": round(auc, GlobalLogger.FLOAT_PRECISION),
                     "f1": round(f1, GlobalLogger.FLOAT_PRECISION),
+                    "ks": round(ks, GlobalLogger.FLOAT_PRECISION),
+                    "ks_threashold": round(ks_threashold, GlobalLogger.FLOAT_PRECISION),
                     "time": self.time_formatter(time.time()),
                     "progress": (epoch + 1) / total_epoch,
                     "role": self.role,
