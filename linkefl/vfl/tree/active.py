@@ -246,8 +246,8 @@ class ActiveTreeParty(BaseModelComponent):
 
         # record data for plot fig
         self.mertics_record = {}
-        Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
-                                       50, self.pics_path)
+        # Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
+        #                                50, self.pics_path)
 
         if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(trainset.labels))  # sum of tree raw outputs
@@ -459,7 +459,7 @@ class ActiveTreeParty(BaseModelComponent):
 
             if self.task == "binary":
                 Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.pics_path)
-                Plot.plot_binary_mertics(testset.labels, outputs_test, self.pics_path)
+                Plot.plot_binary_mertics(testset.labels, outputs_test, cut_point=50, file_dir=self.pics_path)
                 Plot.plot_f1_score(f1_record, self.pics_path)
             else:
                 Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.pics_path)
@@ -711,7 +711,7 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
-            ks_value, threshold = Evaluate.eval_ks(labels, targets)
+            ks_value, threshold = Evaluate.eval_ks(labels, targets, cut_point=50)
             scores = {"acc": acc, "auc": auc, "f1": f1, "ks": ks_value, "threshold": threshold}
 
         elif self.task == "multi":
@@ -773,7 +773,7 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
-            ks_value, threshold = Evaluate.eval_ks(labels, targets)
+            ks_value, threshold = Evaluate.eval_ks(labels, targets, cut_point=50)
             scores = {"acc": acc, "auc": auc, "f1": f1, "ks": ks_value, "threshold": threshold}
 
         elif self.task == "multi":

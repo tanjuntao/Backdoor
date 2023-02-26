@@ -104,8 +104,8 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         setattr(self, "y_train", trainset.labels)
         setattr(self, "y_val", testset.labels)
 
-        Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
-                                       50, self.pics_path)
+        # Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
+        #                                50, self.pics_path)
 
         # initialize model parameters
         params = self._init_weights(trainset.n_features)
@@ -189,7 +189,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                 batch_residuales.append(residue)
 
             # validate model performance
-            if epoch % self.val_freq == 0:
+            if (epoch + 1) % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
                 cur_residue = np.array(batch_residuales).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
@@ -251,6 +251,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         self.logger.log("Elapsed time: {:.5f}s".format(time.time() - start_time))
         print(colored("Best history acc: {:.5f}".format(best_acc), "red"))
         print(colored("Best history auc: {:.5f}".format(best_auc), "red"))
+        print(colored("Best history ks: {:.5f}".format(best_ks), "red"))
         print(colored("Computation time: {:.5f}".format(compu_time), "red"))
         print(colored("Elapsed time: {:.5f}s".format(time.time() - start_time), "red"))
 
@@ -261,7 +262,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         Plot.plot_predict_distribution(y_prob=scores["probs"], bins=10, file_dir=self.pics_path)
         Plot.plot_predict_prob_box(y_prob=scores["probs"], file_dir=self.pics_path)
         Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.pics_path)
-        Plot.plot_binary_mertics(testset.labels, scores["probs"], self.pics_path)
+        Plot.plot_binary_mertics(testset.labels, scores["probs"], cut_point=50, file_dir=self.pics_path)
         Plot.plot_f1_score(f1_record, self.pics_path)
 
     def validate(self, valset, epoch=-1):
@@ -280,7 +281,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         accuracy = accuracy_score(valset.labels, preds)
         f1 = f1_score(valset.labels, preds)
         auc = roc_auc_score(valset.labels, probs)
-        ks_value, threshold = Evaluate.eval_ks(valset.labels, probs)
+        ks_value, threshold = Evaluate.eval_ks(valset.labels, probs, cut_point=50)
 
         if epoch == self.epochs - 1:
             from linkefl.vfl.tree.plotting import Plot

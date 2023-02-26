@@ -313,7 +313,7 @@ class BaseLinearPassive(BaseLinear):
                 self._gradient_descent(getattr(self, "params"), true_grad)
 
             # validate the performance of the current model
-            if epoch % self.val_freq == 0:
+            if (epoch + 1) % self.val_freq == 0:
                 self.validate(testset)
                 is_best = self.messenger.recv()
                 if is_best:

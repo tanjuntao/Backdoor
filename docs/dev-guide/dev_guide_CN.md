@@ -52,6 +52,7 @@ pre-commit 安装成功后，后续第一次 commit 时会在 LinkeFL 项目下�
 ### 2.1 风格指南
 
 **Python 编码风格**
+
 首先建议阅读 Python 官方提供的 [PEP8](https://peps.python.org/pep-0008/) 代码风格指南，该指南是一份最小指南，提供了编写 Python 代码需要遵循的最基本原则。其它代码规范化工具，如 [Pylint](https://pylint.readthedocs.io/), [yapf](https://github.com/google/yapf), [black](https://black.readthedocs.io/en/stable/) 等，均是在 PEP8 的基础上添加了自定义的代码风格要求。
 
 在 LinkeFL 项目中，我们采用的是 `black` 推荐的编码风格，请开发者认真阅读 [black code style](https://black.readthedocs.io/en/stable/the_black_code_style/index.html). 同时，我们还结合 pre-commit 来实现代码风格的自动化纠正，即每次在 commit 之前，会调用 `black` 纠正代码风格并对 Python 源代码做原地修改。
@@ -67,6 +68,7 @@ trainset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/give-me-some-
 
 
 **Python 注释风格**
+
 Python docstring（文档字符串）的编写有不同的风格，常用的有 Numpy style 和 Google style，在 LinkeFL 项目中，我们采用的是 Numpy style 文档字符串。为了编写良好的文档字符串，请认真阅读 Numpy 官方提供的[文档字符串风格指南](https://numpydoc.readthedocs.io/en/latest/format.html)。
 
 为了在 PyCharm 中能自动生成 Numpy style 的文档字符串模板，进行如下设置：
@@ -78,6 +80,7 @@ Preferences => Tools => Python Integrated Tools => Docstrings
 将 Docstring format 修改为 NumPy，然后点击 Apply，最后点击 OK 即可。
 
 **Git commit message 风格**
+
 在 LinkeFL 中，我们还结合 pre-commit 使用 [commit-msg-hook](https://github.com/dimaka-wix/commit-msg-hook) 来自动校验 commit message 的格式，并且在 commit message 不符合要求时终止 commit。请认真阅读 [commit rules](https://github.com/dimaka-wix/commit-msg-hook#commit-rules) 以便能顺利提交 commit。
 
 
