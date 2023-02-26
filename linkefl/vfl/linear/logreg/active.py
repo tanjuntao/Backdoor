@@ -215,13 +215,13 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                     best_ks = scores["ks"]
                     is_best = True
                 self.logger.log_metric(
-                    epoch,
-                    cur_loss,
-                    scores["acc"],
-                    scores["auc"],
-                    scores["f1"],
-                    scores["ks"],
-                    scores["threshold"],
+                    epoch=epoch,
+                    loss=cur_loss,
+                    acc=scores["acc"],
+                    auc=scores["auc"],
+                    f1=scores["f1"],
+                    ks=scores["ks"],
+                    ks_threshold=scores["threshold"],
                     total_epoch=self.epochs,
                 )
                 if is_best:

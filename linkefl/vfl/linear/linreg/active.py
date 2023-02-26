@@ -170,11 +170,8 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                 cur_residue = np.array(batch_residuales).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
                 self.logger.log_metric(
-                    epoch,
-                    cur_loss,
-                    0,
-                    0,
-                    0,
+                    epoch=epoch,
+                    loss=cur_loss,
                     total_epoch=self.epochs,
                 )
                 result = self.validate(testset)
