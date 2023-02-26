@@ -996,20 +996,17 @@ class CommonDataset:
 
         # Solution 3: more robust, but slower
         if isinstance(intersect_ids, list):
-            pass
+            intersect_ids = np.array(intersect_ids)
         elif isinstance(intersect_ids, np.ndarray):
-            intersect_ids = intersect_ids.tolist()
+            pass
         else:
             raise TypeError(
                 "intersect_ids dtype is expected to be list or np.ndarray,"
                 "but got {}".format(type(intersect_ids))
             )
 
-        idxes = []
         all_ids = np.array(self.ids)
-        for id_value in intersect_ids:
-            idx = np.where(all_ids == id_value)[0][0]
-            idxes.append(idx)
+        idxes = np.where(np.in1d(all_ids, intersect_ids))[0]
         new_raw_dataset = self._raw_dataset[idxes]
         self.set_dataset(new_raw_dataset)
 
