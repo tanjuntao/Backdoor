@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os.path
 import pandas as pd
+import warnings
 
 from typing import Any, Optional
 from sklearn.metrics import precision_recall_curve, roc_curve
@@ -27,6 +28,10 @@ class Evaluate(object):
         good_len = len([x for x in labels if x == 0])
         bad_len = len([x for x in labels if x == 1])
         pred_prob_labels = list(zip(y_probs, labels))
+
+        if good_len == 0 or bad_len == 0:
+            warnings.warn("Labels contain only one class, which does not support calculating ks value.")
+            return -1, -1
 
         good_point = []
         bad_point = []
