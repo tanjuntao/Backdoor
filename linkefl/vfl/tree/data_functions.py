@@ -28,7 +28,7 @@ def _find_bin(vec, max_bin):
     return vec_bin_index, vec_bin_end[:-1]
 
 
-def get_bin_info(x_train, max_bin):
+def get_bin_info(x_train, max_bin, pool):
     """compute hist information
 
     Args:
@@ -44,9 +44,14 @@ def get_bin_info(x_train, max_bin):
 
     bin_index = np.empty_like(x_train, dtype=int)
     bin_split = [None] * x_train.shape[1]
+
+    threads = []
     for i in range(x_train.shape[1]):
         # find hist for each feature point
-        bin_index[:, i], bin_split[i] = _find_bin(x_train[:, i], max_bin)
+        t = pool.apply_async(_find_bin, (x_train[:, i], max_bin))
+        threads.append(t)
+    for t in threads:
+        bin_index[:, i], bin_split[i] = t.get()
 
     # fill the empty place in bin_split to solve the influence of different
     # bin_num (seems no influence right now)

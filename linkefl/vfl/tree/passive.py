@@ -2,6 +2,7 @@ import datetime
 import random
 import time
 from collections import defaultdict
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -27,6 +28,7 @@ class PassiveTreeParty(BaseModelComponent):
         *,
         max_bin: int = 16,
         colsample_bytree=1,
+        n_processes: int = 1,
         saving_model: bool = False,
         model_path: str = "./models",
         model_name=None,
@@ -64,6 +66,8 @@ class PassiveTreeParty(BaseModelComponent):
             "cover": defaultdict(float),  # Total sample covered
         }
 
+        self.pool = Pool(n_processes)
+
         # given when training starts
         self.bin_index = None
         self.bin_split = None
@@ -91,7 +95,7 @@ class PassiveTreeParty(BaseModelComponent):
         start_time = time.time()
 
         self.logger.log("Building hist...")
-        self.bin_index, self.bin_split = get_bin_info(trainset.features, self.max_bin)
+        self.bin_index, self.bin_split = get_bin_info(trainset.features, self.max_bin, self.pool)
         self.logger.log("Done")
 
         self.logger.log("Waiting for active party...")

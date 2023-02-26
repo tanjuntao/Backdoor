@@ -20,7 +20,11 @@ class ActiveHist:
     def compute_hist(cls, task, n_labels, sample_tag, bin_index, gh):
         """compute hist with data on active party"""
 
-        bin_num = bin_index.max() + 1
+        try:
+            bin_num = bin_index.max() + 1
+        except:
+            # need to be more elegant
+            bin_num = 16
         if task == "binary" or task == "regression":
             bin_gh = np.zeros((bin_index.shape[1], bin_num, 2), dtype=gh.dtype)
         elif task == "multi":

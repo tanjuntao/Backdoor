@@ -241,7 +241,7 @@ class ActiveTreeParty(BaseModelComponent):
         labels = trainset.labels
 
         self.logger.log("Building hist...")
-        bin_index, bin_split = get_bin_info(trainset.features, self.max_bin)
+        bin_index, bin_split = get_bin_info(trainset.features, self.max_bin, self.pool)
         self.logger.log("Done")
 
         # record data for plot fig
@@ -330,7 +330,7 @@ class ActiveTreeParty(BaseModelComponent):
                         auc=scores["auc"],
                         f1=scores["f1"],
                         ks=scores["ks"],
-                        threshold=scores["threshold"],
+                        ks_threshold=scores["threshold"],
                         total_epoch=self.n_trees,
                     )
                     train_auc_record.append(roc_auc_score(trainset.labels, outputs))
