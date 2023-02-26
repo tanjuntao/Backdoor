@@ -30,7 +30,7 @@ class Evaluate(object):
         pred_prob_labels = list(zip(y_probs, labels))
 
         if good_len == 0 or bad_len == 0:
-            warnings.warn("Labels contain only one class, which does not support calculating ks value.")
+            warnings.warn("Labels contain only one class, which does not support calculating ks value.", RuntimeWarning)
             return -1, -1
 
         good_point = []
@@ -593,6 +593,12 @@ class Plot(object):
 
 
 if __name__ == "__main__":
+    # test cal ks value
+    y_label = [1 for _ in range(500)]
+    y_prob = np.random.random(500)
+    print(Evaluate.eval_ks(y_label, y_prob))
+    # Plot._plot_ks(y_label, y_prob)
+
     # feature_num = 20
     # features = [f'active_feature{i}' for i in range(feature_num)]
     #
@@ -627,10 +633,7 @@ if __name__ == "__main__":
     # Plot.plot_fit(train_loss, test_loss)
     # Plot.plot_train_test_loss(train_loss, test_loss)
 
-    y_label = [1 for _ in range(500)] + [0 for _ in range(500)]
-    y_prob = np.random.random(1000)
-    print(Evaluate.eval_ks(y_label, y_prob))
-    Plot._plot_ks(y_label, y_prob)
+
     # Plot.plot_predict_distribution(y_prob, bins=10)
     # Plot.plot_regression_metrics(y_prob, y_prob, y_prob, y_prob)
     # Plot.plot_residual(y_label, y_prob)
