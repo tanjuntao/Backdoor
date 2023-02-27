@@ -1,4 +1,5 @@
 import datetime
+import os
 import time
 
 import numpy as np
@@ -44,6 +45,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         crypto_type,
         logger,
         *,
+        num_workers=None,
         val_freq=1,
         device="cpu",
         passive_in_nodes=None,
@@ -63,6 +65,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.crypto_type = crypto_type
         self.logger = logger
         self.device = device
+        if num_workers is None:
+            num_workers = os.cpu_count()
+        self.num_workers = num_workers
         self.val_freq = val_freq
         self.passive_in_nodes = passive_in_nodes
         self.precision = precision
@@ -119,6 +124,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 eta=self.learning_rate,
                 messenger=self.messenger,
                 cryptosystem=self.cryptosystem,
+                num_workers=self.num_workers,
                 random_state=self.random_state,
                 precision=self.precision,
             )

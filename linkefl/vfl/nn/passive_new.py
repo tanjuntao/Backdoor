@@ -1,4 +1,5 @@
 import datetime
+import os
 import time
 
 import torch
@@ -25,6 +26,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
         cryptosystem,
         logger,
         *,
+        num_workers=None,
         val_freq=1,
         device="cpu",
         precision=0.001,
@@ -41,6 +43,9 @@ class PassiveNeuralNetwork(BaseModelComponent):
         self.messenger = messenger
         self.cryptosystem = cryptosystem
         self.logger = logger
+        if num_workers is None:
+            num_workers = os.cpu_count()
+        self.num_workers = num_workers
         self.val_freq = val_freq
         self.device = device
         self.precision = precision
@@ -89,6 +94,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
                 eta=self.learning_rate,
                 messenger=self.messenger,
                 cryptosystem=self.cryptosystem,
+                num_workers=self.num_workers,
                 random_state=self.random_state,
                 precision=self.precision,
             )
