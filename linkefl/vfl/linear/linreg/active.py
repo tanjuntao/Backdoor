@@ -122,7 +122,7 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
             all_idxes = np.arange(n_samples)
             np.random.seed(epoch)
             np.random.shuffle(all_idxes)
-            batch_losses, batch_residuales = [], []
+            batch_losses, residuales_sum = [], 0
             for batch in range(n_batches):
                 # Choose batch indexes
                 start = batch * bs
@@ -162,12 +162,13 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                 active_grad = self._grad(residue, batch_idxes)
                 self._gradient_descent(getattr(self, "params"), active_grad)
                 batch_losses.append(loss)
-                batch_residuales.append(residue)
+                residuales_sum += sum(residue)
+
+            residual_record.append(residuales_sum/n_samples)
 
             # validate model performance
             if (epoch + 1) % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
-                cur_residue = np.array(batch_residuales).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
                 self.logger.log_metric(
                     epoch=epoch,
@@ -190,7 +191,6 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                             model_params, self.model_path, self.model_name
                         )
 
-                residual_record.append(cur_residue)
                 train_loss_record.append(cur_loss)
                 test_loss_record.append(result["loss"])
                 MAE_record.append(result["mae"])
