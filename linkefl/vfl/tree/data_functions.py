@@ -50,7 +50,7 @@ def get_bin_info(x_train, max_bin, pool):
         # find hist for each feature point
         t = pool.apply_async(_find_bin, (x_train[:, i], max_bin))
         threads.append(t)
-    for t in threads:
+    for i, t in enumerate(threads):
         bin_index[:, i], bin_split[i] = t.get()
 
     # fill the empty place in bin_split to solve the influence of different
