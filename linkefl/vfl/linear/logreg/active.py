@@ -126,7 +126,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         compu_time = 0
         # Main Training Loop Here
         self.logger.log("Start collaborative model training...")
-        residual_record, train_loss_record, test_loss_record = [], [], []
+        residuals_record, train_loss_record, test_loss_record = [], [], []
         train_auc_record, test_auc_record, train_acc_record, test_acc_record, f1_record = [], [], [], [], []
 
         for epoch in range(self.epochs):
@@ -136,7 +136,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
             all_idxes = np.arange(n_samples)
             np.random.seed(epoch)
             np.random.shuffle(all_idxes)
-            batch_losses, batch_residuales = [], []
+            batch_losses, residuales_sum = [], 0
             for batch in range(n_batches):
                 # Choose batch indexes
                 start = batch * bs
@@ -186,18 +186,18 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                 active_grad = self._grad(residue, batch_idxes)
                 self._gradient_descent(getattr(self, "params"), active_grad)
                 batch_losses.append(loss)
-                batch_residuales.append(residue)
+                residuales_sum += sum(residue)
+
+            residuals_record.append(residuales_sum/n_samples)
 
             # validate model performance
             if (epoch + 1) % self.val_freq == 0:
                 cur_loss = np.array(batch_losses).mean()
-                cur_residue = np.array(batch_residuales).mean()
                 self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
 
                 scores = self.validate(testset, epoch)
                 train_scores = self.validate(trainset, epoch)
 
-                residual_record.append(cur_residue)
                 f1_record.append(scores["f1"])
                 train_loss_record.append(train_scores["loss"])
                 test_loss_record.append(scores["loss"])
@@ -256,7 +256,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         print(colored("Elapsed time: {:.5f}s".format(time.time() - start_time), "red"))
 
         scores = self.validate(testset)
-        Plot.plot_residual(residual_record, self.pics_path)
+        Plot.plot_residual(residuals_record, self.pics_path)
         Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
         Plot.plot_ordered_lorenz_curve(label=testset.labels, y_prob=scores["probs"], file_dir=self.pics_path)
         Plot.plot_predict_distribution(y_prob=scores["probs"], bins=10, file_dir=self.pics_path)
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     from linkefl.feature.transform import add_intercept, parse_label, scale
 
     # 0. Set parameters
-    _dataset_name = "epsilon"
+    _dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     active_ip = [
@@ -345,8 +345,8 @@ if __name__ == "__main__":
     passive_port = [
         20001,
     ]
-    _epochs = 10
-    _batch_size = -1
+    _epochs = 100
+    _batch_size = 32
     _learning_rate = 0.01
     _penalty = Const.L2
     _reg_lambda = 0.01
