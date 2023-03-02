@@ -180,7 +180,14 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 has_validated = True
                 is_best = False
                 scores = self.validate(testset, existing_loader=test_dataloader)
-                curr_acc, curr_auc = scores["acc"], scores["auc"]
+                curr_acc, curr_auc, curr_loss = scores["acc"], scores["auc"], scores["loss"]
+                self.logger.log_metric(
+                    epoch=epoch,
+                    loss=curr_loss,
+                    acc=curr_acc,
+                    auc=curr_auc,
+                    total_epoch=self.epochs,
+                )
                 if curr_auc == 0:  # multi-class
                     if curr_acc > best_acc:
                         best_acc = curr_acc
