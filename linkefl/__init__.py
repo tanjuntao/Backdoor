@@ -11,6 +11,6 @@ if not is_valid:
     )
     sys.exit(-1)
 
-VERSION = (0, 2, 0)
+VERSION = (0, 2, 1)
 
 __version__ = ".".join([str(x) for x in VERSION])
