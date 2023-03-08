@@ -1,3 +1,5 @@
+from typing import Optional
+
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.crypto import (
@@ -246,18 +248,16 @@ def messenger_factory_multi_disconnection(
 
 
 def logger_factory(
-    role,
-    writing_file=False,
-    writing_http=False,
-    http_host=None,
-    http_port=None,
-    http_url=None,
+    role: str,
+    writing_file: bool = False,
+    file_path: Optional[str] = None,
+    remote_url: Optional[str] = None,
+    stacklevel: int = 2,
 ):
     return GlobalLogger(
         role=role,
         writing_file=writing_file,
-        writing_http=writing_http,
-        http_host=http_host,
-        http_port=http_port,
-        http_url=http_url,
+        file_path=file_path,
+        remote_url=remote_url,
+        stacklevel=stacklevel
     )

@@ -6,210 +6,210 @@ import pathlib
 import queue
 import time
 from logging.handlers import HTTPHandler, QueueHandler, QueueListener
+from typing import Callable, Dict, Optional
+from urllib.parse import urlparse
 
 from linkefl.common.const import Const
 
 
 class GlobalLogger:
-    """This class is a Python logger singleton."""
+    """A singleton wrapper class for Python buildin logger."""
 
-    _logger = None
-    _http_listener = None
-    _loglevel_dict = {}
-    FLOAT_PRECISION = 6
+    _logger = None  # object returned by logging.getLogger()
+    _http_listener: Optional[QueueListener] = None
+    _LOGLEVEL_MAPPER: Dict[str, Callable] = {}
+    _PRECISION: int = 6
 
     def __new__(
         cls,
         *,
-        role,
-        writing_file=False,
-        writing_http=False,
-        http_host=None,
-        http_port=None,
-        http_url=None
+        role: str,
+        writing_file: bool = False,
+        file_path: Optional[str] = None,
+        remote_url: Optional[str] = None,
+        stacklevel: int = 2,
     ):
-        assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role."
-        if writing_http:
-            if None in (http_host, http_port, http_url):
-                raise ValueError("http host/port/url should not be None.")
+        assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), (
+            "role is expected to take from active_party and passive_party, but got"
+            f" {role}."
+        )
 
         instance = super().__new__(cls)
         instance.role = role
-        instance.writing_http = writing_http
+        instance.stacklevel = stacklevel
 
-        # generat Python logger if it does not exist
+        # instantiate a Python logger if it does not exist
         if cls._logger is None:
             cls._logger = logging.getLogger("LinkeFL")  # LinkeFL is the logger name
-            cls._logger.setLevel(logging.DEBUG)  # minimum logger severity level
+            cls._logger.setLevel(logging.DEBUG)  # set minimum severity level
             formatter = logging.Formatter(
                 "%(asctime)s [%(levelname)s | %(filename)s:%(lineno)s] > %(message)s"
             )
 
-            # 1. write logging message to console
+            # 1. write logs to console
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
             cls._logger.addHandler(console_handler)
 
-            # 2. write logging message to disk file
+            # 2. write logs to local file
             if writing_file:
-                # .linkefl is the project cache directory
-                logging_dir = os.path.join(pathlib.Path.home(), ".linkefl", "log")
-                # create directories recursively. Same as command 'mkdir -p'
-                # reference: https://stackoverflow.com/a/600612/8418540
-                if not os.path.exists(logging_dir):
-                    pathlib.Path(logging_dir).mkdir(parents=True, exist_ok=True)
-                file_name = (
-                    datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-                    + "-"
-                    + role
-                    + ".log"
-                )
-                full_path = os.path.join(logging_dir, file_name)
+                if file_path is not None:
+                    full_path = file_path
+                else:
+                    # ~/.linkefl/ is the cache directory of LinkeFL project
+                    logging_dir = os.path.join(pathlib.Path.home(), ".linkefl", "log")
+                    # create directories recursively. Same as command 'mkdir -p'
+                    # reference: https://stackoverflow.com/a/600612/8418540
+                    if not os.path.exists(logging_dir):
+                        pathlib.Path(logging_dir).mkdir(parents=True, exist_ok=True)
+                    file_name = (
+                        datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+                        + "-"
+                        + role
+                        + ".log"
+                    )
+                    full_path = os.path.join(logging_dir, file_name)
                 file_handler = logging.FileHandler(full_path, mode="a")  # append
                 file_handler.setFormatter(formatter)
                 cls._logger.addHandler(file_handler)
 
-            # 3. write logging message to a remote http(s) server
-            if writing_http:
-                # initial http handler, subustite the host and url if needed.
-                http_handler = HTTPHandler(
-                    host=http_host + ":" + str(http_port), url=http_url, method="POST"
-                )
+            # 3. write logs to a remote http(s) url
+            if remote_url is not None:
+                parsed_url = urlparse(remote_url)  # return a namedtuple
+                host = parsed_url.scheme + "://" + parsed_url.netloc
+                url = parsed_url.path
+                http_handler = HTTPHandler(host=host, url=url, method="POST")
                 http_handler.setFormatter(formatter)
-                # QueueHandler and QueueListener are used for non-blocking http logger
+                # QueueHandler and QueueListener are used for non-blocking http logging
                 # initial queue and attach it to QueueHandler
                 log_queue = queue.Queue(-1)  # no limit on queue size
                 queue_handler = QueueHandler(log_queue)
                 # initial QueueListener
                 http_listener = QueueListener(log_queue, http_handler)
                 cls._http_listener = (
-                    http_listener  # make http_listener an class variable
+                    http_listener  # make http_listener a class variable
                 )
                 # attach custom handler to logger
                 cls._logger.addHandler(queue_handler)
                 # start the listener
                 http_listener.start()
 
-            cls._loglevel_dict = {
-                Const.DEBUG: cls._logger.debug,
-                Const.INFO: cls._logger.info,
-                Const.WARNING: cls._logger.warning,
-                Const.ERROR: cls._logger.error,
-                Const.CRITICAL: cls._logger.critical,
+            # initial the function mapper of logging severity level
+            cls._LOGLEVEL_MAPPER = {
+                "debug": cls._logger.debug,
+                "info": cls._logger.info,
+                "warning": cls._logger.warning,
+                "error": cls._logger.error,
+                "critical": cls._logger.critical,
             }
 
         return instance
 
     def log_metric(
         self,
-        epoch=0,
-        loss=0,
-        acc=0,
-        auc=0,
-        f1=0,
-        ks=0,
-        ks_threshold=0,
-        total_epoch=0,
-        level="info"
+        epoch: int = 0,
+        loss: float = 0.0,
+        acc: float = 0.0,
+        auc: float = 0.0,
+        f1: float = 0.0,
+        ks: float = 0.0,
+        ks_threshold: float = 0.0,
+        mae: float = 0.0,
+        mse: float = 0.0,
+        sse: float = 0.0,
+        r2: float = 0.0,
+        total_epoch: int = 0,
+        level: str = "info",
     ):
-        json_msg = json.dumps(
-            {
-                "metricLog": {
-                    "epoch": epoch + 1,
-                    "loss": round(loss, GlobalLogger.FLOAT_PRECISION),
-                    "acc": round(acc, GlobalLogger.FLOAT_PRECISION),
-                    "auc": round(auc, GlobalLogger.FLOAT_PRECISION),
-                    "f1": round(f1, GlobalLogger.FLOAT_PRECISION),
-                    "ks": round(ks, GlobalLogger.FLOAT_PRECISION),
-                    "ks_threshold": round(ks_threshold, GlobalLogger.FLOAT_PRECISION),
-                    "time": self.time_formatter(time.time()),
-                    "progress": (epoch + 1) / total_epoch,
-                    "role": self.role,
-                }
-            }
-        )
-        log_func = GlobalLogger._loglevel_dict[level]
-        log_func(json_msg)
-
-    def log_metric_regression(
-        self, epoch, loss, mae, mse, sse, r2, total_epoch, level="info"
-    ):
-        json_msg = json.dumps(
-            {
-                "metricLog": {
-                    "epoch": epoch + 1,
-                    "loss": round(loss, GlobalLogger.FLOAT_PRECISION),
-                    "mae": round(mae, GlobalLogger.FLOAT_PRECISION),
-                    "mse": round(mse, GlobalLogger.FLOAT_PRECISION),
-                    "sse": round(sse, GlobalLogger.FLOAT_PRECISION),
-                    "r2": round(r2, GlobalLogger.FLOAT_PRECISION),
-                    "time": self.time_formatter(time.time()),
-                    "progress": (epoch + 1) / total_epoch,
-                    "role": self.role,
-                }
-            }
-        )
-        log_func = GlobalLogger._loglevel_dict[level]
-        log_func(json_msg)
+        json_msg = {
+            "epoch": epoch,
+            "loss": round(loss, GlobalLogger._PRECISION),
+            "acc": round(acc, GlobalLogger._PRECISION),
+            "auc": round(auc, GlobalLogger._PRECISION),
+            "f1": round(f1, GlobalLogger._PRECISION),
+            "ks": round(ks, GlobalLogger._PRECISION),
+            "ks_threshold": round(ks_threshold, GlobalLogger._PRECISION),
+            "mae": round(mae, GlobalLogger._PRECISION),
+            "mse": round(mse, GlobalLogger._PRECISION),
+            "sse": round(sse, GlobalLogger._PRECISION),
+            "r2": round(r2, GlobalLogger._PRECISION),
+            "time": self._time_formatter(time.time()),
+            "progress": epoch / total_epoch,
+            "role": self.role,
+        }
+        if hasattr(self, "metainfo"):
+            json_msg.update(getattr(self, "metainfo"))
+        json_msg = json.dumps({"metricLog": json_msg})
+        log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
+        log_func(json_msg, stacklevel=self.stacklevel)
 
     def log_component(
         self,
-        name,
-        status,
-        begin,
-        end,
-        duration,
-        progress,
-        failure_reason=None,
-        level="info",
+        name: str,
+        status: str,
+        begin: float,
+        end: float,
+        duration: float,
+        progress: float,
+        failure_reason: Optional[str] = None,
+        level: str = "info",
     ):
-        json_msg = json.dumps(
-            {
-                "componentLog": {
-                    "name": name,
-                    "status": status,
-                    "begin": self.time_formatter(begin),
-                    "end": self.time_formatter(end),
-                    "duration": duration,
-                    "progress": progress,
-                    "failure_reason": failure_reason,
-                    "role": self.role,
-                }
-            }
-        )
-        log_func = GlobalLogger._loglevel_dict[level]
-        log_func(json_msg)
+        json_msg = {
+            "name": name,
+            "status": status,
+            "begin": self._time_formatter(begin),
+            "end": self._time_formatter(end),
+            "duration": duration,
+            "progress": progress,
+            "failure_reason": failure_reason,
+            "role": self.role,
+        }
+        if hasattr(self, "metainfo"):
+            json_msg.update(getattr(self, "metainfo"))
+        json_msg = json.dumps({"componentLog": json_msg})
+        log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
+        log_func(json_msg, stacklevel=self.stacklevel)
 
-    def log_task(self, begin, end, status, level="info"):
-        json_msg = json.dumps(
-            {
-                "taskLog": {
-                    "begin": self.time_formatter(begin),
-                    "end": self.time_formatter(end),
-                    "status": status,
-                    "role": self.role,
-                }
-            }
-        )
-        log_func = GlobalLogger._loglevel_dict[level]
-        log_func(json_msg)
+    def log_task(
+        self,
+        begin: float,
+        end: float,
+        status: str,
+        failure_reason: Optional[str] = None,
+        level: str = "info",
+    ):
+        json_msg = {
+            "begin": self._time_formatter(begin),
+            "end": self._time_formatter(end),
+            "status": status,
+            "failure_reason": failure_reason,
+            "role": self.role,
+        }
+        if hasattr(self, "metainfo"):
+            json_msg.update(getattr(self, "metainfo"))
+        json_msg = json.dumps({"taskLog": json_msg})
+        log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
+        log_func(json_msg, stacklevel=self.stacklevel)
 
-    def log(self, content, level="info"):
-        json_msg = json.dumps(
-            {
-                "messageLog": {
-                    "content": content,
-                    "time": self.time_formatter(time.time()),
-                    "role": self.role,
-                }
-            }
-        )
-        log_func = GlobalLogger._loglevel_dict[level]
-        log_func(json_msg)
+    def log(
+        self,
+        content: str,
+        level: str = "info",
+    ):
+        json_msg = {
+            "content": content,
+            "time": self._time_formatter(time.time()),
+            "role": self.role,
+        }
+        if hasattr(self, "metainfo"):
+            json_msg.update(getattr(self, "metainfo"))
+        json_msg = json.dumps({"messageLog": json_msg})
+        log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
+        log_func(json_msg, stacklevel=self.stacklevel)
 
     def close(self):
         if GlobalLogger._http_listener is not None:
-            # you must call stop() explicitly to flush the records in the queue
+            # explicitly call stop() to flush the log records in http queue
             GlobalLogger._http_listener.stop()
             GlobalLogger._http_listener = None
         else:
@@ -218,30 +218,20 @@ class GlobalLogger:
     def get_logger(self):
         return GlobalLogger._logger
 
-    def time_formatter(self, timestamp):
+    def set_metainfo(self, project_id, flow_id, flow_record_id):
+        self.metainfo: dict = {
+            "project_id": project_id,
+            "flow_id": flow_id,
+            "flow_record_id": flow_record_id,
+        }
+
+    def _time_formatter(self, timestamp):
         return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
 
 
 if __name__ == "__main__":
-    logger1 = GlobalLogger(
-        role=Const.ACTIVE_NAME, writing_file=True, writing_http=False
-    )
-    logger2 = GlobalLogger(
-        role=Const.ACTIVE_NAME, writing_file=True, writing_http=False
-    )
-
-    # logger1 = GlobalLogger(role=Const.ACTIVE_NAME,
-    #                        writing_file=True,
-    #                        writing_http=True,
-    #                        http_host='127.0.0.1',
-    #                        http_port=5000,
-    #                        http_url='/log')
-    # logger2 = GlobalLogger(role=Const.ACTIVE_NAME,
-    #                        writing_file=True,
-    #                        writing_http=True,
-    #                        http_host='127.0.0.1',
-    #                        http_port=5000,
-    #                        http_url='/log')
+    logger1 = GlobalLogger(role=Const.ACTIVE_NAME, writing_file=True)
+    logger2 = GlobalLogger(role=Const.ACTIVE_NAME, writing_file=True)
 
     print(id(logger1), id(logger2))  # different
     print(id(logger1.get_logger()), id(logger2.get_logger()))  # same

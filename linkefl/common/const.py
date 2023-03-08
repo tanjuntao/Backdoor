@@ -63,12 +63,6 @@ class Const:
     VERTICAL_INFERENCE = "vertical_inference"
     HORIZONTAL_INFERENCE = "horizontal_inference"
 
-    DEBUG = "debug"
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
-
     REGRESSION = "regression"
     CLASSIFICATION = "classification"
     PYTORCH_DATASET = [
