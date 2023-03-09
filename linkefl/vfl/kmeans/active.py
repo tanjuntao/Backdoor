@@ -525,8 +525,10 @@ class ActiveConstrainedSeedKMeans:
             palette=sns.color_palette("hls", color_num),
             data=df,
         )
-        # plt.show()
-        plt.savefig("{}/{}.png".format(self.pics_path, self.pic_name))
+        if self.saving_pic:
+            plt.savefig("{}/{}.png".format(self.pics_path, self.pic_name))
+        else:
+            plt.show()
         plt.close()
 
 
@@ -541,9 +543,11 @@ class ActiveConstrainedSeedKMeans:
                     sil_per_cls[cls_idx].append(silhouette_values[idx])
     
         plt.boxplot(sil_per_cls)
-        # plt.show()
         plt.title('Silhouette Coefficient Distribution for Each Cluster')
-        plt.savefig("{}/{}_silhoutte.png".format(self.pics_path, self.pic_name))
+        if self.saving_pic:
+            plt.savefig("{}/{}_silhoutte.png".format(self.pics_path, self.pic_name))
+        else:
+            plt.show()
         plt.close()
 
 
