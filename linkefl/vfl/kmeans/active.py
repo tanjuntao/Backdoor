@@ -33,7 +33,6 @@ class ActiveConstrainedSeedKMeans:
         model_path='./models',
         model_name='vfl_kmeans_active',
         saving_pic=True,
-        pic_name=None
     ):
         """Initialization a constrained seed kmeans estimator.
         Args:
@@ -63,7 +62,6 @@ class ActiveConstrainedSeedKMeans:
         self.model_path = model_path
         self.model_name = model_name
         self.saving_pic = saving_pic
-        self.pic_name = pic_name
         if random_state is not None:
             torch.random.manual_seed(random_state)
         self.pics_path = os.path.join(self.model_path, "vfl_kmeans")
@@ -484,15 +482,16 @@ class ActiveConstrainedSeedKMeans:
     def _save_model(self):
         if self.saving_model:
             saved_data = [
+                self.n_clusters,
                 self.inertia_,
                 self.cluster_centers_active_,
                 self.indices
             ]
             NumpyModelIO.save(saved_data, self.model_path, self.model_name)
 
-    def load_model(self):
-        self.inertia_, self.cluster_centers_active_, self.indices = NumpyModelIO.load(self.model_path, self.model_name)
-        return self.inertia_, self.cluster_centers_active_, self.indices
+    def load_model(self, model_path='./models', model_name='vfl_kmeans_active'):
+        self.n_clusters, self.inertia_, self.cluster_centers_active_, self.indices = NumpyModelIO.load(model_path, model_name)
+        return self.n_clusters, self.inertia_, self.cluster_centers_active_, self.indices
 
     def pca_plot(self, X_active_dataset, estimator, color_num):
         import pandas as pd
@@ -526,7 +525,7 @@ class ActiveConstrainedSeedKMeans:
             data=df,
         )
         if self.saving_pic:
-            plt.savefig("{}/{}.png".format(self.pics_path, self.pic_name))
+            plt.savefig("{}/clusters.png".format(self.pics_path))
         else:
             plt.show()
         plt.close()
@@ -545,7 +544,7 @@ class ActiveConstrainedSeedKMeans:
         plt.boxplot(sil_per_cls)
         plt.title('Silhouette Coefficient Distribution for Each Cluster')
         if self.saving_pic:
-            plt.savefig("{}/{}_silhoutte.png".format(self.pics_path, self.pic_name))
+            plt.savefig("{}/silhoutte.png".format(self.pics_path))
         else:
             plt.show()
         plt.close()
@@ -602,7 +601,6 @@ if __name__ == "__main__":
         n_clusters=n_cluster,
         n_init=2,
         verbose=False,
-        pic_name='digits_{}'.format(Const.ACTIVE_NAME)
     )
 
     begin_train = time.time()
@@ -616,13 +614,9 @@ if __name__ == "__main__":
     active_new = ActiveConstrainedSeedKMeans(
         messenger=_messenger,
         crypto_type=None,
-        n_clusters=n_cluster,
-        n_init=2,
-        verbose=False,
-        pic_name='digits_{}'.format(Const.ACTIVE_NAME)
     )
 
-    active_new.inertia_, active_new.cluster_centers_active_, active_new.indices = active.load_model()
+    active.n_clusters, active_new.inertia_, active_new.cluster_centers_active_, active_new.indices = active.load_model()
 
     _ = active_new.predict(active_trainset)
 

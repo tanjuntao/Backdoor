@@ -31,8 +31,7 @@ class PassiveConstrainedSeedKMeans:
         saving_model=True,
         model_path='./models',
         model_name='vfl_kmeans_passive',
-        saving_pic=True,
-        pic_name=None
+        saving_pic=False,
     ):
         """Initialization a constrained seed kmeans estimator.
         Args:
@@ -60,7 +59,6 @@ class PassiveConstrainedSeedKMeans:
         self.model_path = model_path
         self.model_name = model_name
         self.saving_pic = saving_pic
-        self.pic_name = pic_name
         if random_state is not None:
             torch.random.manual_seed(random_state)
         self.pics_path = os.path.join(self.model_path, "vfl_kmeans")
@@ -371,12 +369,15 @@ class PassiveConstrainedSeedKMeans:
     
     def _save_model(self):
         if self.saving_model:
-            saved_data = self.cluster_centers_passive_
+            saved_data = [
+                self.n_clusters,
+                self.cluster_centers_passive_
+            ]
             NumpyModelIO.save(saved_data, self.model_path, self.model_name)
 
-    def load_model(self):
-        self.cluster_centers_passive_ = NumpyModelIO.load(self.model_path, self.model_name)
-        return self.cluster_centers_passive_
+    def load_model(self, model_path='./models', model_name='vfl_kmeans_passive'):
+        self.n_clusters, self.cluster_centers_passive_ = NumpyModelIO.load(model_path, model_name)
+        return self.n_clusters, self.cluster_centers_passive_
 
     def pca_plot(self, X_passive_dataset, estimator, color_num):
 
@@ -411,7 +412,7 @@ class PassiveConstrainedSeedKMeans:
             data=df,
         )
         if self.saving_pic:
-            plt.savefig("{}/{}.png".format(self.pics_path, self.pic_name))
+            plt.savefig("{}/clusters.png".format(self.pics_path))
         else:
             plt.show()
         plt.close()
@@ -431,7 +432,7 @@ class PassiveConstrainedSeedKMeans:
         # plt.show()
         plt.title('Silhouette Coefficient Distribution for Each Cluster')
         if self.saving_pic:
-            plt.savefig("{}/{}_silhoutte.png".format(self.pics_path, self.pic_name))
+            plt.savefig("{}/silhoutte.png".format(self.pics_path))
         else:
             plt.show()
         plt.close()
@@ -482,7 +483,6 @@ if __name__ == "__main__":
         n_clusters=n_cluster,
         n_init=2,
         verbose=False,
-        pic_name='digits_{}'.format(Const.PASSIVE_NAME)
     )
 
     passive.train(passive_trainset)
@@ -494,13 +494,9 @@ if __name__ == "__main__":
     passive_new = PassiveConstrainedSeedKMeans(
         messenger=_messenger,
         crypto_type=None,
-        n_clusters=n_cluster,
-        n_init=2,
-        verbose=False,
-        pic_name='digits_{}'.format(Const.PASSIVE_NAME)
     )
 
-    passive_new.cluster_centers_passive_ = passive.load_model()
+    passive.n_clusters, passive_new.cluster_centers_passive_ = passive.load_model()
 
     _ = passive_new.predict(passive_trainset)
 
