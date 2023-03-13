@@ -1,6 +1,7 @@
 import copy
 import time
-
+import datetime
+import os
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, log_loss, roc_auc_score
 from termcolor import colored
@@ -8,7 +9,7 @@ from termcolor import colored
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.woe import ActiveWoe, TestWoe
+from linkefl.feature.woe import ActiveWoe
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
@@ -43,7 +44,7 @@ class Testwoe:
                     ]
 
 
-class ActiveLogReg(BaseLinearActive, BaseModelComponent):
+class ActiveCreditCard(BaseLinearActive, BaseModelComponent):
     def __init__(
         self,
         epochs,
@@ -61,13 +62,14 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         using_pool=False,
         num_workers=-1,
         val_freq=1,
-        saving_model=False,
+        saving_model=True,
         model_path="./models",
         model_name=None,
         positive_thresh=0.5,
         residue_precision=0.0001,
+        
     ):
-        super(ActiveLogReg, self).__init__(
+        super(ActiveCreditCard, self).__init__(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
@@ -90,6 +92,18 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         self.POSITIVE_THRESH = positive_thresh
         self.RESIDUE_PRECISION = len(str(residue_precision).split(".")[1])
         self.gini_list = []
+    
+        if model_name is None:
+            self.model_name = (
+                "vfl_{model_type}/{time}-{role}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.ACTIVE_NAME,
+                    model_type='creditcard',
+                )
+                + ".model"
+            )
+        else:
+            self.model_name = model_name
 
     @staticmethod
     def _logloss(y_true, y_hat):
@@ -106,7 +120,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
 
     def _loss(self, y_true, y_hat):
         # Logistic regression uses log-loss as loss function
-        train_loss = ActiveLogReg._logloss(y_true, y_hat)
+        train_loss = ActiveCreditCard._logloss(y_true, y_hat)
 
         params = getattr(self, "params")
         if self.penalty == Const.NONE:
@@ -151,6 +165,12 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
         best_acc, best_auc = 0.0, 0.0
         start_time = None
         compu_time = 0
+
+        if self.saving_model == True:
+            self.pics_path = os.path.join(self.model_path, "vfl_creditcard")
+            if not os.path.exists(self.pics_path):
+                os.makedirs(self.pics_path)
+
         # Main Training Loop Here
         self.logger.log("Start collaborative model training...")
         for epoch in range(self.epochs):
@@ -240,8 +260,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
                         model_params = copy.deepcopy(getattr(self, "params"))
                         # model_name = self.model_name + "-" + str(trainset.n_samples) \
                         #              + "_samples" + ".model"
-                        model_name = self.model_name
-                        NumpyModelIO.save(model_params, self.model_path, model_name)
+                        NumpyModelIO.save(model_params, self.model_path, self.model_name)
                 for msger in self.messenger:
                     msger.send(is_best)
             print(
@@ -294,40 +313,47 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
 
     @staticmethod
     def online_inference(
-        dataset, model_name, messenger, model_path="./models", POSITIVE_THRESH=0.5
+        dataset, model_name, messenger, model_path="./models"
     ):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
         model_params = NumpyModelIO.load(model_path, model_name)
-        active_wx = np.matmul(dataset.features, model_params)
-        total_wx = active_wx
-        for msger in messenger:
-            curr_wx = msger.recv()
-            total_wx += curr_wx
-        probs = sigmoid(total_wx)
-        preds = (probs > POSITIVE_THRESH).astype(np.int32)
-        accuracy = accuracy_score(dataset.labels, preds)
-        f1 = f1_score(dataset.labels, preds)
-        auc = roc_auc_score(dataset.labels, probs)
 
-        scores = {"acc": accuracy, "auc": auc, "f1": f1}
-        for msger in messenger:
-            msger.send([scores, preds])
-        return scores, preds
+        # Scorecard
+        p = 20 / np.log(2)  # 比例因子
+        q = 600 - 20 * np.log(50) / np.log(2)  # 等于offset,偏移量
+        baseScore = round(q + p * model_params[-1], 0)
+        print(baseScore)
 
-def gini_plot(gini_list, file_dir='./model'):
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    ax.plot(list(range(len(gini_list))), gini_list, label="train_auc")
-    ax.xaxis.set_major_locator(plt.MultipleLocator(10))
-    ax.grid(True, linestyle="-.")
-    ax.set_title("gini")
-    ax.set_ylabel("gini value", labelpad=5, loc="center")
-    ax.set_xlabel("epoch", labelpad=20, loc="center")
-    # plt.show()
-    plt.savefig(f"{file_dir}/gini.png")
-    plt.close()
+        test_score = np.zeros_like(dataset.features)
+        test_score = np.around(model_params * dataset.features * p)
+        print(test_score)
+        print(np.amax(test_score, axis=0), np.amin(test_score, axis=0))
+
+        acti_score = np.sum(test_score[:, 0:-1], axis=1)
+        pass_score = messenger.recv()
+        print(acti_score, pass_score)
+        final_score = acti_score + pass_score + baseScore
+        final_savepath = os.path.join(model_path, 'vfl_creditcard/score.npy')
+        np.save(final_savepath, final_score)
+
+        return None
+
+    def gini_plot(self, pic_path=None):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(list(range(len(self.gini_list))), self.gini_list, label="train_auc")
+        ax.xaxis.set_major_locator(plt.MultipleLocator(10))
+        ax.grid(True, linestyle="-.")
+        ax.set_title("gini")
+        ax.set_ylabel("gini value", labelpad=5, loc="center")
+        ax.set_xlabel("epoch", labelpad=20, loc="center")
+        # plt.show()
+        if pic_path == None:
+            pic_path = f"{self.model_path}/vfl_creditcard/gini.png"
+        plt.savefig(pic_path)
+        plt.close()
 
 
 if __name__ == "__main__":
@@ -410,8 +436,6 @@ if __name__ == "__main__":
     test_woe.cal_woe()
     active_testset = add_intercept(active_testset)
 
-    print(active_trainset.features.shape, active_testset.features.shape)
-
     # 3. Initialize cryptosystem
     _crypto = crypto_factory(
         crypto_type=_crypto_type,
@@ -422,7 +446,7 @@ if __name__ == "__main__":
 
     # 5. Initialize model and start training
     _logger = logger_factory(role=Const.ACTIVE_NAME)
-    active_party = ActiveLogReg(
+    active_party = ActiveCreditCard(
         epochs=_epochs,
         batch_size=_batch_size,
         learning_rate=_learning_rate,
@@ -433,31 +457,10 @@ if __name__ == "__main__":
         reg_lambda=_reg_lambda,
         random_state=_random_state,
         using_pool=_using_pool,
-        saving_model=False,
+        saving_model=True,
     )
 
     active_party.train(active_trainset, active_testset)
-
-    # print(active_party.gini_list)
-    gini_plot(active_party.gini_list)
-    # Scorecard
-    p = 20 / np.log(2)  # 比例因子
-    q = 600 - 20 * np.log(50) / np.log(2)  # 等于offset,偏移量
-    w_a = active_party.params
-    print(w_a)
-    baseScore = round(q + p * w_a[-1], 0)
-    print(baseScore)
-
-    test_score = np.zeros_like(active_testset.features)
-    test_score = np.around(w_a * active_testset.features * p)
-    print(test_score)
-    print(np.amax(test_score, axis=0), np.amin(test_score, axis=0))
-
-    acti_score = np.sum(test_score[:, 0:-1], axis=1)
-    pass_score = _messenger[0].recv()
-    print(acti_score, pass_score)
-    final_score = acti_score + pass_score + baseScore
-
-    np.save("score.npy", final_score)
+    # active_party.online_inference(active_testset, 'vfl_creditcard/20230313_170013-active_party.model', _messenger[0])
     for msger_ in _messenger:
         msger_.close()

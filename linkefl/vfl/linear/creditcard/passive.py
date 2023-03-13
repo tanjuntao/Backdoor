@@ -1,9 +1,10 @@
 import numpy as np
-
+import datetime
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.feature.woe import PassiveWoe, TestWoe
 from linkefl.vfl.linear import BaseLinearPassive
+from linkefl.modelio import NumpyModelIO
 
 
 class Testwoe:
@@ -33,7 +34,7 @@ class Testwoe:
                     ]
 
 
-class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
+class PassiveCreditCard(BaseLinearPassive, BaseModelComponent):
     def __init__(
         self,
         epochs,
@@ -51,11 +52,11 @@ class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
         using_pool=False,
         num_workers=-1,
         val_freq=1,
-        saving_model=False,
+        saving_model=True,
         model_path="./models",
         model_name=None,
     ):
-        super(PassiveLogReg, self).__init__(
+        super(PassiveCreditCard, self).__init__(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
@@ -75,12 +76,46 @@ class PassiveLogReg(BaseLinearPassive, BaseModelComponent):
             model_name=model_name,
             task="classification",
         )
+        if model_name is None:
+            self.model_name = (
+                "vfl_{model_type}/{time}-{role}".format(
+                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    role=Const.PASSIVE_NAME,
+                    model_type='creditcard',
+                )
+                + ".model"
+            )
+        else:
+            self.model_name = model_name
 
     def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
         self.train(trainset, validset)
 
     def score(self, testset, role=Const.PASSIVE_NAME):
         return self.predict(testset)
+    
+    @staticmethod
+    def online_inference(
+        dataset, model_name, messenger, model_path="./models"
+    ):
+        assert isinstance(
+            dataset, NumpyDataset
+        ), "inference dataset should be an instance of NumpyDataset"
+        model_params = NumpyModelIO.load(model_path, model_name)
+
+        # Scorecard
+
+        p = 20 / np.log(2)  # 比例因子
+        q = 600 - 20 * np.log(50) / np.log(2)  # 等于offset,偏移量
+        test_score = np.zeros_like(dataset.features)
+        test_score = np.around(model_params * dataset.features * p)
+        print(test_score)
+        print(np.amax(test_score, axis=0), np.amin(test_score, axis=0))
+        pass_score = np.sum(test_score, axis=1)
+        _messenger.send(pass_score)
+
+        return None
+
 
 
 if __name__ == "__main__":
@@ -151,7 +186,7 @@ if __name__ == "__main__":
 
     print(passive_trainset.features.shape, passive_testset.features.shape)
     _logger = logger_factory(role=Const.PASSIVE_NAME)
-    passive_party = PassiveLogReg(
+    passive_party = PassiveCreditCard(
         epochs=_epochs,
         batch_size=_batch_size,
         learning_rate=_learning_rate,
@@ -162,20 +197,9 @@ if __name__ == "__main__":
         reg_lambda=_reg_lambda,
         random_state=_random_state,
         using_pool=_using_pool,
-        saving_model=False,
+        saving_model=True,
     )
 
     passive_party.train(passive_trainset, passive_testset)
-    w_p = passive_party.params
-    print(w_p)
-
-    p = 20 / np.log(2)  # 比例因子
-    q = 600 - 20 * np.log(50) / np.log(2)  # 等于offset,偏移量
-    test_score = np.zeros_like(passive_testset.features)
-    test_score = np.around(w_p * passive_testset.features * p)
-    print(test_score)
-    print(np.amax(test_score, axis=0), np.amin(test_score, axis=0))
-    pass_score = np.sum(test_score, axis=1)
-    _messenger.send(pass_score)
-
+    # passive_party.online_inference(passive_testset, 'vfl_creditcard/20230313_170013-passive_party.model', _messenger)
     _messenger.close()
