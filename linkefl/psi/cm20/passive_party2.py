@@ -2,7 +2,7 @@ from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
-from linkefl.psi import CM20PSIPassive
+from linkefl.psi import PassiveCM20PSI
 
 if __name__ == "__main__":
     # 1. Get sample IDs
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     _logger = logger_factory(role=Const.PASSIVE_NAME)
 
     # 3. Start the CM20 protocol
-    passive_party = CM20PSIPassive(_messenger, _logger)
+    passive_party = PassiveCM20PSI(messenger=_messenger, logger=_logger)
     intersections_ = passive_party.run(_ids)
     print(len(intersections_))
 

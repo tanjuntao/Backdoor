@@ -6,14 +6,15 @@ import pickle
 import time
 from pathlib import Path
 from secrets import randbelow
-from typing import Union
+from typing import List, Union
 
 import gmpy2
 from Crypto.PublicKey import RSA
 from termcolor import colored
 
-from linkefl.base import BasePSIComponent
+from linkefl.base import BaseMessenger, BasePSIComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.crypto import PartialRSA
 from linkefl.dataio import NumpyDataset, TorchDataset
 
@@ -25,26 +26,35 @@ def _target_mp_pool(r, e, n):
     return r_inv, r_encrypted
 
 
-class RSAPSIPassive(BasePSIComponent):
-    def __init__(self, messenger, logger, num_workers=-1):
+class PassiveRSAPSI(BasePSIComponent):
+    def __init__(
+        self,
+        *,
+        messenger: BaseMessenger,
+        logger: GlobalLogger,
+        num_workers: int = 1,
+    ):
         self.messenger = messenger
         self.logger = logger
-        if num_workers == -1:
-            num_workers = os.cpu_count()
+        assert (
+            num_workers >= 1
+        ), f"num_workers should >=1, but got {num_workers} instead."
         self.num_workers = num_workers
 
         self.RANDOMS_FILENAME = "randoms.pkl"
         self.LARGEST_RANDOM = pow(2, 512)
         self.HERE = os.path.abspath(os.path.dirname(__file__))
 
-    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.PASSIVE_NAME):
+    def fit(
+        self, dataset: Union[NumpyDataset, TorchDataset], role: str = Const.PASSIVE_NAME
+    ) -> Union[NumpyDataset, TorchDataset]:
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
 
         return dataset
 
-    def run(self, ids):
+    def run(self, ids: List[int]) -> List[int]:
         # sync RSA public key
         public_key = self._sync_pubkey()
         self.cryptosystem = PartialRSA(raw_public_key=public_key)
@@ -53,46 +63,22 @@ class RSAPSIPassive(BasePSIComponent):
         # 1. generate random factors
         randoms = [randbelow(self.LARGEST_RANDOM) for _ in range(len(ids))]
         random_factors = self._random_factors_mp_pool(
-            randoms, n_processes=self.num_workers
+            randoms, num_workers=self.num_workers
         )
         self.logger.log("Passive party finished genrating random factors.")
-        self.logger.log_component(
-            name=Const.RSA_PSI,
-            status=Const.RUNNING,
-            begin=start,
-            end=None,
-            duration=time.time() - start,
-            progress=0.1,
-        )
 
         # 2. blind ids
         blinded_ids = self._blind_set(ids, random_factors)
         self.messenger.send(blinded_ids)
         self.logger.log("Passive party finished sending blinded ids to active party.")
-        self.logger.log_component(
-            name=Const.RSA_PSI,
-            status=Const.RUNNING,
-            begin=start,
-            end=None,
-            duration=time.time() - start,
-            progress=0.2,
-        )
 
         # 3. unblind then hash signed ids
         signed_blined_ids = self.messenger.recv()
         signed_ids = self._unblind_set(signed_blined_ids, random_factors)
-        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
+        hashed_signed_ids = PassiveRSAPSI._hash_set(signed_ids)
         self.messenger.send(hashed_signed_ids)
         self.logger.log(
             "Passive party finished sending hashed signed ids to active party"
-        )
-        self.logger.log_component(
-            name=Const.RSA_PSI,
-            status=Const.RUNNING,
-            begin=start,
-            end=None,
-            duration=time.time() - start,
-            progress=0.6,
         )
 
         # 4. receive intersection
@@ -103,7 +89,6 @@ class RSAPSIPassive(BasePSIComponent):
                 intersections.append(ids[idx])
 
         self.logger.log("Size of intersection: {}".format(len(intersections)))
-
         self.logger.log(
             "Total protocol execution time: {:.5f}".format(time.time() - start)
         )
@@ -117,7 +102,7 @@ class RSAPSIPassive(BasePSIComponent):
         )
         return intersections
 
-    def run_offline(self, ids):
+    def run_offline(self, ids: List[int]) -> None:
         print("[PASSIVE] Start the offline protocol...")
         n_elements = len(ids)
         begin = time.time()
@@ -131,7 +116,7 @@ class RSAPSIPassive(BasePSIComponent):
             pickle.dump(randoms, f)
         print("[PASSIVE] Finish the offline protocol.")
 
-    def run_online(self, ids):
+    def run_online(self, ids: List[int]) -> List[int]:
         start_time = time.time()
         public_key = self._sync_pubkey()
         self.cryptosystem = PartialRSA(raw_public_key=public_key)
@@ -142,7 +127,7 @@ class RSAPSIPassive(BasePSIComponent):
         with open(full_path, "rb") as f:
             randoms = pickle.load(f)
         random_factors = self._random_factors_mp_pool(
-            randoms, n_processes=self.num_workers
+            randoms, num_workers=self.num_workers
         )
         print("Only random factors time: {:.5f}".format(time.time() - begin))
         begin = time.time()
@@ -153,7 +138,7 @@ class RSAPSIPassive(BasePSIComponent):
         signed_blined_ids = self.messenger.recv()
         begin = time.time()
         signed_ids = self._unblind_set(signed_blined_ids, random_factors)
-        hashed_signed_ids = RSAPSIPassive._hash_set(signed_ids)
+        hashed_signed_ids = PassiveRSAPSI._hash_set(signed_ids)
         print("Unblind set and hash set time: {:.5f}".format(time.time() - begin))
         self.messenger.send(hashed_signed_ids)
 
@@ -185,16 +170,13 @@ class RSAPSIPassive(BasePSIComponent):
 
         return random_factors
 
-    def _random_factors_mp_pool(self, randoms, n_processes=-1):
-        if n_processes == -1:
-            n_processes = os.cpu_count()
-
+    def _random_factors_mp_pool(self, randoms, num_workers=1):
         e = self.cryptosystem.pub_key.e
         n = self.cryptosystem.pub_key.n
-        if n_processes == 1:
+        if num_workers == 1:
             return [_target_mp_pool(r, e, n) for r in randoms]
 
-        with multiprocessing.Pool(n_processes) as p:
+        with multiprocessing.Pool(num_workers) as p:
             random_factors = p.map(
                 functools.partial(_target_mp_pool, e=e, n=n), randoms
             )
@@ -207,9 +189,7 @@ class RSAPSIPassive(BasePSIComponent):
 
         n = self.cryptosystem.pub_key.n
         r_invs = [gmpy2.invert(r, n) for r in randoms]
-        r_encs = self.cryptosystem.encrypt_vector(
-            randoms, using_pool=True, n_workers=n_threads
-        )
+        r_encs = self.cryptosystem.encrypt_vector(randoms, num_workers=n_threads)
         random_factors = list(zip(r_invs, r_encs))
 
         return random_factors
@@ -277,7 +257,7 @@ if __name__ == "__main__":
     # _logger = logger_factory(role=Const.ACTIVE_NAME)
     #
     # # 3. Start the RSA-Blind-Signature protocol
-    # alice = RSAPSIPassive(_messenger, _logger)
+    # alice = PassiveRSAPSI(_messenger, _logger)
     # if args.phase == 'offline':
     #     alice.run_offline(_ids)
     # elif args.phase == 'online':
@@ -305,7 +285,9 @@ if __name__ == "__main__":
     )
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     # 3. Start the RSA-Blind-Signature protocol
-    passive_party = RSAPSIPassive(_messenger, _logger)
+    passive_party = PassiveRSAPSI(
+        messenger=_messenger, logger=_logger, num_workers=os.cpu_count()
+    )
     intersections_ = passive_party.run(_ids)
     print(len(intersections_))
 

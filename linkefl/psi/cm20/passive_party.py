@@ -1,8 +1,9 @@
 import time
-from typing import Union
+from typing import List, Union
 
-from linkefl.base import BasePSIComponent
+from linkefl.base import BaseMessenger, BasePSIComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset, TorchDataset
 
 try:
@@ -13,18 +14,18 @@ except ImportError:
     )
 
 
-class CM20PSIPassive(BasePSIComponent):
+class PassiveCM20PSI(BasePSIComponent):
     def __init__(
         self,
-        messenger,
-        logger,
         *,
-        log_height=8,
-        width=632,
-        hash_length=10,
-        h1_length=32,
-        bucket1=1 << 8,
-        bucket2=1 << 8,
+        messenger: BaseMessenger,
+        logger: GlobalLogger,
+        log_height: int = 8,
+        width: int = 632,
+        hash_length: int = 10,
+        h1_length: int = 32,
+        bucket1: int = 1 << 8,
+        bucket2: int = 1 << 8,
     ):
         self.messenger = messenger
         self.logger = logger
@@ -35,14 +36,16 @@ class CM20PSIPassive(BasePSIComponent):
         self.bucket1 = bucket1
         self.bucket2 = bucket2
 
-    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.PASSIVE_NAME):
+    def fit(
+        self, dataset: Union[NumpyDataset, TorchDataset], role: str = Const.PASSIVE_NAME
+    ) -> Union[NumpyDataset, TorchDataset]:
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
 
         return dataset
 
-    def run(self, ids):
+    def run(self, ids: List[int]) -> List[int]:
         passive_ids_len = len(ids)
 
         start = time.time()
@@ -107,7 +110,7 @@ if __name__ == "__main__":
     _logger = logger_factory(role=Const.PASSIVE_NAME)
 
     # 3. Start the CM20 protocol
-    passive_party = CM20PSIPassive(_messenger, _logger)
+    passive_party = PassiveCM20PSI(messenger=_messenger, logger=_logger)
     intersections_ = passive_party.run(_ids)
     print(len(intersections_))
 
