@@ -1,4 +1,6 @@
-from typing import Optional
+from typing import Optional, Union
+
+import phe
 
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
@@ -23,8 +25,12 @@ from linkefl.messenger.socket_multiclient import (
 
 
 def crypto_factory(
-    crypto_type, *, key_size=1024, num_enc_zeros=10000, gen_from_set=True
-):
+    crypto_type: str,
+    *,
+    key_size: int = 1024,
+    num_enc_zeros: int = 10000,
+    gen_from_set: bool = True,
+) -> Union[Plain, Paillier, FastPaillier]:
     if crypto_type == Const.PLAIN:
         crypto = Plain(key_size=key_size)
     elif crypto_type == Const.PAILLIER:
@@ -40,8 +46,12 @@ def crypto_factory(
 
 
 def partial_crypto_factory(
-    crypto_type, *, public_key, num_enc_zeros=10000, gen_from_set=True
-):
+    crypto_type: str,
+    *,
+    public_key: Union[phe.PaillierPublicKey, None],
+    num_enc_zeros: int = 10000,
+    gen_from_set: bool = True,
+) -> Union[PartialPlain, PartialPaillier, PartialFastPaillier]:
     if crypto_type == Const.PLAIN:
         partial_crypto = PartialPlain(raw_public_key=public_key)
     elif crypto_type == Const.PAILLIER:
@@ -59,15 +69,15 @@ def partial_crypto_factory(
 
 
 def messenger_factory(
-    messenger_type,
+    messenger_type: str,
     *,
-    role,
-    active_ip,
-    active_port,
-    passive_ip,
-    passive_port,
-    verbose=False,
-):
+    role: str,
+    active_ip: str,
+    active_port: int,
+    passive_ip: str,
+    passive_port: int,
+    verbose: bool = False,
+) -> Union[Socket, FastSocket]:
     if messenger_type == Const.SOCKET:
         messenger = Socket(
             role=role,
@@ -253,11 +263,11 @@ def logger_factory(
     file_path: Optional[str] = None,
     remote_url: Optional[str] = None,
     stacklevel: int = 2,
-):
+) -> GlobalLogger:
     return GlobalLogger(
         role=role,
         writing_file=writing_file,
         file_path=file_path,
         remote_url=remote_url,
-        stacklevel=stacklevel
+        stacklevel=stacklevel,
     )

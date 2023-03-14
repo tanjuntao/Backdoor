@@ -6,7 +6,7 @@ import pathlib
 import queue
 import time
 from logging.handlers import HTTPHandler, QueueHandler, QueueListener
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Union
 from urllib.parse import urlparse
 
 from linkefl.common.const import Const
@@ -35,8 +35,8 @@ class GlobalLogger:
         )
 
         instance = super().__new__(cls)
-        instance.role = role
-        instance.stacklevel = stacklevel
+        instance.role = role  # type: ignore
+        instance.stacklevel = stacklevel  # type: ignore
 
         # instantiate a Python logger if it does not exist
         if cls._logger is None:
@@ -135,20 +135,20 @@ class GlobalLogger:
             "r2": round(r2, GlobalLogger._PRECISION),
             "time": self._time_formatter(time.time()),
             "progress": epoch / total_epoch,
-            "role": self.role,
+            "role": self.role,  # type: ignore
         }
         if hasattr(self, "metainfo"):
             json_msg.update(getattr(self, "metainfo"))
         json_msg = json.dumps({"metricLog": json_msg})
         log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
-        log_func(json_msg, stacklevel=self.stacklevel)
+        log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
 
     def log_component(
         self,
         name: str,
         status: str,
         begin: float,
-        end: float,
+        end: Union[float, None],
         duration: float,
         progress: float,
         failure_reason: Optional[str] = None,
@@ -162,13 +162,13 @@ class GlobalLogger:
             "duration": duration,
             "progress": progress,
             "failure_reason": failure_reason,
-            "role": self.role,
+            "role": self.role,  # type: ignore
         }
         if hasattr(self, "metainfo"):
             json_msg.update(getattr(self, "metainfo"))
         json_msg = json.dumps({"componentLog": json_msg})
         log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
-        log_func(json_msg, stacklevel=self.stacklevel)
+        log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
 
     def log_task(
         self,
@@ -183,13 +183,13 @@ class GlobalLogger:
             "end": self._time_formatter(end),
             "status": status,
             "failure_reason": failure_reason,
-            "role": self.role,
+            "role": self.role,  # type: ignore
         }
         if hasattr(self, "metainfo"):
             json_msg.update(getattr(self, "metainfo"))
         json_msg = json.dumps({"taskLog": json_msg})
         log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
-        log_func(json_msg, stacklevel=self.stacklevel)
+        log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
 
     def log(
         self,
@@ -199,13 +199,13 @@ class GlobalLogger:
         json_msg = {
             "content": content,
             "time": self._time_formatter(time.time()),
-            "role": self.role,
+            "role": self.role,  # type: ignore
         }
         if hasattr(self, "metainfo"):
             json_msg.update(getattr(self, "metainfo"))
         json_msg = json.dumps({"messageLog": json_msg})
         log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
-        log_func(json_msg, stacklevel=self.stacklevel)
+        log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
 
     def close(self):
         if GlobalLogger._http_listener is not None:

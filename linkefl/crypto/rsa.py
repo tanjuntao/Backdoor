@@ -3,14 +3,16 @@ import functools
 import multiprocessing
 import os
 import threading
+from multiprocessing.pool import Pool, ThreadPool
 from pathlib import Path
+from typing import List, Optional, Union
 
 import gmpy2
 from Crypto.PublicKey import RSA as CryptoRSA
+from Crypto.PublicKey.RSA import RsaKey
 
 from linkefl.base import BaseCryptoSystem, BasePartialCryptoSystem
 from linkefl.common.const import Const
-from linkefl.config import BaseConfig
 
 
 class RSAPublicKey:
@@ -22,20 +24,22 @@ class RSAPublicKey:
     def raw_encrypt(self, plaintext):
         return gmpy2.powmod(plaintext, self.e, self.n)
 
-    def raw_encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
-        assert isinstance(
-            plain_vector, list
-        ), "in RSA cryptosystem, plain_vector can only be a Python list."
+    def raw_encrypt_vector(self, plain_vector, thread_pool=None, num_workers=1):
+        assert isinstance(plain_vector, list), (
+            "in RSA cryptosystem, plain_vector can only be a Python list, but got"
+            f" {type(plain_vector)} instead."
+        )
+        assert (
+            num_workers >= 1
+        ), f"number of workers should >=1, but got {num_workers} instead."
 
-        if not using_pool:
+        if thread_pool is None and num_workers == 1:
             return [self.raw_encrypt(val) for val in plain_vector]
 
+        create_pool = False
         if thread_pool is None:
-            if n_workers is None:
-                n_workers = os.cpu_count()
-            thread_pool = multiprocessing.pool.ThreadPool(n_workers)
+            create_pool = True
+            thread_pool = multiprocessing.pool.ThreadPool(num_workers)
 
         # important: make a copy of original plain_vector, so it will not be modified
         plain_vector = copy.deepcopy(plain_vector)
@@ -59,6 +63,8 @@ class RSAPublicKey:
         for t in threads:
             t.join()
 
+        if create_pool:
+            thread_pool.close()
         return plain_vector
 
     @staticmethod
@@ -89,20 +95,22 @@ class RSAPrivateKey:
     def raw_decrypt(self, ciphertext):
         return gmpy2.powmod(ciphertext, self.d, self.n)
 
-    def raw_decrypt_vector(
-        self, cipher_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
-        assert isinstance(
-            cipher_vector, list
-        ), "in RSA cryptosystem, cipher_vector can only be a Python list."
+    def raw_decrypt_vector(self, cipher_vector, thread_pool=None, num_workers=1):
+        assert isinstance(cipher_vector, list), (
+            "in RSA cryptosystem, cipher_vector can only be a Python list, but got"
+            f" {type(cipher_vector)} instead."
+        )
+        assert (
+            num_workers >= 1
+        ), f"number of workers should >=1, but got {num_workers} instead."
 
-        if not using_pool:
+        if thread_pool is None and num_workers == 1:
             return [self.raw_decrypt(val) for val in cipher_vector]
 
+        create_pool = False
         if thread_pool is None:
-            if n_workers is None:
-                n_workers = os.cpu_count()
-            thread_pool = multiprocessing.pool.ThreadPool(n_workers)
+            create_pool = True
+            thread_pool = multiprocessing.pool.ThreadPool(num_workers)
 
         # important: make a copy of original cipher_vector, so it will not be modified
         cipher_vector = copy.deepcopy(cipher_vector)
@@ -131,6 +139,8 @@ class RSAPrivateKey:
         for t in threads:
             t.join()
 
+        if create_pool:
+            thread_pool.close()
         return cipher_vector
 
     @staticmethod
@@ -139,19 +149,22 @@ class RSAPrivateKey:
         ciphertexts[start:end] = gmpy2.powmod_base_list(sub_list, d, n)
 
     def _raw_decrypt_vector_pool(
-        self, cipher_vector, using_pool=False, n_workers=None, process_pool=None
+        self,
+        cipher_vector,
+        process_pool=None,
+        num_workers=1,
     ):
         assert isinstance(
             cipher_vector, list
         ), "in RSA cryptosystem, cipher_vector can only be a Python list."
 
-        if not using_pool:
+        if process_pool is None and num_workers == 1:
             return [self.raw_decrypt(val) for val in cipher_vector]
 
+        create_pool = False
         if process_pool is None:
-            if n_workers is None:
-                n_workers = os.cpu_count()
-            process_pool = multiprocessing.pool.Pool(n_workers)
+            create_pool = True
+            process_pool = multiprocessing.pool.Pool(num_workers)
 
         manager = multiprocessing.Manager()
         shared_data = manager.list(cipher_vector)
@@ -159,11 +172,12 @@ class RSAPrivateKey:
         n = self.n
         # the gmpy2.powmod function cannot accept keyword arguments,
         # so you need to write a wrapper function of it.
-        # Note that the target function can also not be within this python class
         res = process_pool.map(
             functools.partial(self._target_dec_vector_pool, d=d, n=n), shared_data
         )
 
+        if create_pool:
+            process_pool.close()
         return res
 
     @staticmethod
@@ -172,45 +186,55 @@ class RSAPrivateKey:
 
 
 class PartialRSA(BasePartialCryptoSystem):
-    def __init__(self, raw_public_key):
+    def __init__(self, raw_public_key: RsaKey):
         super(PartialRSA, self).__init__()
-        self.pub_key = raw_public_key  # for API consistency
+        self.pub_key: RsaKey = raw_public_key  # for API consistency
         self.pub_key_obj = RSAPublicKey(raw_public_key)
-        self.type = Const.RSA
+        self.type: str = Const.RSA
 
-    def encrypt(self, plaintext):
+    def encrypt(self, plaintext: Union[int, gmpy2.mpz]) -> gmpy2.mpz:
         return self.pub_key_obj.raw_encrypt(plaintext)
 
     def encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
-        return self.pub_key_obj.raw_encrypt_vector(
-            plain_vector, using_pool, n_workers, thread_pool
-        )
+        self,
+        plain_vector: List[Union[int, gmpy2.mpz]],
+        *,
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[gmpy2.mpz]:
+        return self.pub_key_obj.raw_encrypt_vector(plain_vector, pool, num_workers)
 
-    def inverse(self, plaintext):
+    def inverse(self, plaintext: Union[int, gmpy2.mpz]) -> gmpy2.mpz:
         return self.pub_key_obj.raw_inverse(plaintext)
 
-    def mulmod(self, x, y, z):
+    def mulmod(
+        self,
+        x: Union[int, gmpy2.mpz],
+        y: Union[int, gmpy2.mpz],
+        z: Union[int, gmpy2.mpz],
+    ) -> gmpy2.mpz:
         return self.pub_key_obj.raw_mulmod(x, y, z)
 
 
 class RSA(BaseCryptoSystem):
     PRIV_KEY_NAME = "rsa_priv_key.bin"
 
-    def __init__(self, key_size=1024, e=0x10001, private_key=None):
+    def __init__(
+        self,
+        key_size: int = 1024,
+        e: int = 0x10001,
+        private_key: Optional[RsaKey] = None,
+    ):
         super(RSA, self).__init__(key_size)
         raw_public_key, raw_private_key = self._gen_key(key_size, e, private_key)
         # save private key, so it can be loaded back
         # when executing RSA-PSI online protocol
         RSA._save_key(raw_private_key)
-        self.pub_key, self.priv_key = (
-            raw_public_key,
-            raw_private_key,
-        )  # for API consistency
+        self.pub_key: RsaKey = raw_public_key
+        self.priv_key: RsaKey = raw_private_key
         self.pub_key_obj = RSAPublicKey(raw_public_key)
         self.priv_key_obj = RSAPrivateKey(raw_private_key)
-        self.type = Const.RSA
+        self.type: str = Const.RSA
 
     def _gen_key(self, key_size, e=0x10001, private_key=None):
         if private_key is None:
@@ -235,13 +259,6 @@ class RSA(BaseCryptoSystem):
             f.write(encrypted_key)
 
     @classmethod
-    def from_config(cls, config):
-        assert isinstance(
-            config, BaseConfig
-        ), "config object should be an instance of BaseConfig class."
-        return cls(key_size=config.KEY_SIZE, e=config.PUB_E)
-
-    @classmethod
     def from_private_key(cls):
         full_path = os.path.join(
             Path.home(), Const.PROJECT_CACHE_DIR, cls.PRIV_KEY_NAME
@@ -249,9 +266,7 @@ class RSA(BaseCryptoSystem):
 
         # check if the private key exists
         if not os.path.exists(full_path):
-            raise FileNotFoundError(
-                "There is no RSA private key within the~/.linkefl/ directory."
-            )
+            raise FileNotFoundError("RSA private key not found under ~/.linkefl/")
 
         # load the private key
         encoded_key = open(full_path, "rb").read()
@@ -260,38 +275,48 @@ class RSA(BaseCryptoSystem):
 
         return cls(private_key=private_key)
 
-    def encrypt(self, plaintext):
+    def encrypt(self, plaintext: Union[int, gmpy2.mpz]) -> gmpy2.mpz:
         return self.pub_key_obj.raw_encrypt(plaintext)
 
-    def decrypt(self, ciphertext):
+    def decrypt(self, ciphertext: Union[int, gmpy2.mpz]) -> gmpy2.mpz:
         return self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
-        return self.pub_key_obj.raw_encrypt_vector(
-            plain_vector, using_pool, n_workers, thread_pool
-        )
+        self,
+        plain_vector: List[Union[int, gmpy2.mpz]],
+        *,
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[gmpy2.mpz]:
+        return self.pub_key_obj.raw_encrypt_vector(plain_vector, pool, num_workers)
 
     def decrypt_vector(
-        self, cipher_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
-        return self.priv_key_obj.raw_decrypt_vector(
-            cipher_vector, using_pool, n_workers, thread_pool
-        )
+        self,
+        cipher_vector: List[Union[int, gmpy2.mpz]],
+        *,
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[gmpy2.mpz]:
+        return self.priv_key_obj.raw_decrypt_vector(cipher_vector, pool, num_workers)
 
-    def sign(self, x):
+    def sign(self, x: Union[int, gmpy2.mpz]) -> gmpy2.mpz:
         return self.decrypt(x)
 
-    def sign_vector(self, X, using_pool=False, n_workers=None, thread_pool=None):
-        return self.decrypt_vector(X, using_pool, n_workers, thread_pool)
+    def sign_vector(
+        self,
+        X: List[Union[int, gmpy2.mpz]],
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[gmpy2.mpz]:
+        return self.decrypt_vector(X, pool=pool, num_workers=num_workers)
 
-    def inverse(self, x):
-        return self.pub_key_obj.raw_inverse(x)
+    def inverse(self, plaintext: Union[int, gmpy2.mpz]) -> gmpy2.mpz:
+        return self.pub_key_obj.raw_inverse(plaintext)
 
-    def mulmod(self, x, y, z):
+    def mulmod(
+        self,
+        x: Union[int, gmpy2.mpz],
+        y: Union[int, gmpy2.mpz],
+        z: Union[int, gmpy2.mpz],
+    ) -> gmpy2.mpz:
         return self.pub_key_obj.raw_mulmod(x, y, z)
-
-
-if __name__ == "__main__":
-    pass
