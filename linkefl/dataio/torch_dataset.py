@@ -1,5 +1,5 @@
 import random
-from typing import Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -13,12 +13,13 @@ from linkefl.dataio.common_dataset import CommonDataset
 class TorchDataset(CommonDataset, Dataset):
     def __init__(
         self,
+        *,
         role: str,
         raw_dataset: Union[np.ndarray, torch.Tensor],
-        header: list,
+        header: List[str],
         dataset_type: str,
-        transform: BaseTransformComponent = None,
-        header_type=None,
+        transform: Optional[BaseTransformComponent] = None,
+        header_type: Optional[List[str]] = None,
     ):
         if isinstance(raw_dataset, np.ndarray):
             # PyTorch forward() function expects tensor type of Float rather Double,
@@ -180,11 +181,12 @@ class TorchDataset(CommonDataset, Dataset):
 class MediaDataset(TorchDataset, Dataset):
     def __init__(
         self,
-        role,
-        dataset_name,
-        root,
-        train,
-        download=False,
+        *,
+        role: str,
+        dataset_name: str,
+        root: str,
+        train: bool,
+        download: bool = False,
     ):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
         assert dataset_name in (
@@ -287,7 +289,7 @@ class MediaDataset(TorchDataset, Dataset):
             raise ValueError("not suported now.")
 
         _feats = torch.stack(imgs)  # stack() will create a new dimension
-        _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
+        _labels = buildin_dataset.targets.clone().detach()
         if role == Const.ACTIVE_NAME:
             setattr(self, "_features", _feats)
             setattr(self, "_labels", _labels)

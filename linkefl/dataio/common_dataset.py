@@ -2,7 +2,7 @@ from __future__ import annotations  # python >= 3.7, give type hint before defin
 
 import io
 import random
-from typing import Union
+from typing import Any, Dict, List, Optional, Sequence, Type, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -15,16 +15,19 @@ from linkefl.common.const import Const
 class CommonDataset:
     """Common Dataset"""
 
-    mappings = None  # mappings for pandas non-numeric columns
+    # mappings for pandas non-numeric columns
+    mappings: Dict[int, Dict[str, int]] = None
+    # ref: https://stackoverflow.com/a/44644576/8418540  # noqa: E501
+    T = TypeVar("T", bound="Parent")  # noqa: F821
 
     def __init__(
         self,
         role: str,
         raw_dataset: Union[np.ndarray, torch.Tensor],
-        header: list,
+        header: List[str],
         dataset_type: str,
-        transform: BaseTransformComponent = None,
-        header_type=None,
+        transform: Optional[BaseTransformComponent] = None,
+        header_type: Optional[List[str]] = None,
     ):
         super(CommonDataset, self).__init__()
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
@@ -42,12 +45,13 @@ class CommonDataset:
 
     @classmethod
     def train_test_split(
-        cls,
+        cls: Type[T],
         dataset: CommonDataset,
+        *,
         test_size: float,
-        option: str = Const.SEQUENCE,
-        seed=None,
-    ):
+        option: str = "sequence",
+        seed: Optional[int] = None,
+    ) -> List[T, T]:
         """Split the whole dataset into trainset and testset"""
         assert isinstance(
             dataset, CommonDataset
@@ -84,16 +88,17 @@ class CommonDataset:
             dataset_type=dataset.dataset_type,
         )
 
-        return trainset, testset
+        return [trainset, testset]
 
     @classmethod
     def feature_split(
-        cls,
+        cls: Type[T],
         dataset: CommonDataset,
+        *,
         n_splits: int,
-        option: str = Const.SEQUENCE,
-        seed=None,
-    ):
+        option: str = "sequence",
+        seed: Optional[int] = None,
+    ) -> List[T, ...]:
         assert isinstance(
             dataset, CommonDataset
         ), "dataset should be an instance of CommonDataset"
@@ -148,16 +153,17 @@ class CommonDataset:
     @classmethod
     def buildin_dataset(
         cls,
-        role,
-        dataset_name,
-        root,
-        train,
-        passive_feat_frac,
-        feat_perm_option,
-        download=False,
-        transform=None,
-        seed=None,
-    ):
+        *,
+        role: str,
+        dataset_name: str,
+        root: str,
+        train: bool,
+        passive_feat_frac: float,
+        feat_perm_option: str,
+        download: bool = False,
+        transform: Optional[BaseTransformComponent] = None,
+        seed: Optional[int] = None,
+    ) -> CommonDataset:
         def _check_params():
             assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
             assert (
@@ -200,14 +206,15 @@ class CommonDataset:
     @classmethod
     def dummy_dataset(
         cls,
-        role,
-        dataset_type,
-        n_samples,
-        n_features,
-        passive_feat_frac,
-        transform=None,
-        seed=None,
-    ):
+        *,
+        role: str,
+        dataset_type: str,
+        n_samples: int,
+        n_features: int,
+        passive_feat_frac: float,
+        transform: Optional[BaseTransformComponent] = None,
+        seed: Optional[int] = None,
+    ) -> CommonDataset:
         if seed is not None:
             random.seed(seed)
         _ids = np.arange(n_samples)
@@ -247,23 +254,23 @@ class CommonDataset:
     @classmethod
     def from_mysql(
         cls,
-        role,
-        dataset_type,
-        host,
-        user,
-        password,
-        database,
-        table,
         *,
-        target_fields=None,
-        excluding_fields=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-        port=3306,
-    ):
+        role: str,
+        dataset_type: str,
+        host: str,
+        user: str,
+        password: str,
+        database: str,
+        table: str,
+        target_fields: Optional[List[str]] = None,
+        excluding_fields: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+        port: int = 3306,
+    ) -> CommonDataset:
         """Load dataset from MySQL database."""
         import pymysql
 
@@ -316,23 +323,23 @@ class CommonDataset:
     @classmethod
     def from_mariadb(
         cls,
-        role,
-        dataset_type,
-        host,
-        user,
-        password,
-        database,
-        table,
         *,
-        target_fields=None,
-        excluding_fields=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-        port=3306,
-    ):
+        role: str,
+        dataset_type: str,
+        host: str,
+        user: str,
+        password: str,
+        database: str,
+        table: str,
+        target_fields: Optional[List[str]] = None,
+        excluding_fields: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+        port: int = 3306,
+    ) -> CommonDataset:
         """
         Load dataset from MariaDB database.
         Note that the default port is 3306, the same as mysql
@@ -384,23 +391,23 @@ class CommonDataset:
     @classmethod
     def from_oracle(
         cls,
-        role,
-        dataset_type,
-        host,
-        user,
-        password,
-        database,
-        table,
         *,
-        target_fields=None,
-        excluding_fields=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-        port=1521,
-    ):
+        role: str,
+        dataset_type: str,
+        host: str,
+        user: str,
+        password: str,
+        database: str,
+        table: str,
+        target_fields: Optional[List[str]] = None,
+        excluding_fields: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+        port: int = 1521,
+    ) -> CommonDataset:
         import cx_Oracle
 
         service_name = database
@@ -449,23 +456,23 @@ class CommonDataset:
     @classmethod
     def from_gaussdb(
         cls,
-        role,
-        dataset_type,
-        host,
-        user,
-        password,
-        database,
-        table,
         *,
-        target_fields=None,
-        excluding_fields=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-        port=6789,
-    ):
+        role: str,
+        dataset_type: str,
+        host: str,
+        user: str,
+        password: str,
+        database: str,
+        table: str,
+        target_fields: Optional[List[str]] = None,
+        excluding_fields: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+        port: int = 6789,
+    ) -> CommonDataset:
         """Load dataset from Gaussdb database."""
         # Note that Python is a dynamic programming language, so this error message can
         # be safely ignored in case where you do not need to call this method with a
@@ -523,23 +530,23 @@ class CommonDataset:
     @classmethod
     def from_gbase8a(
         cls,
-        role,
-        dataset_type,
-        host,
-        user,
-        password,
-        database,
-        table,
         *,
-        target_fields=None,
-        excluding_fields=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-        port=6789,
-    ):
+        role: str,
+        dataset_type: str,
+        host: str,
+        user: str,
+        password: str,
+        database: str,
+        table: str,
+        target_fields: Optional[List[str]] = None,
+        excluding_fields: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+        port: int = 6789,
+    ) -> CommonDataset:
         """Load dataset from gbase8a database."""
         import pymysql
 
@@ -587,23 +594,23 @@ class CommonDataset:
     @classmethod
     def from_db2(
         cls,
-        role,
-        dataset_type,
-        host,
-        user,
-        password,
-        database,
-        table,
         *,
-        target_fields=None,
-        excluding_fields=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-        port=None,
-    ):
+        role: str,
+        dataset_type: str,
+        host: str,
+        user: str,
+        password: str,
+        database: str,
+        table: str,
+        target_fields: Optional[List[str]] = None,
+        excluding_fields: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+        port: Optional[int] = None,
+    ) -> CommonDataset:
         """
         Load dataset from IBM DB2 database.
         No default port
@@ -644,17 +651,18 @@ class CommonDataset:
     @classmethod
     def from_csv(
         cls,
-        role,
-        abs_path,
-        dataset_type,
-        delimiter=",",
-        has_header=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-    ):
+        *,
+        role: str,
+        abs_path: str,
+        dataset_type: str,
+        delimiter: str = ",",
+        has_header: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+    ) -> CommonDataset:
         header_arg = 0 if has_header else None
         df_dataset = pd.read_csv(
             abs_path,
@@ -691,16 +699,17 @@ class CommonDataset:
     @classmethod
     def from_excel(
         cls,
-        role,
-        abs_path,
-        dataset_type,
-        has_header=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-    ):
+        *,
+        role: str,
+        abs_path: str,
+        dataset_type: str,
+        has_header: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+    ) -> CommonDataset:
         """Load dataset from excel.
         need dependency package openpyxl, support .xls .xlsx
         """
@@ -735,18 +744,19 @@ class CommonDataset:
     @classmethod
     def from_json(
         cls,
-        role,
-        abs_path,
-        dataset_type,
-        data_field="data",
-        has_header=True,
-        existing_json=None,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-    ):
+        *,
+        role: str,
+        abs_path: Union[str, None],
+        dataset_type: str,
+        data_field: str = "data",
+        has_header: bool = True,
+        existing_json: Optional[dict] = None,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+    ) -> CommonDataset:
         if existing_json is None:
             whole_json = pd.read_json(abs_path)
             raw_data = whole_json[data_field].tolist()  # a Python list
@@ -776,18 +786,19 @@ class CommonDataset:
     @classmethod
     def from_api(
         cls,
-        role,
-        url,
-        dataset_type,
-        post_params=None,
-        data_field="data",
-        has_header=True,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-    ):
+        *,
+        role: str,
+        url: str,
+        dataset_type: str,
+        post_params: Optional[Dict[str, Any]] = None,
+        data_field: str = "data",
+        has_header: bool = True,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+    ) -> CommonDataset:
         import json
 
         import requests
@@ -811,17 +822,18 @@ class CommonDataset:
     @classmethod
     def from_anyfile(
         cls,
-        role,
-        abs_path,
-        dataset_type,
-        is_local,
-        has_header=False,
-        date_columns=None,
-        row_threshold=0.3,
-        column_threshold=0.3,
-        mappings=None,
-        transform=None,
-    ):
+        *,
+        role: str,
+        abs_path: str,
+        dataset_type: str,
+        is_local: bool,
+        has_header: bool = False,
+        date_columns: Optional[List[str]] = None,
+        row_threshold: float = 0.3,
+        column_threshold: float = 0.3,
+        mappings: Optional[Dict[int, Dict[str, int]]] = None,
+        transform: Optional[BaseTransformComponent] = None,
+    ) -> CommonDataset:
         extension = abs_path.split(".")[-1]
         # if the data file is in remote
         if not is_local:
@@ -888,19 +900,19 @@ class CommonDataset:
             raise RuntimeError("file type {} is not supported.".format(extension))
 
     @property
-    def header(self):
+    def header(self) -> List[str]:
         return self._header
 
     @header.setter
-    def header(self, value: list):
-        assert len(value) == len(self._header), (
+    def header(self, new_header: List[str]) -> None:
+        assert len(new_header) == len(self._header), (
             "the length of the new header is {}, which does not match the length"
-            "of the older header".format(len(value))
+            "of the older header".format(len(new_header))
         )
-        self._header = value
+        self._header = new_header
 
     @property
-    def ids(self):  # read only
+    def ids(self) -> List[int]:  # read only
         """Always return a Python list"""
         # avoid re-computing on each function call
         if not hasattr(self, "_ids"):
@@ -911,7 +923,7 @@ class CommonDataset:
             setattr(self, "_ids", py_ids)
         return getattr(self, "_ids")
 
-    def obfuscated_ids(self, option="md5"):
+    def obfuscated_ids(self, option: str = "md5") -> List[int]:
         import hashlib
 
         from gmssl import func, sm3
@@ -943,7 +955,7 @@ class CommonDataset:
         return obfuscated_ids
 
     @property
-    def features(self):  # read only
+    def features(self) -> Union[np.ndarray, torch.Tensor]:  # read only
         if not hasattr(self, "_features"):
             if self.role == Const.ACTIVE_NAME:
                 setattr(self, "_features", self._raw_dataset[:, 2:])
@@ -952,7 +964,7 @@ class CommonDataset:
         return getattr(self, "_features")
 
     @property
-    def labels(self):  # read only
+    def labels(self) -> Union[np.ndarray, torch.Tensor]:  # read only
         if self.role == Const.PASSIVE_NAME:
             raise AttributeError("Passive party has no labels.")
 
@@ -973,14 +985,14 @@ class CommonDataset:
         return getattr(self, "_labels")
 
     @property
-    def n_features(self):  # read only
+    def n_features(self) -> int:  # read only
         return self.features.shape[1]
 
     @property
-    def n_samples(self):  # read only
+    def n_samples(self) -> int:  # read only
         return self.features.shape[0]
 
-    def filter(self, intersect_ids: Union[list, np.ndarray]):
+    def filter(self, intersect_ids: Union[List[int], np.ndarray]) -> None:
         # Solution 1: this works only when dataset ids start from zero
         # if type(intersect_ids) == list:
         #     intersect_ids = np.array(intersect_ids)
@@ -1010,7 +1022,12 @@ class CommonDataset:
         new_raw_dataset = self._raw_dataset[idxes]
         self.set_dataset(new_raw_dataset)
 
-    def filter_fields(self, target_fields, excluding_fields=False):
+    def filter_fields(
+        self,
+        target_fields: List[str],
+        *,
+        excluding_fields: bool = False,
+    ) -> None:
         offset = 1 if self.role == Const.PASSIVE_NAME else 2
         feats_header = self._header[offset:]
         all_idxes = list(range(len(feats_header)))
@@ -1041,26 +1058,17 @@ class CommonDataset:
         self.set_dataset(new_raw_dataset)
         self._header = new_header
 
-    def describe(self, path="./"):
-        import io
-        import os
-
-        import seaborn as sns
-        from matplotlib import pyplot as plt
-        from termcolor import colored
-
+    def describe(self, *, pics_dir: str = "./") -> dict:
         from linkefl.feature.feature_evaluation import FeatureEvaluation
         from linkefl.feature.woe import Basewoe
-        from linkefl.vfl.tree.plotting import Plot
+        from linkefl.vfl.utils.evaluate import Plot
 
-        static_result = {}
+        static_result = dict()
         static_result["n_samples"] = self.n_samples
         static_result["n_features"] = self.n_features
 
         pd.set_option("display.max_columns", None)
         df_dataset = pd.DataFrame(self.features)
-        # for i in range(self.n_features):
-        #     df_dataset.rename(columns={i: 'x{}'.format(i)}, inplace=True)
         if self.role == Const.ACTIVE_NAME:
             for i in range(self.n_features):
                 df_dataset.rename(columns={i: self.header[i + 2]}, inplace=True)
@@ -1095,7 +1103,7 @@ class CommonDataset:
                 self.labels, "active", modify=False
             )
             # plot feature iv valueddc
-            Plot.plot_iv(iv, path)
+            Plot.plot_iv(iv, pics_dir)
             iv = pd.DataFrame(iv, index=[0])
             iv = pd.DataFrame(data=iv.values, index=["iv"], columns=col_names)
             iv_sum = iv.iloc[0, :].sum()
@@ -1131,7 +1139,7 @@ class CommonDataset:
 
         stat = {}
         for field in col_names:
-            tstat = {}
+            tstat = dict()
             tstat["missing_rate"] = round(
                 ((self.n_samples - info.loc["count"][field]) / self.n_samples), 4
             )
@@ -1142,7 +1150,7 @@ class CommonDataset:
             tstat["iv"] = float(info.loc["iv"][field])
             tstat["iv_rate"] = float(info.loc["iv_rate"][field])
             tstat["xgb_importance"] = float(info.loc["xgb_importance"][field])
-            # tstat['top'] = float(info.loc['top1'][field])
+            # tstat['top'] = float(info.loc['top1'][field]) # TODO: fix top metric
             tstat["top"] = random.random()
             tstat["mean"] = float(info.loc["mean"][field])
             tstat["quartile"] = float(info.loc["25%"][field])
@@ -1154,28 +1162,26 @@ class CommonDataset:
         static_result["stat"] = stat
 
         # Plot max/min/median pictures.
-        CommonDataset._plot_bar(
-            col_names, info.loc["min", :].values, "Min Value", "min_plot", path
+        Plot.plot_bar(
+            col_names, info.loc["min", :].values, "Min Value", "min_plot", pics_dir
         )
-        CommonDataset._plot_bar(
-            col_names, info.loc["max", :].values, "Max Value", "max_plot", path
+        Plot.plot_bar(
+            col_names, info.loc["max", :].values, "Max Value", "max_plot", pics_dir
         )
-        CommonDataset._plot_bar(
-            col_names, info.loc["50%", :].values, "Median Value", "mid_plot", path
+        Plot.plot_bar(
+            col_names, info.loc["50%", :].values, "Median Value", "mid_plot", pics_dir
         )
-        CommonDataset._plot_bar(
-            col_names, info.loc["std", :].values, "std value", "std_plot", path
+        Plot.plot_bar(
+            col_names, info.loc["std", :].values, "std value", "std_plot", pics_dir
         )
-        CommonDataset._plot_box(
-            self.features[:, :10], col_names[:10], path
-        )
+        Plot.plot_box(self.features[:, :10], col_names[:10], pics_dir)
 
         return static_result
 
-    def get_dataset(self):
+    def get_dataset(self) -> Union[np.ndarray, torch.Tensor]:
         return self._raw_dataset
 
-    def set_dataset(self, new_raw_dataset: Union[np.ndarray, torch.Tensor]):
+    def set_dataset(self, new_raw_dataset: Union[np.ndarray, torch.Tensor]) -> None:
         # must delete old properties to save memory
         if hasattr(self, "_raw_dataset"):
             del self._raw_dataset
@@ -1302,7 +1308,7 @@ class CommonDataset:
     @staticmethod
     def _date_data(
         df_dataset: pd.DataFrame,
-        columns = None,
+        columns=None,
     ):
         if columns is None:
             return df_dataset
@@ -1438,116 +1444,89 @@ class CommonDataset:
 
         return header
 
-    @staticmethod
-    def _plot_bar(x, y, ylabel, file_name, path):
-        import os
-
-        from matplotlib import pyplot as plt
-
-        if len(x) > 10:
-            x = x[:10]
-            y = y[:10]
-        plt.bar(x, y, color="dodgerblue")
-        plt.xlabel("Feature")
-        plt.ylabel(ylabel)
-        plt.title("{} of Each Feature".format(ylabel))
-        plt.savefig(os.path.join(path, "{}.png".format(file_name)), pad_inches="tight")
-        plt.close()
-
-    @staticmethod
-    def _plot_box(data, labels, path):
-        import os
-
-        from matplotlib import pyplot as plt
-
-        plt.boxplot(data, labels=labels, showmeans=True, meanline=True)
-        plt.title("Boxplot of features {}".format(labels))
-        plt.savefig(os.path.join(path, 'box_plot.png'), pad_inches="tight")
-        plt.close()
-
 
 # if __name__ == "__main__":
-    # from linkefl.feature.transform import OneHot
-    #
-    # print("the first df_dataset")
-    # _df_dataset = pd.DataFrame(
-    #     {"id": [0, 1, 2],
-    #      "x": [1.1, 1.2, 1.3],
-    #      "a": ["aaa", "bbb", "ccc"],
-    #      "b": ["aa", "bb", "cc"]}
-    # )
-    # print(_df_dataset)
-    # _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
-    # _mappings = CommonDataset.mappings
-    # # you can save these mappings and load it back
-    # # when loading testset at inference pahse
-    # # with open('train_mappings.pkl', 'wb') as f:
-    # #     pickle.dump(mappings, f)
-    # print(_np_dataset)
-    # _np_dataset = OneHot([1, 2]).fit(_np_dataset, Const.PASSIVE_NAME)
-    # print(_np_dataset)
-    #
-    # print()
-    #
-    # print("the second df_dataset")
-    # another_df_dataset = pd.DataFrame(
-    #     {"id": [0, 1, 2],
-    #      "x": [1.1, 1.2, 1.3],
-    #      "a": ["bbb", "ccc", "aaa"],
-    #      "b": ["cc", "aa", "bb"]}
-    # )
-    # print(another_df_dataset)
-    # # you can load the mappings back and apply it to testset
-    # # with open('train_mappings.pkl', 'rb') as f:
-    # #     mappings = pickle.load(f)
-    # another_np_dataset = CommonDataset._pandas2numpy(
-    #     another_df_dataset,
-    #     mappings=_mappings
-    # )
-    # print(another_np_dataset)
-    # another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
-    # print(another_np_dataset)
+# from linkefl.feature.transform import OneHot
+#
+# print("the first df_dataset")
+# _df_dataset = pd.DataFrame(
+#     {"id": [0, 1, 2],
+#      "x": [1.1, 1.2, 1.3],
+#      "a": ["aaa", "bbb", "ccc"],
+#      "b": ["aa", "bb", "cc"]}
+# )
+# print(_df_dataset)
+# _np_dataset = CommonDataset._pandas2numpy(_df_dataset)
+# _mappings = CommonDataset.mappings
+# # you can save these mappings and load it back
+# # when loading testset at inference pahse
+# # with open('train_mappings.pkl', 'wb') as f:
+# #     pickle.dump(mappings, f)
+# print(_np_dataset)
+# _np_dataset = OneHot([1, 2]).fit(_np_dataset, Const.PASSIVE_NAME)
+# print(_np_dataset)
+#
+# print()
+#
+# print("the second df_dataset")
+# another_df_dataset = pd.DataFrame(
+#     {"id": [0, 1, 2],
+#      "x": [1.1, 1.2, 1.3],
+#      "a": ["bbb", "ccc", "aaa"],
+#      "b": ["cc", "aa", "bb"]}
+# )
+# print(another_df_dataset)
+# # you can load the mappings back and apply it to testset
+# # with open('train_mappings.pkl', 'rb') as f:
+# #     mappings = pickle.load(f)
+# another_np_dataset = CommonDataset._pandas2numpy(
+#     another_df_dataset,
+#     mappings=_mappings
+# )
+# print(another_np_dataset)
+# another_np_dataset = OneHot([1, 2]).fit(another_np_dataset, Const.PASSIVE_NAME)
+# print(another_np_dataset)
 
-    # df_dataset_ = pd.DataFrame(
-    #     {
-    #         "id": [1, 2, 3, 4, 5],
-    #         "x": [1.1, 1.2, np.nan, np.nan, 1.2],
-    #         "a": ["a", "aa", "aaa", np.nan, "aaaaa"],
-    #         "b": ["b", "bb", "bbb", np.nan, np.nan],
-    #         "c": [np.nan, np.nan, np.nan, "cccc", "ccccc"]
-    #     }
-    # )
-    # print("Original")
-    # print(df_dataset_)
-    # cleaned_df_dataset = CommonDataset._clean_data(
-    #     df_dataset_,
-    #     row_threshold=0.5,
-    #     column_threshold=0.5
-    # )
-    # print("Cleaned")
-    # print(cleaned_df_dataset)
-    # filled_df_dataset = CommonDataset._fill_data(cleaned_df_dataset)
-    # print("Filled")
-    # print(filled_df_dataset)
+# df_dataset_ = pd.DataFrame(
+#     {
+#         "id": [1, 2, 3, 4, 5],
+#         "x": [1.1, 1.2, np.nan, np.nan, 1.2],
+#         "a": ["a", "aa", "aaa", np.nan, "aaaaa"],
+#         "b": ["b", "bb", "bbb", np.nan, np.nan],
+#         "c": [np.nan, np.nan, np.nan, "cccc", "ccccc"]
+#     }
+# )
+# print("Original")
+# print(df_dataset_)
+# cleaned_df_dataset = CommonDataset._clean_data(
+#     df_dataset_,
+#     row_threshold=0.5,
+#     column_threshold=0.5
+# )
+# print("Cleaned")
+# print(cleaned_df_dataset)
+# filled_df_dataset = CommonDataset._fill_data(cleaned_df_dataset)
+# print("Filled")
+# print(filled_df_dataset)
 
-    # df_dataset_ = pd.DataFrame(
-    #     {
-    #         "id": [1, 2, 3, 4, 5],
-    #         "x": [1, 1, 1, 1, 10000],
-    #         "a": [1, 2, 3, 4, "5"],
-    #     }
-    # )
-    # print("Original")
-    # print(df_dataset_)
-    # new_df_dataset = CommonDataset._outlier_data(df_dataset_, role=Const.PASSIVE_NAME)
-    # print("New")
-    # print(new_df_dataset)
+# df_dataset_ = pd.DataFrame(
+#     {
+#         "id": [1, 2, 3, 4, 5],
+#         "x": [1, 1, 1, 1, 10000],
+#         "a": [1, 2, 3, 4, "5"],
+#     }
+# )
+# print("Original")
+# print(df_dataset_)
+# new_df_dataset = CommonDataset._outlier_data(df_dataset_, role=Const.PASSIVE_NAME)
+# print("New")
+# print(new_df_dataset)
 
-    # abs_path = "/Users/tanjuntao/LinkeFL-Servicer/data/电商平台精准营销数据202206.csv"
-    # np_dataset = CommonDataset.from_csv(
-    #     role=Const.ACTIVE_NAME,
-    #     abs_path=abs_path,
-    #     dataset_type=Const.CLASSIFICATION,
-    # )
-    # print(np_dataset.header)
-    # print(np_dataset.header_type)
+# abs_path = "/Users/tanjuntao/LinkeFL-Servicer/data/电商平台精准营销数据202206.csv"
+# np_dataset = CommonDataset.from_csv(
+#     role=Const.ACTIVE_NAME,
+#     abs_path=abs_path,
+#     dataset_type=Const.CLASSIFICATION,
+# )
+# print(np_dataset.header)
+# print(np_dataset.header_type)

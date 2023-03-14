@@ -1,5 +1,6 @@
 import random
 import warnings
+from typing import List, Optional
 
 from tqdm import trange
 
@@ -7,8 +8,13 @@ from linkefl.common.const import Const
 
 
 def gen_dummy_ids(
-    size, option=Const.SEQUENCE, largest=1 << 512, unique=False, seed=None
-):
+    size: int,
+    *,
+    option: str = "sequence",
+    largest: int = 1 << 512,
+    unique: bool = False,
+    seed: Optional[int] = None,
+) -> List[int]:
     if option not in (Const.RANDOM, Const.SEQUENCE):
         raise ValueError(
             "option can only be taken from random and sequence, "
