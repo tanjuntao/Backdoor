@@ -1,10 +1,13 @@
 import random
 from abc import ABC, abstractmethod
+from typing import List, Union
 
 import numpy as np
 import torch
 
+from linkefl.base import BaseCryptoSystem, BaseMessenger
 from linkefl.common.const import Const
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 
 class BasePearsonVfl(ABC):
@@ -17,11 +20,15 @@ class BasePearsonVfl(ABC):
         pass
 
 
-class ActivePearsonVfl(BasePearsonVfl):
-    def __init__(self, dataset, messenger, cryptosystem, crypto_type=Const.PAILLIER):
-        super(ActivePearsonVfl, self).__init__(dataset, messenger)
+class ActivePearson(BasePearsonVfl):
+    def __init__(
+        self,
+        dataset: Union[NumpyDataset, TorchDataset],
+        messenger: List[BaseMessenger],
+        cryptosystem: BaseCryptoSystem,
+    ):
+        super(ActivePearson, self).__init__(dataset, messenger)
         self.cryptosystem = cryptosystem
-        self.crypto_type = crypto_type
 
     def pearson_vfl(self):
         y = self.dataset.labels
@@ -67,7 +74,7 @@ class ActivePearsonVfl(BasePearsonVfl):
         return peason
 
 
-class PassivePearsonVfl(BasePearsonVfl):
+class PassivePearson(BasePearsonVfl):
     def pearson_vfl(self):
         x = self.dataset.features
         if isinstance(x, np.ndarray) or isinstance(x, torch.Tensor):

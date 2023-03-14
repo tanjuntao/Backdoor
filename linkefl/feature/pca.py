@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 import torch
 from sklearn.decomposition import PCA as SklearnPCA
@@ -170,16 +172,16 @@ class PCA(BaseTransformComponent):
 
     def __init__(
         self,
-        n_components=None,
+        n_components: Optional[int] = None,
         *,
-        copy=True,
-        whiten=False,
-        svd_solver="auto",
-        tol=0.0,
-        iterated_power="auto",
-        n_oversamples=10,
-        power_iteration_normalizer="auto",
-        random_state=None,
+        copy: bool = True,
+        whiten: bool = False,
+        svd_solver: str = "auto",
+        tol: float = 0.0,
+        iterated_power: str = "auto",
+        n_oversamples: int = 10,
+        power_iteration_normalizer: str = "auto",
+        random_state: Optional[int] = None,
     ):
         self.n_components = n_components
         self.copy = copy

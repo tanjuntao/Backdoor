@@ -1,5 +1,5 @@
 import os.path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,7 +10,7 @@ import xgboost as xgb
 from xgboost import XGBClassifier, XGBRegressor
 
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.transform.functional import bin
+from linkefl.dataio.common_dataset import CommonDataset
 
 
 class FeatureEvaluation(object):
@@ -20,7 +20,7 @@ class FeatureEvaluation(object):
     @classmethod
     def tree_importance(
         cls,
-        trainset: NumpyDataset,
+        trainset: Union[CommonDataset, NumpyDataset],
         task: str = "binary",
         evaluation_way: str = "xgboost",
         importance_type: str = "gain",
