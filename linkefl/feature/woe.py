@@ -264,29 +264,32 @@ class PassiveWoe(Basewoe):
             raise TypeError('dataset should be an instance of numpy.ndarray or torch.Tensor')
         return enc_sum
 
-    
-class TestWoe(Basewoe):
-    def __init__(self, dataset, idxes, messenger, split, bin_woe):
-        super(TestWoe, self).__init__(dataset, idxes)
+class TestWoe():
+    def __init__(self, dataset, woe_features, messenger, split, bin_woe):
         self.split = split
         self.bin_woe = bin_woe
+        self.messenger = messenger
+        self.dataset = dataset
+        self.woe_features = woe_features
 
     def cal_woe(self):
         features = self.dataset.features
-        ids = np.array(self.dataset.ids)
         if isinstance(features, np.ndarray):
             features = features.astype(float)
             sam_num = self.dataset.n_samples
-            for idxes_idx in range(len(self.idxes)):
-                cur_split = self.split[idxes_idx]
-                cur_woe_list = self.bin_woe[idxes_idx]
+            for woe_features_idx in range(len(self.woe_features)):
+                cur_split = self.split[woe_features_idx]
+                cur_woe_list = self.bin_woe[woe_features_idx]
                 for sam_idx in range(sam_num):
                     bin_idx = 0
                     while bin_idx < len(cur_split):
-                        if features[sam_idx, idxes_idx] <= cur_split[bin_idx]:
+                        if features[sam_idx, woe_features_idx] <= cur_split[bin_idx]:
                             break
                         bin_idx += 1
-                    self.dataset.features[sam_idx, idxes_idx] = cur_woe_list[bin_idx]
+                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[
+                        bin_idx
+                    ]
+
 
 def plot_iv(iv_dict, file_dir="./models"):
     '''

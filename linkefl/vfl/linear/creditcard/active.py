@@ -5,44 +5,16 @@ import os
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, log_loss, roc_auc_score
 from termcolor import colored
-
+import pickle
 from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
-from linkefl.feature.woe import ActiveWoe
+from linkefl.feature.woe import ActiveWoe, TestWoe
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.linear import BaseLinearActive
 
 import matplotlib.pyplot as plt
-
-
-class Testwoe:
-    def __init__(self, dataset, woe_features, messenger, split, bin_woe):
-        self.split = split
-        self.bin_woe = bin_woe
-        self.messenger = messenger
-        self.dataset = dataset
-        self.woe_features = woe_features
-
-    def cal_woe(self):
-        features = self.dataset.features
-        if isinstance(features, np.ndarray):
-            features = features.astype(float)
-            sam_num = self.dataset.n_samples
-            for woe_features_idx in range(len(self.woe_features)):
-                cur_split = self.split[woe_features_idx]
-                cur_woe_list = self.bin_woe[woe_features_idx]
-                for sam_idx in range(sam_num):
-                    bin_idx = 0
-                    while bin_idx < len(cur_split):
-                        if features[sam_idx, woe_features_idx] <= cur_split[bin_idx]:
-                            break
-                        bin_idx += 1
-                    self.dataset.features[sam_idx, woe_features_idx] = cur_woe_list[
-                        bin_idx
-                    ]
-
 
 class ActiveCreditCard(BaseLinearActive, BaseModelComponent):
     def __init__(
@@ -134,7 +106,7 @@ class ActiveCreditCard(BaseLinearActive, BaseModelComponent):
         total_loss = train_loss + reg_loss
 
         return total_loss
-
+    
     # @profile
     def train(self, trainset, testset):
         assert isinstance(
@@ -147,6 +119,15 @@ class ActiveCreditCard(BaseLinearActive, BaseModelComponent):
         setattr(self, "x_val", testset.features)
         setattr(self, "y_train", trainset.labels)
         setattr(self, "y_val", testset.labels)
+
+        train_woe = ActiveWoe(trainset, [i for i in range(trainset.n_features - 1)], _messenger)
+        bin_bounds, bin_woe, bin_iv = train_woe.cal_woe()
+        with open(self.model_path+'/'+self.model_name[0:-12]+'-bounds.pkl', 'wb') as f1:
+            pickle.dump(bin_bounds, f1)
+        with open(self.model_path+'/'+self.model_name[0:-12]+'-woe.pkl', 'wb') as f2:
+            pickle.dump(bin_woe, f2)
+        test_woe = TestWoe(testset, [i for i in range(trainset.n_features - 1)], _messenger, bin_bounds, bin_woe)
+        test_woe.cal_woe()
 
         # initialize model parameters
         params = self._init_weights(trainset.n_features)
@@ -319,6 +300,14 @@ class ActiveCreditCard(BaseLinearActive, BaseModelComponent):
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
         model_params = NumpyModelIO.load(model_path, model_name)
+        with open(model_path+'/'+model_name[0:-12]+'-bounds.pkl', 'rb') as f1:
+            bin_bounds = pickle.load(f1)
+        with open(model_path+'/'+model_name[0:-12]+'-woe.pkl', 'rb') as f2:
+            bin_woe = pickle.load(f2)
+        test_woe = TestWoe(
+            dataset, [i for i in range(dataset.n_features - 1 )], _messenger, bin_bounds, bin_woe
+        )
+        test_woe.cal_woe()
 
         # Scorecard
         p = 20 / np.log(2)  # 比例因子
@@ -424,17 +413,14 @@ if __name__ == "__main__":
         feat_perm_option=feat_perm_option,
     )
 
-    # print(active_trainset.features.shape, active_testset.features.shape)
-    active_trainset = scale(parse_label(active_trainset))
-    active_testset = scale(parse_label(active_testset))
+    # active_trainset = add_intercept(scale(parse_label(active_trainset)))
+    active_testset = add_intercept(scale(parse_label(active_testset)))
 
-    active_woe = ActiveWoe(active_trainset, [0, 1, 2, 3, 4], _messenger)
-    bin_bounds, bin_woe, bin_iv = active_woe.cal_woe()
+    # active_woe = ActiveWoe(active_trainset, [0, 1, 2, 3, 4], _messenger)
+    # bin_bounds, bin_woe, bin_iv = active_woe.cal_woe()
 
-    active_trainset = add_intercept(active_trainset)
-    test_woe = Testwoe(active_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
-    test_woe.cal_woe()
-    active_testset = add_intercept(active_testset)
+    # test_woe = TestWoe(active_testset, [0, 1, 2, 3, 4], _messenger, bin_bounds, bin_woe)
+    # test_woe.cal_woe()
 
     # 3. Initialize cryptosystem
     _crypto = crypto_factory(
@@ -460,7 +446,7 @@ if __name__ == "__main__":
         saving_model=True,
     )
 
-    active_party.train(active_trainset, active_testset)
-    # active_party.online_inference(active_testset, 'vfl_creditcard/20230313_170013-active_party.model', _messenger[0])
+    # active_party.train(active_trainset, active_testset)
+    active_party.online_inference(active_testset, 'vfl_creditcard/20230314_170335-active_party.model', _messenger[0])
     for msger_ in _messenger:
         msger_.close()
