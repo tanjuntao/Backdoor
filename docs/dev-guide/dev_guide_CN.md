@@ -1,5 +1,18 @@
 # LinkeFL 开发指南 - 必读
 
+## 0. TL;DR
+1. 以开发者模式安装 LinkeFL，使用 PyCharm 作为主力开发 IDE
+2. 安装 pre-commit
+3. 遵守编码规范
+   * 学习 Python Annotation，所有 public API 接口以及重要类变量均需要书写 annotation
+   * 不需要 black 格式化的代码片段添加 # fmt: off 标志
+   * 学习 flake8 的基本用法，在不需要代码检查的行添加 # noqa 注释
+   * 测试脚本存放在 LinkeFL/tests/ 目录下，不要放在 linkefl package 中
+   * 新开发的算法在 LinkeFL/examples/ 下建立对应算法目录，提供使用示例代码
+
+
+---
+
 ## 1. 准备本地开发环境
 
 ### 1.1 以开发模式安装 LinkeFL
@@ -36,6 +49,8 @@ Git 有一种 [Hook 机制](https://git-scm.com/book/en/v2/Customizing-Git-Git-H
 ``` shell
 pip3 install pre-commit
 pip3 install commit-msg-hook
+pip3 install autoflake
+pip3 install mypy
 ```
 接着在 LinkeFL 根目录下，依次执行下列命令，将 pre-commit 安装到 LinkeFL 项目的 `.git/hooks/` 中：
 
