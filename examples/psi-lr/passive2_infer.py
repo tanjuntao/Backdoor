@@ -1,3 +1,4 @@
+import os
 import time
 
 from termcolor import colored
@@ -7,7 +8,7 @@ from linkefl.common.factory import logger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import scale
 from linkefl.messenger import FastSocket
-from linkefl.psi.rsa import RSAPSIPassive
+from linkefl.psi.rsa import PassiveRSAPSI
 from linkefl.vfl.linear import PassiveLogReg
 
 if __name__ == "__main__":
@@ -51,7 +52,9 @@ if __name__ == "__main__":
         passive_ip=passive_ip,
         passive_port=passive_port,
     )
-    passive_psi = RSAPSIPassive(messenger, logger)
+    passive_psi = PassiveRSAPSI(
+        messenger=messenger, logger=logger, num_workers=os.cpu_count()
+    )
     common_ids = passive_psi.run(passive_inferset.ids)
     passive_inferset.filter(common_ids)
     print(colored("3. Finish psi protocol", "red"))
