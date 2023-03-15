@@ -454,7 +454,7 @@ class DecisionTree:
             elif self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 gh_send = [0 for _ in range(sample_num)]
                 selected_gh_enc = self.crypto_system.encrypt_data(
-                    selected_gh_int, self.pool
+                    selected_gh_int, pool=self.pool
                 )
                 for i, idx in enumerate(selected_idx):
                     gh_send[idx] = selected_gh_enc[i]
@@ -477,7 +477,7 @@ class DecisionTree:
 
             if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
                 selected_gh_enc = self.crypto_system.encrypt_data(
-                    selected_gh_compress, self.pool
+                    selected_gh_compress, pool=self.pool
                 )
                 for i, sample_idx in enumerate(selected_idx):
                     for j in range(sample2enc_num):

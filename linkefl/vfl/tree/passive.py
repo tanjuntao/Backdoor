@@ -1,13 +1,17 @@
 import datetime
+import os
+import pathlib
 import random
 import time
 from collections import defaultdict
 from multiprocessing import Pool
+from typing import Dict, Optional
 
 import numpy as np
 
 from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.tree.data_functions import (
@@ -24,14 +28,14 @@ class PassiveTreeParty(BaseModelComponent):
         task: str,
         crypto_type: str,
         messenger: BaseMessenger,
-        logger,
+        logger: GlobalLogger,
         *,
         max_bin: int = 16,
-        colsample_bytree=1,
+        colsample_bytree: int = 1,
         n_processes: int = 1,
         saving_model: bool = False,
-        model_path: str = "./models",
-        model_name=None,
+        model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         """Passive Tree Party class to train and validate dataset
 
@@ -47,19 +51,24 @@ class PassiveTreeParty(BaseModelComponent):
         self.max_bin = max_bin
         self.colsample_bytree = colsample_bytree
         self.saving_model = saving_model
-        self.model_path = model_path
-
-        if model_name is None:
-            self.model_name = (
-                "{time}-{role}-{model_type}".format(
-                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                    role=Const.PASSIVE_NAME,
-                    model_type=Const.VERTICAL_SBT,
+        if self.saving_model:
+            self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            if model_dir is None:
+                default_dir = "models"
+                model_dir = os.path.join(default_dir, self.create_time)
+            if model_name is None:
+                model_name = (
+                    "{time}-{role}-{algo_name}".format(
+                        time=self.create_time,
+                        role=Const.PASSIVE_NAME,
+                        algo_name=Const.AlgoNames.VFL_SBT,
+                    )
+                    + ".model"
                 )
-                + ".model"
-            )
-        else:
+            self.model_dir = model_dir
             self.model_name = model_name
+            if not os.path.exists(self.model_dir):
+                pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
         self.feature_importance_info = {
             "split": defaultdict(int),  # Total number of splits
@@ -81,10 +90,15 @@ class PassiveTreeParty(BaseModelComponent):
         # filled as training goes on
         self.record = None
 
-    def fit(self, trainset, testset, role=Const.PASSIVE_NAME):
-        self.train(trainset, testset)
+    def fit(
+        self,
+        trainset: NumpyDataset,
+        validset: NumpyDataset,
+        role: str = Const.PASSIVE_NAME,
+    ) -> None:
+        self.train(trainset, validset)
 
-    def train(self, trainset, testset):
+    def train(self, trainset: NumpyDataset, testset: NumpyDataset) -> None:
         assert isinstance(
             trainset, NumpyDataset
         ), "trainset should be an instance of NumpyDataset"
@@ -95,7 +109,9 @@ class PassiveTreeParty(BaseModelComponent):
         start_time = time.time()
 
         self.logger.log("Building hist...")
-        self.bin_index, self.bin_split = get_bin_info(trainset.features, self.max_bin, self.pool)
+        self.bin_index, self.bin_split = get_bin_info(
+            trainset.features, self.max_bin, self.pool
+        )
         self.logger.log("Done")
 
         self.logger.log("Waiting for active party...")
@@ -164,7 +180,7 @@ class PassiveTreeParty(BaseModelComponent):
                     model_name = self.model_name
                     NumpyModelIO.save(
                         [self.record, self.feature_importance_info],
-                        self.model_path,
+                        self.model_dir,
                         model_name,
                     )
 
@@ -180,7 +196,7 @@ class PassiveTreeParty(BaseModelComponent):
                     model_name = self.model_name
                     NumpyModelIO.save(
                         [self.record, self.feature_importance_info, model_structure],
-                        self.model_path,
+                        self.model_dir,
                         model_name,
                     )
                 self.logger.log_component(
@@ -197,13 +213,21 @@ class PassiveTreeParty(BaseModelComponent):
             else:
                 raise KeyError
 
+        if self.pool is not None:
+            self.pool.close()
+
         self.logger.log(
             "Total training and validation time: {:.2f}".format(
                 time.time() - start_time
             )
         )
 
-    def load_retrain(self, load_model_path, trainset, testset):
+    def load_retrain(
+        self,
+        load_model_path: str,
+        trainset: NumpyDataset,
+        testset: NumpyDataset,
+    ) -> None:
         """breakpoint retraining function."""
         model_name = get_latest_filename(load_model_path)
         self.record, self.feature_importance_info, model_structure = NumpyModelIO.load(
@@ -301,10 +325,14 @@ class PassiveTreeParty(BaseModelComponent):
 
         return result
 
-    def score(self, testset, role=Const.PASSIVE_NAME):
+    def score(
+        self,
+        testset: NumpyDataset,
+        role: str = Const.PASSIVE_NAME,
+    ) -> None:
         self.predict(testset)
 
-    def predict(self, testset):
+    def predict(self, testset: NumpyDataset) -> None:
         self._validate(testset)
 
     @staticmethod
@@ -385,7 +413,7 @@ class PassiveTreeParty(BaseModelComponent):
         self.record_tree, self.feature_importance_info_tree = None, None
         self.logger.log("merge tree information done")
 
-    def feature_importances_(self, importance_type="split"):
+    def feature_importances_(self, importance_type: str = "split") -> Dict[str, list]:
         assert importance_type in ("split", "cover"), "Not support importance type"
 
         keys = np.array(list(self.feature_importance_info[importance_type].keys()))

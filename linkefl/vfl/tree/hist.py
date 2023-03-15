@@ -22,7 +22,7 @@ class ActiveHist:
 
         try:
             bin_num = bin_index.max() + 1
-        except:
+        except Exception:
             # need to be more elegant
             bin_num = 16
         if task == "binary" or task == "regression":
@@ -55,7 +55,7 @@ class ActiveHist:
     ):
         """decrypt hist received from passive party, binary only"""
 
-        bin_gh_int = crypto_system.decrypt_data(bin_gh_enc, pool)
+        bin_gh_int = crypto_system.decrypt_data(bin_gh_enc, pool=pool)
 
         return cls.splitgh_hist(task, n_labels, bin_gh_int, h_length, r)
 
@@ -78,7 +78,9 @@ class ActiveHist:
         target = bin_gh_compress["target"]
         bin_nonzero_compress = bin_gh_compress["data"]
 
-        bin_nonzero_compress = crypto_system.decrypt_data(bin_nonzero_compress, pool)
+        bin_nonzero_compress = crypto_system.decrypt_data(
+            bin_nonzero_compress, pool=pool
+        )
         bin_nonzero = np.empty((capacity, len(bin_nonzero_compress)), dtype=np.object)
 
         for i in range(capacity):
@@ -107,7 +109,9 @@ class ActiveHist:
         pool,
     ):
         """decrypt and decompress hist received from passive party, multi only"""
-        bin_gh_compress_multi = crypto_system.decrypt_data(bin_gh_compress_multi, pool)
+        bin_gh_compress_multi = crypto_system.decrypt_data(
+            bin_gh_compress_multi, pool=pool
+        )
 
         bin_gh_int = np.zeros(
             (bin_gh_compress_multi.shape[0], bin_gh_compress_multi.shape[1], n_labels),
