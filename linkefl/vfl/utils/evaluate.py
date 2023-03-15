@@ -1,17 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Project : LinkeFL 
+# @Project : LinkeFL
 # @File    : evaluate.py.py
 # @Author  : HaoRan Cheng
 # @Date    : 2023/2/25 21:09
 
+import os
+import os.path
+import warnings
+from typing import Any, Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os.path
 import pandas as pd
-import warnings
-
-from typing import Any, Optional
 from sklearn.metrics import precision_recall_curve, roc_curve
 
 Axes = Any  # real type is matplotlib.axes.Axes
@@ -30,7 +31,11 @@ class Evaluate(object):
         pred_prob_labels = list(zip(y_probs, labels))
 
         if good_len == 0 or bad_len == 0:
-            warnings.warn("Labels contain only one class, which does not support calculating ks value.", RuntimeWarning)
+            warnings.warn(
+                "Labels contain only one class, which does not support calculating ks"
+                " value.",
+                RuntimeWarning,
+            )
             return -1, -1
 
         good_point = []
@@ -103,6 +108,8 @@ class TreePrint(object):
         """
         try:
             from PrettyPrint import PrettyPrintTree
+
+            # from prettyprint.PrintTree import PrettyPrintTree
         except ImportError as e:
             raise ImportError("You must install PrettyPrint to plot tree") from e
 
@@ -172,8 +179,30 @@ class Plot(object):
         plt.savefig(f"{file_dir}/convergence_index_analysis_auc.png")
         plt.close()
 
+    @staticmethod
+    def plot_train_test_acc(train_acc, test_acc, file_dir="./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(
+            list(range(len(train_acc))), train_acc, label="train_acc"
+        )  # color='darkorange'
+        ax.plot(list(range(len(test_acc))), test_acc, label="test_acc")
+        # ax.set_xlim(0, len(train_auc) - 0.95)
+        # ax.set_ylim(0, 1.02)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(1))
+        ax.grid(True, linestyle="-.")
+        ax.set_title("Convergence Index Analysis(Acc)")
+        ax.set_ylabel("Acc", labelpad=5, loc="center")
+        ax.set_xlabel("Epoch", labelpad=5, loc="center")
+        plt.legend(loc="best")
+
+        plt.savefig(f"{file_dir}/convergence_index_analysis_acc.png")
+        plt.close()
+
     @classmethod
-    def plot_binary_mertics(cls, labels, y_probs, cut_point=500, file_dir: str = "./models"):
+    def plot_binary_mertics(
+        cls, labels, y_probs, cut_point=500, file_dir: str = "./models"
+    ):
         cls._plot_pr(labels, y_probs, file_dir)
         cls._plot_roc(labels, y_probs, file_dir)
         cls._plot_ks(labels, y_probs, cut_point=cut_point, file_dir=file_dir)
@@ -269,7 +298,10 @@ class Plot(object):
 
         ks_value = max(diff_point)  # 获得最大KS值为KS值
         ks_x_axis = diff_point.index(ks_value)  # KS值下的阈值点索引
-        ks_good_point, ks_bad_point = good_point[ks_x_axis], bad_point[ks_x_axis]  # 阈值下y=0,y=1在组内的占比
+        ks_good_point, ks_bad_point = (
+            good_point[ks_x_axis],
+            bad_point[ks_x_axis],
+        )  # 阈值下y=0,y=1在组内的占比
         threshold = thresholds[ks_x_axis]  # 阈值
 
         fig = plt.figure()
@@ -278,12 +310,30 @@ class Plot(object):
 
         ax.plot(thresholds, good_point, color="green", label="FPR", linewidth=2)
         ax.plot(thresholds, bad_point, color="red", label="TPR", linewidth=2)
-        ax.plot(thresholds, diff_point, color="darkorange", alpha=0.5, label="KS", linewidth=2)
-        ax.plot([threshold, threshold], [0, 1], linestyle="--", color="black", alpha=0.5, linewidth=2)
+        ax.plot(
+            thresholds,
+            diff_point,
+            color="darkorange",
+            alpha=0.5,
+            label="KS",
+            linewidth=2,
+        )
+        ax.plot(
+            [threshold, threshold],
+            [0, 1],
+            linestyle="--",
+            color="black",
+            alpha=0.5,
+            linewidth=2,
+        )
 
-        ax.scatter([threshold], [ks_good_point], color="white", edgecolors="green", s=15)
+        ax.scatter(
+            [threshold], [ks_good_point], color="white", edgecolors="green", s=15
+        )
         ax.scatter([threshold], [ks_bad_point], color="white", edgecolors="red", s=15)
-        ax.scatter([threshold], [ks_value], color="white", edgecolors="darkorange", s=15)
+        ax.scatter(
+            [threshold], [ks_value], color="white", edgecolors="darkorange", s=15
+        )
 
         ax.text(threshold, ks_good_point, round(ks_good_point, 4))
         ax.text(threshold, ks_bad_point, round(ks_bad_point, 4))
@@ -343,10 +393,12 @@ class Plot(object):
         ax = fig.add_subplot(1, 1, 1)
         ax.grid(True, linestyle="-.")
 
-        frequency_each, _, _ = ax.hist(x=y_prob, bins=bins, range=(0, 1), color="steelblue")
+        frequency_each, _, _ = ax.hist(
+            x=y_prob, bins=bins, range=(0, 1), color="steelblue"
+        )
         indexes = [1 / (2 * bins) + 1 / bins * i for i in range(bins)]
         for x, y in zip(indexes, frequency_each):
-            plt.text(x, y + 0.01, f"{y}", horizontalalignment='center')
+            plt.text(x, y + 0.01, f"{y}", horizontalalignment="center")
 
         ax.set_title("Predict Probability Distribution")
         ax.set_ylabel("Count", labelpad=5, loc="center")
@@ -357,7 +409,6 @@ class Plot(object):
 
     @staticmethod
     def plot_predict_prob_box(y_prob, file_dir="./models"):
-
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
         ax.grid(True, linestyle="-.")
@@ -387,25 +438,59 @@ class Plot(object):
         plt.close()
 
     @staticmethod
+    def plot_gini(gini_list, file_dir="./model"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(list(range(len(gini_list))), gini_list, label="train_auc")
+        ax.xaxis.set_major_locator(plt.MultipleLocator(10))
+        ax.grid(True, linestyle="-.")
+        ax.set_title("gini")
+        ax.set_ylabel("gini value", labelpad=5, loc="center")
+        ax.set_xlabel("epoch", labelpad=20, loc="center")
+        # plt.show()
+        plt.savefig(f"{file_dir}/gini.png")
+        plt.close()
+
+    @staticmethod
     def plot_iv(iv_dict, file_dir="./models"):
-        '''
+        """
         _, _, iv_dict = woe.cal_woe()
         woe is in [ActiveWoe(), PassiveWoe()]
         Then iv_dict is the input of this function
-        '''
+        """
         feature_list = list(iv_dict.keys())
         iv_list = [iv_dict[key] for key in feature_list]
         fig, ax = plt.subplots()
         ax.barh(feature_list, iv_list)
-        ax.set_xlabel('IV values')
-        ax.set_ylabel('Feature Ids')
-        ax.set_title('Feature IV Analysis')
+        ax.set_xlabel("IV values")
+        ax.set_ylabel("Feature Ids")
+        ax.set_title("Feature IV Analysis")
         plt.savefig(f"{file_dir}/iv_analysis.png")
         plt.close()
 
     @staticmethod
-    def plot_bimodal_distribution(data_1, data_2, bins_value=50, file_dir="./models"):
+    def plot_bar(x, y, ylabel, file_name, file_dir="./models"):
+        if len(x) > 10:
+            x = x[:10]
+            y = y[:10]
+        plt.bar(x, y, color="dodgerblue")
+        plt.xlabel("Feature")
+        plt.ylabel(ylabel)
+        plt.title("{} of Each Feature".format(ylabel))
+        plt.savefig(
+            os.path.join(file_dir, "{}.png".format(file_name)), pad_inches="tight"
+        )
+        plt.close()
 
+    @staticmethod
+    def plot_box(data, labels, file_dir="./models"):
+        plt.boxplot(data, labels=labels, showmeans=True, meanline=True)
+        plt.title("Boxplot of features {}".format(labels))
+        plt.savefig(f"{file_dir}/box_plot.png", pad_inches="tight")
+        plt.close()
+
+    @staticmethod
+    def plot_bimodal_distribution(data_1, data_2, bins_value=50, file_dir="./models"):
         from scipy.stats import norm
 
         data = np.concatenate((data_1, data_2))
@@ -414,28 +499,27 @@ class Plot(object):
         probs = counts / float(counts.sum())
         pdf_1 = norm.pdf(bins, data_1.mean(), data_1.std())
         pdf_2 = norm.pdf(bins, data_2.mean(), data_2.std())
-        plt.plot(bins, probs, label='Data')  # 绘制数据的折线图，添加标签 'Data'
-        plt.plot(bins, pdf_1 + pdf_2, label='PDF')  # 绘制两个正态分布曲线之和的折线图，添加标签 'PDF'
-        plt.title('Bimodal Distribution')
-        plt.xlabel('Value')
-        plt.ylabel('Frequency')
+        plt.plot(bins, probs, label="Data")  # 绘制数据的折线图，添加标签 'Data'
+        plt.plot(bins, pdf_1 + pdf_2, label="PDF")  # 绘制两个正态分布曲线之和的折线图，添加标签 'PDF'
+        plt.title("Bimodal Distribution")
+        plt.xlabel("Value")
+        plt.ylabel("Frequency")
         plt.legend(loc="best")
         plt.savefig(f"{file_dir}/bimodal_distribution.png")
         plt.close()
 
     @staticmethod
     def plot_ordered_lorenz_curve(label, y_prob, file_dir="./models"):
-
         label_ranking = np.argsort(label)
         label = label[label_ranking]
         cum_l = np.cumsum(label) / label.sum()
         y_prob = y_prob[label_ranking]
 
         plt.plot(y_prob, cum_l)
-        plt.plot([0, 1], [0, 1], 'k--')
-        plt.xlabel('percentage x')
-        plt.ylabel('percentage y')
-        plt.title('Lorenz curve')
+        plt.plot([0, 1], [0, 1], "k--")
+        plt.xlabel("percentage x")
+        plt.ylabel("percentage y")
+        plt.title("Lorenz curve")
         plt.legend(loc="best")
 
         plt.savefig(f"{file_dir}/ordered_lorenz_curve.png")
@@ -467,21 +551,21 @@ class Plot(object):
 
     @staticmethod
     def plot_importance(
-            booster: ActiveTreeParty,
-            importance_type: str = "split",
-            max_num_features: Optional[int] = 20,
-            title: str = "Feature importance",
-            xlabel: str = "Importance score",
-            ylabel: str = "Features",
-            # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
-            figsize: Optional[tuple] = (14, 8),
-            height: float = 0.2,
-            xlim: Optional[tuple] = None,
-            ylim: Optional[tuple] = None,
-            grid: bool = True,
-            show_values: bool = True,
-            precision: Optional[int] = 3,
-            file_dir: str = "./models",
+        booster: ActiveTreeParty,
+        importance_type: str = "split",
+        max_num_features: Optional[int] = 20,
+        title: str = "Feature importance",
+        xlabel: str = "Importance score",
+        ylabel: str = "Features",
+        # figsize: Optional[Tuple[float, float]] = None, # raise Cythoning error
+        figsize: Optional[tuple] = (14, 8),
+        height: float = 0.2,
+        xlim: Optional[tuple] = None,
+        ylim: Optional[tuple] = None,
+        grid: bool = True,
+        show_values: bool = True,
+        precision: Optional[int] = 3,
+        file_dir: str = "./models",
     ) -> Axes:
         """Plot importance based on fitted trees.
         Parameters
@@ -591,7 +675,6 @@ class Plot(object):
         return ax
 
 
-
 if __name__ == "__main__":
     # test cal ks value
     y_label = [1 for _ in range(500)]
@@ -633,11 +716,7 @@ if __name__ == "__main__":
     # Plot.plot_fit(train_loss, test_loss)
     # Plot.plot_train_test_loss(train_loss, test_loss)
 
-
     # Plot.plot_predict_distribution(y_prob, bins=10)
     # Plot.plot_regression_metrics(y_prob, y_prob, y_prob, y_prob)
     # Plot.plot_residual(y_label, y_prob)
     # Plot.plot_predict_prob_box(y_prob)
-
-
-
