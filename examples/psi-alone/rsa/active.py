@@ -1,50 +1,51 @@
-# active.py
-import argparse
+import os
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.crypto import RSA
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
-from linkefl.psi.rsa import RSAPSIActive
+from linkefl.psi import ActiveRSAPSI
 
-# Initialize command line arguments parser
-parser = argparse.ArgumentParser()
-parser.add_argument("--phase", type=str)
-args = parser.parse_args()
+if __name__ == "__main__":
+    # get sample IDs
+    active_ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
 
-# 1. get sample IDs
-_ids = gen_dummy_ids(size=10000, option=Const.SEQUENCE)
+    active_ips = [
+        "127.0.0.1",
+    ]
+    active_ports = [
+        20000,
+    ]
+    passive_ips = [
+        "127.0.0.1",
+    ]
+    passive_ports = [
+        30000,
+    ]
 
-# 2. Initialize messenger and logger
-_messenger1 = FastSocket(
-    role=Const.ACTIVE_NAME,
-    active_ip="127.0.0.1",
-    active_port=20001,
-    passive_ip="127.0.0.1",
-    passive_port=30001,
-)
-_messenger = [_messenger1]
-_logger = logger_factory(role=Const.ACTIVE_NAME)
-
-# 3. Start the RSA-Blind-Signature protocol
-if args.phase == "offline":
+    _messengers = [
+        FastSocket(
+            role=Const.ACTIVE_NAME,
+            active_ip=active_ip_,
+            active_port=active_port_,
+            passive_ip=passive_ip_,
+            passive_port=passive_port_,
+        )
+        for active_ip_, active_port_, passive_ip_, passive_port_ in zip(
+            active_ips, active_ports, passive_ips, passive_ports
+        )
+    ]
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
     _crypto = RSA()
-    bob = RSAPSIActive(_messenger, _crypto, _logger)
-    bob.run_offline(_ids)
-
-elif args.phase == "online":
-    _crypto = RSA.from_private_key()
-    bob = RSAPSIActive(_messenger, _crypto, _logger)
-    bob.run_online(_ids)
-
-else:
-    raise ValueError(
-        "command line argument `--phase` can only"
-        "take `offline` and `online`, "
-        f"but {args.phase} got instead"
+    active_party = ActiveRSAPSI(
+        messengers=_messengers,
+        cryptosystem=_crypto,
+        logger=_logger,
+        num_workers=os.cpu_count(),
     )
+    intersections_ = active_party.run(active_ids)
+    print(f"length of intersection: {len(intersections_)}")
 
-# 4. close messenger
-for msger in _messenger:
-    msger.close()
+    for msg in _messengers:
+        msg.close()
