@@ -1,24 +1,27 @@
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
-from linkefl.crypto import RSA
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import Compose, ParseLabel
 from linkefl.pipeline import PipeLine
-from linkefl.psi import RSAPSIActive
+from linkefl.psi import ActiveCM20PSI
 from linkefl.vfl.tree import ActiveTreeParty
 
 if __name__ == "__main__":
     # 0. Set parameters
 
     # dataloader
-    trainset_path = "census-active-train.csv"
-    testset_path = "census-active-test.csv"
+    trainset_path = (
+        "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-active-train.csv"
+    )
+    testset_path = (
+        "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-active-test.csv"
+    )
 
     # messengers
     active_ips = ["localhost", "localhost"]
-    active_ports = [20000, 30000]
+    active_ports = [20000, 20001]
     passive_ips = ["localhost", "localhost"]
-    passive_ports = [20001, 30001]
+    passive_ports = [30000, 30001]
 
     messengers = [
         messenger_factory(
@@ -36,9 +39,6 @@ if __name__ == "__main__":
 
     # logger
     logger = logger_factory(role=Const.ACTIVE_NAME)
-
-    # psi
-    psi_crypto = RSA()
 
     # transformer
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
     )
 
     # 2. Build pipeline
-    psi = RSAPSIActive(messengers, psi_crypto, logger)
+    psi = ActiveCM20PSI(messengers=messengers, logger=logger)
     transforms = Compose([ParseLabel()])
     model = ActiveTreeParty(
         n_trees=n_trees,
