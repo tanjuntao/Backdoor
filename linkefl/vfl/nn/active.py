@@ -211,11 +211,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     self.logger.log("Best model updates.")
                     if self.saving_model:
                         TorchModelIO.save(
-                            [
-                                self.models["bottom"],
-                                self.models["cut"],
-                                self.models["top"],
-                            ],
+                            self.models,
                             self.model_dir,
                             self.model_name,
                             epoch=epoch,

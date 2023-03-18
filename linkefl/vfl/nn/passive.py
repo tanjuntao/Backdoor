@@ -158,7 +158,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
                     print(colored("Best model updated.", "red"))
                     if self.saving_model:
                         TorchModelIO.save(
-                            [self.models["bottom"], self.models["cut"]],
+                            self.models,
                             self.model_dir,
                             self.model_name,
                             epoch=epoch,
