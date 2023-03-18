@@ -217,6 +217,7 @@ class MediaDataset(TorchDataset, Dataset):
         from torchvision import datasets, transforms
         from tqdm import trange
 
+        # prepare transforms and load buildin dataset
         if name == "cifar10":
             if train:
                 transform = transforms.Compose(
@@ -242,18 +243,9 @@ class MediaDataset(TorchDataset, Dataset):
             buildin_dataset = datasets.CIFAR10(
                 root=root, train=train, download=download, transform=transform
             )
+            _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
 
-            n_samples = len(buildin_dataset)
-            imgs = []
-            for i in trange(n_samples):
-                image, _ = buildin_dataset[i]
-                if role == Const.PASSIVE_NAME:
-                    image = image[:, :32, :]  # the first half
-                else:
-                    image = image[:, 32:, :]  # the second half
-                imgs.append(image)
-
-        elif name == "mnist":
+        elif name in ("mnist", "fashion_mnist"):
             if train:
                 transform = transforms.Compose(
                     [
@@ -271,25 +263,31 @@ class MediaDataset(TorchDataset, Dataset):
                         transforms.Normalize((0.1307,), (0.3081,)),
                     ]
                 )
-            buildin_dataset = datasets.MNIST(
-                root=root, train=train, download=download, transform=transform
-            )
-
-            n_samples = len(buildin_dataset)
-            imgs = []
-            for i in trange(n_samples):
-                image, _ = buildin_dataset[i]
-                if role == Const.PASSIVE_NAME:
-                    image = image[:, :32, :]  # the first half
-                else:
-                    image = image[:, 32:, :]  # the second half
-                imgs.append(image)
+            if name == "mnist":
+                buildin_dataset = datasets.MNIST(
+                    root=root, train=train, download=download, transform=transform
+                )
+            else:
+                buildin_dataset = datasets.FashionMNIST(
+                    root=root, train=train, download=download, transform=transform
+                )
+            _labels = buildin_dataset.targets.clone().detach()
 
         else:
             raise ValueError("not suported now.")
 
+        # split image
+        n_samples = len(buildin_dataset)
+        imgs = []
+        for i in trange(n_samples):
+            image, _ = buildin_dataset[i]
+            if role == Const.PASSIVE_NAME:
+                image = image[:, :32, :]  # the first half
+            else:
+                image = image[:, 32:, :]  # the second half
+            imgs.append(image)
         _feats = torch.stack(imgs)  # stack() will create a new dimension
-        _labels = buildin_dataset.targets.clone().detach()
+
         if role == Const.ACTIVE_NAME:
             setattr(self, "_features", _feats)
             setattr(self, "_labels", _labels)
