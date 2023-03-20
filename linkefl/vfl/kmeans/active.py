@@ -8,13 +8,17 @@ import torch
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_samples
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
 
-class ActiveConstrainedSeedKMeans:
+class ActiveConstrainedSeedKMeans(BaseModelComponent):
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
+
+    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+        return self.train(trainset)
 
     def __init__(
         self,
@@ -454,7 +458,7 @@ class ActiveConstrainedSeedKMeans:
         """Convenient function"""
         return self.train(X_active_dataset).transform(X_active_dataset)
 
-    def score(self, X_active_dataset):
+    def score(self, X_active_dataset, role=Const.ACTIVE_NAME):
         """Opposite of the value of X_active on the K-means objective."""
         X_active = X_active_dataset.features
 
@@ -604,28 +608,28 @@ if __name__ == "__main__":
     )
 
     begin_train = time.time()
-    active.train(active_trainset)
+    active.fit(active_trainset, active_trainset)
     end_train = time.time()
 
-    # save the required parameters
-    active._save_model()
+    # # save the required parameters
+    # active._save_model()
+    #
+    # # Initialize a new instance and load the saved parameters
+    # active_new = ActiveConstrainedSeedKMeans(
+    #     messenger=_messenger,
+    #     crypto_type=None,
+    # )
+    #
+    # active.n_clusters, active_new.inertia_, active_new.cluster_centers_active_, active_new.indices = active.load_model()
+    #
+    # _ = active_new.predict(active_trainset)
 
-    # Initialize a new instance and load the saved parameters
-    active_new = ActiveConstrainedSeedKMeans(
-        messenger=_messenger,
-        crypto_type=None,
-    )
-
-    active.n_clusters, active_new.inertia_, active_new.cluster_centers_active_, active_new.indices = active.load_model()
-
-    _ = active_new.predict(active_trainset)
-
-    score = active_new.score(active_trainset)
+    score = active.score(active_trainset)
     print("score", score)
 
     print("total training time consumed", end_train - begin_train)
 
-    active_new.pca_plot(active_trainset, active_new, color_num=n_cluster)
-    
-    active_new.sil_plot(active_trainset, active_new, n_cluster)
+    active.pca_plot(active_trainset, active, color_num=n_cluster)
+
+    active.sil_plot(active_trainset, active, n_cluster)
 

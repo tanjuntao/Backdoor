@@ -7,14 +7,17 @@ import torch
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_samples
 
+from linkefl.base import BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
 
-
-class PassiveConstrainedSeedKMeans:
+class PassiveConstrainedSeedKMeans(BaseModelComponent):
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
+
+    def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
+        return self.train(trainset)
 
     def __init__(
         self,
@@ -264,7 +267,7 @@ class PassiveConstrainedSeedKMeans:
             init_centers_passive = self._init_centroids(X_passive_dataset)
             if self.verbose:
                 print("Initialization complete")
-            new_centers_passive, indices = self._kmeans(X_passive_dataset, init_centers_passive)
+            new_centers_passive, self.indices = self._kmeans(X_passive_dataset, init_centers_passive)
             if self.messenger.recv() is True:
                 best_centers_passive = new_centers_passive
 
@@ -344,7 +347,7 @@ class PassiveConstrainedSeedKMeans:
         """Convenient function"""
         return self.train(X_passive_dataset).transform(X_passive_dataset)
 
-    def score(self, X_passive_dataset):
+    def score(self, X_passive_dataset, role=Const.PASSIVE_NAME):
         """Opposite of the value of X_passive on the K-means objective."""
         X_passive = X_passive_dataset.features
 
@@ -485,23 +488,23 @@ if __name__ == "__main__":
         verbose=False,
     )
 
-    passive.train(passive_trainset)
+    passive.fit(passive_trainset, passive_trainset)
 
-    # save the required parameters
-    passive._save_model()
+    # # save the required parameters
+    # passive._save_model()
+    #
+    # # Initialize a new instance and load the saved parameters
+    # passive_new = PassiveConstrainedSeedKMeans(
+    #     messenger=_messenger,
+    #     crypto_type=None,
+    # )
+    #
+    # passive.n_clusters, passive_new.cluster_centers_passive_ = passive.load_model()
+    #
+    # _ = passive_new.predict(passive_trainset)
 
-    # Initialize a new instance and load the saved parameters
-    passive_new = PassiveConstrainedSeedKMeans(
-        messenger=_messenger,
-        crypto_type=None,
-    )
+    passive.score(passive_trainset)
 
-    passive.n_clusters, passive_new.cluster_centers_passive_ = passive.load_model()
+    passive.pca_plot(passive_trainset, passive, color_num=n_cluster)
 
-    _ = passive_new.predict(passive_trainset)
-
-    passive_new.score(passive_trainset)
-
-    passive_new.pca_plot(passive_trainset, passive_new, color_num=n_cluster)
-
-    passive_new.sil_plot(passive_trainset, passive_new, n_cluster)
+    passive.sil_plot(passive_trainset, passive, n_cluster)
