@@ -1,4 +1,5 @@
 import copy
+import os
 import time
 
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ from sklearn.metrics import silhouette_samples
 
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
+from linkefl.modelio import NumpyModelIO
 
 
 class ActiveConstrainedSeedKMeans:
@@ -25,7 +27,12 @@ class ActiveConstrainedSeedKMeans:
         tol=0.0001,
         verbose=False,
         invalid_label=-1,
+        unsupervised=True,
         random_state=None,
+        saving_model=True,
+        model_path='./models',
+        model_name='vfl_kmeans_active',
+        saving_pic=True,
     ):
         """Initialization a constrained seed kmeans estimator.
         Args:
@@ -40,6 +47,7 @@ class ActiveConstrainedSeedKMeans:
             invalid_label: Special sign to indicate which samples are unlabeled.
                 If the y value of a sample equals to this value, then that sample
                 is a unlabeled one.
+            unsupervised: If set to be True, then all labels are invalid and we implement an unsupervised Kmeans
         """
         self.n_clusters = n_clusters
         self.n_init = n_init
@@ -47,13 +55,27 @@ class ActiveConstrainedSeedKMeans:
         self.tol = tol
         self.verbose = verbose
         self.INVALID_LABEL = invalid_label
+        self.unsupervised = unsupervised
         self.messenger = messenger
         self.random_state = random_state
+        self.saving_model = saving_model
+        self.model_path = model_path
+        self.model_name = model_name
+        self.saving_pic = saving_pic
         if random_state is not None:
             torch.random.manual_seed(random_state)
+        self.pics_path = os.path.join(self.model_path, "vfl_kmeans")
+        if not os.path.exists(self.pics_path):
+            os.makedirs(self.pics_path)
 
-    def _check_params(self, X_active, y):
+    def _check_params(self, X_active_dataset):
         """Check if the parameters of the algorithm and the inputs to it are valid."""
+        X_active = X_active_dataset.features
+        if self.unsupervised:
+            y = [-1 for _ in range(X_active.shape[0])]
+        else:
+            y = X_active_dataset.labels
+
         if type(X_active) not in (np.ndarray, torch.Tensor):
             raise TypeError(
                 "Type of X_active can only take numpy.ndarray and "
@@ -74,8 +96,14 @@ class ActiveConstrainedSeedKMeans:
         if self.max_iter <= 0:
             raise ValueError("The number of maximum iteration must larger than zero.")
 
-    def _init_centroids(self, X_active, y):
+    def _init_centroids(self, X_active_dataset):
         """Initialize cluster centers with little samples having label."""
+        X_active = X_active_dataset.features
+        if self.unsupervised:
+            y = [-1 for _ in range(X_active.shape[0])]
+        else:
+            y = X_active_dataset.labels
+
         if type(y) == np.ndarray:
             pkg = np
         elif type(y) == torch.Tensor:
@@ -148,8 +176,14 @@ class ActiveConstrainedSeedKMeans:
 
         return centers_active, n_seed_centroids
 
-    def _kmeans(self, X_active, y, init_centers_active):
+    def _kmeans(self, X_active_dataset, init_centers_active):
         """KMeans algorithm implementation."""
+        X_active = X_active_dataset.features
+        if self.unsupervised:
+            y = [-1 for _ in range(X_active.shape[0])]
+        else:
+            y = X_active_dataset.labels
+    
         indices = copy.copy(y)
         if type(indices) == list:
             indices = np.array(indices)
@@ -264,9 +298,10 @@ class ActiveConstrainedSeedKMeans:
 
         return new_centers_active, indices, inertia
 
-    def fit(self, X_active, y):
+    def train(self, X_active_dataset):
         """Using features and little labels to do clustering.
         Args:
+            X_active_dataset: NumpyDataset/TorchDataset
             X_active: numpy.ndarray or torch.Tensor with shape (n_samples, n_features)
             y: List or numpy.ndarray, or torch.Tensor with shape (n_samples,).
                 For index i, if y[i] equals to self.INVALID_LABEL, then X_active[i] is
@@ -274,8 +309,14 @@ class ActiveConstrainedSeedKMeans:
         Returns:
             self: The estimator itself.
         """
+        X_active = X_active_dataset.features
+        if self.unsupervised:
+            y = [-1 for _ in range(X_active.shape[0])]
+        else:
+            y = X_active_dataset.labels
+
         begin_msg = self.messenger.recv()  # noqa: F841
-        self._check_params(X_active, y)
+        self._check_params(X_active_dataset)
 
         # _, n_seed_centroids = self._init_centroids(X_active, y)
 
@@ -312,11 +353,11 @@ class ActiveConstrainedSeedKMeans:
         best_inertia = None
         best_centers_active, best_indices = None, None
         for i in range(self.n_init):
-            init_centers_active, _ = self._init_centroids(X_active, y)
+            init_centers_active, _ = self._init_centroids(X_active_dataset)
             if self.verbose:
                 print("Initialization complete")
             new_centers_active, indices, new_inertia = self._kmeans(
-                X_active, y, init_centers_active
+                X_active_dataset, init_centers_active
             )
             if best_inertia is None or new_inertia < best_inertia:
                 best_inertia = new_inertia
@@ -332,14 +373,17 @@ class ActiveConstrainedSeedKMeans:
 
         return self
 
-    def predict(self, X_active):
+    def predict(self, X_active_dataset):
         """Predict the associated cluster index of samples.
         Args:
+            X_active_dataset: NumpyDataset/TorchDataset
             X_active: numpy.ndarray or torch.Tensor with shape (n_samples, n_features).
         Returns:
             indices: The associated cluster index of each sample, with shape
             (n_samples,)
         """
+        X_active = X_active_dataset.features
+
         n_samples = X_active.shape[0]
         indices = [-1 for _ in range(n_samples)]
 
@@ -370,17 +414,20 @@ class ActiveConstrainedSeedKMeans:
             self.messenger.send(torch.tensor(indices))
             return torch.tensor(indices)
 
-    def fit_predict(self, X_active, y):
+    def train_predict(self, X_active_dataset):
         """Convenient function."""
-        return self.fit(X_active, y).predict(X_active)
+        return self.train(X_active_dataset).predict(X_active_dataset)
 
-    def transform(self, X_active):
+    def transform(self, X_active_dataset):
         """Transform the input to the centorid space.
         Args:
+            X_active_dataset: NumpyDataset/TorchDataset
             X_active: numpy.ndarray or torch.Tensor with shape (n_samples, n_features).
         Returns:
             output: With shape (n_samples, n_clusters)
         """
+        X_active = X_active_dataset.features
+
         if type(X_active) == np.ndarray:
             pkg = np
         else:
@@ -403,12 +450,14 @@ class ActiveConstrainedSeedKMeans:
 
         return output
 
-    def fit_transform(self, X_active, y):
+    def train_transform(self, X_active_dataset):
         """Convenient function"""
-        return self.fit(X_active, y).transform(X_active)
+        return self.train(X_active_dataset).transform(X_active_dataset)
 
-    def score(self, X_active):
+    def score(self, X_active_dataset):
         """Opposite of the value of X_active on the K-means objective."""
+        X_active = X_active_dataset.features
+
         interia = 0
         n_samples = X_active.shape[0]
 
@@ -429,47 +478,76 @@ class ActiveConstrainedSeedKMeans:
         interia += interia_passive
 
         return -1 * interia
-
-
-def pca_plot(X_active, estimator, x_lim_left, x_lim_right, y_lim_down, y_lim_up, color_num, name):
-    import pandas as pd
-    import seaborn as sns
-
-    df = pd.DataFrame()
-    df["dim1"] = X_active[:, 0]
-    df["dim2"] = X_active[:, 1]
-    if name == "sklearn_kmeans":
-        df["y"] = estimator.labels_
-    else:
-        df["y"] = estimator.indices
-    plt.close()
-    plt.xlim(x_lim_left, x_lim_right)
-    plt.ylim(y_lim_down, y_lim_up)
-    sns.scatterplot(
-        x="dim1",
-        y="dim2",
-        hue=df.y.tolist(),
-        palette=sns.color_palette("hls", color_num),
-        data=df,
-    )
-    # plt.show()
-    plt.savefig("./{}.png".format(name))
-    plt.close()
-
-
-def sil_plot(X_active, estimator, n_cluster, name):
-    silhouette_values = silhouette_samples(X_active, estimator.indices)
-    sil_per_cls = [[], [], []]
-    for cls_idx in range(n_cluster):
-        for idx in range(len(estimator.indices)):
-            if estimator.indices[idx] == cls_idx:
-                sil_per_cls[cls_idx].append(silhouette_values[idx])
     
-    plt.boxplot(sil_per_cls)
-    # plt.show()
-    plt.title('Silhouette Coefficient Distribution for Each Cluster')
-    plt.savefig("./{}_silhoutte.png".format(name))
-    plt.close()
+    def _save_model(self):
+        if self.saving_model:
+            saved_data = [
+                self.n_clusters,
+                self.inertia_,
+                self.cluster_centers_active_,
+                self.indices
+            ]
+            NumpyModelIO.save(saved_data, self.model_path, self.model_name)
+
+    def load_model(self, model_path='./models', model_name='vfl_kmeans_active'):
+        self.n_clusters, self.inertia_, self.cluster_centers_active_, self.indices = NumpyModelIO.load(model_path, model_name)
+        return self.n_clusters, self.inertia_, self.cluster_centers_active_, self.indices
+
+    def pca_plot(self, X_active_dataset, estimator, color_num):
+        import pandas as pd
+        import seaborn as sns
+
+        pca_active = PCA(n_components=2)
+        X_active = X_active_dataset.features
+        pca_active.fit(X_active)
+        X_active_projection = pca_active.transform(X_active)
+
+        x_lim_left = 1.2 * X_active_projection[:, 0].min()
+        x_lim_right = 1.2 * X_active_projection[:, 0].max()
+        y_lim_down = 1.2 * X_active_projection[:, 1].min()
+        y_lim_up = 1.2 * X_active_projection[:, 1].max()
+
+        df = pd.DataFrame()
+        df["dim1"] = X_active_projection[:, 0]
+        df["dim2"] = X_active_projection[:, 1]
+        if self.model_name == "sklearn_kmeans":
+            df["y"] = estimator.labels_
+        else:
+            df["y"] = estimator.indices
+        plt.close()
+        plt.xlim(x_lim_left, x_lim_right)
+        plt.ylim(y_lim_down, y_lim_up)
+        sns.scatterplot(
+            x="dim1",
+            y="dim2",
+            hue=df.y.tolist(),
+            palette=sns.color_palette("hls", color_num),
+            data=df,
+        )
+        if self.saving_pic:
+            plt.savefig("{}/clusters.png".format(self.pics_path))
+        else:
+            plt.show()
+        plt.close()
+
+
+    def sil_plot(self, X_active_dataset, estimator, n_cluster):
+        X_active = X_active_dataset.features
+
+        silhouette_values = silhouette_samples(X_active, estimator.indices)
+        sil_per_cls = [[], [], []]
+        for cls_idx in range(n_cluster):
+            for idx in range(len(estimator.indices)):
+                if estimator.indices[idx] == cls_idx:
+                    sil_per_cls[cls_idx].append(silhouette_values[idx])
+    
+        plt.boxplot(sil_per_cls)
+        plt.title('Silhouette Coefficient Distribution for Each Cluster')
+        if self.saving_pic:
+            plt.savefig("{}/silhoutte.png".format(self.pics_path))
+        else:
+            plt.show()
+        plt.close()
 
 
 if __name__ == "__main__":
@@ -525,34 +603,29 @@ if __name__ == "__main__":
         verbose=False,
     )
 
-    begin_fit_predict = time.time()
-    fit_predict = active.fit_predict(X_active, y)
-    end_fit_predict = time.time()
+    begin_train = time.time()
+    active.train(active_trainset)
+    end_train = time.time()
 
-    score = active.score(X_active)
+    # save the required parameters
+    active._save_model()
+
+    # Initialize a new instance and load the saved parameters
+    active_new = ActiveConstrainedSeedKMeans(
+        messenger=_messenger,
+        crypto_type=None,
+    )
+
+    active.n_clusters, active_new.inertia_, active_new.cluster_centers_active_, active_new.indices = active.load_model()
+
+    _ = active_new.predict(active_trainset)
+
+    score = active_new.score(active_trainset)
     print("score", score)
 
-    # print('total fit time consumed', end_fit - begin_fit)
-    print("total fit_predict time consumed", end_fit_predict - begin_fit_predict)
+    print("total training time consumed", end_train - begin_train)
 
-    print("fit predict", fit_predict)
-
-    pca_active = PCA(n_components=2)
-    pca_active.fit(X_active)
-    X_active_projection = pca_active.transform(X_active)
-
-    x_lim_left = 1.2 * X_active_projection[:, 0].min()
-    x_lim_right = 1.2 * X_active_projection[:, 0].max()
-    y_lim_down = 1.2 * X_active_projection[:, 1].min()
-    y_lim_up = 1.2 * X_active_projection[:, 1].max()
-
-    pca_plot(X_active_projection, active, 
-             x_lim_left=x_lim_left,
-             x_lim_right=x_lim_right,
-             y_lim_down=y_lim_down,
-             y_lim_up=y_lim_up,
-             color_num=n_cluster, name="{}_active_kmeans".format(dataset_name))
+    active_new.pca_plot(active_trainset, active_new, color_num=n_cluster)
     
-    sil_plot(X_active=X_active, estimator=active, n_cluster=n_cluster, name='{}_active_kmeans'.format(dataset_name))
+    active_new.sil_plot(active_trainset, active_new, n_cluster)
 
-    # print("X_active_projection", X_active_projection[0:10, :])
