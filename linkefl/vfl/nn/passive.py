@@ -90,7 +90,8 @@ class PassiveNeuralNetwork(BaseModelComponent):
         print("Done.")
 
     def _init_dataloader(self, dataset, shuffle=False):
-        dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle)
+        bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
+        dataloader = DataLoader(dataset, batch_size=bs, shuffle=shuffle)
         return dataloader
 
     def train(self, trainset: TorchDataset, testset: TorchDataset) -> None:
@@ -179,7 +180,8 @@ class PassiveNeuralNetwork(BaseModelComponent):
         existing_loader: Optional[DataLoader] = None,
     ) -> None:
         if existing_loader is None:
-            dataloader = DataLoader(testset, batch_size=self.batch_size, shuffle=False)
+            bs = testset.n_samples if self.batch_size == -1 else self.batch_size
+            dataloader = DataLoader(testset, batch_size=bs, shuffle=False)
         else:
             dataloader = existing_loader
 
