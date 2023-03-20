@@ -100,9 +100,9 @@ setup(
     packages=find_packages(include=["linkefl", "linkefl.*"]),
     python_requires=PYTHON_REQUIRES,
     install_requires=REQUIRED,
-    ext_modules=cythonize(
-        get_ext_paths("linkefl"),
-        compiler_directives={"language_level": 3, "annotation_typing": False},
-    ),
-    cmdclass={"build_py": BuildPy},
+    # ext_modules=cythonize(
+    #     get_ext_paths("linkefl"),
+    #     compiler_directives={"language_level": 3, "annotation_typing": False},
+    # ),
+    # cmdclass={"build_py": BuildPy},
 )

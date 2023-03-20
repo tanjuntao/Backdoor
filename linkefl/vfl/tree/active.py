@@ -25,7 +25,7 @@ from linkefl.messenger.socket_disconnection import FastSocket_disconnection_v1
 from linkefl.modelio import NumpyModelIO
 from linkefl.util import sigmoid
 from linkefl.vfl.tree.data_functions import get_bin_info, wrap_message
-from linkefl.vfl.tree.decisiontree import DecisionTree
+from linkefl.vfl.tree.decisiontree import DecisionTree, _DecisionNode
 from linkefl.vfl.tree.error import DisconnectedError
 from linkefl.vfl.tree.loss_functions import (
     CrossEntropyLoss,
@@ -497,7 +497,7 @@ class ActiveTreeParty(BaseModelComponent):
 
     @staticmethod
     def online_inference(
-        dataset, task, n_labels, messengers, logger, model_name, model_path="./models"
+        dataset, task, n_labels, messengers, logger, model_name, model_path="./models/"
     ):
         assert isinstance(
             dataset, NumpyDataset
@@ -857,7 +857,10 @@ class ActiveTreeParty(BaseModelComponent):
     def _save_model(self):
         # model_name = f"{self.model_name}.model"
         model_name = self.model_name
-        # TODO: Remove hist_list from _DecisionNode
+
+        for tree in self.trees:
+            self._removing_useless_message(tree.root)
+
         model_params = [(tree.record, tree.root) for tree in self.trees]
         model_structure = self.get_tree_str_structures()
         saved_data = [
@@ -870,6 +873,26 @@ class ActiveTreeParty(BaseModelComponent):
 
         self.logger.log(f"Save model {model_name} success.")
         return model_structure
+
+    def _removing_useless_message(self, root: _DecisionNode):
+        if not root:
+            return
+
+        del(
+            root.hist_list,
+            root.sample_tag_selected,
+            root.sample_tag_unselected,
+            root.split_party_id,
+            root.split_gain,
+            root.split_bin_id,
+            root.split_feature_id,
+            root.depth
+        )
+
+        if root.left_branch:
+            self._removing_useless_message(root.left_branch)
+        if root.right_branch:
+            self._removing_useless_message(root.right_branch)
 
 
 if __name__ == "__main__":
@@ -886,12 +909,12 @@ if __name__ == "__main__":
     # 0. Set parameters
     #  binary: cancer, digits, epsilon, census, credit, default_credit, criteo
     #  regression: diabetes
-    dataset_name = "diabetes"
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
-    n_trees = 20
-    task = "regression"  # multi, binary, regression
+    n_trees = 5
+    task = "binary"  # multi, binary, regression
     n_labels = 2
     _crypto_type = Const.FAST_PAILLIER
     _key_size = 1024
@@ -1002,8 +1025,11 @@ if __name__ == "__main__":
         # model_path="./models"
     )
 
-    active_party.train(active_trainset, active_testset)
-
+    # active_party.train(active_trainset, active_testset)
+    scores, targets = active_party.online_inference(active_testset, "binary", 2, messengers, logger,
+                                                    model_name="20230320220749-active_party-vfl_sbt.model",
+                                                    model_path="./models/20230320220749",)
+    print(scores, targets)
     # feature_importance_info = pd.DataFrame(
     #     active_party.feature_importances_(importance_type='cover')
     # )

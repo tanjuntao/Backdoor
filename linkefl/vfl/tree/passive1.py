@@ -11,7 +11,7 @@ from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == "__main__":
     # 0. Set parameters
-    dataset_name = "diabetes"
+    dataset_name = "cancer"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
 
@@ -46,8 +46,8 @@ if __name__ == "__main__":
     )
     # passive_trainset, _ = NumpyDataset.feature_split(passive_trainset, 2)
     # passive_testset, _ = NumpyDataset.feature_split(passive_testset, 2)
-    passive_trainset = NumpyDataset.feature_split(passive_trainset, 1)[0]
-    passive_testset = NumpyDataset.feature_split(passive_testset, 1)[0]
+    passive_trainset = NumpyDataset.feature_split(passive_trainset, n_splits=1)[0]
+    passive_testset = NumpyDataset.feature_split(passive_testset, n_splits=1)[0]
     print("Done")
 
     # 2. Initialize messenger
@@ -82,12 +82,15 @@ if __name__ == "__main__":
         # model_path="./models"
     )
 
-    passive_party.train(passive_trainset, passive_testset)
+    # passive_party.train(passive_trainset, passive_testset)
+    passive_party.online_inference(passive_testset, messenger, logger,
+                                   model_path="./models/20230320220739",
+                                   model_name="./20230320220739-passive_party-vfl_sbt.model")
 
-    feature_importance_info = pd.DataFrame(
-        passive_party.feature_importances_(importance_type="cover")
-    )
-    print(feature_importance_info)
+    # feature_importance_info = pd.DataFrame(
+    #     passive_party.feature_importances_(importance_type="cover")
+    # )
+    # print(feature_importance_info)
 
     # passive_party.online_inference(passive_testset, "xxx.model")
 
