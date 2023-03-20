@@ -1,10 +1,11 @@
 import argparse
+import os
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.dataio import gen_dummy_ids
 from linkefl.messenger import FastSocket
-from linkefl.psi import RSAPSIPassive
+from linkefl.psi import PassiveRSAPSI
 
 if __name__ == "__main__":
     #   Option 1: split the protocol
@@ -25,7 +26,7 @@ if __name__ == "__main__":
     # _logger = logger_factory(role=Const.ACTIVE_NAME)
     #
     # # 3. Start the RSA-Blind-Signature protocol
-    # alice = RSAPSIPassive(_messenger, _logger)
+    # alice = PassiveRSAPSI(_messenger, _logger)
     # if args.phase == 'offline':
     #     alice.run_offline(_ids)
     # elif args.phase == 'online':
@@ -53,7 +54,9 @@ if __name__ == "__main__":
     )
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     # 3. Start the RSA-Blind-Signature protocol
-    passive_party = RSAPSIPassive(_messenger, _logger)
+    passive_party = PassiveRSAPSI(
+        messenger=_messenger, logger=_logger, num_workers=os.cpu_count()
+    )
     intersections_ = passive_party.run(_ids)
 
     # 4. Close messenger

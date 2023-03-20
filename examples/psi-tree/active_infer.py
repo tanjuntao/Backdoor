@@ -1,3 +1,4 @@
+import os
 import time
 
 from termcolor import colored
@@ -7,7 +8,7 @@ from linkefl.common.factory import crypto_factory, logger_factory, messenger_fac
 from linkefl.crypto import RSA
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import add_intercept, scale
-from linkefl.psi.rsa import RSAPSIActive
+from linkefl.psi.rsa import ActiveRSAPSI
 from linkefl.vfl.linear import ActiveLogReg
 from linkefl.vfl.tree import ActiveTreeParty
 
@@ -62,7 +63,12 @@ if __name__ == "__main__":
         )
     ]
     psi_crypto = RSA()
-    active_psi = RSAPSIActive(messengers, psi_crypto, logger)
+    active_psi = ActiveRSAPSI(
+        messengers=messengers,
+        cryptosystem=psi_crypto,
+        logger=logger,
+        num_workers=os.cpu_count(),
+    )
     common_ids = active_psi.run(active_inferset.ids)
     active_inferset.filter(common_ids)
     print(colored("3. Finish psi protocol", "red"))

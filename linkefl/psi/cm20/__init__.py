@@ -1,4 +1,4 @@
-from .active_party import CM20PSIActive
-from .passive_party import CM20PSIPassive
+from .active_party import ActiveCM20PSI
+from .passive_party import PassiveCM20PSI
 
-__all__ = ["CM20PSIActive", "CM20PSIPassive"]
+__all__ = ["ActiveCM20PSI", "PassiveCM20PSI"]

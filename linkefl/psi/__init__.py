@@ -1,2 +1,2 @@
-# from .cm20 import CM20PSIActive, CM20PSIPassive
-from .rsa import RSAPSIActive, RSAPSIPassive
+from .cm20 import ActiveCM20PSI, PassiveCM20PSI
+from .rsa import ActiveRSAPSI, PassiveRSAPSI

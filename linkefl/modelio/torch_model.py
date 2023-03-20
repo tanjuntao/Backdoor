@@ -1,4 +1,5 @@
 import os
+import pathlib
 
 import torch
 
@@ -7,6 +8,27 @@ class TorchModelIO:
     def __init__(self):
         pass
 
+    @staticmethod
+    def save(model, model_dir, model_name, epoch=None, optimizer=None):
+        if not os.path.exists(model_dir):
+            pathlib.Path(model_dir).mkdir(parents=True, exist_ok=True)
+
+        checkpoint = {"model": model, "epoch": epoch, "optimizer": optimizer}
+
+        with open(os.path.join(model_dir, model_name), "wb") as f:
+            torch.save(checkpoint, f)
+
+    @staticmethod
+    def load(model_dir, model_name):
+        if not os.path.exists(model_dir):
+            raise Exception(f"{model_dir} not found.")
+
+        with open(os.path.join(model_dir, model_name), "rb") as f:
+            model = torch.load(f)
+
+        return model
+
+    """
     @staticmethod
     def save(model, path, name, epoch=None, optimizer=None):
         if not os.path.exists(path):
@@ -76,3 +98,4 @@ class TorchModelIO:
                 model_arch.load_state_dict(checkpoint["model"])
 
         return model_arch, epoch, optimizer_arch
+    """

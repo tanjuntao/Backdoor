@@ -1,11 +1,12 @@
-from abc import ABC, abstractmethod
+from abc import ABC
+from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
-import scipy
 import torch
-from pandas import DataFrame, Series
-from scipy.stats import chi
+
+from linkefl.base import BaseMessenger
+from linkefl.dataio import NumpyDataset, TorchDataset
 
 
 class BaseChiBin(ABC):
@@ -31,7 +32,7 @@ class BaseChiBin(ABC):
         self.dataset = dataset
         self.idxes = idxes
         self.max_group = max_group
-        self.bin = dict()
+        self.bin: Dict[int, list] = dict()
 
     def _chi(self, arr):
         """Calculate chi-square value.
@@ -154,19 +155,25 @@ class BaseChiBin(ABC):
 
 
 class ActiveChiBin(BaseChiBin):
-    def __init__(self, dataset, idxes, messenger, max_group=5):
+    def __init__(
+        self,
+        dataset: Union[NumpyDataset, TorchDataset],
+        idxes: List[int],
+        messengers: List[BaseMessenger],
+        max_group: int = 5,
+    ):
         """Find the cutoff point of chi-square binning for active.
 
         Parameters
         ----------
-        messenger : list[messenger_factory]
+        messengers : list[messenger_factory]
         """
         super(ActiveChiBin, self).__init__(dataset, idxes, max_group)
-        self.messenger = messenger
+        self.messengers = messengers
 
-    def chi_bin(self):
+    def chi_bin(self) -> Dict[int, list]:
         y = self.dataset.labels
-        for msger in self.messenger:
+        for msger in self.messengers:
             msger.send(y)
         super()._chi_bin(y)
 
@@ -174,17 +181,23 @@ class ActiveChiBin(BaseChiBin):
 
 
 class PassiveChiBin(BaseChiBin):
-    def __init__(self, dataset, idxes, messenger, max_group=5):
+    def __init__(
+        self,
+        dataset: Union[NumpyDataset, TorchDataset],
+        idxes: List[int],
+        messenger: BaseMessenger,
+        max_group: int = 5,
+    ):
         """Find the cutoff point of chi-square binning for passive.
 
         Parameters
         ----------
-        messenger : list[messenger_factory]
+        messenger : BaseMessenger
         """
         super(PassiveChiBin, self).__init__(dataset, idxes, max_group)
         self.messenger = messenger
 
-    def chi_bin(self):
+    def chi_bin(self) -> Dict[int, list]:
         y = self.messenger.recv()
         super()._chi_bin(y)
 

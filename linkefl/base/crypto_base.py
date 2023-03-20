@@ -2,12 +2,16 @@ from abc import ABC, abstractmethod
 
 
 class BasePartialCryptoSystem(ABC):
+    def __init__(self):
+        self.pub_key = None
+        self.type = None
+
     @abstractmethod
     def encrypt(self, plaintext):
         pass
 
     @abstractmethod
-    def encrypt_vector(self, plain_vector, using_pool=False, n_workers=None, pool=None):
+    def encrypt_vector(self, plain_vector, *, pool=None, num_workers=1):
         pass
 
 
@@ -21,6 +25,7 @@ class BaseCryptoSystem(ABC):
             key_size: Key size of cryptosystem, default 1024 bits.
         """
         self.key_size = key_size
+        self.type = None
 
     @abstractmethod
     def _gen_key(self, key_size):
@@ -38,13 +43,11 @@ class BaseCryptoSystem(ABC):
         pass
 
     @abstractmethod
-    def encrypt_vector(self, plain_vector, using_pool=False, n_workers=None, pool=None):
+    def encrypt_vector(self, plain_vector, *, pool=None, num_workers=1):
         """Encrypt a vector with more than one plaintext message"""
         pass
 
     @abstractmethod
-    def decrypt_vector(
-        self, cipher_vector, using_pool=False, n_workers=None, pool=None
-    ):
+    def decrypt_vector(self, cipher_vector, *, pool=None, num_workers=1):
         """Decrypt a vector of ciphertext"""
         pass

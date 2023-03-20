@@ -2,13 +2,14 @@ import os
 import random
 import sys
 import time
-from typing import Union
+from typing import List, Union
 from urllib.error import URLError
 
 import numpy as np
 
-from linkefl.base import BasePSIComponent
+from linkefl.base import BaseMessenger, BasePSIComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset, TorchDataset
 
 try:
@@ -54,18 +55,18 @@ except ImportError:
     print("Done!")
 
 
-class CM20PSIActive(BasePSIComponent):
+class ActiveCM20PSI(BasePSIComponent):
     def __init__(
         self,
-        messengers,
-        logger,
         *,
-        log_height=8,
-        width=632,
-        hash_length=10,
-        h1_length=32,
-        bucket1=1 << 8,
-        bucket2=1 << 8,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        log_height: int = 8,
+        width: int = 632,
+        hash_length: int = 10,
+        h1_length: int = 32,
+        bucket1: int = 1 << 8,
+        bucket2: int = 1 << 8,
     ):
         self.messengers = messengers
         self.logger = logger
@@ -76,14 +77,18 @@ class CM20PSIActive(BasePSIComponent):
         self.bucket1 = bucket1
         self.bucket2 = bucket2
 
-    def fit(self, dataset: Union[NumpyDataset, TorchDataset], role=Const.ACTIVE_NAME):
+    def fit(
+        self,
+        dataset: Union[NumpyDataset, TorchDataset],
+        role: str = Const.ACTIVE_NAME,
+    ) -> Union[NumpyDataset, TorchDataset]:
         ids = dataset.ids
         intersections = self.run(ids)
         dataset.filter(intersections)
 
         return dataset
 
-    def run(self, ids):
+    def run(self, ids: List[int]) -> List[int]:
         start = time.time()
 
         for messenger in self.messengers:
@@ -150,7 +155,7 @@ if __name__ == "__main__":
     # 1. get sample IDs
     _ids = gen_dummy_ids(size=50_000, option=Const.SEQUENCE)
 
-    # 2. Initialize messenger
+    # 2. Initialize messengers
     _messenger1 = FastSocket(
         role=Const.ACTIVE_NAME,
         active_ip="127.0.0.1",
@@ -168,10 +173,10 @@ if __name__ == "__main__":
     _logger = logger_factory(role=Const.ACTIVE_NAME)
 
     # 3. Start the CM20 protocol
-    active_party = CM20PSIActive([_messenger1, _messenger2], _logger)
+    active_party = ActiveCM20PSI(messengers=[_messenger1, _messenger2], logger=_logger)
     intersections_ = active_party.run(_ids)
     print(len(intersections_))
 
-    # 4. Close messenger
+    # 4. Close messengers
     _messenger1.close()
     _messenger2.close()

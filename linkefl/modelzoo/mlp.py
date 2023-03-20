@@ -8,7 +8,7 @@ class MLP(nn.Module):
     def __init__(
         self,
         num_nodes,
-        activation: TorchModuleType = "ReLu",
+        activation: TorchModuleType = "ReLU",
         activate_input=False,
         activate_output=False,
         random_state=None,
@@ -39,4 +39,18 @@ class MLP(nn.Module):
 
     def forward(self, x):
         outputs = self.sequential(x)
+        return outputs
+
+
+class CutLayer(nn.Module):
+    def __init__(self, in_nodes, out_nodes, random_state=None):
+        super(CutLayer, self).__init__()
+        self.in_nodes = in_nodes
+        self.out_nodes = out_nodes
+        if random_state is not None:
+            torch.random.manual_seed(random_state)
+        self.linear = nn.Linear(in_nodes, out_nodes)  # no activation
+
+    def forward(self, x):
+        outputs = self.linear(x)
         return outputs

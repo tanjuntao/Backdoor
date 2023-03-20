@@ -10,12 +10,12 @@ public key and the encrpytion of m1 and m2, one can compute the encryption of m1
 import functools
 import math
 import multiprocessing.pool
-import os
 import random
 import time
 import warnings
 from multiprocessing import Manager
-from multiprocessing.pool import Pool
+from multiprocessing.pool import Pool, ThreadPool
+from typing import List, Optional, Union
 
 import gmpy2
 import numpy as np
@@ -26,10 +26,11 @@ from phe.util import mulmod
 
 from linkefl.base import BaseCryptoSystem, BasePartialCryptoSystem
 from linkefl.common.const import Const
-from linkefl.config import BaseConfig
+
+NumpyTypes = Union[np.float16, np.float32, np.int8, np.int16, np.int32, np.int64]
 
 
-def _cal_enc_zeros(public_key, num_enc_zeros, gen_from_set):
+def _gen_enc_zeros(public_key, num_enc_zeros, gen_from_set):
     """Calculate pre-computed encrypted zeros for faster encryption later on
 
     Parameters
@@ -177,17 +178,14 @@ class PaillierPublicKey:
         enc_zero = random.choice(getattr(self, "enc_zeros"))
         return enc_zero + plaintext
 
-    def raw_encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
+    def raw_encrypt_vector(self, plain_vector, thread_pool=None, num_workers=1):
         """Encrypt a vector of plaintext message via naive Paillier cryptosystem.
 
         Parameters
         ----------
         plain_vector
-        using_pool
-        n_workers
         thread_pool
+        num_workers
 
         Returns
         -------
@@ -198,15 +196,18 @@ class PaillierPublicKey:
             # unlike self.raw_encrypt(), there's no need to judge the data type
             return self.raw_pub_key.encrypt(val)
 
+        assert (
+            num_workers >= 1
+        ), f"number of workers should >=1, but got {num_workers} instead."
         plain_vector = PaillierPublicKey._convert_vector(plain_vector)
 
-        if not using_pool:
+        if thread_pool is None and num_workers == 1:
             return [_encrypt(val) for val in plain_vector]
 
+        create_pool = False
         if thread_pool is None:
-            if n_workers is None:
-                n_workers = os.cpu_count()
-            thread_pool = multiprocessing.pool.ThreadPool(n_workers)
+            create_pool = True
+            thread_pool = multiprocessing.pool.ThreadPool(num_workers)
 
         n_threads = thread_pool._processes
         data_size = len(plain_vector)
@@ -227,19 +228,19 @@ class PaillierPublicKey:
             assert (
                 result.get() is True
             ), "worker thread did not finish within default timeout"
+
+        if create_pool:
+            thread_pool.close()
         return plain_vector  # is a Python list
 
-    def raw_fast_encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, process_pool=None
-    ):
+    def raw_fast_encrypt_vector(self, plain_vector, process_pool=None, num_workers=1):
         """Encrypt a vector of plaintext message via improved FastPaillier cryptosystem.
 
         Parameters
         ----------
         plain_vector
-        using_pool
-        n_workers
         process_pool
+        num_workers
 
         Returns
         -------
@@ -251,10 +252,13 @@ class PaillierPublicKey:
             enc_zero = random.choice(getattr(self, "enc_zeros"))
             return enc_zero + val
 
+        assert (
+            num_workers >= 1
+        ), f"number of workers should >=1, but got {num_workers} instead."
         plain_vector = PaillierPublicKey._convert_vector(plain_vector)
 
         # sequentially
-        if not using_pool:
+        if process_pool is None and num_workers == 1:
             return [_fast_encrypt(val) for val in plain_vector]
 
         # sequentially
@@ -262,13 +266,18 @@ class PaillierPublicKey:
             10000  # based on empirical evaluations on different machines
         )
         if len(plain_vector) < using_pool_thresh:
+            warnings.warn(
+                "It's not recommended to use multiprocessing when the length"
+                "of plain_vector is less than 10000. Still use single process.",
+                stacklevel=3,
+            )
             return [_fast_encrypt(val) for val in plain_vector]
 
         # parallelly
+        create_pool = False
         if process_pool is None:
-            if n_workers is None:
-                n_workers = os.cpu_count()
-            process_pool = multiprocessing.pool.Pool(n_workers)
+            create_pool = True
+            process_pool = multiprocessing.pool.Pool(num_workers)
         n_processes = process_pool._processes
         manager = Manager()
         # important: convert it to object dtype
@@ -295,6 +304,8 @@ class PaillierPublicKey:
             lambda a, b: np.concatenate((a, b)), shared_data
         ).tolist()
 
+        if create_pool:
+            process_pool.close()
         return encrypted_data  # always return a Python list
 
     def _target_enc_vector(self, plaintexts, start, end):
@@ -326,22 +337,27 @@ class PaillierPublicKey:
             plaintexts[idx] = _fast_encrypt(plaintexts[idx])
         return True
 
-    def raw_encrypt_data(self, plain_data, pool: Pool = None):
+    def raw_encrypt_data(self, plain_data, process_pool=None):
         target_func = self._target_enc_data
-        return PaillierPublicKey._base_encrypt_data(plain_data, pool, target_func)
+        return PaillierPublicKey._base_encrypt_data(
+            plain_data, process_pool, target_func
+        )
 
-    def raw_fast_encrypt_data(self, plain_data, pool: Pool = None):
+    def raw_fast_encrypt_data(self, plain_data, process_pool=None):
         target_func = self._target_fast_enc_data
-        return PaillierPublicKey._base_encrypt_data(plain_data, pool, target_func)
+        return PaillierPublicKey._base_encrypt_data(
+            plain_data, process_pool, target_func
+        )
 
     @staticmethod
-    def _base_encrypt_data(plain_data, pool, target_func):
+    def _base_encrypt_data(plain_data, process_pool, target_func):
         if type(plain_data) == torch.Tensor:
             plain_data = plain_data.numpy()
             data_type = "torch"
             warnings.warn(
                 "mixed data type is not supported by pytorch, automatically converting"
-                " to numpy"
+                " to numpy",
+                stacklevel=4,
             )
         elif type(plain_data) == list:
             plain_data = np.array(plain_data)
@@ -354,13 +370,13 @@ class PaillierPublicKey:
         shape = plain_data.shape
         flatten_data = plain_data.astype(object).flatten()
 
-        if pool is None or len(flatten_data) < 10000:
+        if process_pool is None or len(flatten_data) < 10000:
             encrypted_data = flatten_data
             assert target_func(encrypted_data) is True
             encrypted_data = np.reshape(encrypted_data, shape)
         else:
             print("using pool to speed up")
-            n_processes = pool._processes
+            n_processes = process_pool._processes
             manager = Manager()
             shared_data = manager.list(
                 list(map(manager.list, np.array_split(flatten_data, n_processes)))
@@ -368,7 +384,7 @@ class PaillierPublicKey:
 
             results = []
             for i in range(n_processes):
-                result = pool.apply_async(target_func, (shared_data[i],))
+                result = process_pool.apply_async(target_func, (shared_data[i],))
                 results.append(result)
             for i in range(n_processes):
                 assert results[i].get() is True
@@ -452,17 +468,14 @@ class PaillierPrivateKey:
         else:
             return ciphertext
 
-    def raw_decrypt_vector(
-        self, cipher_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
+    def raw_decrypt_vector(self, cipher_vector, thread_pool=None, num_workers=1):
         """Decrypt a vector of ciphertext.
 
         Parameters
         ----------
         cipher_vector
-        using_pool
-        n_workers
         thread_pool
+        num_workers
 
         Returns
         -------
@@ -471,13 +484,21 @@ class PaillierPrivateKey:
         assert type(cipher_vector) in (
             list,
             np.ndarray,
-        ), "cipher_vector's dtype can only be Python list or Numpy array."
-        if not using_pool:
+        ), (
+            "cipher_vector's dtype can only be Python list or Numpy array, but got"
+            f" {type(cipher_vector)} instead."
+        )
+        assert (
+            num_workers >= 1
+        ), f"number of workers should >=1, but got {num_workers} instead."
+
+        if thread_pool is None and num_workers == 1:
             return [self.raw_decrypt(cipher) for cipher in cipher_vector]
+
+        create_pool = False
         if thread_pool is None:
-            if n_workers is None:
-                n_workers = os.cpu_count()
-            thread_pool = multiprocessing.pool.ThreadPool(n_workers)
+            create_pool = True
+            thread_pool = multiprocessing.pool.ThreadPool(num_workers)
 
         ciphertexts, exponents = [], []
         for enc_number in cipher_vector:
@@ -503,6 +524,8 @@ class PaillierPrivateKey:
                 result.get() is True
             ), "worker process did not finish within default timeout"
 
+        if create_pool:
+            thread_pool.close()
         return ciphertexts  # always return a Python list
 
     def _target_dec_vector(self, ciphertexts, exponents, start, end):
@@ -539,7 +562,7 @@ class PaillierPrivateKey:
             sublist_idx += 1
         return True
 
-    def raw_decrypt_data(self, encrypted_data, pool: Pool = None):
+    def raw_decrypt_data(self, encrypted_data, process_pool=None):
         if type(encrypted_data) == list:
             encrypted_data = np.array(encrypted_data)
             data_type = "list"
@@ -551,13 +574,13 @@ class PaillierPrivateKey:
         shape = encrypted_data.shape
         flatten_data = encrypted_data.astype(object).flatten()
 
-        if pool is None or len(flatten_data) < 10000:
+        if process_pool is None or len(flatten_data) < 10000:
             plain_data = flatten_data
             assert self._target_dec_data(plain_data) is True
             plain_data = np.reshape(plain_data, shape)
         else:
             print("using pool to speed up")
-            n_processes = pool._processes
+            n_processes = process_pool._processes
             manager = Manager()
             shared_data = manager.list(
                 list(map(manager.list, np.array_split(flatten_data, n_processes)))
@@ -565,7 +588,9 @@ class PaillierPrivateKey:
 
             results = []
             for i in range(n_processes):
-                result = pool.apply_async(self._target_dec_data, (shared_data[i],))
+                result = process_pool.apply_async(
+                    self._target_dec_data, (shared_data[i],)
+                )
                 results.append(result)
             for result in results:
                 assert result.get() is True
@@ -589,44 +614,53 @@ class PaillierPrivateKey:
 
 
 class PartialPaillier(BasePartialCryptoSystem):
-    def __init__(self, raw_public_key):
+    def __init__(self, raw_public_key: phe.PaillierPublicKey):
         super(PartialPaillier, self).__init__()
-        self.pub_key = raw_public_key  # for API consistency
+        self.pub_key: phe.PaillierPublicKey = raw_public_key  # for API consistency
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
-        self.type = Const.PAILLIER
+        self.type: str = Const.PAILLIER
 
-    def encrypt(self, plaintext):
+    def encrypt(self, plaintext: Union[NumpyTypes, float, int]) -> EncryptedNumber:
         return self.pub_key_obj.raw_encrypt(plaintext)
 
     def encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
-        return self.pub_key_obj.raw_encrypt_vector(
-            plain_vector, using_pool, n_workers, thread_pool
-        )
+        self,
+        plain_vector: Union[List[Union[float, int]], np.ndarray, torch.Tensor],
+        *,
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[EncryptedNumber]:
+        return self.pub_key_obj.raw_encrypt_vector(plain_vector, pool, num_workers)
 
 
 class PartialFastPaillier(BasePartialCryptoSystem):
-    def __init__(self, raw_public_key, num_enc_zeros=10000, gen_from_set=True):
+    def __init__(
+        self,
+        raw_public_key: phe.PaillierPublicKey,
+        num_enc_zeros: int = 10000,
+        gen_from_set: bool = True,
+    ):
         super(PartialFastPaillier, self).__init__()
-        self.pub_key = raw_public_key
+        self.pub_key: phe.PaillierPublicKey = raw_public_key
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
-        self.type = Const.FAST_PAILLIER
+        self.type: str = Const.FAST_PAILLIER
 
         print("Generating encrypted zeros...")
-        enc_zeros = _cal_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
+        enc_zeros = _gen_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
         self.pub_key_obj.set_enc_zeros(enc_zeros)
         print("Done!")
 
-    def encrypt(self, plaintext):
+    def encrypt(self, plaintext: Union[NumpyTypes, float, int]) -> EncryptedNumber:
         return self.pub_key_obj.raw_fast_encrypt(plaintext)
 
     def encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, process_pool=None
-    ):
-        return self.pub_key_obj.raw_fast_encrypt_vector(
-            plain_vector, using_pool, n_workers, process_pool
-        )
+        self,
+        plain_vector: Union[List[Union[float, int]], np.ndarray, torch.Tensor],
+        *,
+        pool: Optional[Pool] = None,
+        num_workers: int = 1,
+    ) -> List[EncryptedNumber]:
+        return self.pub_key_obj.raw_fast_encrypt_vector(plain_vector, pool, num_workers)
 
 
 class Paillier(BaseCryptoSystem):
@@ -677,52 +711,63 @@ class Paillier(BaseCryptoSystem):
 
     """
 
-    def __init__(self, key_size=1024):
+    def __init__(self, key_size: int = 1024):
         super(Paillier, self).__init__(key_size)
         raw_public_key, raw_private_key = self._gen_key(key_size)
-        self.pub_key, self.priv_key = (
-            raw_public_key,
-            raw_private_key,
-        )  # for API consistency
+        self.pub_key: phe.PaillierPublicKey = raw_public_key
+        self.priv_key: phe.PaillierPrivateKey = raw_private_key
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
         self.priv_key_obj = PaillierPrivateKey(raw_private_key)
-        self.type = Const.PAILLIER
-
-    @classmethod
-    def from_config(cls, config):
-        assert isinstance(
-            config, BaseConfig
-        ), "config object should be an instance of BaseConfig class."
-        return cls(key_size=config.KEY_SIZE)
+        self.type: str = Const.PAILLIER
 
     def _gen_key(self, key_size):
         pub_key, priv_key = paillier.generate_paillier_keypair(n_length=key_size)
         return pub_key, priv_key
 
-    def encrypt(self, plaintext):
+    def encrypt(self, plaintext: Union[NumpyTypes, float, int]) -> EncryptedNumber:
         return self.pub_key_obj.raw_encrypt(plaintext)
 
-    def decrypt(self, ciphertext):
+    def decrypt(
+        self, ciphertext: Union[EncryptedNumber, float, int]
+    ) -> Union[float, int]:
         return self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
-        return self.pub_key_obj.raw_encrypt_vector(
-            plain_vector, using_pool, n_workers, thread_pool
-        )
+        self,
+        plain_vector: Union[List[Union[float, int]], np.ndarray, torch.Tensor],
+        *,
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[EncryptedNumber]:
+        return self.pub_key_obj.raw_encrypt_vector(plain_vector, pool, num_workers)
 
     def decrypt_vector(
-        self, cipher_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
+        self,
+        cipher_vector: Union[List[EncryptedNumber], np.ndarray],
+        *,
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[Union[float, int]]:
         return self.priv_key_obj.raw_decrypt_vector(
-            cipher_vector, using_pool, n_workers, thread_pool
+            cipher_vector,
+            pool,
+            num_workers,
         )
 
-    def encrypt_data(self, plain_data, pool: Pool = None):
+    def encrypt_data(
+        self,
+        plain_data: Union[List[Union[float, int]], np.ndarray, torch.Tensor],
+        *,
+        pool: Optional[Pool] = None,
+    ) -> Union[List[EncryptedNumber], np.ndarray]:
         return self.pub_key_obj.raw_encrypt_data(plain_data, pool)
 
-    def decrypt_data(self, encrypted_data, pool: Pool = None):
+    def decrypt_data(
+        self,
+        encrypted_data: Union[List[Union[EncryptedNumber, float, int]], np.ndarray],
+        *,
+        pool: Optional[Pool] = None,
+    ) -> Union[List[Union[float, int]], np.ndarray]:
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
@@ -731,7 +776,12 @@ class FastPaillier(BaseCryptoSystem):
     Faster paillier encryption using pre-computed encrypted zeros.
     """
 
-    def __init__(self, key_size=1024, num_enc_zeros=10000, gen_from_set=True):
+    def __init__(
+        self,
+        key_size: int = 1024,
+        num_enc_zeros: int = 10000,
+        gen_from_set: bool = True,
+    ):
         """
         Initialize a FastPaillier instance
 
@@ -747,64 +797,75 @@ class FastPaillier(BaseCryptoSystem):
         # TODO: move the process of generating encrypted zeros to offline phase
         super(FastPaillier, self).__init__(key_size)
         raw_public_key, raw_private_key = self._gen_key(key_size)
-        self.pub_key, self.priv_key = raw_public_key, raw_private_key
+        self.pub_key: phe.PaillierPublicKey = raw_public_key
+        self.priv_key: phe.PaillierPrivateKey = raw_private_key
         self.pub_key_obj = PaillierPublicKey(raw_public_key)
         self.priv_key_obj = PaillierPrivateKey(raw_private_key)
-        self.type = Const.FAST_PAILLIER
+        self.type: str = Const.FAST_PAILLIER
 
         print("Generating encrypted zeros...")
-        enc_zeros = _cal_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
+        enc_zeros = _gen_enc_zeros(raw_public_key, num_enc_zeros, gen_from_set)
         self.pub_key_obj.set_enc_zeros(enc_zeros)
         print("Done!")
-
-    @classmethod
-    def from_config(cls, config):
-        assert isinstance(
-            config, BaseConfig
-        ), "config object should be an instance of BaseConfig class."
-        return cls(
-            key_size=config.KEY_SIZE,
-            num_enc_zeros=config.NUM_ENC_ZEROS,
-            gen_from_set=config.GEN_FROM_SET,
-        )
 
     def _gen_key(self, key_size):
         pub_key, priv_key = paillier.generate_paillier_keypair(n_length=key_size)
         return pub_key, priv_key
 
-    def encrypt(self, plaintext):
+    def encrypt(self, plaintext: Union[NumpyTypes, float, int]) -> EncryptedNumber:
         return self.pub_key_obj.raw_fast_encrypt(plaintext)
 
-    def decrypt(self, ciphertext):
+    def decrypt(
+        self,
+        ciphertext: Union[EncryptedNumber, float, int],
+    ) -> Union[float, int]:
         return self.priv_key_obj.raw_decrypt(ciphertext)
 
     def encrypt_vector(
-        self, plain_vector, using_pool=False, n_workers=None, process_pool=None
-    ):
-        return self.pub_key_obj.raw_fast_encrypt_vector(
-            plain_vector, using_pool, n_workers, process_pool
-        )
+        self,
+        plain_vector: Union[List[Union[float, int]], np.ndarray, torch.Tensor],
+        *,
+        pool: Optional[Pool] = None,
+        num_workers: int = 1,
+    ) -> List[EncryptedNumber]:
+        return self.pub_key_obj.raw_fast_encrypt_vector(plain_vector, pool, num_workers)
 
     def decrypt_vector(
-        self, cipher_vector, using_pool=False, n_workers=None, thread_pool=None
-    ):
+        self,
+        cipher_vector: Union[List[EncryptedNumber], np.ndarray],
+        *,
+        pool: Optional[ThreadPool] = None,
+        num_workers: int = 1,
+    ) -> List[Union[float, int]]:
         return self.priv_key_obj.raw_decrypt_vector(
-            cipher_vector, using_pool, n_workers, thread_pool
+            cipher_vector,
+            pool,
+            num_workers,
         )
 
-    def encrypt_data(self, plain_data, pool: Pool = None):
+    def encrypt_data(
+        self,
+        plain_data: Union[List[Union[float, int]], np.ndarray, torch.Tensor],
+        *,
+        pool: Optional[Pool] = None,
+    ) -> Union[List[EncryptedNumber], np.ndarray]:
         return self.pub_key_obj.raw_fast_encrypt_data(plain_data, pool)
 
-    def decrypt_data(self, encrypted_data, pool: Pool = None):
+    def decrypt_data(
+        self,
+        encrypted_data: Union[List[Union[EncryptedNumber, float, int]], np.ndarray],
+        *,
+        pool: Optional[Pool] = None,
+    ) -> Union[List[Union[float, int]], np.ndarray]:
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
 def cipher_matmul(
     cipher_matrix: np.ndarray,
     plain_matrix: np.ndarray,
-    executor_pool: multiprocessing.pool.ThreadPool,
-    scheduler_pool: multiprocessing.pool.ThreadPool,
-):
+    executor_pool: ThreadPool,
+    scheduler_pool: ThreadPool,
+) -> np.ndarray:
     """
 
     Parameters
@@ -877,7 +938,7 @@ def _cipher_mat_vec_product(cipher_vector, plain_matrix, executor_pool, schedule
             end += remainder
         # this will modify avg_result in place
         result = scheduler_pool.apply_async(
-            _target_row_add, args=(enc_result, avg_result, start, end, executor_pool)
+            _target_row_add, args=(enc_result, avg_result, start, end)
         )
         async_results.append(result)
     for result in async_results:
@@ -893,20 +954,21 @@ def _target_row_mul(enc_vector, plain_matrix, enc_result, start, end, executor_p
     return True
 
 
-def _target_row_add(enc_result, avg_result, start, end, executor_pool):
+def _target_row_add(enc_result, avg_result, start, end):
     for k in range(start, end):
-        row_sum = fast_add_ciphers(enc_result[k], executor_pool)
+        row_sum = fast_add_ciphers(enc_result[k])
         avg_result[k] = row_sum
     return True
 
 
-def fast_add_ciphers(cipher_vector, thread_pool=None):
+def fast_add_ciphers(
+    cipher_vector: Union[List[EncryptedNumber], np.ndarray]
+) -> EncryptedNumber:
     """
 
     Parameters
     ----------
     cipher_vector
-    thread_pool
 
     Returns
     -------
@@ -947,7 +1009,11 @@ def fast_add_ciphers(cipher_vector, thread_pool=None):
     return EncryptedNumber(public_key, int(final_cipher), min_exp)
 
 
-def fast_mul_ciphers(plain_vector, cipher, thread_pool=None):
+def fast_mul_ciphers(
+    plain_vector: Union[List[EncodedNumber], np.ndarray],
+    cipher: EncryptedNumber,
+    thread_pool: Optional[ThreadPool] = None,
+) -> List[Union[EncryptedNumber, None]]:
     """
 
     Parameters
@@ -1013,8 +1079,13 @@ def _target_mul_ciphers(base, exps, nsquare):
 
 
 def encode(
-    raw_data: np.ndarray, raw_pub_key: phe.PaillierPublicKey, precision: float = 0.001
-):
+    raw_data: np.ndarray,
+    raw_pub_key: phe.PaillierPublicKey,
+    *,
+    precision: float = 0.001,
+    pool: Optional[Pool] = None,
+    num_workers: int = 1,
+) -> np.ndarray:
     """
 
     Parameters
@@ -1022,6 +1093,8 @@ def encode(
     raw_data
     raw_pub_key
     precision
+    pool:
+    num_workers:
 
     Returns
     -------
@@ -1030,11 +1103,38 @@ def encode(
     data_flat = raw_data.flatten()
     # remember to use val.item(), otherwise,
     # "TypeError('argument should be a string or a Rational instance'" will be raised
-    data_encode = [
-        EncodedNumber.encode(raw_pub_key, val.item(), precision=precision)
-        for val in data_flat
-    ]
+    if len(data_flat) < 1000 or (pool is None and num_workers == 1):
+        if len(data_flat) < 1000:
+            warnings.warn(
+                "It's not recommended to use multiprocessing when the number of"
+                " elements inraw_data is less than 1000. Still use single process.",
+                stacklevel=2,
+            )
+        data_encode = [
+            EncodedNumber.encode(raw_pub_key, val.item(), precision=precision)
+            for val in data_flat
+        ]
+        return np.array(data_encode).reshape(raw_data.shape)
+
+    create_pool = False
+    if pool is None:
+        create_pool = True
+        pool = multiprocessing.pool.Pool(num_workers)
+
+    data_encode = pool.map(
+        functools.partial(_target_encode, raw_pub_key=raw_pub_key, precision=precision),
+        data_flat,
+    )
+    if create_pool:
+        pool.close()
     return np.array(data_encode).reshape(raw_data.shape)
+
+
+def _target_encode(value, raw_pub_key, precision):
+    value = value.item()
+    return EncodedNumber.encode(
+        public_key=raw_pub_key, scalar=value, precision=precision
+    )
 
 
 if __name__ == "__main__":
@@ -1075,8 +1175,8 @@ if __name__ == "__main__":
 
     start_ = time.time()
     pool_ = Pool(6)
-    encrypted_data_ = _crypto_system.encrypt_data(plain_data_, pool_)
-    decrypted_data_ = _crypto_system.decrypt_data(encrypted_data_, pool_)
+    encrypted_data_ = _crypto_system.encrypt_data(plain_data_, pool=pool_)
+    decrypted_data_ = _crypto_system.decrypt_data(encrypted_data_, pool=pool_)
     pool_.close()
     end_ = time.time()
     print(decrypted_data_)

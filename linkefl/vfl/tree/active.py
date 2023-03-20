@@ -1,9 +1,10 @@
 import datetime
 import os
+import pathlib
 import time
 from collections import defaultdict
 from multiprocessing import Pool
-from typing import List
+from typing import Dict, List, Optional
 
 import numpy as np
 from scipy.special import softmax
@@ -18,6 +19,7 @@ from sklearn.metrics import (
 
 from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.messenger.socket_disconnection import FastSocket_disconnection_v1
 from linkefl.modelio import NumpyModelIO
@@ -31,7 +33,6 @@ from linkefl.vfl.tree.loss_functions import (
     MultiCrossEntropyLoss,
 )
 from linkefl.vfl.utils.evaluate import Evaluate, Plot, TreePrint
-# from linkefl.vfl.tree.plotting import Plot, tree_to_str
 
 
 class ActiveTreeParty(BaseModelComponent):
@@ -43,7 +44,7 @@ class ActiveTreeParty(BaseModelComponent):
         crypto_type: str,
         crypto_system: BaseCryptoSystem,
         messengers: List[BaseMessenger],
-        logger,
+        logger: GlobalLogger,
         *,
         training_mode: str = "lightgbm",
         learning_rate: float = 0.3,
@@ -62,8 +63,8 @@ class ActiveTreeParty(BaseModelComponent):
         colsample_bytree: float = 1,
         n_processes: int = 1,
         saving_model: bool = False,
-        model_path: str = "./models",
-        model_name=None,
+        model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
         drop_protection: bool = False,
         reconnect_ports: List[int] = None,
     ):
@@ -110,29 +111,30 @@ class ActiveTreeParty(BaseModelComponent):
 
         self.learning_rate = learning_rate
         self.max_bin = max_bin
-        self.saving_model = saving_model
-        self.model_path = model_path
-
         if n_processes > 1:
             self.pool = Pool(n_processes)
         else:
             self.pool = None
-
-        if model_name is None:
-            self.model_name = (
-                "{time}-{role}-{model_type}".format(
-                    time=datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-                    role=Const.ACTIVE_NAME,
-                    model_type=Const.VERTICAL_SBT,
+        self.saving_model = saving_model
+        if self.saving_model:
+            self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            if model_dir is None:
+                default_dir = "models"
+                model_dir = os.path.join(default_dir, self.create_time)
+            if model_name is None:
+                model_name = (
+                    "{time}-{role}-{algo_name}".format(
+                        time=self.create_time,
+                        role=Const.ACTIVE_NAME,
+                        algo_name=Const.AlgoNames.VFL_SBT,
+                    )
+                    + ".model"
                 )
-                + ".model"
-            )
-        else:
+            self.model_dir = model_dir
             self.model_name = model_name
-
-        self.pics_path = os.path.join(self.model_path, "vfl_sbt")
-        if not os.path.exists(self.pics_path):
-            os.makedirs(self.pics_path)
+            self.pics_dir = self.model_dir
+            if not os.path.exists(self.model_dir):
+                pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
         # 初始化 loss
         if task == "binary":
@@ -209,7 +211,7 @@ class ActiveTreeParty(BaseModelComponent):
             if compress is True:
                 self.logger.log(
                     "compress should be set only when task is binary",
-                    level=Const.WARNING,
+                    level="warning",
                 )
 
         if task == "regression":
@@ -221,13 +223,18 @@ class ActiveTreeParty(BaseModelComponent):
             for messenger in messengers:
                 assert isinstance(
                     messenger, FastSocket_disconnection_v1
-                ), "current messenger type does not support drop protection."
+                ), "current messengers type does not support drop protection."
 
-    def fit(self, trainset, testset, role=Const.ACTIVE_NAME):
+    def fit(
+        self,
+        trainset: NumpyDataset,
+        validset: NumpyDataset,
+        role: str = Const.ACTIVE_NAME,
+    ) -> None:
         """set for pipeline func."""
-        self.train(trainset, testset)
+        self.train(trainset, validset)
 
-    def train(self, trainset, testset):
+    def train(self, trainset: NumpyDataset, testset: NumpyDataset) -> None:
         assert isinstance(
             trainset, NumpyDataset
         ), "trainset should be an instance of NumpyDataset"
@@ -246,8 +253,6 @@ class ActiveTreeParty(BaseModelComponent):
 
         # record data for plot fig
         self.mertics_record = {}
-        # Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
-        #                                50, self.pics_path)
 
         if self.task == "binary" or self.task == "regression":
             raw_outputs = np.zeros(len(trainset.labels))  # sum of tree raw outputs
@@ -261,7 +266,13 @@ class ActiveTreeParty(BaseModelComponent):
                 outputs_test = raw_outputs_test.copy()
 
             residual_record, train_loss_record, test_loss_record = [], [], []
-            train_auc_record, test_auc_record, train_acc_record, test_acc_record, f1_record = [], [], [], [], []
+            (
+                train_auc_record,
+                test_auc_record,
+                train_acc_record,
+                test_acc_record,
+                f1_record,
+            ) = ([], [], [], [], [])
             MAE_record, MSE_record, SSE_record, R2_record = [], [], [], []
 
             for tree_id, tree in enumerate(self.trees):
@@ -317,14 +328,14 @@ class ActiveTreeParty(BaseModelComponent):
                     else:
                         break
 
-                residual = (testset.labels-outputs_test).mean()
+                residual = (testset.labels - outputs_test).mean()
                 residual_record.append(residual)
                 train_loss_record.append(train_loss.mean())
                 test_loss_record.append(test_loss.mean())
 
                 if self.task == "binary":
                     self.logger.log_metric(
-                        epoch=tree_id,
+                        epoch=tree_id + 1,
                         loss=train_loss.mean(),
                         acc=scores["acc"],
                         auc=scores["auc"],
@@ -335,12 +346,14 @@ class ActiveTreeParty(BaseModelComponent):
                     )
                     train_auc_record.append(roc_auc_score(trainset.labels, outputs))
                     test_auc_record.append(scores["auc"])
-                    train_acc_record.append(accuracy_score(trainset.labels, np.round(outputs).astype(int)))
+                    train_acc_record.append(
+                        accuracy_score(trainset.labels, np.round(outputs).astype(int))
+                    )
                     test_acc_record.append(scores["acc"])
                     f1_record.append(scores["f1"])
                 else:
-                    self.logger.log_metric_regression(
-                        epoch=tree_id,
+                    self.logger.log_metric(
+                        epoch=tree_id + 1,
                         loss=train_loss.mean(),
                         mae=scores["mae"],
                         mse=scores["mse"],
@@ -407,7 +420,7 @@ class ActiveTreeParty(BaseModelComponent):
                         break
 
                 self.logger.log_metric(
-                    epoch=tree_id,
+                    epoch=tree_id + 1,
                     loss=loss.mean(),
                     acc=scores["acc"],
                     auc=scores["auc"],
@@ -445,26 +458,40 @@ class ActiveTreeParty(BaseModelComponent):
 
             # 输出模型
             tree_strs = self.get_tree_str_structures(tree_structure="VERTICAL")
-            Plot.plot_trees(tree_strs, self.pics_path)
-            Plot.plot_importance(self, importance_type="split", file_dir=self.pics_path)
+            Plot.plot_trees(tree_strs, self.pics_dir)
+            Plot.plot_importance(self, importance_type="split", file_dir=self.pics_dir)
 
             # 模型拟合相关
-            Plot.plot_residual(residual_record, self.pics_path)
-            Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
+            Plot.plot_residual(residual_record, self.pics_dir)
+            Plot.plot_train_test_loss(
+                train_loss_record, test_loss_record, self.pics_dir
+            )
 
             # 预测概率相关
-            Plot.plot_ordered_lorenz_curve(label=testset.labels, y_prob=outputs_test, file_dir=self.pics_path)
-            Plot.plot_predict_distribution(y_prob=outputs, bins=10, file_dir=self.pics_path)
-            Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_path)
+            Plot.plot_ordered_lorenz_curve(
+                label=testset.labels, y_prob=outputs_test, file_dir=self.pics_dir
+            )
+            Plot.plot_predict_distribution(
+                y_prob=outputs, bins=10, file_dir=self.pics_dir
+            )
+            Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_dir)
 
             if self.task == "binary":
-                Plot.plot_train_test_auc(train_auc_record, test_auc_record, self.pics_path)
-                Plot.plot_binary_mertics(testset.labels, outputs_test, cut_point=50, file_dir=self.pics_path)
-                Plot.plot_f1_score(f1_record, self.pics_path)
+                Plot.plot_train_test_auc(
+                    train_auc_record, test_auc_record, self.pics_dir
+                )
+                Plot.plot_binary_mertics(
+                    testset.labels, outputs_test, cut_point=50, file_dir=self.pics_dir
+                )
+                Plot.plot_f1_score(f1_record, self.pics_dir)
             else:
-                Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.pics_path)
+                Plot.plot_regression_metrics(
+                    MAE_record, MSE_record, SSE_record, R2_record, self.pics_dir
+                )
 
-    def score(self, testset, role=Const.ACTIVE_NAME):
+    def score(
+        self, testset: NumpyDataset, role: str = Const.ACTIVE_NAME
+    ) -> Dict[str, float]:
         """set for pipeline func."""
         return self._validate(testset)
 
@@ -558,7 +585,7 @@ class ActiveTreeParty(BaseModelComponent):
 
         return scores, targets
 
-    def feature_importances_(self, importance_type="split"):
+    def feature_importances_(self, importance_type: str = "split") -> Dict[str, list]:
         """
         Args:
             importance_type: choose in ("split", "gain", "cover"),
@@ -592,7 +619,7 @@ class ActiveTreeParty(BaseModelComponent):
 
         return result
 
-    def load_model(self, model_name, model_path="./models"):
+    def load_model(self, model_name: str, model_path: str = "./models") -> None:
         model_params, feature_importance_info, lr, tree_structure = NumpyModelIO.load(
             model_path, model_name
         )
@@ -618,7 +645,9 @@ class ActiveTreeParty(BaseModelComponent):
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
 
-    def get_tree_str_structures(self, tree_structure: str = "VERTICAL"):
+    def get_tree_str_structures(
+        self, tree_structure: str = "VERTICAL"
+    ) -> Dict[str, str]:
         assert tree_structure in [
             "VERTICAL",
             "HORIZONTAL",
@@ -633,7 +662,7 @@ class ActiveTreeParty(BaseModelComponent):
         self.logger.log(f"Load model {self.model_name} success.")
         return tree_strs
 
-    def get_tree_structures(self):
+    def get_tree_structures(self) -> Dict[str, str]:
         """tree_id : 1-based"""
 
         def _pre_order_traverse(root):
@@ -712,7 +741,13 @@ class ActiveTreeParty(BaseModelComponent):
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
             ks_value, threshold = Evaluate.eval_ks(labels, targets, cut_point=50)
-            scores = {"acc": acc, "auc": auc, "f1": f1, "ks": ks_value, "threshold": threshold}
+            scores = {
+                "acc": acc,
+                "auc": auc,
+                "f1": f1,
+                "ks": ks_value,
+                "threshold": threshold,
+            }
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs_test, axis=1)
@@ -774,7 +809,13 @@ class ActiveTreeParty(BaseModelComponent):
             auc = roc_auc_score(labels, outputs)
             f1 = f1_score(labels, targets, average="weighted")
             ks_value, threshold = Evaluate.eval_ks(labels, targets, cut_point=50)
-            scores = {"acc": acc, "auc": auc, "f1": f1, "ks": ks_value, "threshold": threshold}
+            scores = {
+                "acc": acc,
+                "auc": auc,
+                "f1": f1,
+                "ks": ks_value,
+                "threshold": threshold,
+            }
 
         elif self.task == "multi":
             outputs = softmax(raw_outputs, axis=1)
@@ -824,7 +865,7 @@ class ActiveTreeParty(BaseModelComponent):
             self.learning_rate,
             model_structure,
         ]
-        NumpyModelIO.save(saved_data, self.model_path, model_name)
+        NumpyModelIO.save(saved_data, self.model_dir, model_name)
 
         self.logger.log(f"Save model {model_name} success.")
         return model_structure
@@ -904,7 +945,7 @@ if __name__ == "__main__":
         gen_from_set=False,
     )
 
-    # 3. Initialize messenger
+    # 3. Initialize messengers
     if not drop_protection:
         messengers = [
             messenger_factory(
@@ -973,6 +1014,6 @@ if __name__ == "__main__":
     # trees_strs = active_party.plot_trees(tree_structure="VERTICAL")
     # print(trees_strs[1])        # tree id is 1-based
 
-    # 5. Close messenger, finish training
+    # 5. Close messengers, finish training
     for messenger in messengers:
         messenger.close()

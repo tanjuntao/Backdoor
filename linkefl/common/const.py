@@ -63,12 +63,6 @@ class Const:
     VERTICAL_INFERENCE = "vertical_inference"
     HORIZONTAL_INFERENCE = "horizontal_inference"
 
-    DEBUG = "debug"
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
-
     REGRESSION = "regression"
     CLASSIFICATION = "classification"
     PYTORCH_DATASET = [
@@ -103,3 +97,14 @@ class Const:
     RUNNING = "running"
     FAILURE = "failure"
     SUCCESS = "success"
+
+    class AlgoNames:
+        VFL_LINREG = "vfl_linreg"
+        VFL_LOGREG = "vfl_logreg"
+        VFL_CREDITCARD = "vfl_creditcard"
+        VFL_SBT = "vfl_sbt"
+        VFL_NN = "vfl_nn"
+        VFL_KMEANS = "vfl_kmeans"
+        HFL_LINREG = "hfl_linreg"
+        HFL_LOGREG = "hfl_logreg"
+        HFL_NN = "hfl_nn"

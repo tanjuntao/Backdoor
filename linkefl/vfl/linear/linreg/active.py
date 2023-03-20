@@ -1,63 +1,55 @@
 import copy
 import time
+from typing import Dict, List, Optional
 
 import numpy as np
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score,
-    roc_auc_score,
-)
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from termcolor import colored
 
-from linkefl.base import BaseModelComponent
+from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
-from linkefl.vfl.linear import BaseLinearActive
+from linkefl.vfl.linear.base import BaseLinearActive
 from linkefl.vfl.tree.plotting import Plot
+
 
 class ActiveLinReg(BaseLinearActive, BaseModelComponent):
     def __init__(
         self,
-        epochs,
-        batch_size,
-        learning_rate,
-        messenger,
-        cryptosystem,
-        logger,
         *,
-        penalty=Const.L2,
-        reg_lambda=0.01,
-        crypto_type=Const.PAILLIER,
-        precision=0.001,
-        random_state=None,
-        using_pool=False,
-        num_workers=-1,
-        val_freq=1,
-        saving_model=False,
-        model_path="./models",
-        model_name=None,
+        epochs: int,
+        batch_size: int,
+        learning_rate: float,
+        messengers: List[BaseMessenger],
+        cryptosystem: BaseCryptoSystem,
+        logger: GlobalLogger,
+        rank: int = 0,
+        penalty: str = "l2",
+        reg_lambda: float = 0.01,
+        num_workers: int = 1,
+        val_freq: int = 1,
+        random_state: Optional[int] = None,
+        saving_model: bool = False,
+        model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         super(ActiveLinReg, self).__init__(
             epochs=epochs,
             batch_size=batch_size,
             learning_rate=learning_rate,
-            messenger=messenger,
+            messengers=messengers,
             cryptosystem=cryptosystem,
             logger=logger,
+            rank=rank,
             penalty=penalty,
             reg_lambda=reg_lambda,
-            crypto_type=crypto_type,
-            precision=precision,
-            random_state=random_state,
-            using_pool=using_pool,
             num_workers=num_workers,
             val_freq=val_freq,
+            random_state=random_state,
             saving_model=saving_model,
-            model_path=model_path,
+            model_dir=model_dir,
             model_name=model_name,
             task="regression",
         )
@@ -79,20 +71,17 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
 
         return total_loss
 
-    def train(self, trainset, testset):
+    def train(self, trainset: NumpyDataset, validset: NumpyDataset) -> None:
         assert isinstance(
             trainset, NumpyDataset
         ), "trainset should be an instance of NumpyDataset"
         assert isinstance(
-            testset, NumpyDataset
+            validset, NumpyDataset
         ), "testset should be an instance of NumpyDataset"
         setattr(self, "x_train", trainset.features)
-        setattr(self, "x_val", testset.features)
+        setattr(self, "x_val", validset.features)
         setattr(self, "y_train", trainset.labels)
-        setattr(self, "y_val", testset.labels)
-
-        # Plot.plot_bimodal_distribution(trainset.features[:, 0].flatten(), trainset.features[:, 1].flatten(),
-        #                                50, self.pics_path)
+        setattr(self, "y_val", validset.labels)
 
         # initialize model parameters
         params = self._init_weights(trainset.n_features)
@@ -108,21 +97,19 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
         else:
             n_batches = n_samples // bs + 1
 
-        best_loss = float("inf")
-        best_score = 0
+        best_loss, best_score = float("inf"), 0.0
+        residue_records = []
+        r2_records = []
+        train_loss_records, valid_loss_records = [], []
+        mae_records, mse_records, sse_records = [], [], []
         start_time = None
-        compu_time = 0
         # Main Training Loop Here
         self.logger.log("Start collaborative model training...")
-        residual_record, train_loss_record, test_loss_record = [], [], []
-        MAE_record, MSE_record, SSE_record, R2_record = [], [], [], []
-
         for epoch in range(self.epochs):
-            is_best = False
             all_idxes = np.arange(n_samples)
             np.random.seed(epoch)
             np.random.shuffle(all_idxes)
-            batch_losses, residuales_sum = [], 0
+            batch_losses, batch_residues = [], []
             for batch in range(n_batches):
                 # Choose batch indexes
                 start = batch * bs
@@ -134,10 +121,9 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
                     getattr(self, "x_train")[batch_idxes], getattr(self, "params")
                 )
                 full_wx = active_wx
-                for msger in self.messenger:
+                for msger in self.messengers:
                     passive_wx = msger.recv()
                     full_wx += passive_wx
-                _begin = time.time()
                 if start_time is None:
                     start_time = time.time()
                 y_hat = full_wx  # no activation function
@@ -146,104 +132,119 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
 
                 # Active party helps passive party to calcalate gradient
                 enc_residue = np.array(self.cryptosystem.encrypt_vector(residue))
-                compu_time += time.time() - _begin
-                for msger in self.messenger:
+                for msger in self.messengers:
                     msger.send(enc_residue)
-                for msger in self.messenger:
+                for msger in self.messengers:
                     enc_passive_grad = msger.recv()
-                    _begin = time.time()
                     passive_grad = np.array(
                         self.cryptosystem.decrypt_vector(enc_passive_grad)
                     )
-                    compu_time += time.time() - _begin
                     msger.send(passive_grad)
 
                 # Active party calculates its gradient and update model
                 active_grad = self._grad(residue, batch_idxes)
                 self._gradient_descent(getattr(self, "params"), active_grad)
                 batch_losses.append(loss)
-                residuales_sum += sum(residue)
-
-            residual_record.append(residuales_sum/n_samples)
+                batch_residues.append(residue.mean())
 
             # validate model performance
+            is_best = False
             if (epoch + 1) % self.val_freq == 0:
-                cur_loss = np.array(batch_losses).mean()
-                self.logger.log(f"Epoch: {epoch}, Loss: {cur_loss}")
+                scores = self.validate(validset)
+                train_scores = self.validate(  # noqa: F841,
+                    trainset
+                )  # do not delete this line
+                train_loss = np.array(batch_losses).mean()
+                self.logger.log(
+                    f"Epoch: {epoch}, Train loss: {train_loss}, Valid loss:"
+                    f" {scores['loss']}"
+                )
+
+                residue_records.append(np.array(batch_residues).mean())
+                train_loss_records.append(train_loss)
+                valid_loss_records.append(scores["loss"])
+                mae_records.append(scores["mae"])
+                mse_records.append(scores["mse"])
+                sse_records.append(scores["sse"])
+                r2_records.append(scores["r2"])
+                if scores["loss"] < best_loss:
+                    best_loss = scores["loss"]
+                    is_best = True
+                if scores["r2"] > best_score:
+                    best_score = scores["r2"]
+                    is_best = True
                 self.logger.log_metric(
-                    epoch=epoch,
-                    loss=cur_loss,
+                    epoch=epoch + 1,
+                    loss=scores["loss"],
+                    mae=scores["mae"],
+                    mse=scores["mse"],
+                    sse=scores["sse"],
+                    r2=scores["r2"],
                     total_epoch=self.epochs,
                 )
-                result = self.validate(testset)
-                val_loss, val_score = result["loss"], result["r2"]
-                if val_loss < best_loss:
-                    best_loss = val_loss
-                    is_best = True
-                if val_score > best_score:
-                    best_score = val_score
                 if is_best:
-                    # save_params(self.params, role='bob')
+                    print(colored("Best model updates.", "red"))
                     self.logger.log("Best model updates.")
                     if self.saving_model:
                         model_params = copy.deepcopy(getattr(self, "params"))
-                        NumpyModelIO.save(
-                            model_params, self.model_path, self.model_name
-                        )
-
-                train_loss_record.append(cur_loss)
-                test_loss_record.append(result["loss"])
-                MAE_record.append(result["mae"])
-                MSE_record.append(result["mse"])
-                SSE_record.append(result["sse"])
-                R2_record.append(result["r2"])
-
-                for msger in self.messenger:
+                        NumpyModelIO.save(model_params, self.model_dir, self.model_name)
+                for msger in self.messengers:
                     msger.send(is_best)
+
+        if self.executor_pool is not None:
+            self.executor_pool.close()
+            self.executor_pool.join()
+
+        if self.saving_model:
+            Plot.plot_residual(residue_records, self.pics_dir)
+            Plot.plot_train_test_loss(
+                train_loss_records, valid_loss_records, self.pics_dir
+            )
+            Plot.plot_regression_metrics(
+                mae_records, mse_records, sse_records, r2_records, self.pics_dir
+            )
 
         self.logger.log("Finish model training.")
         self.logger.log("Best validation loss: {:.5f}".format(best_loss))
         self.logger.log("Best r2_score: {:.5f}".format(best_score))
-        self.logger.log("Computation time: {:.5f}".format(compu_time))
         self.logger.log("Elapsed time: {:.5f}s".format(time.time() - start_time))
         print(colored("Best validation loss: {:.5f}".format(best_loss), "red"))
         print(colored("Best r2_score: {:.5f}".format(best_score), "red"))
-        print(colored("Computation time: {:.5f}".format(compu_time), "red"))
         print(colored("Elapsed time: {:.5f}s".format(time.time() - start_time), "red"))
 
-        # plot fig
-        # 模型拟合相关
-        Plot.plot_residual(residual_record, self.pics_path)
-        Plot.plot_train_test_loss(train_loss_record, test_loss_record, self.pics_path)
-        Plot.plot_regression_metrics(MAE_record, MSE_record, SSE_record, R2_record, self.pics_path)
-
-
-    def validate(self, valset):
+    def validate(self, validset: NumpyDataset) -> Dict[str, float]:
         assert isinstance(
-            valset, NumpyDataset
+            validset, NumpyDataset
         ), "valset should be an instance of NumpyDataset"
-        active_wx = np.matmul(valset.features, getattr(self, "params"))
+        active_wx = np.matmul(validset.features, getattr(self, "params"))
         full_wx = active_wx
-        for msger in self.messenger:
+        for msger in self.messengers:
             passive_wx = msger.recv()
             full_wx += passive_wx
         y_pred = full_wx
-        loss = ((valset.labels - y_pred) ** 2).mean()
-        mae = mean_absolute_error(valset.labels, y_pred)
-        mse = mean_squared_error(valset.labels, y_pred)
-        sse = mse * len(valset.labels)
-        r2 = r2_score(valset.labels, y_pred)
+        loss = ((validset.labels - y_pred) ** 2).mean()
+        mae = mean_absolute_error(validset.labels, y_pred)
+        mse = mean_squared_error(validset.labels, y_pred)
+        sse = mse * len(validset.labels)
+        r2 = r2_score(validset.labels, y_pred)
         scores = {"loss": loss, "mae": mae, "mse": mse, "sse": sse, "r2": r2}
 
         return scores
 
-    def predict(self, testset):
+    def predict(self, testset: NumpyDataset) -> Dict[str, float]:
         return self.validate(testset)
 
-    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+    def fit(
+        self,
+        trainset: NumpyDataset,
+        validset: NumpyDataset,
+        role: str = Const.ACTIVE_NAME,
+    ) -> None:
         self.train(trainset, validset)
 
-    def score(self, testset, role=Const.ACTIVE_NAME):
+    def score(
+        self, testset: NumpyDataset, role: str = Const.ACTIVE_NAME
+    ) -> Dict[str, float]:
         return self.predict(testset)
 
     @staticmethod
@@ -267,14 +268,22 @@ if __name__ == "__main__":
     from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
     from linkefl.feature.transform import add_intercept
 
-    # 0. Set parameters
-    dataset_name = "diabetes"
-    passive_feat_frac = 0.5
-    feat_perm_option = Const.SEQUENCE
-    active_ip = ["localhost", "localhost"]
-    active_port = [20000, 30000]
-    passive_ip = ["localhost", "localhost"]
-    passive_port = [20001, 30001]
+    # Set parameters
+    _dataset_name = "diabetes"
+    _passive_feat_frac = 0.5
+    _feat_perm_option = Const.SEQUENCE
+    _active_ips = [
+        "localhost",
+    ]
+    _active_ports = [
+        20000,
+    ]
+    _passive_ips = [
+        "localhost",
+    ]
+    _passive_ports = [
+        30000,
+    ]
     _epochs = 200000
     _batch_size = -1
     _learning_rate = 1.0
@@ -284,34 +293,56 @@ if __name__ == "__main__":
     _random_state = None
     _key_size = 1024
     _val_freq = 5000
+    _num_workers = 1
+    _saving_model = True
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
+    _crypto = crypto_factory(
+        crypto_type=_crypto_type,
+        key_size=_key_size,
+        num_enc_zeros=10,
+        gen_from_set=False,
+    )
+    _messengers = [
+        messenger_factory(
+            messenger_type=Const.FAST_SOCKET,
+            role=Const.ACTIVE_NAME,
+            active_ip=ac_ip,
+            active_port=ac_port,
+            passive_ip=pass_ip,
+            passive_port=pass_port,
+        )
+        for ac_ip, ac_port, pass_ip, pass_port in zip(
+            _active_ips, _active_ports, _passive_ips, _passive_ports
+        )
+    ]
 
-    # 1. Loading dataset and preprocessing
+    # Loading dataset and preprocessing
     # Option 1: Scikit-learn style
     print("Loading dataset...")
     active_trainset = NumpyDataset.buildin_dataset(
         role=Const.ACTIVE_NAME,
-        dataset_name=dataset_name,
+        dataset_name=_dataset_name,
         root="../../data",
         train=True,
         download=True,
-        passive_feat_frac=passive_feat_frac,
-        feat_perm_option=feat_perm_option,
+        passive_feat_frac=_passive_feat_frac,
+        feat_perm_option=_feat_perm_option,
     )
     active_testset = NumpyDataset.buildin_dataset(
         role=Const.ACTIVE_NAME,
-        dataset_name=dataset_name,
+        dataset_name=_dataset_name,
         root="../../data",
         train=False,
         download=True,
-        passive_feat_frac=passive_feat_frac,
-        feat_perm_option=feat_perm_option,
+        passive_feat_frac=_passive_feat_frac,
+        feat_perm_option=_feat_perm_option,
     )
     active_trainset = add_intercept(active_trainset)
     active_testset = add_intercept(active_testset)
     print("Done.")
 
     # Option 2: PyTorch style
-    print("Loading dataset...")
+    # print("Loading dataset...")
     # transform = AddIntercept()
     # active_trainset = NumpyDataset.buildin_dataset(role=Const.ACTIVE_NAME,
     #                                                dataset_name=dataset_name,
@@ -327,56 +358,24 @@ if __name__ == "__main__":
     #                                               transform=transform)
     # print('Done.')
 
-    # 3. Initialize cryptosystem
-    _crypto = crypto_factory(
-        crypto_type=_crypto_type,
-        key_size=_key_size,
-        num_enc_zeros=10000,
-        gen_from_set=False,
-    )
-
-    # 4. Initialize messenger
-    _messenger = [
-        messenger_factory(
-            messenger_type=Const.FAST_SOCKET,
-            role=Const.ACTIVE_NAME,
-            active_ip=ac_ip,
-            active_port=ac_port,
-            passive_ip=pass_ip,
-            passive_port=pass_port,
-        )
-        for ac_ip, ac_port, pass_ip, pass_port in zip(
-            active_ip, active_port, passive_ip, passive_port
-        )
-    ]
+    # Initialize model and start training
     print("ACTIVE PARTY started, listening...")
-
-    # 5. Initialize model and start training
-    _logger = logger_factory(role=Const.ACTIVE_NAME)
     active_party = ActiveLinReg(
         epochs=_epochs,
         batch_size=_batch_size,
         learning_rate=_learning_rate,
-        messenger=_messenger,
+        messengers=_messengers,
         cryptosystem=_crypto,
         logger=_logger,
         penalty=_penalty,
         reg_lambda=_reg_lambda,
+        num_workers=_num_workers,
         random_state=_random_state,
         val_freq=_val_freq,
-        saving_model=False,
+        saving_model=_saving_model,
     )
-
     active_party.train(active_trainset, active_testset)
 
-    # 6. Close messenger, finish training.
-    for msger_ in _messenger:
+    # Close messengers, finish training.
+    for msger_ in _messengers:
         msger_.close()
-
-    # # For online inference, you only need to substitue the model name
-    # scores = ActiveLinReg.online_inference(
-    #     active_testset,
-    #     model_name='20220831_190241-active_party-vertical_linreg-402_samples.model',
-    #     messenger=_messenger
-    # )
-    # print(scores)

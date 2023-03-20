@@ -1,5 +1,5 @@
 import copy
-from typing import Union
+from typing import List, Optional, Union
 
 import pandas as pd
 import torch
@@ -8,35 +8,48 @@ from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset, TorchDataset
 
 
-def scale(dataset: Union[NumpyDataset, TorchDataset]):
+def scale(
+    dataset: Union[NumpyDataset, TorchDataset]
+) -> Union[NumpyDataset, TorchDataset]:
     from linkefl.feature.transform.transform import Scale
 
     dataset = Scale().fit(dataset, role=dataset.role)
     return dataset
 
 
-def normalize(dataset: Union[NumpyDataset, TorchDataset], norm=Const.L2):
+def normalize(
+    dataset: Union[NumpyDataset, TorchDataset],
+    norm: str = Const.L2,
+) -> Union[NumpyDataset, TorchDataset]:
     from linkefl.feature.transform.transform import Normalize
 
     dataset = Normalize(norm=norm).fit(dataset, role=dataset.role)
     return dataset
 
 
-def parse_label(dataset: Union[NumpyDataset, TorchDataset], neg_label=0):
+def parse_label(
+    dataset: Union[NumpyDataset, TorchDataset],
+    neg_label: int = 0,
+) -> Union[NumpyDataset, TorchDataset]:
     from linkefl.feature.transform.transform import ParseLabel
 
     dataset = ParseLabel(neg_label=neg_label).fit(dataset, role=dataset.role)
     return dataset
 
 
-def add_intercept(dataset: Union[NumpyDataset, TorchDataset]):
+def add_intercept(
+    dataset: Union[NumpyDataset, TorchDataset],
+) -> Union[NumpyDataset, TorchDataset]:
     from linkefl.feature.transform.transform import AddIntercept
 
     dataset = AddIntercept().fit(dataset, role=dataset.role)
     return dataset
 
 
-def one_hot(dataset: Union[NumpyDataset, TorchDataset], idxes=None):
+def one_hot(
+    dataset: Union[NumpyDataset, TorchDataset],
+    idxes: Optional[List[int]] = None,
+) -> Union[NumpyDataset, TorchDataset]:
     from linkefl.feature.transform.transform import OneHot
 
     dataset = OneHot(idxes=idxes).fit(dataset, role=dataset.role)

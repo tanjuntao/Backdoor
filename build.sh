@@ -11,13 +11,18 @@ fi
 
 TOTAL_ERRORS=0
 
+# install requirements
+if [[ $1 == "--default-index" ]]; then
+  python3 -m pip install --upgrade pip wheel setuptools
+  python3 -m pip install -r requirements.txt
+else
+  python3 -m pip install --upgrade pip wheel setuptools -i https://pypi.tuna.tsinghua.edu.cn/simple
+  python3 -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+fi
 # obtain cpu cores via python
 n_cores=$(python3 -c "import os; print(os.cpu_count())")
-
-# build python package
-python3 -m pip install --upgrade pip wheel setuptools -i https://pypi.tuna.tsinghua.edu.cn/simple
-python3 -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-python3 setup.py build_ext -j $n_cores --inplace # use 8 threads for parallel compilation
+# build binary extensions parallelly via multiprocessing
+python3 setup.py build_ext -j $n_cores --inplace
 TOTAL_ERRORS=$((TOTAL_ERRORS + $?));
 python3 setup.py sdist bdist_wheel
 TOTAL_ERRORS=$((TOTAL_ERRORS + $?));

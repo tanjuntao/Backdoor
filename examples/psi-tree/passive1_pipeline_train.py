@@ -3,21 +3,25 @@ from linkefl.common.factory import logger_factory, messenger_factory
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.transform import Compose, ParseLabel
 from linkefl.pipeline import PipeLine
-from linkefl.psi import RSAPSIPassive
+from linkefl.psi import PassiveCM20PSI
 from linkefl.vfl.tree import PassiveTreeParty
 
 if __name__ == "__main__":
     # 0. Set parameters
 
     # dataloader
-    trainset_path = "census-passive1-train.csv"
-    testset_path = "census-passive1-test.csv"
+    trainset_path = (
+        "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive1-train.csv"
+    )
+    testset_path = (
+        "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive1-test.csv"
+    )
 
     # messenger
     active_ip = "localhost"
     active_port = 20000
     passive_ip = "localhost"
-    passive_port = 20001
+    passive_port = 30000
 
     messenger = messenger_factory(
         messenger_type=Const.FAST_SOCKET,
@@ -57,7 +61,7 @@ if __name__ == "__main__":
     )
 
     # 2. Build pipeline
-    psi = RSAPSIPassive(messenger, logger)
+    psi = PassiveCM20PSI(messenger=messenger, logger=logger)
     transforms = Compose([ParseLabel()])
     model = PassiveTreeParty(
         task=task,

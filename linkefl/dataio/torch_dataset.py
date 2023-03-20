@@ -1,5 +1,5 @@
 import random
-from typing import Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -13,12 +13,13 @@ from linkefl.dataio.common_dataset import CommonDataset
 class TorchDataset(CommonDataset, Dataset):
     def __init__(
         self,
+        *,
         role: str,
         raw_dataset: Union[np.ndarray, torch.Tensor],
-        header: list,
+        header: List[str],
         dataset_type: str,
-        transform: BaseTransformComponent = None,
-        header_type=None,
+        transform: Optional[BaseTransformComponent] = None,
+        header_type: Optional[List[str]] = None,
     ):
         if isinstance(raw_dataset, np.ndarray):
             # PyTorch forward() function expects tensor type of Float rather Double,
@@ -180,11 +181,12 @@ class TorchDataset(CommonDataset, Dataset):
 class MediaDataset(TorchDataset, Dataset):
     def __init__(
         self,
-        role,
-        dataset_name,
-        root,
-        train,
-        download=False,
+        *,
+        role: str,
+        dataset_name: str,
+        root: str,
+        train: bool,
+        download: bool = False,
     ):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
         assert dataset_name in (
@@ -215,6 +217,7 @@ class MediaDataset(TorchDataset, Dataset):
         from torchvision import datasets, transforms
         from tqdm import trange
 
+        # prepare transforms and load buildin dataset
         if name == "cifar10":
             if train:
                 transform = transforms.Compose(
@@ -240,18 +243,9 @@ class MediaDataset(TorchDataset, Dataset):
             buildin_dataset = datasets.CIFAR10(
                 root=root, train=train, download=download, transform=transform
             )
+            _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
 
-            n_samples = len(buildin_dataset)
-            imgs = []
-            for i in trange(n_samples):
-                image, _ = buildin_dataset[i]
-                if role == Const.PASSIVE_NAME:
-                    image = image[:, :32, :]  # the first half
-                else:
-                    image = image[:, 32:, :]  # the second half
-                imgs.append(image)
-
-        elif name == "mnist":
+        elif name in ("mnist", "fashion_mnist"):
             if train:
                 transform = transforms.Compose(
                     [
@@ -269,25 +263,31 @@ class MediaDataset(TorchDataset, Dataset):
                         transforms.Normalize((0.1307,), (0.3081,)),
                     ]
                 )
-            buildin_dataset = datasets.MNIST(
-                root=root, train=train, download=download, transform=transform
-            )
-
-            n_samples = len(buildin_dataset)
-            imgs = []
-            for i in trange(n_samples):
-                image, _ = buildin_dataset[i]
-                if role == Const.PASSIVE_NAME:
-                    image = image[:, :32, :]  # the first half
-                else:
-                    image = image[:, 32:, :]  # the second half
-                imgs.append(image)
+            if name == "mnist":
+                buildin_dataset = datasets.MNIST(
+                    root=root, train=train, download=download, transform=transform
+                )
+            else:
+                buildin_dataset = datasets.FashionMNIST(
+                    root=root, train=train, download=download, transform=transform
+                )
+            _labels = buildin_dataset.targets.clone().detach()
 
         else:
             raise ValueError("not suported now.")
 
+        # split image
+        n_samples = len(buildin_dataset)
+        imgs = []
+        for i in trange(n_samples):
+            image, _ = buildin_dataset[i]
+            if role == Const.PASSIVE_NAME:
+                image = image[:, :32, :]  # the first half
+            else:
+                image = image[:, 32:, :]  # the second half
+            imgs.append(image)
         _feats = torch.stack(imgs)  # stack() will create a new dimension
-        _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
+
         if role == Const.ACTIVE_NAME:
             setattr(self, "_features", _feats)
             setattr(self, "_labels", _labels)
