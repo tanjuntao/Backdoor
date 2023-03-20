@@ -29,11 +29,11 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
         max_iter=30,
         tol=0.0001,
         verbose=False,
-        invalide_label=-1,
+        invalid_label=-1,
         random_state=0,
-        saving_model=True,
-        model_path='./models',
-        model_name='vfl_kmeans_passive',
+        saving_model=False,
+        model_dir=None,
+        model_name=None,
         saving_pic=False,
     ):
         """Initialization a constrained seed kmeans estimator.
@@ -55,16 +55,16 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
         self.max_iter = max_iter
         self.tol = tol
         self.verbose = verbose
-        self.INVALID_LABEL = invalide_label
+        self.INVALID_LABEL = invalid_label
         self.messenger = messenger
         self.random_state = random_state
         self.saving_model = saving_model
-        self.model_path = model_path
+        self.model_dir = model_dir
         self.model_name = model_name
         self.saving_pic = saving_pic
         if random_state is not None:
             torch.random.manual_seed(random_state)
-        self.pics_path = os.path.join(self.model_path, "vfl_kmeans")
+        self.pics_path = os.path.join(self.model_dir, "vfl_kmeans")
         if not os.path.exists(self.pics_path):
             os.makedirs(self.pics_path)
 
