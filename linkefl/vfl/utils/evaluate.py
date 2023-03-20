@@ -15,6 +15,9 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import precision_recall_curve, roc_curve
 
+from linkefl.vfl.utils.printTree import PrettyPrintTree
+
+
 Axes = Any  # real type is matplotlib.axes.Axes
 GraphvizSource = Any  # real type is graphviz.Source
 ActiveTreeParty = Any  # real type is linkefl.vfl.tree.ActiveTreeParty
@@ -106,13 +109,6 @@ class TreePrint(object):
         Returns:
             str for tree structure.
         """
-        try:
-            from PrettyPrint import PrettyPrintTree
-
-            # from prettyprint.PrintTree import PrettyPrintTree
-        except ImportError as e:
-            raise ImportError("You must install PrettyPrint to plot tree") from e
-
         root = tree.root
         cls._prepare_print_val(tree, root)
 
