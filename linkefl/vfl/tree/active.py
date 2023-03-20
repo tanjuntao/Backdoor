@@ -857,6 +857,7 @@ class ActiveTreeParty(BaseModelComponent):
     def _save_model(self):
         # model_name = f"{self.model_name}.model"
         model_name = self.model_name
+        # TODO: Remove hist_list from _DecisionNode
         model_params = [(tree.record, tree.root) for tree in self.trees]
         model_structure = self.get_tree_str_structures()
         saved_data = [
