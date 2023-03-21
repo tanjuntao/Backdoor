@@ -11,14 +11,16 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 from termcolor import colored
 
+from linkefl.base import BaseModelComponent, BaseMessenger
 from linkefl.common.const import Const
 from linkefl.common.factory import partial_crypto_factory
+from linkefl.common.log import GlobalLogger
 from linkefl.crypto.paillier import cipher_matmul, encode
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
 
-class BaseLinear(ABC):
+class BaseLinear(BaseModelComponent, ABC):
     def __init__(self, learning_rate, random_state):
         self.learning_rate = learning_rate
         self.random_state = random_state
@@ -55,7 +57,7 @@ class BaseLinear(ABC):
         pass
 
 
-class BaseLinearPassive(BaseLinear):
+class BaseLinearPassive(BaseLinear, ABC):
     def __init__(
         self,
         *,
@@ -315,18 +317,25 @@ class BaseLinearPassive(BaseLinear):
         self.validate(testset)
 
     @staticmethod
-    def online_inference(dataset, model_name, messenger, model_path="./models"):
+    def online_inference(
+        dataset: NumpyDataset,
+        messenger: BaseMessenger,
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.PASSIVE_NAME,
+    ):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be aninstance of NumpyDataset"
-        model_params = NumpyModelIO.load(model_path, model_name)
+        model_params = NumpyModelIO.load(model_dir, model_name)
         wx = np.matmul(dataset.features, model_params)
         messenger.send(wx)
         scores, preds = messenger.recv()
         return scores, preds
 
 
-class BaseLinearActive(BaseLinear):
+class BaseLinearActive(BaseLinear, ABC):
     def __init__(
         self,
         *,

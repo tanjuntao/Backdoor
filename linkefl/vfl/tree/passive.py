@@ -336,12 +336,19 @@ class PassiveTreeParty(BaseModelComponent):
         self._validate(testset)
 
     @staticmethod
-    def online_inference(dataset, messenger, logger, model_name, model_path="./models"):
+    def online_inference(
+            dataset: NumpyDataset,
+            messenger: BaseMessenger,
+            logger: GlobalLogger,
+            model_dir: str,
+            model_name: str,
+            role: str = Const.PASSIVE_NAME,
+    ):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
         record, feature_importance_info, model_structure = NumpyModelIO.load(
-            model_path, model_name
+            model_dir, model_name
         )
 
         features = dataset.features

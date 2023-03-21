@@ -325,26 +325,32 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
 
     @staticmethod
     def online_inference(
-        dataset, model_name, messenger, model_path="./models", POSITIVE_THRESH=0.5
+        dataset: NumpyDataset,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        positive_thresh: float = 0.5,
+        role: str = Const.ACTIVE_NAME,
     ):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        model_params = NumpyModelIO.load(model_path, model_name)
+        model_params = NumpyModelIO.load(model_dir, model_name)
         active_wx = np.matmul(dataset.features, model_params)
         total_wx = active_wx
-        for msger in messenger:
-            curr_wx = msger.recv()
+        for messenger in messengers:
+            curr_wx = messenger.recv()
             total_wx += curr_wx
         probs = sigmoid(total_wx)
-        preds = (probs > POSITIVE_THRESH).astype(np.int32)
+        preds = (probs > positive_thresh).astype(np.int32)
         accuracy = accuracy_score(dataset.labels, preds)
         f1 = f1_score(dataset.labels, preds)
         auc = roc_auc_score(dataset.labels, probs)
 
         scores = {"acc": accuracy, "auc": auc, "f1": f1}
-        for msger in messenger:
-            msger.send([scores, preds])
+        for messenger in messengers:
+            messenger.send([scores, preds])
         return scores, preds
 
 

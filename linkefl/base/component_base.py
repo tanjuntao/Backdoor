@@ -28,3 +28,8 @@ class BaseModelComponent(ABC):
     @abstractmethod
     def score(self, testset, role):
         pass
+
+    @staticmethod
+    @abstractmethod
+    def online_inference(dataset, messengers, logger, model_dir, model_name, role):
+        pass

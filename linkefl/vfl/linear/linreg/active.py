@@ -248,18 +248,29 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
         return self.predict(testset)
 
     @staticmethod
-    def online_inference(dataset, model_name, messenger, model_path="./models"):
+    def online_inference(
+        dataset: NumpyDataset,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.ACTIVE_NAME,
+    ):
         assert isinstance(
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
-        model_params = NumpyModelIO.load(model_path, model_name)
+        model_params = NumpyModelIO.load(model_dir, model_name)
         active_wx = np.matmul(dataset.features, model_params)
-        passive_wx = messenger.recv()
-        y_pred = active_wx + passive_wx
+        total_wx = active_wx
+        for messenger in messengers:
+            curr_wx = messenger.recv()
+            total_wx += curr_wx
+        y_pred = total_wx
         loss = ((dataset.labels - y_pred) ** 2).mean()
         r2 = r2_score(dataset.labels, y_pred)
         scores = {"loss": loss, "r2": r2}
-        messenger.send([scores, y_pred])
+        for messenger in messengers:
+            messenger.send([scores, y_pred])
 
         return scores, y_pred
 

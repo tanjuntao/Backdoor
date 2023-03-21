@@ -497,7 +497,12 @@ class ActiveTreeParty(BaseModelComponent):
 
     @staticmethod
     def online_inference(
-        dataset, task, n_labels, messengers, logger, model_name, model_path="./models/"
+        dataset: NumpyDataset,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.ACTIVE_NAME,
     ):
         assert isinstance(
             dataset, NumpyDataset
@@ -507,7 +512,7 @@ class ActiveTreeParty(BaseModelComponent):
             feature_importance_info,
             learning_rate,
             tree_structure,
-        ) = NumpyModelIO.load(model_path, model_name)
+        ) = NumpyModelIO.load(model_dir, model_name)
 
         trees = [
             DecisionTree(
