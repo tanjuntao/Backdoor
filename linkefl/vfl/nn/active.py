@@ -402,6 +402,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         labels, probs = np.array([]), np.array([])
         loss_fn = nn.CrossEntropyLoss()
         with torch.no_grad():
+            preds = None
             for batch, (X, y) in enumerate(dataloader):
                 active_repr = models["cut"](models["bottom"](X))
                 passive_repr = messenger.recv()
@@ -411,6 +412,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += loss_fn(logits, y).item()
                 correct += (logits.argmax(1) == y).type(torch.float).sum().item()
+                if preds is None:
+                    preds = logits.argmax(1)
+                else:
+                    preds = torch.concat((preds, logits.argmax(1)), dim=0)
             test_loss /= n_batches
             acc = correct / dataset.n_samples
             n_classes = len(torch.unique(dataset.labels))
@@ -425,7 +430,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
             )
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
-            return scores
+            return scores, preds
 
 
 if __name__ == "__main__":
