@@ -152,7 +152,7 @@ class Plot(object):
             ax.set_ylabel(ylabel)
         ax.grid(grid)
 
-        plt.savefig(f"{file_dir}/importance.png", pad_inches="tight")
+        plt.savefig(os.path.join(file_dir, "importance.png"), pad_inches="tight")
         return ax
 
 
@@ -173,7 +173,7 @@ class Plot(object):
         ax.set_xlabel("epoch", labelpad=5, loc="center")
         plt.legend(loc="best")
 
-        plt.savefig(f"{file_dir}/convergence_analysis_loss.png")
+        plt.savefig(os.path.join(file_dir, "convergence_analysis_loss.png"))
         plt.close()
 
     @staticmethod
@@ -193,7 +193,7 @@ class Plot(object):
         ax.set_xlabel("Epoch", labelpad=5, loc="center")
         plt.legend(loc="best")
 
-        plt.savefig(f"{file_dir}/convergence_index_analysis_auc.png")
+        plt.savefig(os.path.join(file_dir, "convergence_index_analysis_auc.png"))
         plt.close()
 
     @classmethod
@@ -235,8 +235,7 @@ class Plot(object):
         ax.set_title("R2 Curve")
 
         plt.tight_layout()
-        plt.savefig(f"{file_dir}/regression_metric.png")
-        # plt.show()
+        plt.savefig(os.path.join(file_dir, "regression_metric.png"))
         plt.close()
 
     @classmethod
@@ -251,7 +250,7 @@ class Plot(object):
         ax.set_ylabel("precision", labelpad=5, loc="center")
         ax.set_title("PR Curve")
 
-        plt.savefig(f"{file_dir}/PR_Curve.png")
+        plt.savefig(os.path.join(file_dir, "PR_Curve.png"))
         plt.close()
 
     @classmethod
@@ -266,7 +265,7 @@ class Plot(object):
         ax.set_ylabel("true positive rate", labelpad=5, loc="center")
         ax.set_title("ROC Curve")
 
-        plt.savefig(f"{file_dir}/ROC_Curve.png")
+        plt.savefig(os.path.join(file_dir, "ROC_Curve.png"))
         plt.close()
 
     @classmethod
@@ -284,7 +283,7 @@ class Plot(object):
         ax.set_title("KS Curve")
 
         plt.legend(["tpr", "fpr", "tpr-fpr"])
-        plt.savefig(f"{file_dir}/KS_Curve.png")
+        plt.savefig(os.path.join(file_dir, "KS_Curve.png"))
         plt.close()
 
     @classmethod
@@ -309,7 +308,7 @@ class Plot(object):
         ax.set_xlabel("predict positive ratio", labelpad=5, loc="center")
         ax.set_xticks([i / 10 for i in range(11)])
 
-        plt.savefig(f"{file_dir}/Lift_Curve.png")
+        plt.savefig(os.path.join(file_dir, "Lift_Curve.png"))
         plt.close()
 
     @staticmethod
@@ -324,7 +323,7 @@ class Plot(object):
         ax.set_title("F1 Record Curve")
         ax.set_ylabel("f1 score", labelpad=5, loc="center")
         ax.set_xlabel("epoch", labelpad=5, loc="center")
-        plt.savefig(f"{file_dir}/F1_Curve.png")
+        plt.savefig(os.path.join(file_dir, "F1_Curve.png"))
         plt.close()
 
     @staticmethod
@@ -341,8 +340,8 @@ class Plot(object):
         ax.set_title("Predict Probability Distribution")
         ax.set_ylabel("Count", labelpad=5, loc="center")
         ax.set_xlabel("Predict Value", labelpad=5, loc="center")
-        # plt.show()
-        plt.savefig(f"{file_dir}/predict_probability_distribution.png")
+
+        plt.savefig(os.path.join(file_dir, "predict_probability_distribution.png"))
         plt.close()
 
     @staticmethod
@@ -358,7 +357,7 @@ class Plot(object):
         ax.set_title("Predict Probability Box")
         ax.set_ylabel("value", labelpad=5, loc="center")
 
-        plt.savefig(f"{file_dir}/predict_prob_box.png")
+        plt.savefig(os.path.join(file_dir, "predict_prob_box.png"))
         plt.close()
 
     @staticmethod
@@ -373,7 +372,8 @@ class Plot(object):
         ax.set_title("Residual Curve")
         ax.set_ylabel("residual value", labelpad=5, loc="center")
         ax.set_xlabel("epoch", labelpad=5, loc="center")
-        plt.savefig(f"{file_dir}/residual_analysis.png")
+
+        plt.savefig(os.path.join(file_dir, "residual_analysis.png"))
         plt.close()
 
     @staticmethod
@@ -390,7 +390,8 @@ class Plot(object):
         ax.set_xlabel('IV values')
         ax.set_ylabel('Feature Ids')
         ax.set_title('Feature IV Analysis')
-        plt.savefig(f"{file_dir}/iv_analysis.png")
+
+        plt.savefig(os.path.join(file_dir, "iv_analysis.png"))
         plt.close()
 
     @staticmethod
@@ -410,7 +411,8 @@ class Plot(object):
         plt.xlabel('Value')
         plt.ylabel('Frequency')
         plt.legend(loc="best")
-        plt.savefig(f"{file_dir}/bimodal_distribution.png")
+
+        plt.savefig(os.path.join(file_dir, "bimodal_distribution.png"))
         plt.close()
 
     @staticmethod
@@ -428,8 +430,7 @@ class Plot(object):
         plt.title('Lorenz curve')
         plt.legend(loc="best")
 
-        # plt.savefig(os.path.join(file_dir, "ordered_lorenz_curve.png"))
-        plt.savefig(f"{file_dir}/ordered_lorenz_curve.png")
+        plt.savefig(os.path.join(file_dir, "ordered_lorenz_curve.png"))
         plt.close()
 
     @staticmethod
