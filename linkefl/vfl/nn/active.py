@@ -389,6 +389,44 @@ class ActiveNeuralNetwork(BaseModelComponent):
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
             return scores
 
+    @staticmethod
+    def online_inference(dataset, messengers, logger, model_dir, model_name, role):
+        models: dict = TorchModelIO.load(model_dir, model_name)
+        for model in models.values():
+            model.eval()
+        dataloader = DataLoader(dataset, batch_size=dataset.n_samples, shuffle=False)
+        messenger = messengers[0]
+
+        n_batches = len(dataloader)
+        test_loss, correct = 0.0, 0
+        labels, probs = np.array([]), np.array([])
+        loss_fn = nn.CrossEntropyLoss()
+        with torch.no_grad():
+            for batch, (X, y) in enumerate(dataloader):
+                active_repr = models["cut"](models["bottom"](X))
+                passive_repr = messenger.recv()
+                top_input = active_repr + passive_repr
+                logits = models["top"](top_input)
+                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
+                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
+                test_loss += loss_fn(logits, y).item()
+                correct += (logits.argmax(1) == y).type(torch.float).sum().item()
+            test_loss /= n_batches
+            acc = correct / dataset.n_samples
+            n_classes = len(torch.unique(dataset.labels))
+            if n_classes == 2:
+                auc = roc_auc_score(labels, probs)
+            else:
+                auc = 0
+            print(
+                f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
+                f" Auc: {(100 * auc):>0.2f}%,"
+                f" Avg loss: {test_loss:>8f}"
+            )
+
+            scores = {"acc": acc, "auc": auc, "loss": test_loss}
+            return scores
+
 
 if __name__ == "__main__":
     from torch import nn

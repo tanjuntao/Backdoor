@@ -209,6 +209,20 @@ class PassiveNeuralNetwork(BaseModelComponent):
     def score(self, testset: TorchDataset, role: str = Const.PASSIVE_NAME) -> None:
         return self.validate(testset)
 
+    @staticmethod
+    def online_inference(dataset, messengers, logger, model_dir, model_name, role):
+        models: dict = TorchModelIO.load(model_dir, model_name)
+        for model in models.values():
+            model.eval()
+        dataloader = DataLoader(dataset, batch_size=dataset.n_samples, shuffle=False)
+        messenger = messengers[0]
+
+        with torch.no_grad():
+            for batch, X in enumerate(dataloader):
+                bottom_outputs = models["bottom"](X)
+                passive_repr = models["cut"](bottom_outputs)
+                messenger.send(passive_repr)
+
 
 if __name__ == "__main__":
     from linkefl.common.factory import crypto_factory, messenger_factory
