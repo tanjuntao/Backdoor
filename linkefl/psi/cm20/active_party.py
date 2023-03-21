@@ -38,7 +38,7 @@ except ImportError:
     filename = resources[key]
     this_directory = os.path.abspath(os.path.dirname(__file__))
     fpath = os.path.join(this_directory, filename)
-    base_url = "http://47.96.163.59:80/wheels/"
+    base_url = "https://linkefl.cyh.me/d/linkefl/wheels/"
     full_url = base_url + filename
     try:
         print("Downloading {} to {}".format(full_url, fpath))

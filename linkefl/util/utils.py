@@ -3,6 +3,7 @@ import pathlib
 import urllib
 
 import numpy as np
+import requests
 import torch
 from tqdm import tqdm
 
@@ -182,11 +183,10 @@ def count_params(model):
 
 
 def urlretrive(url, fullpath=None, chunk_size=1024):
-    with open(fullpath, "wb") as fh:
-        with urllib.request.urlopen(urllib.request.Request(url)) as response:
-            with tqdm(total=response.length) as pbar:
-                for chunk in iter(lambda: response.read(chunk_size), ""):
-                    if not chunk:
-                        break
-                    pbar.update(chunk_size)
-                    fh.write(chunk)
+    response = requests.get(url, stream=True)
+    total_size_in_bytes = int(response.headers.get('content-length', 0))
+    with tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True) as progress_bar:
+        with open(fullpath, 'wb') as file:
+            for data in response.iter_content(chunk_size):
+                progress_bar.update(len(data))
+                file.write(data)

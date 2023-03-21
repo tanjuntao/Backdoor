@@ -1229,7 +1229,7 @@ class CommonDataset:
             "nyc_taxi": ("nyc-taxi-train.csv", "nyc-taxi-test.csv"),
             "avazu": ("avazu-train.csv", "avazu-test.csv"),
         }
-        BASE_URL = "http://47.96.163.59:80/datasets/"
+        BASE_URL = "https://linkefl.cyh.me/d/linkefl/datasets/"
         root = os.path.join(root, "tabular")
 
         if download:
@@ -1445,6 +1445,16 @@ class CommonDataset:
         return header
 
 
+if __name__ == '__main__':
+    CommonDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name="criteo",
+        root="data",
+        train=True,
+        passive_feat_frac=0.5,
+        feat_perm_option=Const.SEQUENCE,
+        download=True,
+    )
 # if __name__ == "__main__":
 # from linkefl.feature.transform import OneHot
 #
