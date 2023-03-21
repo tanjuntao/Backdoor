@@ -1,6 +1,7 @@
 import copy
 import os
 import time
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +9,7 @@ import torch
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_samples
 
-from linkefl.base import BaseModelComponent
+from linkefl.base import BaseModelComponent, BaseMessenger
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
@@ -17,26 +18,22 @@ from linkefl.modelio import NumpyModelIO
 class ActiveConstrainedSeedKMeans(BaseModelComponent):
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
 
-    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
-        return self.train(trainset)
-
     def __init__(
         self,
-        messenger,
-        crypto_type,
-        n_clusters=2,
+        messenger: BaseMessenger,
+        crypto_type: str,
+        n_clusters: int,
         *,
-        n_init=10,
-        max_iter=30,
-        tol=0.0001,
+        n_init: int = 10,
+        max_iter: int = 30,
+        tol: float = 0.0001,
         verbose=False,
-        invalid_label=-1,
-        unsupervised=True,
-        random_state=None,
-        saving_model=False,
-        model_dir=None,
-        model_name=None,
-        saving_pic=False,
+        invalid_label: int = -1,
+        unsupervised: bool = True,
+        random_state: Optional[int] = None,
+        saving_model: bool = False,
+        model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         """Initialization a constrained seed kmeans estimator.
         Args:
@@ -65,12 +62,8 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
         self.saving_model = saving_model
         self.model_dir = model_dir
         self.model_name = model_name
-        self.saving_pic = saving_pic
         if random_state is not None:
             torch.random.manual_seed(random_state)
-        self.pics_path = os.path.join(self.model_dir, "vfl_kmeans")
-        if not os.path.exists(self.pics_path):
-            os.makedirs(self.pics_path)
 
     def _check_params(self, X_active_dataset):
         """Check if the parameters of the algorithm and the inputs to it are valid."""
@@ -187,7 +180,7 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             y = [-1 for _ in range(X_active.shape[0])]
         else:
             y = X_active_dataset.labels
-    
+
         indices = copy.copy(y)
         if type(indices) == list:
             indices = np.array(indices)
@@ -377,6 +370,9 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
 
         return self
 
+    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+        return self.train(trainset)
+
     def predict(self, X_active_dataset):
         """Predict the associated cluster index of samples.
         Args:
@@ -417,6 +413,10 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
         else:
             self.messenger.send(torch.tensor(indices))
             return torch.tensor(indices)
+
+    @staticmethod
+    def online_inference(dataset, messenger, logger, model_dir, model_name, role):
+        pass
 
     def train_predict(self, X_active_dataset):
         """Convenient function."""
@@ -482,20 +482,30 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
         interia += interia_passive
 
         return -1 * interia
-    
+
     def _save_model(self):
         if self.saving_model:
             saved_data = [
                 self.n_clusters,
                 self.inertia_,
                 self.cluster_centers_active_,
-                self.indices
+                self.indices,
             ]
-            NumpyModelIO.save(saved_data, self.model_path, self.model_name)
+            NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
 
-    def load_model(self, model_path='./models', model_name='vfl_kmeans_active'):
-        self.n_clusters, self.inertia_, self.cluster_centers_active_, self.indices = NumpyModelIO.load(model_path, model_name)
-        return self.n_clusters, self.inertia_, self.cluster_centers_active_, self.indices
+    def load_model(self, model_dir, model_name):
+        (
+            self.n_clusters,
+            self.inertia_,
+            self.cluster_centers_active_,
+            self.indices,
+        ) = NumpyModelIO.load(model_dir, model_name)
+        return (
+            self.n_clusters,
+            self.inertia_,
+            self.cluster_centers_active_,
+            self.indices,
+        )
 
     def pca_plot(self, X_active_dataset, estimator, color_num):
         import pandas as pd
@@ -528,12 +538,11 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             palette=sns.color_palette("hls", color_num),
             data=df,
         )
-        if self.saving_pic:
-            plt.savefig("{}/clusters.png".format(self.pics_path))
+        if self.saving_model:
+            plt.savefig(os.path.join(self.model_dir, "clusters.png"))
         else:
             plt.show()
         plt.close()
-
 
     def sil_plot(self, X_active_dataset, estimator, n_cluster):
         X_active = X_active_dataset.features
@@ -544,11 +553,11 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             for idx in range(len(estimator.indices)):
                 if estimator.indices[idx] == cls_idx:
                     sil_per_cls[cls_idx].append(silhouette_values[idx])
-    
+
         plt.boxplot(sil_per_cls)
-        plt.title('Silhouette Coefficient Distribution for Each Cluster')
-        if self.saving_pic:
-            plt.savefig("{}/silhoutte.png".format(self.pics_path))
+        plt.title("Silhouette Coefficient Distribution for Each Cluster")
+        if self.saving_model:
+            plt.savefig(os.path.join(self.model_dir, "silhoutte.png"))
         else:
             plt.show()
         plt.close()
@@ -632,4 +641,3 @@ if __name__ == "__main__":
     active.pca_plot(active_trainset, active, color_num=n_cluster)
 
     active.sil_plot(active_trainset, active, n_cluster)
-
