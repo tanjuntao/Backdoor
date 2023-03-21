@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.metrics import precision_recall_curve, roc_curve
+from sklearn.decomposition import PCA
+from sklearn.metrics import precision_recall_curve, roc_curve, silhouette_samples
 
 # TODO：fix ereor "circular import"
 # import linkefl
@@ -427,8 +428,61 @@ class Plot(object):
         plt.title('Lorenz curve')
         plt.legend(loc="best")
 
+        # plt.savefig(os.path.join(file_dir, "ordered_lorenz_curve.png"))
         plt.savefig(f"{file_dir}/ordered_lorenz_curve.png")
         plt.close()
+
+    @staticmethod
+    def plot_pca(dataset, y_pred, color_num, file_dir="./models"):
+        """Plot pca png for vfl-kmeans model.
+        """
+        pca = PCA(n_components=2)
+        features = dataset.features
+        pca.fit(features)
+        dataset_projection = pca.transform(features)
+
+        df = pd.DataFrame()
+        df["dim1"] = dataset_projection[:, 0]
+        df["dim2"] = dataset_projection[:, 1]
+        df["y"] = y_pred
+
+        x_lim_left = 1.2 * dataset_projection[:, 0].min()
+        x_lim_right = 1.2 * dataset_projection[:, 0].max()
+        y_lim_down = 1.2 * dataset_projection[:, 1].min()
+        y_lim_up = 1.2 * dataset_projection[:, 1].max()
+
+        plt.xlim(x_lim_left, x_lim_right)
+        plt.ylim(y_lim_down, y_lim_up)
+        sns.scatterplot(
+            x="dim1",
+            y="dim2",
+            hue=df.y.tolist(),
+            palette=sns.color_palette("hls", color_num),
+            data=df,
+        )
+
+        plt.savefig(os.path.join(file_dir, "clusters.png"))
+        plt.close()
+
+    @staticmethod
+    def sil_plot(dataset, y_pred, n_cluster, file_dir):
+        """Plot silhoutte png for vfl-kmeans model.
+        """
+        features = dataset.features
+        silhouette_values = silhouette_samples(features, y_pred)
+
+        sil_per_cls = [[], [], []]
+        for cls_idx in range(n_cluster):
+            for idx in range(len(y_pred)):
+                if y_pred[idx] == cls_idx:
+                    sil_per_cls[cls_idx].append(silhouette_values[idx])
+
+        plt.boxplot(sil_per_cls)
+        plt.title("Silhouette Coefficient Distribution for Each Cluster")
+
+        plt.savefig(os.path.join(file_dir, "silhoutte.png"))
+        plt.close()
+
 
 def tree_to_str(tree, tree_structure):
     """
