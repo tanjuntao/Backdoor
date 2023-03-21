@@ -390,7 +390,14 @@ class ActiveNeuralNetwork(BaseModelComponent):
             return scores
 
     @staticmethod
-    def online_inference(dataset, messengers, logger, model_dir, model_name, role):
+    def online_inference(
+        dataset: TorchDataset,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.ACTIVE_NAME,
+    ):
         models: dict = TorchModelIO.load(model_dir, model_name)
         for model in models.values():
             model.eval()
