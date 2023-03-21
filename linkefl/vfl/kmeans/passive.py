@@ -1,40 +1,42 @@
 import copy
+import datetime
 import os
+import pathlib
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from typing import Optional
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_samples
 
-from linkefl.base import BaseModelComponent
+from linkefl.base import BaseModelComponent, BaseMessenger
+from linkefl.common.log import GlobalLogger
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
+from linkefl.vfl.tree.plotting import Plot
 
 
 class PassiveConstrainedSeedKMeans(BaseModelComponent):
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
 
-    def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
-        return self.train(trainset)
-
     def __init__(
         self,
-        messenger,
-        crypto_type,
-        n_clusters=2,
+        messenger: BaseMessenger,
+        logger: GlobalLogger,
+        crypto_type: str,
+        n_clusters: int,
         *,
-        n_init=10,
-        max_iter=30,
-        tol=0.0001,
-        verbose=False,
-        invalid_label=-1,
-        random_state=0,
-        saving_model=False,
-        model_dir=None,
-        model_name=None,
-        saving_pic=False,
+        n_init: int = 10,
+        max_iter: int = 30,
+        tol: float = 0.0001,
+        verbose: bool = False,
+        invalid_label: int = -1,
+        random_state: Optional[int] = None,
+        saving_model: bool = False,
+        model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         """Initialization a constrained seed kmeans estimator.
         Args:
@@ -57,17 +59,133 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
         self.verbose = verbose
         self.INVALID_LABEL = invalid_label
         self.messenger = messenger
+        self.logger = logger
         self.random_state = random_state
         self.saving_model = saving_model
-        self.model_dir = model_dir
-        self.model_name = model_name
-        self.saving_pic = saving_pic
-        if random_state is not None:
-            torch.random.manual_seed(random_state)
-        self.pics_path = os.path.join(self.model_dir, "vfl_kmeans")
-        if not os.path.exists(self.pics_path):
-            os.makedirs(self.pics_path)
 
+        if self.random_state is not None:
+            torch.random.manual_seed(random_state)
+
+        if self.saving_model:
+            self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            if model_dir is None:
+                default_dir = "models"
+                model_dir = os.path.join(default_dir, self.create_time)
+            if model_name is None:
+                algo_name = (
+                    Const.AlgoNames.VFL_KMEANS
+                )
+                model_name = (
+                    "{time}-{role}-{algo_name}".format(
+                        time=self.create_time,
+                        role=Const.PASSIVE_NAME,
+                        algo_name=algo_name,
+                    )
+                    + ".model"
+                )
+            self.model_dir = model_dir
+            self.model_name = model_name
+            self.pics_dir = self.model_dir
+            if not os.path.exists(self.model_dir):
+                pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
+
+
+    def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
+        return self.train(trainset)
+
+    def train(self, X_passive_dataset):
+        """Using features and little labels to do clustering.
+        Args:
+            X_passive_dataset: NumpyDataset/TorchDataset
+            X_passive: numpy.ndarray or torch.Tensor with shape (n_samples, n_features)
+            y: List or numpy.ndarray, or torch.Tensor with shape (n_samples,).
+                For index i, if y[i] equals to self.INVALID_LABEL, then X_passive[i] is
+                an unlabels sample.
+        Returns:
+            self: The estimator itself.
+        """
+        X_passive = X_passive_dataset.features
+
+        self.messenger.send("start signal.")
+        self._check_params(X_passive_dataset)
+
+        self.n_init = self.messenger.recv()
+
+        # run constrained seed KMeans n_init times in order to choose the best one
+        best_centers_passive = None
+        for i in range(self.n_init):
+            init_centers_passive = self._init_centroids(X_passive_dataset)
+            if self.verbose:
+                print("Initialization complete")
+            new_centers_passive, self.indices = self._kmeans(X_passive_dataset, init_centers_passive)
+            if self.messenger.recv() is True:
+                best_centers_passive = new_centers_passive
+
+        self.cluster_centers_passive_ = best_centers_passive
+
+        y_pred = self.score(X_passive_dataset)
+
+        if self.saving_model:
+            saved_data = (
+                self.n_clusters,
+                self.cluster_centers_passive_
+            )
+            NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
+
+            Plot.plot_pca(X_passive_dataset, y_pred, self.n_clusters, self.pics_dir)
+            Plot.plot_silhoutte(X_passive_dataset, y_pred, self.n_clusters, self.pics_dir)
+
+    def score(self, X_passive_dataset, role=Const.PASSIVE_NAME):
+        """Predict the associated cluster index of samples.
+        Args:
+            X_passive_dataset: NumpyDataset/TorchDataset
+            X_passive: numpy.ndarray or torch.Tensor with shape (n_samples, n_features).
+        Returns:
+            indices: The associated cluster index of each sample, with shape
+            (n_samples,)
+        """
+        X_passive = X_passive_dataset.features
+
+        n_samples = X_passive.shape[0]
+        # indices = [-1 for _ in range(n_samples)]
+
+        for i in range(n_samples):
+            if type(X_passive) == np.ndarray:
+                min_norm_passive = np.linalg.norm(
+                    self.cluster_centers_passive_ - X_passive[i], axis=1
+                )
+            else:
+                min_norm_passive = torch.norm(
+                    self.cluster_centers_passive_ - X_passive[i], dim=1
+                )
+            self.messenger.send(min_norm_passive)
+
+        self.indices = self.messenger.recv()
+
+        if type(X_passive) == np.ndarray:
+            return np.array(self.indices)
+        else:
+            return torch.tensor(self.indices)
+
+    @staticmethod
+    def online_inference(dataset, messenger, logger, model_dir, model_name, role):
+        n_clusters, cluster_centers_passive_ = NumpyModelIO.load(model_dir, model_name)
+
+        passive_model = PassiveConstrainedSeedKMeans(
+            messenger=messenger,
+            logger=logger,
+            crypto_type="",
+            n_clusters=n_clusters,
+        )
+        passive_model.n_clusters = n_clusters
+        passive_model.cluster_centers_passive_ = cluster_centers_passive_
+
+        y_pred = passive_model.score(dataset)
+
+        dis = passive_model._cal_dis(dataset)
+        scores = {"distance": dis}
+
+        return scores, y_pred
 
     def _check_params(self, X_passive_dataset):
         """Check if the parameters of the algorithm and the inputs to it are valid."""
@@ -243,70 +361,28 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
         return new_centers_passive, indices
 
-    def train(self, X_passive_dataset):
-        """Using features and little labels to do clustering.
-        Args:
-            X_passive_dataset: NumpyDataset/TorchDataset
-            X_passive: numpy.ndarray or torch.Tensor with shape (n_samples, n_features)
-            y: List or numpy.ndarray, or torch.Tensor with shape (n_samples,).
-                For index i, if y[i] equals to self.INVALID_LABEL, then X_passive[i] is
-                an unlabels sample.
-        Returns:
-            self: The estimator itself.
-        """
+    def _cal_dis(self, X_passive_dataset):
+        """Opposite of the value of X_passive on the K-means objective."""
         X_passive = X_passive_dataset.features
 
-        self.messenger.send("start signal.")
-        self._check_params(X_passive_dataset)
-
-        self.n_init = self.messenger.recv()
-
-        # run constrained seed KMeans n_init times in order to choose the best one
-        best_centers_passive = None
-        for i in range(self.n_init):
-            init_centers_passive = self._init_centroids(X_passive_dataset)
-            if self.verbose:
-                print("Initialization complete")
-            new_centers_passive, self.indices = self._kmeans(X_passive_dataset, init_centers_passive)
-            if self.messenger.recv() is True:
-                best_centers_passive = new_centers_passive
-
-        self.cluster_centers_passive_ = best_centers_passive
-
-        return self
-
-    def predict(self, X_passive_dataset):
-        """Predict the associated cluster index of samples.
-        Args:
-            X_passive_dataset: NumpyDataset/TorchDataset
-            X_passive: numpy.ndarray or torch.Tensor with shape (n_samples, n_features).
-        Returns:
-            indices: The associated cluster index of each sample, with shape
-            (n_samples,)
-        """
-        X_passive = X_passive_dataset.features
-
+        interia_passive = 0
         n_samples = X_passive.shape[0]
-        # indices = [-1 for _ in range(n_samples)]
 
         for i in range(n_samples):
             if type(X_passive) == np.ndarray:
-                min_norm_passive = np.linalg.norm(
+                interia_passive += np.linalg.norm(
                     self.cluster_centers_passive_ - X_passive[i], axis=1
-                )
+                ).min()
             else:
-                min_norm_passive = torch.norm(
-                    self.cluster_centers_passive_ - X_passive[i], dim=1
+                interia_passive += (
+                    torch.norm(self.cluster_centers_passive_ - X_passive[i], dim=1)
+                    .min()
+                    .item()
                 )
-            self.messenger.send(min_norm_passive)
 
-        self.indices = self.messenger.recv()
-        #     indices[i] = min_idx
+        self.messenger.send(interia_passive)
 
-        # if type(X_passive) == np.ndarray:
-        #     return np.array(indices)
-        # else:
-        #     return torch.tensor(indices)
+        return -1 * interia_passive
 
     def train_predict(self, X_passive_dataset):
         """Convenient function."""
@@ -347,36 +423,13 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
         """Convenient function"""
         return self.train(X_passive_dataset).transform(X_passive_dataset)
 
-    def score(self, X_passive_dataset, role=Const.PASSIVE_NAME):
-        """Opposite of the value of X_passive on the K-means objective."""
-        X_passive = X_passive_dataset.features
-
-        interia_passive = 0
-        n_samples = X_passive.shape[0]
-
-        for i in range(n_samples):
-            if type(X_passive) == np.ndarray:
-                interia_passive += np.linalg.norm(
-                    self.cluster_centers_passive_ - X_passive[i], axis=1
-                ).min()
-            else:
-                interia_passive += (
-                    torch.norm(self.cluster_centers_passive_ - X_passive[i], dim=1)
-                    .min()
-                    .item()
-                )
-
-        self.messenger.send(interia_passive)
-
-        return -1 * interia_passive
-    
     def _save_model(self):
         if self.saving_model:
             saved_data = [
                 self.n_clusters,
                 self.cluster_centers_passive_
             ]
-            NumpyModelIO.save(saved_data, self.model_path, self.model_name)
+            NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
 
     def load_model(self, model_path='./models', model_name='vfl_kmeans_passive'):
         self.n_clusters, self.cluster_centers_passive_ = NumpyModelIO.load(model_path, model_name)
@@ -414,12 +467,11 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
             palette=sns.color_palette("hls", color_num),
             data=df,
         )
-        if self.saving_pic:
-            plt.savefig("{}/clusters.png".format(self.pics_path))
+        if self.saving_model:
+            plt.savefig(os.path.join(self.pics_dir, "clusters.png"))
         else:
             plt.show()
         plt.close()
-
 
     def sil_plot(self, X_passive_dataset, estimator, n_cluster):
         X_passive = X_passive_dataset.features
@@ -434,8 +486,8 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
         plt.boxplot(sil_per_cls)
         # plt.show()
         plt.title('Silhouette Coefficient Distribution for Each Cluster')
-        if self.saving_pic:
-            plt.savefig("{}/silhoutte.png".format(self.pics_path))
+        if self.saving_model:
+            plt.savefig(os.path.join(self.pics_dir, "silhoutte.png"))
         else:
             plt.show()
         plt.close()
@@ -443,7 +495,7 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
 
 if __name__ == "__main__":
-    from linkefl.common.factory import messenger_factory
+    from linkefl.common.factory import messenger_factory, logger_factory
 
     active_ip = "localhost"
     active_port = 20001
@@ -458,7 +510,7 @@ if __name__ == "__main__":
         passive_ip=passive_ip,
         passive_port=passive_port,
     )
-
+    _logger = logger_factory(role=Const.PASSIVE_NAME)
     dataset_name = "digits"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
@@ -482,29 +534,19 @@ if __name__ == "__main__":
     n_cluster = 3
     passive = PassiveConstrainedSeedKMeans(
         messenger=_messenger,
-        crypto_type=None,
+        logger=_logger,
+        crypto_type="",
         n_clusters=n_cluster,
         n_init=2,
         verbose=False,
+        saving_model=True
     )
 
-    passive.fit(passive_trainset, passive_trainset)
+    # passive.fit(passive_trainset, passive_trainset)
 
-    # # save the required parameters
-    # passive._save_model()
-    #
-    # # Initialize a new instance and load the saved parameters
-    # passive_new = PassiveConstrainedSeedKMeans(
-    #     messenger=_messenger,
-    #     crypto_type=None,
-    # )
-    #
-    # passive.n_clusters, passive_new.cluster_centers_passive_ = passive.load_model()
-    #
-    # _ = passive_new.predict(passive_trainset)
-
-    passive.score(passive_trainset)
-
-    passive.pca_plot(passive_trainset, passive, color_num=n_cluster)
-
-    passive.sil_plot(passive_trainset, passive, n_cluster)
+    scores, y_pred = PassiveConstrainedSeedKMeans.online_inference(
+        passive_trainset, _messenger, _logger,
+        "./models/20230321170106", "20230321170106-passive_party-vfl_kmeans.model",
+        Const.PASSIVE_NAME
+    )
+    print(scores, y_pred)

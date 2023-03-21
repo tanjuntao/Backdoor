@@ -1,5 +1,7 @@
 import copy
+import datetime
 import os
+import pathlib
 import time
 from typing import Optional
 
@@ -10,30 +12,33 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_samples
 
 from linkefl.base import BaseModelComponent, BaseMessenger
+from linkefl.common.log import GlobalLogger
 from linkefl.common.const import Const
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
+from linkefl.vfl.tree.plotting import Plot
 
 
 class ActiveConstrainedSeedKMeans(BaseModelComponent):
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
 
     def __init__(
-        self,
-        messenger: BaseMessenger,
-        crypto_type: str,
-        n_clusters: int,
-        *,
-        n_init: int = 10,
-        max_iter: int = 30,
-        tol: float = 0.0001,
-        verbose=False,
-        invalid_label: int = -1,
-        unsupervised: bool = True,
-        random_state: Optional[int] = None,
-        saving_model: bool = False,
-        model_dir: Optional[str] = None,
-        model_name: Optional[str] = None,
+            self,
+            messenger: BaseMessenger,
+            logger: GlobalLogger,
+            crypto_type: str,
+            n_clusters: int,
+            *,
+            n_init: int = 10,
+            max_iter: int = 30,
+            tol: float = 0.0001,
+            verbose: bool = False,
+            invalid_label: int = -1,
+            unsupervised: bool = True,
+            random_state: Optional[int] = None,
+            saving_model: bool = False,
+            model_dir: Optional[str] = None,
+            model_name: Optional[str] = None,
     ):
         """Initialization a constrained seed kmeans estimator.
         Args:
@@ -58,12 +63,218 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
         self.INVALID_LABEL = invalid_label
         self.unsupervised = unsupervised
         self.messenger = messenger
+        self.logger = logger
         self.random_state = random_state
         self.saving_model = saving_model
-        self.model_dir = model_dir
-        self.model_name = model_name
         if random_state is not None:
             torch.random.manual_seed(random_state)
+
+        if self.saving_model:
+            self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            if model_dir is None:
+                default_dir = "models"
+                model_dir = os.path.join(default_dir, self.create_time)
+            if model_name is None:
+                algo_name = (
+                    Const.AlgoNames.VFL_KMEANS
+                )
+                model_name = (
+                    "{time}-{role}-{algo_name}".format(
+                        time=self.create_time,
+                        role=Const.ACTIVE_NAME,
+                        algo_name=algo_name,
+                    )
+                    + ".model"
+                )
+            self.model_dir = model_dir
+            self.model_name = model_name
+            self.pics_dir = self.model_dir
+            if not os.path.exists(self.model_dir):
+                pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
+
+    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
+        return self.train(trainset)
+
+    def train(self, X_active_dataset):
+        """Using features and little labels to do clustering.
+        Args:
+            X_active_dataset: NumpyDataset/TorchDataset
+            X_active: numpy.ndarray or torch.Tensor with shape (n_samples, n_features)
+            y: List or numpy.ndarray, or torch.Tensor with shape (n_samples,).
+                For index i, if y[i] equals to self.INVALID_LABEL, then X_active[i] is
+                an unlabels sample.
+        Returns:
+            self: The estimator itself.
+        """
+        X_active = X_active_dataset.features
+        if self.unsupervised:
+            y = [-1 for _ in range(X_active.shape[0])]
+        else:
+            y = X_active_dataset.labels
+
+        begin_msg = self.messenger.recv()  # noqa: F841
+        self._check_params(X_active_dataset)
+
+        if type(y) == np.ndarray:
+            pkg = np
+        elif type(y) == torch.Tensor:
+            pkg = torch
+        elif type(y) == list and type(X_active) == np.ndarray:
+            y = np.array(y)
+            pkg = np
+        elif type(y) == list and type(X_active) == torch.Tensor:
+            y = torch.Tensor(y)
+            pkg = torch
+        else:
+            raise TypeError("Data type is not supported, please check it again.")
+
+        y_unique = pkg.unique(y)
+        if self.INVALID_LABEL in y_unique:
+            n_seed_centroids = len(y_unique) - 1
+        else:
+            n_seed_centroids = len(y_unique)
+        assert n_seed_centroids <= self.n_clusters, (
+            "The number of seed centroids"
+            "should be less than the total"
+            "number of clusters."
+        )
+
+        if n_seed_centroids == self.n_clusters:
+            self.n_init = 1
+
+        self.messenger.send(self.n_init)
+
+        # run constrained seed KMeans n_init times in order to choose the best one
+        best_inertia = None
+        best_centers_active, best_indices = None, None
+        self.logger.log("Start collaborative model training...")
+
+        for i in range(self.n_init):
+            init_centers_active, _ = self._init_centroids(X_active_dataset)
+            if self.verbose:
+                print("Initialization complete")
+            new_centers_active, indices, new_inertia = self._kmeans(
+                X_active_dataset, init_centers_active
+            )
+            if best_inertia is None or new_inertia < best_inertia:
+                best_inertia = new_inertia
+                best_centers_active = new_centers_active
+                best_indices = indices
+                self.messenger.send(True)
+            else:
+                self.messenger.send(False)
+
+        self.inertia_ = best_inertia
+        self.cluster_centers_active_ = best_centers_active
+        self.indices = best_indices
+        self.logger.log("Collaborative model training done.")
+
+        # conduct predict
+        y_pred = self.score(X_active_dataset)
+
+        if self.saving_model:
+            saved_data = (
+                self.n_clusters,
+                self.inertia_,
+                self.cluster_centers_active_,
+                self.indices,
+            )
+            NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
+
+            Plot.plot_pca(X_active_dataset, y_pred, self.n_clusters, self.pics_dir)
+            Plot.plot_silhoutte(X_active_dataset, y_pred, self.n_clusters, self.pics_dir)
+
+    def score(self, X_active_dataset, role=Const.ACTIVE_NAME):
+        """Predict the associated cluster index of samples.
+        Args:
+            X_active_dataset: NumpyDataset/TorchDataset
+            X_active: numpy.ndarray or torch.Tensor with shape (n_samples, n_features).
+        Returns:
+            indices: The associated cluster index of each sample, with shape
+            (n_samples,)
+        """
+        X_active = X_active_dataset.features
+
+        n_samples = X_active.shape[0]
+        indices = [-1 for _ in range(n_samples)]
+
+        for i in range(n_samples):
+            min_norm_passive = self.messenger.recv()
+            if type(X_active) == np.ndarray:
+                min_idx = (
+                        np.square(
+                            np.linalg.norm(
+                                self.cluster_centers_active_ - X_active[i], axis=1
+                            )
+                        )
+                        + np.square(min_norm_passive)
+                ).argmin()
+            else:
+                min_idx = (
+                        torch.square(
+                            torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
+                        )
+                        + torch.square(min_norm_passive)
+                ).argmin()
+            indices[i] = min_idx
+
+        if type(X_active) == np.ndarray:
+            self.messenger.send(np.array(indices))
+            return np.array(indices)
+        else:
+            self.messenger.send(torch.tensor(indices))
+            return torch.tensor(indices)
+
+    @staticmethod
+    def online_inference(dataset, messenger, logger, model_dir, model_name, role):
+        (
+            n_clusters,
+            inertia_,
+            cluster_centers_active_,
+            indices,
+         ) = NumpyModelIO.load(model_dir, model_name)
+
+        active_model = ActiveConstrainedSeedKMeans(
+            messenger=messenger,
+            logger=logger,
+            crypto_type="",
+            n_clusters=n_clusters,
+        )
+        active_model.inertia_ = inertia_
+        active_model.cluster_centers_active_ = cluster_centers_active_
+        active_model.indices = indices
+
+        y_pred = active_model.score(dataset)
+
+        dis = active_model._cal_dis(dataset)
+        scores = {"distance": dis}
+
+        return scores, y_pred
+
+    def _cal_dis(self, X_active_dataset):
+        """Opposite of the value of X_active on the K-means objective."""
+        X_active = X_active_dataset.features
+
+        interia = 0
+        n_samples = X_active.shape[0]
+
+        for i in range(n_samples):
+            if type(X_active) == np.ndarray:
+                interia += np.linalg.norm(
+                    self.cluster_centers_active_ - X_active[i], axis=1
+                ).min()
+            else:
+                interia += (
+                    torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
+                    .min()
+                    .item()
+                )
+
+        interia_passive = self.messenger.recv()
+
+        interia += interia_passive
+
+        return -1 * interia
 
     def _check_params(self, X_active_dataset):
         """Check if the parameters of the algorithm and the inputs to it are valid."""
@@ -211,13 +422,13 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
 
                 if type(X_active) == np.ndarray:
                     min_idx = (
-                        np.square(np.linalg.norm(cur_centers - X_active[i], axis=1))
-                        + np.square(passive_norm)
+                            np.square(np.linalg.norm(cur_centers - X_active[i], axis=1))
+                            + np.square(passive_norm)
                     ).argmin()
                 else:
                     min_idx = (
-                        torch.square(torch.norm(cur_centers - X_active[i], dim=1))
-                        + torch.square(passive_norm)
+                            torch.square(torch.norm(cur_centers - X_active[i], dim=1))
+                            + torch.square(passive_norm)
                     ).argmin()
 
                 # print('min index', min_idx)
@@ -295,132 +506,13 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
 
         return new_centers_active, indices, inertia
 
-    def train(self, X_active_dataset):
-        """Using features and little labels to do clustering.
-        Args:
-            X_active_dataset: NumpyDataset/TorchDataset
-            X_active: numpy.ndarray or torch.Tensor with shape (n_samples, n_features)
-            y: List or numpy.ndarray, or torch.Tensor with shape (n_samples,).
-                For index i, if y[i] equals to self.INVALID_LABEL, then X_active[i] is
-                an unlabels sample.
-        Returns:
-            self: The estimator itself.
-        """
-        X_active = X_active_dataset.features
-        if self.unsupervised:
-            y = [-1 for _ in range(X_active.shape[0])]
-        else:
-            y = X_active_dataset.labels
-
-        begin_msg = self.messenger.recv()  # noqa: F841
-        self._check_params(X_active_dataset)
-
-        # _, n_seed_centroids = self._init_centroids(X_active, y)
-
-        if type(y) == np.ndarray:
-            pkg = np
-        elif type(y) == torch.Tensor:
-            pkg = torch
-        elif type(y) == list and type(X_active) == np.ndarray:
-            y = np.array(y)
-            pkg = np
-        elif type(y) == list and type(X_active) == torch.Tensor:
-            y = torch.Tensor(y)
-            pkg = torch
-        else:
-            raise TypeError("Data type is not supported, please check it again.")
-
-        y_unique = pkg.unique(y)
-        if self.INVALID_LABEL in y_unique:
-            n_seed_centroids = len(y_unique) - 1
-        else:
-            n_seed_centroids = len(y_unique)
-        assert n_seed_centroids <= self.n_clusters, (
-            "The number of seed centroids"
-            "should be less than the total"
-            "number of clusters."
-        )
-
-        if n_seed_centroids == self.n_clusters:
-            self.n_init = 1
-
-        self.messenger.send(self.n_init)
-
-        # run constrained seed KMeans n_init times in order to choose the best one
-        best_inertia = None
-        best_centers_active, best_indices = None, None
-        for i in range(self.n_init):
-            init_centers_active, _ = self._init_centroids(X_active_dataset)
-            if self.verbose:
-                print("Initialization complete")
-            new_centers_active, indices, new_inertia = self._kmeans(
-                X_active_dataset, init_centers_active
-            )
-            if best_inertia is None or new_inertia < best_inertia:
-                best_inertia = new_inertia
-                best_centers_active = new_centers_active
-                best_indices = indices
-                self.messenger.send(True)
-            else:
-                self.messenger.send(False)
-
-        self.inertia_ = best_inertia
-        self.cluster_centers_active_ = best_centers_active
-        self.indices = best_indices
-
-        return self
-
-    def fit(self, trainset, validset, role=Const.ACTIVE_NAME):
-        return self.train(trainset)
-
-    def predict(self, X_active_dataset):
-        """Predict the associated cluster index of samples.
-        Args:
-            X_active_dataset: NumpyDataset/TorchDataset
-            X_active: numpy.ndarray or torch.Tensor with shape (n_samples, n_features).
-        Returns:
-            indices: The associated cluster index of each sample, with shape
-            (n_samples,)
-        """
-        X_active = X_active_dataset.features
-
-        n_samples = X_active.shape[0]
-        indices = [-1 for _ in range(n_samples)]
-
-        for i in range(n_samples):
-            min_norm_passive = self.messenger.recv()
-            if type(X_active) == np.ndarray:
-                min_idx = (
-                    np.square(
-                        np.linalg.norm(
-                            self.cluster_centers_active_ - X_active[i], axis=1
-                        )
-                    )
-                    + np.square(min_norm_passive)
-                ).argmin()
-            else:
-                min_idx = (
-                    torch.square(
-                        torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
-                    )
-                    + torch.square(min_norm_passive)
-                ).argmin()
-            indices[i] = min_idx
-
-        if type(X_active) == np.ndarray:
-            self.messenger.send(np.array(indices))
-            return np.array(indices)
-        else:
-            self.messenger.send(torch.tensor(indices))
-            return torch.tensor(indices)
-
-    @staticmethod
-    def online_inference(dataset, messenger, logger, model_dir, model_name, role):
-        pass
-
     def train_predict(self, X_active_dataset):
         """Convenient function."""
         return self.train(X_active_dataset).predict(X_active_dataset)
+
+    def train_transform(self, X_active_dataset):
+        """Convenient function"""
+        return self.train(X_active_dataset).transform(X_active_dataset)
 
     def transform(self, X_active_dataset):
         """Transform the input to the centorid space.
@@ -453,59 +545,6 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
         output += output_passive
 
         return output
-
-    def train_transform(self, X_active_dataset):
-        """Convenient function"""
-        return self.train(X_active_dataset).transform(X_active_dataset)
-
-    def score(self, X_active_dataset, role=Const.ACTIVE_NAME):
-        """Opposite of the value of X_active on the K-means objective."""
-        X_active = X_active_dataset.features
-
-        interia = 0
-        n_samples = X_active.shape[0]
-
-        for i in range(n_samples):
-            if type(X_active) == np.ndarray:
-                interia += np.linalg.norm(
-                    self.cluster_centers_active_ - X_active[i], axis=1
-                ).min()
-            else:
-                interia += (
-                    torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
-                    .min()
-                    .item()
-                )
-
-        interia_passive = self.messenger.recv()
-
-        interia += interia_passive
-
-        return -1 * interia
-
-    def _save_model(self):
-        if self.saving_model:
-            saved_data = [
-                self.n_clusters,
-                self.inertia_,
-                self.cluster_centers_active_,
-                self.indices,
-            ]
-            NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
-
-    def load_model(self, model_dir, model_name):
-        (
-            self.n_clusters,
-            self.inertia_,
-            self.cluster_centers_active_,
-            self.indices,
-        ) = NumpyModelIO.load(model_dir, model_name)
-        return (
-            self.n_clusters,
-            self.inertia_,
-            self.cluster_centers_active_,
-            self.indices,
-        )
 
     def pca_plot(self, X_active_dataset, estimator, color_num):
         import pandas as pd
@@ -564,7 +603,7 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
 
 
 if __name__ == "__main__":
-    from linkefl.common.factory import messenger_factory
+    from linkefl.common.factory import messenger_factory, logger_factory
 
     active_ip = "localhost"
     active_port = 20001
@@ -579,6 +618,7 @@ if __name__ == "__main__":
         passive_ip=passive_ip,
         passive_port=passive_port,
     )
+    _logger = logger_factory(role=Const.ACTIVE_NAME)
     print("Active party started, listening...")
 
     dataset_name = "digits"
@@ -610,34 +650,21 @@ if __name__ == "__main__":
     n_cluster = 3
     active = ActiveConstrainedSeedKMeans(
         messenger=_messenger,
-        crypto_type=None,
+        logger=_logger,
+        crypto_type="",
         n_clusters=n_cluster,
         n_init=2,
         verbose=False,
+        saving_model=True
     )
 
-    begin_train = time.time()
-    active.fit(active_trainset, active_trainset)
-    end_train = time.time()
+    # begin_train = time.time()
+    # active.fit(active_trainset, active_trainset)
+    # end_train = time.time()
 
-    # # save the required parameters
-    # active._save_model()
-    #
-    # # Initialize a new instance and load the saved parameters
-    # active_new = ActiveConstrainedSeedKMeans(
-    #     messenger=_messenger,
-    #     crypto_type=None,
-    # )
-    #
-    # active.n_clusters, active_new.inertia_, active_new.cluster_centers_active_, active_new.indices = active.load_model()
-    #
-    # _ = active_new.predict(active_trainset)
-
-    score = active.score(active_trainset)
-    print("score", score)
-
-    print("total training time consumed", end_train - begin_train)
-
-    active.pca_plot(active_trainset, active, color_num=n_cluster)
-
-    active.sil_plot(active_trainset, active, n_cluster)
+    scores, y_pred = ActiveConstrainedSeedKMeans.online_inference(
+        active_trainset, _messenger, _logger,
+        "./models/20230321170104", "20230321170104-active_party-vfl_kmeans.model",
+        Const.ACTIVE_NAME
+    )
+    print(scores, y_pred)

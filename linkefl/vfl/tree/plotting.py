@@ -466,7 +466,7 @@ class Plot(object):
         plt.close()
 
     @staticmethod
-    def sil_plot(dataset, y_pred, n_cluster, file_dir):
+    def plot_silhoutte(dataset, y_pred, n_cluster, file_dir):
         """Plot silhoutte png for vfl-kmeans model.
         """
         features = dataset.features
