@@ -210,12 +210,18 @@ class PassiveNeuralNetwork(BaseModelComponent):
         return self.validate(testset)
 
     @staticmethod
-    def online_inference(dataset, messengers, logger, model_dir, model_name, role):
+    def online_inference(
+        dataset: TorchDataset,
+        messenger: BaseMessenger,
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.PASSIVE_NAME,
+    ):
         models: dict = TorchModelIO.load(model_dir, model_name)
         for model in models.values():
             model.eval()
         dataloader = DataLoader(dataset, batch_size=dataset.n_samples, shuffle=False)
-        messenger = messengers[0]
 
         with torch.no_grad():
             for batch, X in enumerate(dataloader):

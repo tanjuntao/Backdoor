@@ -390,7 +390,14 @@ class ActiveNeuralNetwork(BaseModelComponent):
             return scores
 
     @staticmethod
-    def online_inference(dataset, messengers, logger, model_dir, model_name, role):
+    def online_inference(
+        dataset: TorchDataset,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.ACTIVE_NAME,
+    ):
         models: dict = TorchModelIO.load(model_dir, model_name)
         for model in models.values():
             model.eval()
@@ -402,6 +409,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         labels, probs = np.array([]), np.array([])
         loss_fn = nn.CrossEntropyLoss()
         with torch.no_grad():
+            preds = None
             for batch, (X, y) in enumerate(dataloader):
                 active_repr = models["cut"](models["bottom"](X))
                 passive_repr = messenger.recv()
@@ -411,6 +419,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += loss_fn(logits, y).item()
                 correct += (logits.argmax(1) == y).type(torch.float).sum().item()
+                if preds is None:
+                    preds = logits.argmax(1)
+                else:
+                    preds = torch.concat((preds, logits.argmax(1)), dim=0)
             test_loss /= n_batches
             acc = correct / dataset.n_samples
             n_classes = len(torch.unique(dataset.labels))
@@ -425,7 +437,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
             )
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
-            return scores
+            return scores, preds
 
 
 if __name__ == "__main__":
