@@ -5,6 +5,7 @@ import time
 from typing import List, Union
 from urllib.error import URLError
 
+import distro
 import numpy as np
 
 from linkefl.base import BaseMessenger, BasePSIComponent
@@ -22,10 +23,13 @@ except ImportError:
         "37-linux": "PsiPython.cpython-37m-x86_64-linux-gnu.so",
         "38-darwin": "PsiPython.cpython-38-darwin.so",
         "38-linux": "PsiPython.cpython-38-x86_64-linux-gnu.so",
+        "38-centos": "PsiPython.cpython-38-x86_64-centos.so",
         "39-darwin": "PsiPython.cpython-39-darwin.so",
         "39-linux": "PsiPython.cpython-39-x86_64-linux-gnu.so",
+        "39-centos": "PsiPython.cpython-39-x86_64-centos.so",
         "310-darwin": "PsiPython.cpython-310-darwin.so",
         "310-linux": "PsiPython.cpython-310-x86_64-linux-gnu.so",
+        "310-centos": "PsiPython.cpython-310-x86_64-centos.so",
     }
     py_version = str(sys.version_info[0]) + str(sys.version_info[1])
     platform = sys.platform
@@ -34,6 +38,9 @@ except ImportError:
             "Currently only Linux and macOS are supported OS platform, "
             "but you are in a {} platform.".format(platform)
         )
+    if platform == "linux" and distro.id() == "centos":
+        platform = "centos"
+
     key = py_version + "-" + platform
     filename = resources[key]
     this_directory = os.path.abspath(os.path.dirname(__file__))
