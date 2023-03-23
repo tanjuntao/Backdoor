@@ -1,6 +1,7 @@
 import pickle
 import socket
 import struct
+import zlib
 
 import blosc
 
