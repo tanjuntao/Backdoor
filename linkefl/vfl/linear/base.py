@@ -11,7 +11,7 @@ from multiprocessing.pool import ThreadPool
 import numpy as np
 from termcolor import colored
 
-from linkefl.base import BaseModelComponent, BaseMessenger
+from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import partial_crypto_factory
 from linkefl.common.log import GlobalLogger
@@ -136,12 +136,15 @@ class BaseLinearPassive(BaseLinear, ABC):
 
     def _gradient(self, enc_residue, batch_idxes, executor_pool, scheduler_pool):
         # compute gradient of empirical loss term
-        if executor_pool is None and scheduler_pool is None:
+        if self.crypto_type == Const.PLAIN:
             enc_train_grad = self._grad(enc_residue, batch_idxes)
         else:
-            enc_train_grad = self._grad_pool(
-                enc_residue, batch_idxes, executor_pool, scheduler_pool
-            )
+            if executor_pool is None and scheduler_pool is None:
+                enc_train_grad = self._grad(enc_residue, batch_idxes)
+            else:
+                enc_train_grad = self._grad_pool(
+                    enc_residue, batch_idxes, executor_pool, scheduler_pool
+                )
 
         # compute gradient of regularization term
         params = getattr(self, "params")
