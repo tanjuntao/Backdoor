@@ -142,11 +142,13 @@ class PassiveNeuralNetwork(BaseModelComponent):
                     self.enc_layer.fed_backward()
                     grad = self.messenger.recv()
                     plain_grad = self.cryptosystem.decrypt_vector(grad.flatten())
-                    plain_grad = torch.tensor(plain_grad).reshape(grad.shape)
+                    plain_grad = (
+                        torch.tensor(plain_grad).reshape(grad.shape).to(self.device)
+                    )
                     bottom_outputs.backward(plain_grad)
                     self.optimizers["bottom"].step()
                 else:
-                    grad = self.messenger.recv()
+                    grad = self.messenger.recv().to(self.device)
                     passive_repr.backward(grad)
                     self.optimizers["cut"].step()
                     self.optimizers["bottom"].step()
@@ -248,8 +250,9 @@ if __name__ == "__main__":
     _learning_rate = 0.001
     _crypto_type = Const.PLAIN
     _key_size = 1024
+    _num_workers = 1
     _random_state = None
-    _device = "cuda" if torch.cuda.is_available() else "cpu"
+    _device = "cuda:0" if torch.cuda.is_available() else "cpu"
     _saving_model = True
     _logger = logger_factory(role=Const.PASSIVE_NAME)
     _messenger = messenger_factory(
@@ -339,7 +342,7 @@ if __name__ == "__main__":
         activate_input=False,
         activate_output=True,
         random_state=_random_state,
-    )
+    ).to(_device)
     # bottom_model = ResNet18(in_channel=1).to(_device)
     _cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
     _models = {"bottom": _bottom_model, "cut": _cut_layer}
@@ -360,6 +363,7 @@ if __name__ == "__main__":
         messenger=_messenger,
         cryptosystem=_crypto,
         logger=_logger,
+        num_workers=_num_workers,
         device=_device,
         random_state=_random_state,
         saving_model=_saving_model,

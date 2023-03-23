@@ -267,7 +267,7 @@ class PaillierPublicKey:
         )
         if len(plain_vector) < using_pool_thresh:
             warnings.warn(
-                "It's not recommended to use multiprocessing when the length"
+                "It's not recommended to use multiprocessing when the length "
                 "of plain_vector is less than 10000. Still use single process.",
                 stacklevel=3,
             )
@@ -883,6 +883,9 @@ def cipher_matmul(
         "Matrix shape dismatch error. cipher_matrix shape is {}, plain_matrix shape"
         " is {}".format(cipher_matrix.shape, plain_matrix.shape)
     )
+
+    if executor_pool is None and scheduler_pool is None:
+        return np.matmul(cipher_matrix, plain_matrix)
 
     result_matrix = []
     for i in range(len(cipher_matrix)):

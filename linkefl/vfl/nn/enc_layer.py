@@ -44,6 +44,7 @@ class PassiveEncLayer:
         self.w_acc: np.ndarray = np.random.rand(in_nodes, out_nodes).astype(np.float32)
 
     def fed_forward(self, a):
+        a = a.to("cpu")
         enc_a = self.cryptosystem.encrypt_vector(
             torch.flatten(a), pool=self.enc_pool
         )  # return a Python list
@@ -136,7 +137,7 @@ class ActiveEncLayer:
         self.messenger.send(enc_z_tilde)
 
     def fed_backward(self, grad):
-        grad = grad.numpy()
+        grad = grad.cpu().numpy()
         grad_encode = encode(
             raw_data=grad,
             raw_pub_key=self.cryptosystem.pub_key,

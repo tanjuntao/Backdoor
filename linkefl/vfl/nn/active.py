@@ -154,9 +154,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 active_repr = self.models["cut"](self.models["bottom"](X))
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     self.enc_layer.fed_forward()
-                    passive_repr = self.messenger.recv()
+                    passive_repr = self.messenger.recv().to(self.device)
                 else:
-                    passive_repr = self.messenger.recv()
+                    passive_repr = self.messenger.recv().to(self.device)
                 top_input = active_repr.data + passive_repr
                 top_input = top_input.requires_grad_()
                 logits = self.models["top"](top_input)
@@ -257,7 +257,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     self.enc_layer.fed_forward()
                     passive_repr = self.messenger.recv()
                 else:
-                    passive_repr = self.messenger.recv()
+                    passive_repr = self.messenger.recv().to(self.device)
                 top_input = active_repr + passive_repr
                 logits = self.models["top"](top_input)
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
@@ -460,9 +460,10 @@ if __name__ == "__main__":
     _learning_rate = 0.001
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     _loss_fn = nn.CrossEntropyLoss()
+    _num_workers = 1
     _random_state = None
     _saving_model = True
-    _device = "cuda" if torch.cuda.is_available() else "cpu"
+    _device = "cuda:0" if torch.cuda.is_available() else "cpu"
     _messenger = messenger_factory(
         messenger_type=Const.FAST_SOCKET,
         role=Const.ACTIVE_NAME,
@@ -554,7 +555,7 @@ if __name__ == "__main__":
         activate_input=False,
         activate_output=True,
         random_state=_random_state,
-    )
+    ).to(_device)
     # _bottom_model = ResNet18(in_channel=1).to(_device)
     _cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
     _top_model = MLP(
@@ -582,6 +583,7 @@ if __name__ == "__main__":
         loss_fn=_loss_fn,
         messenger=_messenger,
         logger=_logger,
+        num_workers=_num_workers,
         device=_device,
         random_state=_random_state,
         saving_model=_saving_model,
