@@ -266,8 +266,10 @@ class PrettyPrintTree:
             if "".join(to_print[r + pos]).startswith("-"):
                 while to_print[r + pos][0] == "":
                     to_print[r + pos].pop(0)
+                str_added = str(added)
+                str_firstbool = str(first == -1)
                 symbol = {"TT": "┌", "TF": "├", "FT": "┬", "FF": "┼"}[
-                    str(added)[0] + str(first == -1)[0]
+                    str_added[0] + str_firstbool[0]
                 ]
                 to_print[r + pos] = [symbol] + to_print[r + pos][1:]
                 if first == -1:

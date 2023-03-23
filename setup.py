@@ -91,7 +91,7 @@ setup(
     name=NAME,
     version=__version__,
     author=AUTHOR,
-    authod_email=AUTHOR_EMAIL,
+    author_email=AUTHOR_EMAIL,
     keywords=KEYWORDS,
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
