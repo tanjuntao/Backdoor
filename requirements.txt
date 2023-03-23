@@ -1,4 +1,5 @@
 blosc
+colorama
 cx_Oracle
 Cython>=3.0.0a11
 distro
