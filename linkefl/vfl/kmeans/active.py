@@ -226,7 +226,7 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             return torch.tensor(indices)
 
     @staticmethod
-    def online_inference(dataset, messenger, logger, model_dir, model_name, role):
+    def online_inference(dataset, messenger, logger, model_dir, model_name, role=Const.ACTIVE_NAME):
         (
             n_clusters,
             inertia_,

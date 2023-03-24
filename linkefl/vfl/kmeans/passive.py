@@ -168,7 +168,7 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
             return torch.tensor(self.indices)
 
     @staticmethod
-    def online_inference(dataset, messenger, logger, model_dir, model_name, role):
+    def online_inference(dataset, messenger, logger, model_dir, model_name, role=Const.PASSIVE_NAME):
         n_clusters, cluster_centers_passive_ = NumpyModelIO.load(model_dir, model_name)
 
         passive_model = PassiveConstrainedSeedKMeans(
