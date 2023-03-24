@@ -76,7 +76,7 @@ class GlobalLogger:
             # 3. write logs to a remote http(s) url
             if remote_url is not None:
                 parsed_url = urlparse(remote_url)  # return a namedtuple
-                host = parsed_url.scheme + "://" + parsed_url.netloc
+                host = parsed_url.netloc
                 url = parsed_url.path
                 http_handler = HTTPHandler(host=host, url=url, method="POST")
                 http_handler.setFormatter(formatter)
