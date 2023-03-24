@@ -54,6 +54,9 @@ class GlobalLogger:
             # 2. write logs to local file
             if writing_file:
                 if file_path is not None:
+                    file_dir, file_name = os.path.split(file_path)
+                    if not os.path.exists(file_dir):
+                        pathlib.Path(file_dir).mkdir(parents=True, exist_ok=True)
                     full_path = file_path
                 else:
                     # ~/.linkefl/ is the cache directory of LinkeFL project
