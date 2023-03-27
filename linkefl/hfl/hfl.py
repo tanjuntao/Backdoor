@@ -13,8 +13,7 @@ from linkefl.modelio import TorchModelIO
 class Server:
     def __init__(
         self,
-        HOST,
-        PORT,
+        messenger,
         world_size,
         partyid,
         model,
@@ -44,9 +43,8 @@ class Server:
         batch_size:神经网络训练的batch_size
         iter:每个client的内循环
         """
-        self.HOST = HOST
+        self.messenger = messenger
         self.party = partyid
-        self.PORT = PORT
         self.world_size = world_size
         self.partyid = partyid
         self.model = model
@@ -68,19 +66,12 @@ class Server:
 
     def train(self, testset):
         # server
-        server = messenger(
-            self.HOST,
-            self.PORT,
-            role="server",
-            partyid=self.partyid,
-            world_size=self.world_size,
-        )
 
         if self.aggregator == "FedAvg":
             self.model = Train_server.train_basic(
                 self.epoch,
                 self.world_size,
-                server,
+                self.messenger,
                 self.model,
                 self.device,
                 testset,
@@ -93,7 +84,7 @@ class Server:
             self.model = Train_server.train_FedAvg_seq(
                 self.epoch,
                 self.world_size,
-                server,
+                self.messenger,
                 self.model,
                 self.device,
                 testset,
@@ -103,7 +94,7 @@ class Server:
             self.model = Train_server.train_basic(
                 self.epoch,
                 self.world_size,
-                server,
+                self.messenger,
                 self.model,
                 self.device,
                 testset,
@@ -113,7 +104,7 @@ class Server:
             self.model = Train_server.train_Scaffold(
                 self.epoch,
                 self.world_size,
-                server,
+                self.messenger,
                 self.model,
                 self.device,
                 testset,
@@ -123,7 +114,7 @@ class Server:
             self.model = Train_server.train_PersonalizedFed(
                 self.epoch,
                 self.world_size,
-                server,
+                self.messenger,
                 self.model,
                 self.device,
                 self.kp,
@@ -134,14 +125,14 @@ class Server:
             self.model = Train_server.train_basic(
                 self.epoch,
                 self.world_size,
-                server,
+                self.messenger,
                 self.model,
                 self.device,
                 testset,
                 self.lossfunction,
             )
 
-        server.close()
+        self.messenger.close()
 
     def test(self, testset):
         test_loss = 0
@@ -175,8 +166,7 @@ class Server:
 class Client:
     def __init__(
         self,
-        HOST,
-        PORT,
+        messenger,
         world_size,
         partyid,
         model,
@@ -200,8 +190,7 @@ class Client:
         model_name=None,
     ):
         """
-        HOST:联邦学习server的ip
-        PORT:端口号
+        messenger: 通信组建
         world_size:client的数量
         partyid:当前的id，id为0是server
         net:神经网络模型
@@ -213,9 +202,8 @@ class Client:
         batch_size:神经网络训练的batch_size
         iter:每个client的内循环
         """
-        self.HOST = HOST
+        self.messenger = messenger
         self.party = partyid
-        self.PORT = PORT
         self.world_size = world_size
         self.partyid = partyid
         self.model = model
@@ -266,13 +254,7 @@ class Client:
 
     def train(self, trainset, testset):
         role = "client"
-        client = messenger(
-            self.HOST,
-            self.PORT,
-            role=role,
-            partyid=self.partyid,
-            world_size=self.world_size,
-        )
+
 
         train_set = self._init_dataloader(trainset)
 
@@ -284,7 +266,7 @@ class Client:
 
         if self.aggregator == "FedAvg":
             self.model = Train_client.train_basic(
-                client,
+                self.messenger,
                 self.partyid,
                 self.epoch,
                 train_set,
@@ -301,7 +283,7 @@ class Client:
 
         elif self.aggregator == "FedAvg_seq":
             self.model = Train_client.train_basic(
-                client,
+                self.messenger,
                 self.partyid,
                 self.epoch,
                 train_set,
@@ -316,7 +298,7 @@ class Client:
 
         elif self.aggregator == "FedProx":
             self.model = Train_client.train_FedProx(
-                client,
+                self.messenger,
                 self.partyid,
                 self.epoch,
                 train_set,
@@ -332,7 +314,7 @@ class Client:
 
         elif self.aggregator == "Scaffold":
             self.model = Train_client.train_Scaffold(
-                client,
+                self.messenger,
                 self.partyid,
                 self.epoch,
                 train_set,
@@ -349,7 +331,7 @@ class Client:
 
         elif self.aggregator == "PersonalizedFed":
             self.model = Train_client.train_PersonalizedFed(
-                client,
+                self.messenger,
                 self.partyid,
                 self.epoch,
                 train_set,
@@ -365,7 +347,7 @@ class Client:
 
         elif self.aggregator == "FedDP":
             self.model = Train_client.train_FedDP(
-                client,
+                self.messenger,
                 self.partyid,
                 self.epoch,
                 train_set,

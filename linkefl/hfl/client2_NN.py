@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torchvision import datasets, transforms
 
+from linkefl.hfl.socket_hfl import messenger
 from linkefl.hfl.customed_optimizer import ScaffoldOptimizer
 from linkefl.hfl.hfl import Client,inference_hfl
 from linkefl.hfl.mydata import myData
@@ -14,8 +15,7 @@ from linkefl.hfl.utils.Nets import LogReg, Nets
 def setClient():
     if aggregator in {"FedAvg", "FedAvg_seq"}:
         server = Client(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=client_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -31,8 +31,7 @@ def setClient():
 
     elif aggregator == "FedProx":
         server = Client(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=client_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -46,8 +45,7 @@ def setClient():
 
     elif aggregator == "Scaffold":
         server = Client(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=client_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -62,8 +60,7 @@ def setClient():
 
     elif aggregator == "PersonalizedFed":
         server = Client(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=client_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -77,8 +74,7 @@ def setClient():
 
     elif aggregator == "FedDP":
         server = Client(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=client_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -104,9 +100,17 @@ if __name__ == "__main__":
 
     # 设置相关参数
     HOST = "127.0.0.1"
-    PORT = 23705
+    PORT = 23706
     world_size = 2
     partyid = 2
+
+    client_messenger = messenger(
+        HOST,
+        PORT,
+        role="client",
+        partyid=partyid,
+        world_size=world_size,
+    )
 
     data_name = "mnist"
     data_path = "../../../LinkeFL/linkefl/hfl/data"

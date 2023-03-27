@@ -11,7 +11,8 @@ class messenger:
         self.partyid = partyid
         self.world_size = world_size
         self.BUFSIZ = BUFSIZ
-        self.PORTs = np.arange(self.PORT, self.PORT + self.world_size, 1, dtype=int)
+        # self.PORTs = np.arange(self.PORT, self.PORT + self.world_size, 1, dtype=int)
+        self.PORTs = PORT
 
         if self.role == "server":
             # 创建socket server，并开始监听
@@ -34,7 +35,8 @@ class messenger:
             # print('server send data to client {}'.format(id))
         elif self.role == "client":
             # client
-            PORT = self.PORTs[self.partyid - 1]
+            # PORT = self.PORTs[self.partyid - 1]
+            PORT = self.PORTs
             ADDR = (self.HOST, PORT)
             tcpCliSock = socket(AF_INET, SOCK_STREAM)
             tcpCliSock.connect(ADDR)
@@ -59,7 +61,8 @@ class messenger:
 
         elif self.role == "client":
             # client
-            PORT = self.PORTs[self.partyid - 1]
+            # PORT = self.PORTs[self.partyid - 1]
+            PORT = self.PORTs
             ADDR = (self.HOST, PORT)
             tcpCliSock = socket(AF_INET, SOCK_STREAM)
             tcpCliSock.connect(ADDR)
@@ -86,7 +89,8 @@ class messenger:
             print("server broadcast")
         elif self.role == "client":
             # client
-            PORT = self.PORTs[self.partyid - 1]
+            # PORT = self.PORTs[self.partyid - 1]
+            PORT = self.PORTs
             ADDR = (self.HOST, PORT)
             tcpCliSock = socket(AF_INET, SOCK_STREAM)
             tcpCliSock.connect(ADDR)

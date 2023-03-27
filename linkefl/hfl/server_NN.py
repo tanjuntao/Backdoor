@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torchvision import datasets, transforms
 
+from linkefl.hfl.socket_hfl import messenger
 from linkefl.hfl.hfl import Server,inference_hfl
 from linkefl.hfl.mydata import myData
 from linkefl.hfl.utils.Nets import LogReg, Nets
@@ -12,8 +13,7 @@ from linkefl.common.factory import crypto_factory, logger_factory, messenger_fac
 def setServer():
     if aggregator in {"FedAvg", "FedAvg_seq", "FedDP"}:
         server = Server(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=server_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -28,8 +28,7 @@ def setServer():
 
     elif aggregator == "FedProx":
         server = Server(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=server_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -42,8 +41,7 @@ def setServer():
 
     elif aggregator == "Scaffold":
         server = Server(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=server_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -56,8 +54,7 @@ def setServer():
 
     elif aggregator == "PersonalizedFed":
         server = Server(
-            HOST=HOST,
-            PORT=PORT,
+            messenger=server_messenger,
             world_size=world_size,
             partyid=partyid,
             model=model,
@@ -76,13 +73,21 @@ if __name__ == "__main__":
     # 设置相关参数
     device = torch.device("cuda:{}".format(0) if torch.cuda.is_available() else "cpu")
     HOST = "127.0.0.1"
-    PORT = 23705
+    PORT = [23705,23706]
     world_size = 2
     partyid = 0
 
+    server_messenger = messenger(
+        HOST,
+        PORT,
+        role="server",
+        partyid=partyid,
+        world_size=world_size,
+    )
+
     data_name = "mnist"
     data_path = "../../../LinkeFL/linkefl/hfl/data"
-    epoch = 1
+    epoch = 5
     aggregator = "FedAvg"
 
     # aggregator = 'FedAvg_seq'
