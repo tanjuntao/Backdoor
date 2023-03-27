@@ -5,7 +5,7 @@ import torch
 from torch.autograd import Variable
 from torch.optim.lr_scheduler import StepLR
 
-from linkefl.hfl.dp_mechanism import gradient_clip
+from linkefl.hfl.utils.dp_mechanism import gradient_clip
 
 
 class Aggregator_server:

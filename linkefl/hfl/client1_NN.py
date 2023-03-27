@@ -2,14 +2,11 @@ import math
 
 import torch
 from torch import nn
-from torchvision import datasets, transforms
 
-from linkefl.hfl.socket_hfl import messenger
-from linkefl.hfl.customed_optimizer import ScaffoldOptimizer
-from linkefl.hfl.hfl import Client,inference_hfl
-from linkefl.hfl.mydata import myData
-from linkefl.hfl.utils import Partition, ResNet18
-from linkefl.hfl.utils.Nets import LogReg, Nets
+from linkefl.hfl.common.data_io import MyData_image
+from linkefl.hfl.common.socket_hfl import messenger
+from linkefl.hfl.core.hfl import Client
+from linkefl.hfl.core.Nets import Nets
 
 
 def setClient():
@@ -113,18 +110,25 @@ if __name__ == "__main__":
         world_size=world_size,
     )
 
-    data_name = "mnist"
+    # data_name = "CIFAR10"
+    data_name = "MNIST"
+    # data_name = "FashionMNIST"
     data_path = "../../../LinkeFL/linkefl/hfl/data"
+    Testset = MyData_image(data_name,data_path=data_path,train=False)
+
+
     epoch = 5
     aggregator = "FedAvg"
-    learningrate = 0.01
+    learningrate = 0.1
     epoch = 5
-    iter = 5
+    iter = 1
     batch_size = 64
 
 
     # 神经网络模型模型
-    model_name = 'LeNet'
+    # model_name = 'LeNet'
+    model_name = "CNN"
+    # model_name = "ResNet18"
     num_classes = 10
     num_channels = 1
     model = Nets(model_name, num_classes, num_channels)
@@ -161,12 +165,7 @@ if __name__ == "__main__":
 
     print("Loading dataset...")
 
-    trans_mnist = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-    )
-    Testset = datasets.MNIST(
-        data_path, train=False, download=True, transform=trans_mnist
-    )
+    Testset = MyData_image(data_name,data_path=data_path,train=False)
     Trainset = Testset
     print("Done.")
 

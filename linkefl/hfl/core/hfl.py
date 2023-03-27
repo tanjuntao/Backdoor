@@ -1,34 +1,33 @@
 from math import ceil
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from linkefl.hfl.socket_hfl import messenger
-from linkefl.hfl.training_method import Train_client, Train_server
+from linkefl.hfl.core.training_method import Train_client, Train_server
 from linkefl.modelio import TorchModelIO
+from linkefl.base.component_base import BaseModelComponent
 
 
 class Server:
     def __init__(
-        self,
-        messenger,
-        world_size,
-        partyid,
-        model,
-        logger,
-        aggregator="FedAvg",
-        lossfunction=F.nll_loss,
-        device=torch.device("cpu"),
-        epoch=10,
-        mu=0.01,
-        E=30,
-        kp=0.1,
-        batch_size=64,
-        BUFSIZ=1024000000,
-        model_path="./models",
-        model_name=None,
+            self,
+            messenger,
+            world_size,
+            partyid,
+            model,
+            logger,
+            aggregator="FedAvg",
+            lossfunction=F.nll_loss,
+            device=torch.device("cpu"),
+            epoch=10,
+            mu=0.01,
+            E=30,
+            kp=0.1,
+            batch_size=64,
+            BUFSIZ=1024000000,
+            model_path="./models",
+            model_name=None,
     ):
         """
         HOST:联邦学习server的ip
@@ -165,29 +164,29 @@ class Server:
 
 class Client:
     def __init__(
-        self,
-        messenger,
-        world_size,
-        partyid,
-        model,
-        optimizer,
-        aggregator="FedAvg",
-        lossfunction=F.nll_loss,
-        device=torch.device("cpu"),
-        epoch=10,
-        mu=0.01,
-        E=30,
-        lr=0.01,
-        kp=0.1,
-        BUFSIZ=1024000000,
-        batch_size=64,
-        iter=1,
-        dp_mechanism="Laplace",
-        dp_clip=10,
-        dp_epsilon=1,
-        dp_delta=1e-5,
-        model_path="./models",
-        model_name=None,
+            self,
+            messenger,
+            world_size,
+            partyid,
+            model,
+            optimizer,
+            aggregator="FedAvg",
+            lossfunction=F.nll_loss,
+            device=torch.device("cpu"),
+            epoch=10,
+            mu=0.01,
+            E=30,
+            lr=0.01,
+            kp=0.1,
+            BUFSIZ=1024000000,
+            batch_size=64,
+            iter=5,
+            dp_mechanism="Laplace",
+            dp_clip=10,
+            dp_epsilon=1,
+            dp_delta=1e-5,
+            model_path="./models",
+            model_name=None,
     ):
         """
         messenger: 通信组建
@@ -254,7 +253,6 @@ class Client:
 
     def train(self, trainset, testset):
         role = "client"
-
 
         train_set = self._init_dataloader(trainset)
 
@@ -394,14 +392,14 @@ class Client:
 
 
 def inference_hfl(
-    dataset,
-    model_arch,
-    model_name,
-    model_path="./models",
-    loss_fn=None,
-    infer_step=64,
-    device=torch.device("cpu"),
-    optimizer_arch=None,
+        dataset,
+        model_arch,
+        model_name,
+        model_path="./models",
+        loss_fn=None,
+        infer_step=64,
+        device=torch.device("cpu"),
+        optimizer_arch=None,
 ):
     # 加载模型
     model = TorchModelIO.load(model_dir=model_path, model_name=model_name)["model"]
@@ -431,14 +429,14 @@ def inference_hfl(
 
 
 def inference_hfl_linear(
-    dataset,
-    model_arch,
-    model_name,
-    model_path="./models",
-    loss_fn=None,
-    infer_step=64,
-    device=torch.device("cpu"),
-    optimizer_arch=None,
+        dataset,
+        model_arch,
+        model_name,
+        model_path="./models",
+        loss_fn=None,
+        infer_step=64,
+        device=torch.device("cpu"),
+        optimizer_arch=None,
 ):
     # 加载模型
     model = TorchModelIO.load(model_dir=model_path, model_name=model_name)["model"]
@@ -448,7 +446,7 @@ def inference_hfl_linear(
     num_batches = len(dataloader)
     test_loss = 0
     correct = 0
-    # labels, probs = np.array([]), np.array([])  # used for computing AUC score
+
     preds = []
     with torch.no_grad():
         for idx, (data, target) in enumerate(dataloader):

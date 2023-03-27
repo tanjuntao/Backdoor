@@ -3,9 +3,12 @@ import torch.nn.functional as F
 from torch import nn
 
 
+
+
 class SimpleCNN(nn.Module):
-    def __init__(self, num_classes=10, num_channels=1):
+    def __init__(self, num_classes=10, num_channels=1,size = 320):
         super(SimpleCNN, self).__init__()
+        self.size = size
         self.conv1 = nn.Conv2d(num_channels, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.conv2_drop = nn.Dropout2d()
@@ -21,6 +24,43 @@ class SimpleCNN(nn.Module):
         out = self.fc2(x)
         return out
 
+class SimpleCNNFMnist(nn.Module):
+    def __init__(self, num_classes=10, num_channels=1,size = 320):
+        super(SimpleCNNFMnist, self).__init__()
+        self.size = size
+        self.conv1 = nn.Conv2d(num_channels, 10, kernel_size=5)
+        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+        self.conv2_drop = nn.Dropout2d()
+        self.fc1 = nn.Linear(320, 50)
+        self.fc2 = nn.Linear(50, num_classes)
+
+    def forward(self, x):
+        x = F.relu(F.max_pool2d(self.conv1(x), 2))
+        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+        x = x.view(-1, 320)
+        x = F.relu(self.fc1(x))
+        x = F.dropout(x, training=self.training)
+        out = self.fc2(x)
+        return out
+
+class SimpleCNNCifar(nn.Module):
+    def __init__(self, num_classes=10, num_channels=1,size = 320):
+        super(SimpleCNNCifar, self).__init__()
+        self.size = size
+        self.conv1 = nn.Conv2d(num_channels, 10, kernel_size=5)
+        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
+        self.conv2_drop = nn.Dropout2d()
+        self.fc1 = nn.Linear(500, 50)
+        self.fc2 = nn.Linear(50, num_classes)
+
+    def forward(self, x):
+        x = F.relu(F.max_pool2d(self.conv1(x), 2))
+        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+        x = x.view(-1, 500)
+        x = F.relu(self.fc1(x))
+        x = F.dropout(x, training=self.training)
+        out = self.fc2(x)
+        return out
 
 node_1 = 10
 node_2 = 10
@@ -223,6 +263,48 @@ class LeNet(nn.Module):
             nn.ReLU(),
             nn.MaxPool2d(2, 2)
         )
+        # self.fc1 = nn.Sequential(
+        #     nn.Linear(16 * 5 * 5, 120),
+        #     nn.ReLU()
+        # )
+        self.fc2 = nn.Sequential(
+            nn.Linear(120, 84),
+            nn.ReLU()
+        )
+        self.fc3 = nn.Linear(84, num_classes)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+
+        size = 1
+        for i in range(1,len(x.size())):
+            size = size*x.size()[i]
+        fc1 = nn.Sequential(
+            nn.Linear(size, 120),
+            nn.ReLU()
+        )
+        # x = x.view(size, -1)
+        x = x.view(-1, size)
+
+        x = fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        return x
+
+class LeNet_MNIST(nn.Module):
+    def __init__(self,num_classes,num_channels):
+        super(LeNet_MNIST, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(num_channels, 6, 5, 1, 2),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(6, 16, 5),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2)
+        )
         self.fc1 = nn.Sequential(
             nn.Linear(16 * 5 * 5, 120),
             nn.ReLU()
@@ -236,24 +318,56 @@ class LeNet(nn.Module):
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
-        x = x.view(x.size()[0], -1)
         x = self.fc1(x)
         x = self.fc2(x)
         x = self.fc3(x)
         return x
 
 
-def Nets(model_name, num_classes, num_channels=1,in_features=10):
-    if model_name == "CNN":
-        return SimpleCNN(num_classes, num_channels)
-    # elif model_name == 'VGG16':
-    #     return VGG16(num_classes,num_channels)
-    elif model_name == "ResNet18":
-        return ResNet18(num_classes, num_channels)
-    elif model_name == "MLP":
-        return MLP(num_classes, in_features)
-    elif model_name == "LeNet":
-        return LeNet(num_classes, num_channels)
+class LeNet_MNIST(nn.Module):
+    def __init__(self,num_classes,num_channels):
+        super(LeNet_MNIST, self).__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(num_channels, 6, 5, 1, 2),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(6, 16, 5),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2)
+        )
+        self.fc1 = nn.Sequential(
+            nn.Linear(16 * 6 * 6, 120),
+            nn.ReLU()
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(120, 84),
+            nn.ReLU()
+        )
+        self.fc3 = nn.Linear(84, num_classes)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        return x
+
+def Nets(model_name, num_classes, data_name = "MNIST",num_channels=1,in_features=10):
+
+    model_dict = {"CNNMNIST":SimpleCNN,"CNNFashionMNIST":SimpleCNNFMnist,"CNNCIFAR10":SimpleCNNCifar,
+                  "LeNetMNIST":SimpleCNN,"LeNetFashionMNIST":SimpleCNNFMnist,"LeNetCIFAR10":SimpleCNNCifar,}
+    model = model_dict[model_name+data_name]
+    return model(num_classes,num_channels)
+
+    # if model_name == "CNN":
+    #     return SimpleCNN(num_classes, num_channels)
+    # elif model_name == "ResNet18":
+    #     return ResNet18(num_classes, num_channels)
+    # elif model_name == "LeNet":
+    #     return LeNet(num_classes, num_channels)
 
 
 class LinReg(nn.Module):

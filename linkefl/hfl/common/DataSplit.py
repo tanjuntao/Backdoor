@@ -30,7 +30,7 @@ if __name__ == "__main__":
     )
 
     dict_users = mnist_iid(dataset_train, num_users)
-    torch.save(dict_users, "data/test/dict_user")
+    torch.save(dict_users, "../data/test/dict_user")
 
     for i in range(num_users):
         partition = Partition(dataset_train, dict_users[i])

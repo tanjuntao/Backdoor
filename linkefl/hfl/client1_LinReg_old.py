@@ -1,14 +1,10 @@
 import math
 
 import torch
-from torch import nn
-from torchvision import datasets, transforms
 
-from linkefl.hfl.customed_optimizer import ScaffoldOptimizer
-from linkefl.hfl.hfl import Client
-from linkefl.hfl.mydata import myData
-from linkefl.hfl.utils import Partition, ResNet18
-from linkefl.hfl.utils.Nets import LogReg, Nets, LinReg
+from linkefl.hfl.core.hfl import Client
+from linkefl.hfl.common.data_io import myData
+from linkefl.hfl.core.Nets import LinReg
 from linkefl.hfl.utils.lossfunction import MSEloss
 
 def setClient():

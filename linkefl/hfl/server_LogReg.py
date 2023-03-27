@@ -1,12 +1,10 @@
-import numpy as np
 import torch
 from torch import nn
-from torchvision import datasets, transforms
 
-from linkefl.hfl.hfl import Server,inference_hfl
-from linkefl.hfl.mydata import myData
-from linkefl.hfl.utils.Nets import LogReg, Nets
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
+from linkefl.hfl.core.hfl import Server,inference_hfl
+from linkefl.hfl.common.data_io import myData
+from linkefl.hfl.core.Nets import LogReg
+from linkefl.common.factory import logger_factory
 
 
 def setServer():

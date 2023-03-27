@@ -7,11 +7,12 @@ from urllib.error import URLError
 import numpy as np
 from torch.utils.data import Dataset
 
+from torchvision import datasets, transforms
 from linkefl.dataio import NumpyDataset
 from linkefl.util import urlretrive
 
 
-class myData(Dataset):
+class MyData(Dataset):
     def __init__(self, name, root, train, download):
         def _check_exists(dataset_name, root_, train_, resources_):
             if train_:
@@ -91,7 +92,7 @@ class myData(Dataset):
     def __len__(self):
         return len(self._feats)
 
-class myData_v1(Dataset):
+class MyData_tabular(Dataset):
     def __init__(self, path):
 
         # ===== 1. Load dataset =====
@@ -99,7 +100,6 @@ class myData_v1(Dataset):
         self._ids = np_csv[:, 0]  # no need to convert to integers here
         self._labels = np_csv[:, 1]  # no need to convert to integers here
         self._feats = np_csv[:, 2:]
-
 
     def __getitem__(self, index):
         """
@@ -114,3 +114,32 @@ class myData_v1(Dataset):
         return len(self._feats)
     def n_features(self):
         return self._feats.shape[1]
+
+
+def MyData_image(dataset_name,data_path="../../data",train=True,download=True):
+
+    if dataset_name =="MNIST":
+        transform = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
+        )
+        dataset = datasets.MNIST(
+            data_path, train=train, download=True, transform=transform
+        )
+
+    elif dataset_name == "FashionMNIST":
+        transform = transforms.Compose([transforms.ToTensor(),
+                                        transforms.Normalize((0.5,), (0.5,))])
+
+        dataset = datasets.FashionMNIST(
+            data_path, train=train, download=True, transform=transform
+        )
+
+    elif dataset_name =="CIFAR10":
+        transform = transforms.Compose(
+            [transforms.ToTensor(),
+             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        dataset = datasets.CIFAR10(
+            data_path, train=train, download=True, transform=transform
+        )
+
+    return dataset

@@ -1,14 +1,11 @@
-import numpy as np
 import torch
 from torch import nn
-from torchvision import datasets, transforms
 
-from linkefl.hfl.socket_hfl import messenger
-from linkefl.hfl.hfl import Server,inference_hfl
-from linkefl.hfl.mydata import myData
-from linkefl.hfl.utils.Nets import LogReg, Nets
-from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
-
+from linkefl.hfl.common.socket_hfl import messenger
+from linkefl.hfl.core.hfl import Server,inference_hfl
+from linkefl.hfl.core.Nets import Nets
+from linkefl.common.factory import logger_factory
+from linkefl.hfl.common.data_io import MyData_image
 
 def setServer():
     if aggregator in {"FedAvg", "FedAvg_seq", "FedDP"}:
@@ -85,22 +82,26 @@ if __name__ == "__main__":
         world_size=world_size,
     )
 
-    data_name = "mnist"
+    # data_name = "CIFAR10"
+    data_name = "MNIST"
+    # data_name = "FashionMNIST"
     data_path = "../../../LinkeFL/linkefl/hfl/data"
+    Testset = MyData_image(data_name,data_path=data_path,train=False)
+
     epoch = 5
     aggregator = "FedAvg"
 
     # aggregator = 'FedAvg_seq'
 
     # 神经网络模型模型
-    model_name = 'LeNet'
+    model_name = 'CNN'
     num_classes = 10
     num_channels = 1
     model = Nets(model_name, num_classes, num_channels)
 
     model.to(device)
 
-    learningrate = 0.01
+    learningrate = 0.1
     lossfunction = nn.CrossEntropyLoss()
     role = "server"
 
@@ -122,13 +123,6 @@ if __name__ == "__main__":
 
     server = setServer()
 
-    # 加载测试数据
-    trans_mnist = transforms.Compose(
-        [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-    )
-    Testset = datasets.MNIST(
-        data_path, train=False, download=True, transform=trans_mnist
-    )
 
     print(len(Testset))
     print(" Server training...")

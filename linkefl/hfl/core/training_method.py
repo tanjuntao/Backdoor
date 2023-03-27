@@ -5,8 +5,8 @@ from math import ceil
 import torch
 from torch.utils.data import DataLoader
 
-from linkefl.hfl.aggregator import Aggregator_client, Aggregator_server
-from linkefl.hfl.dp_mechanism import add_dp
+from linkefl.hfl.core.aggregator import Aggregator_client, Aggregator_server
+from linkefl.hfl.utils.dp_mechanism import add_dp
 from linkefl.modelio.torch_model import TorchModelIO
 
 # tensor to list
