@@ -123,6 +123,9 @@ class Server(BaseModelComponent):
                 self.device,
                 validset,
                 self.lossfunction,
+                self.logger,
+                self.model_path,
+                self.model_name,
             )
         elif self.aggregator == "FedProx":
             self.model = Train_server.train_basic(
@@ -133,6 +136,9 @@ class Server(BaseModelComponent):
                 self.device,
                 validset,
                 self.lossfunction,
+                self.logger,
+                self.model_path,
+                self.model_name,
             )
         elif self.aggregator == "Scaffold":
             self.model = Train_server.train_Scaffold(
@@ -143,6 +149,9 @@ class Server(BaseModelComponent):
                 self.device,
                 validset,
                 self.lossfunction,
+                self.logger,
+                self.model_path,
+                self.model_name,
             )
         elif self.aggregator == "PersonalizedFed":
             self.model = Train_server.train_PersonalizedFed(
@@ -154,6 +163,9 @@ class Server(BaseModelComponent):
                 self.kp,
                 validset,
                 self.lossfunction,
+                self.logger,
+                self.model_path,
+                self.model_name,
             )
         elif self.aggregator == "FedDP":
             self.model = Train_server.train_basic(
@@ -164,6 +176,9 @@ class Server(BaseModelComponent):
                 self.device,
                 validset,
                 self.lossfunction,
+                self.logger,
+                self.model_path,
+                self.model_name,
             )
 
         self.messenger.close()

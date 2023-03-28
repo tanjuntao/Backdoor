@@ -30,10 +30,10 @@ if __name__ == "__main__":
     data_path = "../../../LinkeFL/linkefl/hfl/data"
     Testset = MyData_image(data_name,data_path=data_path,train=False)
 
-    aggregator = "FedAvg"
-    # aggregator = 'FedAvg_seq'
-    # aggregator = 'PersonalizedFed'
-    # aggregator = 'Scaffold'
+    # aggregator = "FedAvg"
+    aggregator = 'FedAvg_seq'
+    aggregator = 'PersonalizedFed'
+    aggregator = 'Scaffold'
 
     # 神经网络模型模型
     # model_name = 'CNN'

@@ -95,7 +95,7 @@ class Train_server:
 
     @staticmethod
     def train_FedAvg_seq(
-        epoch, world_size, server, model, device, testset, lossfunction
+        epoch, world_size, server, model, device, testset, lossfunction,logger,path,name
     ):
         aggregator = Aggregator_server.FedAvg_seq
         for j in range(epoch):
@@ -122,12 +122,22 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            test(model, testset, lossfunction, device)
+            acc, test_loss = test(model, testset, lossfunction, device, epoch)
+            logger.log_metric(
+                j,
+                test_loss,
+                acc.item() / 100,
+                0,
+                0,
+                total_epoch=epoch,
+            )
+
+        TorchModelIO.save(model, path, name)
         return model
 
     @staticmethod
     def train_Scaffold(
-        epoch, world_size, server, model, device, testset, lossfunction, E=30
+        epoch, world_size, server, model, device, testset, lossfunction, logger,path,name,E=30,
     ):
         server_control = {}
         server_delta_control = {}
@@ -206,12 +216,22 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            test(model, testset, lossfunction, device)
+            acc, test_loss = test(model, testset, lossfunction, device, epoch)
+            logger.log_metric(
+                j,
+                test_loss,
+                acc.item() / 100,
+                0,
+                0,
+                total_epoch=epoch,
+            )
+
+        TorchModelIO.save(model, path, name)
         return model
 
     @staticmethod
     def train_PersonalizedFed(
-        epoch, world_size, server, model, device, kp, testset, lossfunction
+        epoch, world_size, server, model, device, kp, testset, lossfunction,logger,path,name
     ):
         aggregator = Aggregator_server.PersonalizedFed
         for j in range(epoch):
@@ -238,7 +258,17 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            test(model, testset, lossfunction, device)
+            acc, test_loss = test(model, testset, lossfunction, device, epoch)
+            logger.log_metric(
+                j,
+                test_loss,
+                acc.item() / 100,
+                0,
+                0,
+                total_epoch=epoch,
+            )
+
+        TorchModelIO.save(model, path, name)
         return model
 
 
@@ -315,6 +345,8 @@ class Train_client:
         num_batches,
         mu,
         testset,
+        path,
+        name,
     ):
         model.train()
         aggregator = Aggregator_client.FedProx
@@ -354,6 +386,7 @@ class Train_client:
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
 
+        TorchModelIO.save(model,path, name)
         return model
 
     @staticmethod
@@ -369,6 +402,8 @@ class Train_client:
         device,
         num_batches,
         testset,
+        path,
+        name,
         E=30,
         lr=0.01,
     ):
@@ -469,7 +504,7 @@ class Train_client:
                 global_net[key] = torch.tensor((global_net[key])).to(device)
             global_net = collections.OrderedDict(global_net)
             model.load_state_dict(global_net)
-
+        TorchModelIO.save(model,path, name)
         return model
 
     @staticmethod
@@ -486,6 +521,8 @@ class Train_client:
         num_batches,
         kp,
         testset,
+        path,
+        name,
     ):
         model.train()
         aggregator = Aggregator_client.FedAvg
@@ -531,7 +568,7 @@ class Train_client:
 
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
-
+        TorchModelIO.save(model,path, name)
         return model
 
     @staticmethod
@@ -552,6 +589,8 @@ class Train_client:
         dp_epsilon,
         dp_delta,
         testset,
+        path,
+        name,
     ):
         model.train()
         aggregator = Aggregator_client.FedDP
@@ -596,5 +635,5 @@ class Train_client:
                 new_net[key] = torch.tensor((new_net[key])).to(device)
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
-
+        TorchModelIO.save(model,path, name)
         return model

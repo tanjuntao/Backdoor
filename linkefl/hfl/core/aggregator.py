@@ -160,7 +160,6 @@ class Aggregator_client:
         train_set, model, optimizer, lf, iter, device, server_control, client_control
     ):
         lr_step = StepLR(optimizer, step_size=10, gamma=0.1)
-
         model.train()
         for i in range(iter):
             epoch_loss = 0.0

@@ -146,11 +146,11 @@ if __name__ == "__main__":
     # # Scaffold
     # aggregator = 'Scaffold'
     E = 30
-    # optimizer = ScaffoldOptimizer(
-    #     model.parameters(),
-    #     lr=learningrate,
-    #     weight_decay=1e-4
-    # )
+    optimizer = ScaffoldOptimizer(
+        model.parameters(),
+        lr=learningrate,
+        weight_decay=1e-4
+    )
     #
     # # PersonalizedFed
     # aggregator = 'PersonalizedFed'

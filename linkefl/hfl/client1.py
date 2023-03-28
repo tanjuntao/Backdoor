@@ -37,13 +37,13 @@ if __name__ == "__main__":
     # Trainset = MyData_image(data_name, data_path=data_path, train=True)
 
     aggregator = "FedAvg"
-    # aggregator = 'FedAvg_seq'
-    # aggregator = 'PersonalizedFed'
-    # aggregator = 'Scaffold'
+    aggregator = 'FedAvg_seq'
+    aggregator = 'PersonalizedFed'
+    aggregator = 'Scaffold'
 
     # 神经网络模型模型
-    # model_name = 'CNN'
-    model_name = "LeNet"
+    model_name = 'CNN'
+    # model_name = "LeNet"
     num_classes = 10
     num_channels = 1
     model = Nets(model_name, num_classes,data_name, num_channels)

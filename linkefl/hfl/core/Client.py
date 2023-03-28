@@ -8,7 +8,7 @@ from linkefl.hfl.core.training_method import Train_client, Train_server
 from linkefl.modelio import TorchModelIO
 from linkefl.base.component_base import BaseModelComponent
 from linkefl.hfl.core.Server import inference_hfl
-
+from linkefl.hfl.core.customed_optimizer import ScaffoldOptimizer
 
 class Client(BaseModelComponent):
     def __init__(
@@ -139,6 +139,8 @@ class Client(BaseModelComponent):
                 self.device,
                 num_batches,
                 validset,
+                self.model_path,
+                self.model_name,
             )
 
         elif self.aggregator == "FedProx":
@@ -155,9 +157,16 @@ class Client(BaseModelComponent):
                 num_batches,
                 self.mu,
                 validset,
+                self.model_path,
+                self.model_name,
             )
 
         elif self.aggregator == "Scaffold":
+            optimizer = ScaffoldOptimizer(
+                self.model.parameters(),
+                lr=self.lr,
+                weight_decay=1e-4
+            )
             self.model = Train_client.train_Scaffold(
                 self.messenger,
                 self.partyid,
@@ -169,9 +178,11 @@ class Client(BaseModelComponent):
                 self.iter,
                 self.device,
                 num_batches,
+                validset,
+                self.model_path,
+                self.model_name,
                 self.E,
                 self.lr,
-                validset,
             )
 
         elif self.aggregator == "PersonalizedFed":
@@ -188,6 +199,8 @@ class Client(BaseModelComponent):
                 num_batches,
                 self.kp,
                 validset,
+                self.model_path,
+                self.model_name,
             )
 
         elif self.aggregator == "FedDP":
@@ -208,6 +221,8 @@ class Client(BaseModelComponent):
                 self.dp_epsilon,
                 self.dp_delta,
                 validset,
+                self.model_path,
+                self.model_name,
             )
 
     def score(self, testset,role = "client"):
