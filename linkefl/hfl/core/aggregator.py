@@ -113,7 +113,6 @@ class Aggregator_client:
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()
-
         return model.state_dict(), epoch_loss
 
     @staticmethod

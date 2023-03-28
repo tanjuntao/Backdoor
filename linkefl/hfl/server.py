@@ -23,23 +23,24 @@ if __name__ == "__main__":
         world_size=world_size,
     )
 
-    # data_name = "CIFAR10"
+    data_name = "CIFAR10"
     # data_name = "MNIST"
-    data_name = "FashionMNIST"
+    # data_name = "FashionMNIST"
 
     data_path = "../../../LinkeFL/linkefl/hfl/data"
     Testset = MyData_image(data_name,data_path=data_path,train=False)
 
-    # aggregator = "FedAvg"
-    aggregator = 'FedAvg_seq'
-    aggregator = 'PersonalizedFed'
-    aggregator = 'Scaffold'
+    aggregator = "FedAvg"
+    # aggregator = 'FedAvg_seq'
+    # aggregator = 'PersonalizedFed'
+    # aggregator = 'Scaffold'
 
     # 神经网络模型模型
     # model_name = 'CNN'
-    model_name = "LeNet"
+    # model_name = "LeNet"
+    model_name = "ResNet18"
     num_classes = 10
-    num_channels = 1
+    num_channels = 3
 
     epoch = 1
     learningrate = 0.1
