@@ -63,6 +63,7 @@ class Server(BaseModelComponent):
             BUFSIZ=1024000000,
             model_path="./models",
             model_name=None,
+            saving_model=True
     ):
         """
         HOST:联邦学习server的ip
