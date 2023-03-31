@@ -357,9 +357,9 @@ class LeNet_MNIST(nn.Module):
 
 def Nets(model_name, num_classes, data_name = "MNIST",num_channels=1,in_features=10):
 
-    model_dict = {"CNNMNIST":SimpleCNN,"CNNFashionMNIST":SimpleCNNFMnist,"CNNCIFAR10":SimpleCNNCifar,
-                  "LeNetMNIST":SimpleCNN,"LeNetFashionMNIST":SimpleCNNFMnist,"LeNetCIFAR10":SimpleCNNCifar,
-                  "ResNet18MNIST":ResNet18,"ResNet18FashionMNIST":ResNet18,"ResNet18CIFAR10":ResNet18,}
+    model_dict = {"CNNmnist":SimpleCNN,"CNNfashion_mnist":SimpleCNNFMnist,"CNNcifar10":SimpleCNNCifar,
+                  "LeNetmnist":SimpleCNN,"LeNetfashion_mnist":SimpleCNNFMnist,"LeNetcifar10":SimpleCNNCifar,
+                  "ResNet18mnist":ResNet18,"ResNet18Fashionmnist":ResNet18,"ResNet18cifar10":ResNet18,}
     model = model_dict[model_name+data_name]
     return model(num_classes,num_channels)
 

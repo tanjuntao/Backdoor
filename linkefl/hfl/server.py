@@ -23,12 +23,14 @@ if __name__ == "__main__":
         world_size=world_size,
     )
 
-    data_name = "CIFAR10"
-    # data_name = "MNIST"
-    # data_name = "FashionMNIST"
+    model_name = "HFLNN"
+    #["mnist", "cifar10", "fashion_mnist"]
+    dataset_name = "cifar10"
+    # data_name = "mnist"
+    # data_name = "fashion_mnist"
 
     data_path = "../../../LinkeFL/linkefl/hfl/data"
-    Testset = MyData_image(data_name,data_path=data_path,train=False)
+    Testset = MyData_image(dataset_name,data_path=data_path,train=False)
 
     aggregator = "FedAvg"
     # aggregator = 'FedAvg_seq'
@@ -38,7 +40,7 @@ if __name__ == "__main__":
     # 神经网络模型模型
     # model_name = 'CNN'
     # model_name = "LeNet"
-    model_name = "ResNet18"
+    net_name = "ResNet18"
     num_classes = 10
     num_channels = 3
 
@@ -50,7 +52,7 @@ if __name__ == "__main__":
 
     _logger = logger_factory(role="active_party")
 
-    model = Nets(model_name, num_classes, data_name,num_channels)
+    model = Nets(net_name, num_classes, dataset_name,num_channels)
 
     model.to(device)
     server = Server(
