@@ -93,10 +93,9 @@ class MyData(Dataset):
         return len(self._feats)
 
 class MyData_tabular(Dataset):
-    def __init__(self, path):
+    def __init__(self, np_csv):
 
         # ===== 1. Load dataset =====
-        np_csv = np.genfromtxt(path, delimiter=",", encoding="utf-8")
         self._ids = np_csv[:, 0]  # no need to convert to integers here
         self._labels = np_csv[:, 1]  # no need to convert to integers here
         self._feats = np_csv[:, 2:]

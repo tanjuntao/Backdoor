@@ -1,92 +1,40 @@
 import torch
 from torch import nn
 
-from linkefl.hfl.core.hfl import Server,inference_hfl
-from linkefl.hfl.common.data_io import myData
-from linkefl.hfl.core.Nets import LogReg
+from linkefl.hfl.common.data_io import MyData
+from linkefl.hfl.core.Nets import LinReg
 from linkefl.common.factory import logger_factory
-
-
-def setServer():
-    if aggregator in {"FedAvg", "FedAvg_seq", "FedDP"}:
-        server = Server(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            logger=logger_factory("active_party"),
-            model_path="./models",
-            model_name=model_name,
-        )
-
-    elif aggregator == "FedProx":
-        server = Server(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            mu=mu,
-        )
-
-    elif aggregator == "Scaffold":
-        server = Server(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            E=E,
-        )
-
-    elif aggregator == "PersonalizedFed":
-        server = Server(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            kp=kp,
-        )
-    else:
-        raise Exception("Invalid aggregation rule")
-    return server
+from linkefl.hfl.utils.lossfunction import MSEloss
+from linkefl.hfl.common.socket_hfl import messenger
+from linkefl.hfl.core.Server import Server
+from linkefl.hfl.core.Nets import LogReg
 
 
 if __name__ == "__main__":
     # 设置相关参数
     device = torch.device("cuda:{}".format(0) if torch.cuda.is_available() else "cpu")
     HOST = "127.0.0.1"
-    PORT = 23705
+    PORT = [23705,23706]
     world_size = 2
     partyid = 0
-    model_name = "LogReg"
 
+    server_messenger = messenger(
+        HOST,
+        PORT,
+        role="server",
+        partyid=partyid,
+        world_size=world_size,
+    )
+
+    model_dir = "./models"
     dataset_name = "digits"
     # dataset_name = "mnist"
-    epoch = 5
+    epoch = 1
     aggregator = "FedAvg"
     # aggregator = 'FedAvg_seq'
 
     # 逻辑回归模型
-    model_name = "LogisticRegression_server"
+    model_name = "HFLLogReg"
     in_features = 64
     num_classes = 2
     model = LogReg(in_features, num_classes)
@@ -94,7 +42,12 @@ if __name__ == "__main__":
     model.to(device)
 
     learningrate = 0.01
+    optimizer = torch.optim.SGD(model.parameters(), lr=learningrate, momentum=0.5)
     lossfunction = nn.CrossEntropyLoss()
+
+
+    model.to(device)
+
     role = "server"
 
     _logger = logger_factory(role="active_party")
@@ -113,23 +66,35 @@ if __name__ == "__main__":
     # Differential Privacy Based Federated Learning
     # aggregator = 'FedDP'
 
-    server = setServer()
 
     # 加载测试数据
 
-    Testset = myData(
+    Testset = MyData(
         name=dataset_name,
         root="../../data",
         train=False,
         download=True,
     )
 
-    print(len(Testset))
+    server = Server(
+            messenger=server_messenger,
+            world_size=world_size,
+            partyid=partyid,
+            model=model,
+            aggregator=aggregator,
+            lossfunction=lossfunction,
+            device=device,
+            epoch=epoch,
+            logger=logger_factory("active_party"),
+            model_path="./models",
+            model_name=model_name,
+        )
+
     print(" Server training...")
-    model = server.train(Testset)
+    model = server.fit(Testset)
     print("Server training done.")
-    test_accuracy, test_loss = server.test(Testset)
+    test_accuracy, test_loss = server.score(Testset)
 
-    results = inference_hfl(Testset,model_arch=LogReg(in_features, num_classes),
-                        model_name=model_name,loss_fn=lossfunction,device=device)
+    result = Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
 
+    print(result)

@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from linkefl.hfl.core.training_method import Train_client, Train_server
 from linkefl.modelio import TorchModelIO
 from linkefl.base.component_base import BaseModelComponent
-from linkefl.hfl.core.Server import inference_hfl
+from linkefl.hfl.core.inference import inference_hfl
 from linkefl.hfl.core.customed_optimizer import ScaffoldOptimizer
 
 class Client(BaseModelComponent):
@@ -259,7 +259,9 @@ class Client(BaseModelComponent):
         device=torch.device("cpu"),
         optimizer_arch=None,
         role = "client"):
-            inference_hfl(dataset=dataset, model_path=model_path,model_name=model_name, loss_fn=loss_fn, device=device)
+
+        scores = inference_hfl(dataset=dataset, model_path=model_path,model_name=model_name, loss_fn=loss_fn, device=device)
+        return scores
 
     def get_model_params(self):
         return self.model.state_dict()

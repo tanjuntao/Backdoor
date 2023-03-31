@@ -1,98 +1,11 @@
 import math
-
 import torch
 
-from linkefl.hfl.core.hfl import Client
-from linkefl.hfl.common.data_io import myData
+from linkefl.hfl.common.data_io import MyData
 from linkefl.hfl.core.Nets import LinReg
 from linkefl.hfl.utils.lossfunction import MSEloss
-
-def setClient():
-    if aggregator in {"FedAvg", "FedAvg_seq"}:
-        server = Client(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            optimizer=optimizer,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            batch_size=batch_size,
-            model_path="./models",
-            model_name=model_name,
-        )
-
-    elif aggregator == "FedProx":
-        server = Client(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            optimizer=optimizer,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            mu=mu,
-        )
-
-    elif aggregator == "Scaffold":
-        server = Client(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            optimizer=optimizer,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            E=E,
-            lr=learningrate,
-        )
-
-    elif aggregator == "PersonalizedFed":
-        server = Client(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            optimizer=optimizer,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            kp=kp,
-        )
-
-    elif aggregator == "FedDP":
-        server = Client(
-            HOST=HOST,
-            PORT=PORT,
-            world_size=world_size,
-            partyid=partyid,
-            model=model,
-            optimizer=optimizer,
-            aggregator=aggregator,
-            lossfunction=lossfunction,
-            device=device,
-            epoch=epoch,
-            lr=learningrate,
-            dp_mechanism=dp_mechanism,
-            dp_delta=dp_delta,
-            dp_epsilon=dp_epsilon,
-            dp_clip=dp_clip,
-        )
-
-    else:
-        raise Exception("Invalid aggregation rule")
-    return server
+from linkefl.hfl.common.socket_hfl import messenger
+from linkefl.hfl.core.Client import Client
 
 
 if __name__ == "__main__":
@@ -100,19 +13,27 @@ if __name__ == "__main__":
 
     # 设置相关参数
     HOST = "127.0.0.1"
-    PORT = 23705
+    PORT = 23706
     world_size = 2
     partyid = 2
 
+    client_messenger = messenger(
+        HOST,
+        PORT,
+        role="client",
+        partyid=partyid,
+        world_size=world_size,
+    )
+
+
     dataset_name = "diabetes"
-    epoch = 10
+    epoch = 1
     learningrate = 0.01
     iter = 5
     batch_size = 64
 
-    # 逻辑回归模型
     # 线性回归模型
-    model_name = "LinearRegression"
+    model_name = "HFLLinReg"
     in_features = 10
     model = LinReg(in_features)
 
@@ -148,13 +69,13 @@ if __name__ == "__main__":
 
     print("Loading dataset...")
 
-    Trainset = myData(
+    Trainset = MyData(
         name=dataset_name,
         root="../../data",
         train=True,
         download=True,
     )
-    Testset = myData(
+    Testset = MyData(
         name=dataset_name,
         root="../../data",
         train=False,
@@ -162,10 +83,26 @@ if __name__ == "__main__":
     )
     print("Done.")
 
-    client = setClient()
+    client1 = Client(
+        messenger=client_messenger,
+        world_size=world_size,
+        partyid=partyid,
+        model=model,
+        optimizer=optimizer,
+        aggregator=aggregator,
+        lossfunction=lossfunction,
+        device=device,
+        epoch=epoch,
+        batch_size=batch_size,
+        model_path="./models",
+        model_name=model_name,
+    )
+
 
     print("Client training...")
-    model_parameters = client.train(Trainset, Testset)
+    model_parameters = client1.fit(Trainset, Testset)
     print("Client training done.")
 
-    test_accuracy, test_loss = client.test(Testset)
+    test_accuracy, test_loss = client1.score(Testset)
+
+    Client.online_inference(Testset,model_name=model_name,loss_fn=lossfunction,device=device)
