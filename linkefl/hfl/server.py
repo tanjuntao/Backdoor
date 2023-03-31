@@ -25,8 +25,8 @@ if __name__ == "__main__":
 
     model_name = "HFLNN"
     #["mnist", "cifar10", "fashion_mnist"]
-    dataset_name = "cifar10"
-    # data_name = "mnist"
+    # dataset_name = "cifar10"
+    dataset_name = "mnist"
     # data_name = "fashion_mnist"
     model_dir = "./models"
     data_path = "../../../LinkeFL/linkefl/hfl/data"
@@ -38,11 +38,11 @@ if __name__ == "__main__":
     # aggregator = 'Scaffold'
 
     # 神经网络模型模型
-    # model_name = 'CNN'
+    net_name = 'CNN'
     # model_name = "LeNet"
-    net_name = "ResNet18"
+    # net_name = "ResNet18"
     num_classes = 10
-    num_channels = 3
+    num_channels = 1
 
     epoch = 1
     learningrate = 0.1

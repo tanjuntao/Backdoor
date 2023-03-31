@@ -118,7 +118,7 @@ class MyData_tabular(Dataset):
 
 def MyData_image(dataset_name,data_path="../../data",train=True,download=True):
 
-    if dataset_name =="MNIST":
+    if dataset_name =="mnist":
         transform = transforms.Compose(
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
@@ -126,7 +126,7 @@ def MyData_image(dataset_name,data_path="../../data",train=True,download=True):
             data_path, train=train, download=True, transform=transform
         )
 
-    elif dataset_name == "FashionMNIST":
+    elif dataset_name == "fashion_mnist":
         transform = transforms.Compose([transforms.ToTensor(),
                                         transforms.Normalize((0.5,), (0.5,))])
 
@@ -134,7 +134,7 @@ def MyData_image(dataset_name,data_path="../../data",train=True,download=True):
             data_path, train=train, download=True, transform=transform
         )
 
-    elif dataset_name =="CIFAR10":
+    elif dataset_name =="cifar10":
         transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
