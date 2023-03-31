@@ -27,12 +27,14 @@ if __name__ == "__main__":
         world_size=world_size,
     )
 
-    data_name = "CIFAR10"
-    # data_name = "MNIST"
-    # data_name = "FashionMNIST"
+    model_name = "HFLNN"
+    #["mnist", "cifar10", "fashion_mnist"]
+    dataset_name = "cifar10"
+    # data_name = "mnist"
+    # data_name = "fashion_mnist"
 
     data_path = "../../../LinkeFL/linkefl/hfl/data"
-    Testset = MyData_image(data_name, data_path=data_path, train=False)
+    Testset = MyData_image(dataset_name, data_path=data_path, train=False)
     Trainset = Testset
     # Trainset = MyData_image(data_name, data_path=data_path, train=True)
 
@@ -42,12 +44,12 @@ if __name__ == "__main__":
     # aggregator = 'Scaffold'
 
     # 神经网络模型模型
-    # model_name = 'CNN'
-    # model_name = "LeNet"
-    model_name = "ResNet18"
+    net_name = 'CNN'
+    # net_name = "LeNet"
+    # net_name = "ResNet18"
     num_classes = 10
     num_channels = 3
-    model = Nets(model_name, num_classes,data_name, num_channels)
+    model = Nets(net_name, num_classes,dataset_name, num_channels)
 
     epoch = 1
     learningrate = 0.01

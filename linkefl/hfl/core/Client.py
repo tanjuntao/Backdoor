@@ -33,6 +33,7 @@ class Client(BaseModelComponent):
             dp_clip=10,
             dp_epsilon=1,
             dp_delta=1e-5,
+            saving_model=True,
             model_path="./models",
             model_name=None,
     ):
@@ -258,7 +259,7 @@ class Client(BaseModelComponent):
         device=torch.device("cpu"),
         optimizer_arch=None,
         role = "client"):
-            inference_hfl(dataset=dataset, model_name=model_name, loss_fn=loss_fn, device=device)
+            inference_hfl(dataset=dataset, model_path=model_path,model_name=model_name, loss_fn=loss_fn, device=device)
 
     def get_model_params(self):
         return self.model.state_dict()

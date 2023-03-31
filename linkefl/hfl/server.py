@@ -28,7 +28,7 @@ if __name__ == "__main__":
     dataset_name = "cifar10"
     # data_name = "mnist"
     # data_name = "fashion_mnist"
-
+    model_dir = "./models"
     data_path = "../../../LinkeFL/linkefl/hfl/data"
     Testset = MyData_image(dataset_name,data_path=data_path,train=False)
 
@@ -74,6 +74,6 @@ if __name__ == "__main__":
     print("Server training done.")
     test_accuracy, test_loss = server.score(Testset)
 
-    Server.online_inference(Testset,model_name=model_name,loss_fn=lossfunction,device=device)
+    Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
 
 
