@@ -286,7 +286,7 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
             full_wx += passive_wx
         probs = sigmoid(full_wx)
         preds = (probs > self.POSITIVE_THRESH).astype(np.int32)
-        loss = np.array(self._loss(validset.labels, preds)).mean()
+        loss = np.array(self._loss(validset.labels, probs)).mean()
         accuracy = accuracy_score(validset.labels, preds)
         f1 = f1_score(validset.labels, preds)
         auc = roc_auc_score(validset.labels, probs)
