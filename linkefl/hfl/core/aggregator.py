@@ -114,7 +114,7 @@ class Aggregator_client:
                     break
                 epoch_loss += loss.item()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm(model.parameters(), 1000)
+                torch.nn.utils.clip_grad_norm(model.parameters(), 500)
                 optimizer.step()
         return model.state_dict(), epoch_loss
 
