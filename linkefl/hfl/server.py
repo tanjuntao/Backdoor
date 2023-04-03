@@ -12,7 +12,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:{}".format(0) if torch.cuda.is_available() else "cpu")
     HOST = "127.0.0.1"
     PORT = [23705,23706]
-    world_size = 2
+    world_size = 1
     partyid = 0
 
     server_messenger = messenger(
@@ -74,6 +74,7 @@ if __name__ == "__main__":
     print("Server training done.")
     test_accuracy, test_loss = server.score(Testset)
 
-    Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
+    results = Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
 
 
+    print(results)

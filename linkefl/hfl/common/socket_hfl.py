@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 class messenger:
-    def __init__(self, HOST, PORT, role, partyid, world_size, BUFSIZ=1024000000):
+    def __init__(self, HOST, PORT, role, partyid, world_size=2, BUFSIZ=1024000000):
         self.HOST = HOST
         self.PORT = PORT
         self.role = role
