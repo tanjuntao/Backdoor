@@ -25,15 +25,15 @@ if __name__ == "__main__":
         world_size=world_size,
     )
 
-
+    model_dir = "./models"
     dataset_name = "diabetes"
-    epoch = 10
+    epoch = 3
     learningrate = 0.01
     iter = 5
     batch_size = 64
 
     # 线性回归模型
-    model_name = "HFLLinReg"
+    model_name = "HFLLinReg_client"
     in_features = 10
     model = LinReg(in_features)
 
@@ -106,4 +106,4 @@ if __name__ == "__main__":
 
     test_accuracy, test_loss = client1.score(Testset)
 
-    Client.online_inference(Testset,model_name=model_name,loss_fn=lossfunction,device=device)
+    results = Client.online_inference(Testset,model_name=model_name,model_dir=model_dir,loss_fn=lossfunction,device=device)

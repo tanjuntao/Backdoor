@@ -110,8 +110,6 @@ class Aggregator_client:
                 optimizer.zero_grad()
                 output = model(data)
                 loss = lf(output, target)
-                if output[0]==np.NaN:
-                    break
                 epoch_loss += loss.item()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm(model.parameters(), 500)

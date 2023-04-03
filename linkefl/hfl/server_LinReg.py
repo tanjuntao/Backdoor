@@ -28,7 +28,7 @@ if __name__ == "__main__":
     model_dir = "./models"
     dataset_name = "diabetes"
     # dataset_name = "mnist"
-    epoch = 10
+    epoch = 3
     aggregator = "FedAvg"
     # aggregator = 'FedAvg_seq'
 

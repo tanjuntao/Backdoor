@@ -126,7 +126,6 @@ class Client(BaseModelComponent):
 
     def fit(self, trainset, validset, role="client"):
         train_set = self._init_dataloader(trainset)
-        print(train_set.dataset[0])
         optimizer = self.optimizer
         lf = self.lossfunction
         # model = self.model
@@ -271,6 +270,8 @@ class Client(BaseModelComponent):
 
         return accuracy, test_loss
 
+
+
     @staticmethod
     def online_inference(
         dataset,
@@ -282,10 +283,11 @@ class Client(BaseModelComponent):
         optimizer_arch=None,
         role="client",
     ):
+
         scores = inference_hfl(
             dataset=dataset,
-            model_dir=model_dir,
             model_name=model_name,
+            model_dir=model_dir,
             loss_fn=loss_fn,
             device=device,
         )

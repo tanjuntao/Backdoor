@@ -207,8 +207,9 @@ class Server(BaseModelComponent):
         infer_step=64,
         device=torch.device("cpu"),
         optimizer_arch=None,
-        role="client",
+        role="server",
     ):
+
         scores = inference_hfl(
             dataset=dataset,
             model_name=model_name,
