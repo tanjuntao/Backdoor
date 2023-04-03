@@ -110,17 +110,11 @@ class Aggregator_client:
                 optimizer.zero_grad()
                 output = model(data)
                 loss = lf(output, target)
-                print("data:",data)
-                print("target:",target)
-                print("output:",output)
-                print("loss:",loss)
-                print("loss function:",lf)
-                print(model.state_dict())
                 if output[0]==np.NaN:
                     break
                 epoch_loss += loss.item()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm(model.parameters(), 5)
+                torch.nn.utils.clip_grad_norm(model.parameters(), 20)
                 optimizer.step()
         return model.state_dict(), epoch_loss
 
