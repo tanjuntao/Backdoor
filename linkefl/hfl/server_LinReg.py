@@ -91,6 +91,6 @@ if __name__ == "__main__":
     print("Server training done.")
     test_accuracy, test_loss = server.score(Testset)
 
-    result = Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
+    result = Server.online_inference(Testset,model_name=model_name,model_dir=model_dir,loss_fn=lossfunction,device=device)
 
     print(result)
