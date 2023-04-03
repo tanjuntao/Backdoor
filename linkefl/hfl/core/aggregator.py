@@ -101,6 +101,7 @@ class Aggregator_server:
 class Aggregator_client:
     @staticmethod
     def FedAvg(train_set, model, optimizer, lf, iter, device):
+        print(model.state_dict())
         model.train()
         for i in range(iter):
             epoch_loss = 0.0
