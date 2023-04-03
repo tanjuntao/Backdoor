@@ -110,6 +110,12 @@ class Aggregator_client:
                 optimizer.zero_grad()
                 output = model(data)
                 loss = lf(output, target)
+                print("data:",data)
+                print("target:",target)
+                print("output:",output)
+                print("loss:",loss)
+                print("loss function:",lf)
+
                 epoch_loss += loss.item()
                 loss.backward()
                 optimizer.step()

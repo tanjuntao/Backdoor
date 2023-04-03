@@ -125,8 +125,6 @@ class Client(BaseModelComponent):
             raise Exception("Invalid aggregation rule")
 
     def fit(self, trainset, validset, role="client"):
-        print("trainset:",trainset)
-        print("validaset:",validset)
         train_set = self._init_dataloader(trainset)
         print(train_set.dataset[0])
         optimizer = self.optimizer
