@@ -30,6 +30,6 @@ class BaseModelComponent(ABC):
         pass
 
     @staticmethod
-    @abstractmethod
+    # @abstractmethod
     def online_inference(dataset, messengers, logger, model_dir, model_name, role):
         pass
