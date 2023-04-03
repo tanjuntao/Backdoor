@@ -88,6 +88,7 @@ if __name__ == "__main__":
         world_size=world_size,
         partyid=partyid,
         model=model,
+        iter=iter,
         optimizer=optimizer,
         aggregator=aggregator,
         lossfunction=lossfunction,
