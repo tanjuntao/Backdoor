@@ -14,7 +14,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:{}".format(0) if torch.cuda.is_available() else "cpu")
     HOST = "127.0.0.1"
     PORT = [23705,23706]
-    world_size = 2
+    world_size = 1
     partyid = 0
 
     server_messenger = messenger(
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     model_dir = "./models"
     dataset_name = "diabetes"
     # dataset_name = "mnist"
-    epoch = 1
+    epoch = 10
     aggregator = "FedAvg"
     # aggregator = 'FedAvg_seq'
 
@@ -82,7 +82,7 @@ if __name__ == "__main__":
             device=device,
             epoch=epoch,
             logger=logger_factory("active_party"),
-            model_path="./models",
+            model_dir="./models",
             model_name=model_name,
         )
 

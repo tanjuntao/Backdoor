@@ -10,14 +10,14 @@ from linkefl.base.component_base import BaseModelComponent
 def inference_hfl(
         dataset,
         model_name,
-        model_path="./models",
+        model_dir="./models",
         loss_fn=None,
         infer_step=64,
         device=torch.device("cpu"),
         optimizer_arch=None,
 ):
     # 加载模型
-    model = TorchModelIO.load(model_dir=model_path, model_name=model_name)["model"]
+    model = TorchModelIO.load(model_dir=model_dir, model_name=model_name)["model"]
     # 加载数据
     dataloader = DataLoader(dataset, batch_size=infer_step, shuffle=False)
     num_batches = len(dataloader)

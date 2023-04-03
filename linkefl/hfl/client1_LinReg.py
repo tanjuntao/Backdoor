@@ -14,8 +14,8 @@ if __name__ == "__main__":
     # 设置相关参数
     HOST = "127.0.0.1"
     PORT = 23705
-    world_size = 2
-    partyid = 1
+    world_size = 1
+    partyid = 5
 
     client_messenger = messenger(
         HOST,
@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
 
     dataset_name = "diabetes"
-    epoch = 1
+    epoch = 10
     learningrate = 0.01
     iter = 5
     batch_size = 64
@@ -94,7 +94,7 @@ if __name__ == "__main__":
         device=device,
         epoch=epoch,
         batch_size=batch_size,
-        model_path="./models",
+        model_dir="./models",
         model_name=model_name,
     )
 
