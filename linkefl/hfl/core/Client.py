@@ -128,7 +128,7 @@ class Client(BaseModelComponent):
         print("trainset:",trainset)
         print("validaset:",validset)
         train_set = self._init_dataloader(trainset)
-
+        print(train_set.dataset[0])
         optimizer = self.optimizer
         lf = self.lossfunction
         # model = self.model
