@@ -1,41 +1,47 @@
+import datetime
+import os
+import pathlib
 from math import ceil
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+from linkefl.base.component_base import BaseModelComponent
+from linkefl.common.const import Const
+from linkefl.hfl.core.customed_optimizer import ScaffoldOptimizer
+from linkefl.hfl.core.inference import inference_hfl
 from linkefl.hfl.core.training_method import Train_client, Train_server
 from linkefl.modelio import TorchModelIO
-from linkefl.base.component_base import BaseModelComponent
-from linkefl.hfl.core.inference import inference_hfl
-from linkefl.hfl.core.customed_optimizer import ScaffoldOptimizer
+
 
 class Client(BaseModelComponent):
     def __init__(
-            self,
-            messenger,
-            world_size,
-            partyid,
-            model,
-            optimizer,
-            aggregator="FedAvg",
-            lossfunction=F.nll_loss,
-            device=torch.device("cpu"),
-            epoch=10,
-            mu=0.01,
-            E=30,
-            lr=0.01,
-            kp=0.1,
-            BUFSIZ=1024000000,
-            batch_size=64,
-            iter=1,
-            dp_mechanism="Laplace",
-            dp_clip=10,
-            dp_epsilon=1,
-            dp_delta=1e-5,
-            saving_model=True,
-            model_path="./models",
-            model_name=None,
+        self,
+        messenger,
+        world_size,
+        partyid,
+        model,
+        optimizer,
+        aggregator="FedAvg",
+        lossfunction=F.nll_loss,
+        device=torch.device("cpu"),
+        epoch=10,
+        mu=0.01,
+        E=30,
+        lr=0.01,
+        kp=0.1,
+        BUFSIZ=1024000000,
+        batch_size=64,
+        iter=1,
+        dp_mechanism="Laplace",
+        dp_clip=10,
+        dp_epsilon=1,
+        dp_delta=1e-5,
+        saving_model=True,
+        model_dir="./models",
+        model_name=None,
+        algo_name="",
     ):
         """
         messenger: 通信组建
@@ -63,8 +69,26 @@ class Client(BaseModelComponent):
         self.BUFSIZ = BUFSIZ
         self.batch_size = batch_size
         self.iter = iter
-        self.model_path = model_path
-        self.model_name = model_name
+        self.saving_model = saving_model
+        if self.saving_model:
+            self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            if model_dir is None:
+                default_dir = "models"
+                model_dir = os.path.join(default_dir, self.create_time)
+            if model_name is None:
+                model_name = (
+                    "{time}-{role}-{algo_name}".format(
+                        time=self.create_time,
+                        role=Const.PASSIVE_NAME,
+                        algo_name=algo_name,
+                    )
+                    + ".model"
+                )
+            self.model_dir = model_dir
+            self.model_name = model_name
+            self.pics_dir = self.model_dir
+            if not os.path.exists(self.model_dir):
+                pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
         # FedProx
         self.mu = mu
@@ -100,8 +124,7 @@ class Client(BaseModelComponent):
         else:
             raise Exception("Invalid aggregation rule")
 
-    def fit(self, trainset, validset, role = "client"):
-
+    def fit(self, trainset, validset, role="client"):
         train_set = self._init_dataloader(trainset)
 
         optimizer = self.optimizer
@@ -123,7 +146,7 @@ class Client(BaseModelComponent):
                 self.device,
                 num_batches,
                 validset,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
 
@@ -140,7 +163,7 @@ class Client(BaseModelComponent):
                 self.device,
                 num_batches,
                 validset,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
 
@@ -158,15 +181,13 @@ class Client(BaseModelComponent):
                 num_batches,
                 self.mu,
                 validset,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
 
         elif self.aggregator == "Scaffold":
             optimizer = ScaffoldOptimizer(
-                self.model.parameters(),
-                lr=self.lr,
-                weight_decay=1e-4
+                self.model.parameters(), lr=self.lr, weight_decay=1e-4
             )
             self.model = Train_client.train_Scaffold(
                 self.messenger,
@@ -180,7 +201,7 @@ class Client(BaseModelComponent):
                 self.device,
                 num_batches,
                 validset,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
                 self.E,
                 self.lr,
@@ -200,7 +221,7 @@ class Client(BaseModelComponent):
                 num_batches,
                 self.kp,
                 validset,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
 
@@ -222,11 +243,11 @@ class Client(BaseModelComponent):
                 self.dp_epsilon,
                 self.dp_delta,
                 validset,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
 
-    def score(self, testset,role = "client"):
+    def score(self, testset, role="client"):
         test_loss = 0
         correct = 0
         test_set = self._init_dataloader(testset)
@@ -251,20 +272,24 @@ class Client(BaseModelComponent):
         return accuracy, test_loss
 
     @staticmethod
-    def online_inference(dataset,
+    def online_inference(
+        dataset,
         model_name,
-        model_path="./models",
+        model_dir="./models",
         loss_fn=None,
         infer_step=64,
         device=torch.device("cpu"),
         optimizer_arch=None,
-        role = "client"):
-
-        scores = inference_hfl(dataset=dataset, model_path=model_path,model_name=model_name, loss_fn=loss_fn, device=device)
+        role="client",
+    ):
+        scores = inference_hfl(
+            dataset=dataset,
+            model_dir=model_dir,
+            model_name=model_name,
+            loss_fn=loss_fn,
+            device=device,
+        )
         return scores
 
     def get_model_params(self):
         return self.model.state_dict()
-
-
-

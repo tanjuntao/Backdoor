@@ -1,34 +1,40 @@
+import datetime
+import os
+import pathlib
 from math import ceil
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
+from linkefl.base.component_base import BaseModelComponent
+from linkefl.common.const import Const
+from linkefl.hfl.core.inference import inference_hfl
 from linkefl.hfl.core.training_method import Train_client, Train_server
 from linkefl.modelio import TorchModelIO
-from linkefl.base.component_base import BaseModelComponent
-from linkefl.hfl.core.inference import inference_hfl
+
 
 class Server(BaseModelComponent):
     def __init__(
-            self,
-            messenger,
-            world_size,
-            partyid,
-            model,
-            logger,
-            aggregator="FedAvg",
-            lossfunction=F.nll_loss,
-            device=torch.device("cpu"),
-            epoch=10,
-            mu=0.01,
-            E=30,
-            kp=0.1,
-            batch_size=64,
-            BUFSIZ=1024000000,
-            model_path="./models",
-            model_name=None,
-            saving_model=True
+        self,
+        messenger,
+        world_size,
+        partyid,
+        model,
+        logger,
+        aggregator="FedAvg",
+        lossfunction=F.nll_loss,
+        device=torch.device("cpu"),
+        epoch=10,
+        mu=0.01,
+        E=30,
+        kp=0.1,
+        batch_size=64,
+        BUFSIZ=1024000000,
+        saving_model=True,
+        model_dir="./models",
+        model_name=None,
+        algo_name="",
     ):
         """
         HOST:联邦学习server的ip
@@ -57,14 +63,32 @@ class Server(BaseModelComponent):
         self.iter = iter
         self.kp = kp
         self.logger = logger
-        self.model_path = model_path
-        self.model_name = model_name
+        self.saving_model = saving_model
+        if self.saving_model:
+            self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+            if model_dir is None:
+                default_dir = "models"
+                model_dir = os.path.join(default_dir, self.create_time)
+            if model_name is None:
+                model_name = (
+                    "{time}-{role}-{algo_name}".format(
+                        time=self.create_time,
+                        role=Const.ACTIVE_NAME,
+                        algo_name=algo_name,
+                    )
+                    + ".model"
+                )
+            self.model_dir = model_dir
+            self.model_name = model_name
+            self.pics_dir = self.model_dir
+            if not os.path.exists(self.model_dir):
+                pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
     def _init_dataloader(self, dataset):
         dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
         return dataloader
 
-    def fit(self,validset, trainset = "",role="server"):
+    def fit(self, validset, trainset="", role="server"):
         # server
 
         if self.aggregator == "FedAvg":
@@ -77,7 +101,7 @@ class Server(BaseModelComponent):
                 validset,
                 self.lossfunction,
                 self.logger,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
         elif self.aggregator == "FedAvg_seq":
@@ -90,7 +114,7 @@ class Server(BaseModelComponent):
                 validset,
                 self.lossfunction,
                 self.logger,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
         elif self.aggregator == "FedProx":
@@ -103,7 +127,7 @@ class Server(BaseModelComponent):
                 validset,
                 self.lossfunction,
                 self.logger,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
         elif self.aggregator == "Scaffold":
@@ -116,7 +140,7 @@ class Server(BaseModelComponent):
                 validset,
                 self.lossfunction,
                 self.logger,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
         elif self.aggregator == "PersonalizedFed":
@@ -130,7 +154,7 @@ class Server(BaseModelComponent):
                 validset,
                 self.lossfunction,
                 self.logger,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
         elif self.aggregator == "FedDP":
@@ -143,13 +167,13 @@ class Server(BaseModelComponent):
                 validset,
                 self.lossfunction,
                 self.logger,
-                self.model_path,
+                self.model_dir,
                 self.model_name,
             )
 
         self.messenger.close()
 
-    def score(self, testset,role="server"):
+    def score(self, testset, role="server"):
         test_loss = 0
         correct = 0
         test_set = self._init_dataloader(testset)
@@ -175,16 +199,24 @@ class Server(BaseModelComponent):
         return accuracy, test_loss
 
     @staticmethod
-    def online_inference(dataset,
+    def online_inference(
+        dataset,
         model_name,
-        model_path="./models",
+        model_dir="./models",
         loss_fn=None,
         infer_step=64,
         device=torch.device("cpu"),
         optimizer_arch=None,
-        role = "client"):
-
-        scores = inference_hfl(dataset=dataset, model_name=model_name, model_path=model_path,loss_fn=loss_fn, device=device)
+        role="client",
+    ):
+        scores = inference_hfl(
+            dataset=dataset,
+            model_name=model_name,
+            model_dir=model_dir,
+            loss_fn=loss_fn,
+            device=device,
+        )
         return scores
+
     def get_model_params(self):
         return self.model.state_dict()
