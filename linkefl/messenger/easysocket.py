@@ -27,7 +27,7 @@ class EasySocketServer:
         print(f"Waiting for {passive_num} passive party to connect...")
         for _ in range(passive_num):
             conn, addr = self.sock_daemon.accept()
-            messenger = EasySocket(role=Const.PASSIVE_NAME, conn=conn, verbose=verbose)
+            messenger = EasySocket(role=Const.ACTIVE_NAME, conn=conn, verbose=verbose)
             self.messengers.append(messenger)
             print(f"Accept connection from {addr}.")
         print("All connected.")

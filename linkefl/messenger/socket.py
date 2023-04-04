@@ -183,6 +183,7 @@ class FastSocket(BaseMessenger):
         self.verbose = verbose
 
         self.sock_daemon = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock_daemon.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock_send = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.is_connected = False
         self.is_accepted = False
