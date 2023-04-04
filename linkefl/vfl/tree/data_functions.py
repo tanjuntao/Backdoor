@@ -45,13 +45,18 @@ def get_bin_info(x_train, max_bin, pool):
     bin_index = np.empty_like(x_train, dtype=int)
     bin_split = [None] * x_train.shape[1]
 
-    threads = []
-    for i in range(x_train.shape[1]):
-        # find hist for each feature point
-        t = pool.apply_async(_find_bin, (x_train[:, i], max_bin))
-        threads.append(t)
-    for i, t in enumerate(threads):
-        bin_index[:, i], bin_split[i] = t.get()
+    if pool is not None:
+        threads = []
+        for i in range(x_train.shape[1]):
+            # find hist for each feature point
+            t = pool.apply_async(_find_bin, (x_train[:, i], max_bin))
+            threads.append(t)
+        for i, t in enumerate(threads):
+            bin_index[:, i], bin_split[i] = t.get()
+    else:
+        for i in range(x_train.shape[1]):
+            # find hist for each feature point
+            bin_index[:, i], bin_split[i] = _find_bin(x_train[:, i], max_bin)
 
     # fill the empty place in bin_split to solve the influence of different
     # bin_num (seems no influence right now)
