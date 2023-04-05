@@ -451,8 +451,8 @@ class ActiveTreeParty(BaseModelComponent):
             self.pool.close()
 
         if self.saving_model:  # save training files.
-            model_structure = self.get_tree_str_structures()
             self._save_model()
+            model_structure = self.get_tree_str_structures()
             for messenger_id, messenger in enumerate(self.messengers):
                 if self.messengers_validTag[messenger_id]:
                     messenger.send(model_structure)
@@ -510,10 +510,11 @@ class ActiveTreeParty(BaseModelComponent):
         ), "inference dataset should be an instance of NumpyDataset"
         (
             model_params,
-            feature_importance_info,
             task,
             n_labels,
             learning_rate,
+            feature_importance_info,
+            tree_structures,
         ) = NumpyModelIO.load(model_dir, model_name)
 
         model = ActiveTreeParty(
@@ -586,10 +587,11 @@ class ActiveTreeParty(BaseModelComponent):
     def load_model(self, model_name: str, model_path: str = "./models") -> None:
         (
             model_params,
-            feature_importance_info,
             task,
             n_labels,
             learning_rate,
+            feature_importance_info,
+            tree_structures,
         ) = NumpyModelIO.load(model_path, model_name)
 
         self.task = task,
@@ -832,12 +834,14 @@ class ActiveTreeParty(BaseModelComponent):
             self._removing_useless_message(tree.root)
 
         model_params = [(tree.record, tree.root) for tree in self.trees]
+        model_structures = self.get_tree_str_structures()
         saved_data = [
             model_params,
-            self.feature_importance_info,
             self.task,
             self.n_labels,
             self.learning_rate,
+            self.feature_importance_info,
+            model_structures,
         ]
         NumpyModelIO.save(saved_data, self.model_dir, model_name)
         self.logger.log(f"Save model {model_name} success.")
