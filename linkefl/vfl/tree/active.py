@@ -543,6 +543,8 @@ class ActiveTreeParty(BaseModelComponent):
 
         scores = model._validate(dataset)
         targets = scores["targets"]
+        for messenger in messengers:
+            messenger.send((scores, targets))
         del(scores["targets"])
         return scores, targets
 
