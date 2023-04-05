@@ -451,7 +451,8 @@ class ActiveTreeParty(BaseModelComponent):
             self.pool.close()
 
         if self.saving_model:  # save training files.
-            model_structure = self._save_model()
+            self._save_model()
+            model_structure = self.get_tree_str_structures()
             for messenger_id, messenger in enumerate(self.messengers):
                 if self.messengers_validTag[messenger_id]:
                     messenger.send(model_structure)
@@ -509,12 +510,22 @@ class ActiveTreeParty(BaseModelComponent):
         ), "inference dataset should be an instance of NumpyDataset"
         (
             model_params,
-            feature_importance_info,
+            task,
+            n_labels,
             learning_rate,
-            tree_structure,
         ) = NumpyModelIO.load(model_dir, model_name)
 
-        trees = [
+        model = ActiveTreeParty(
+            n_trees=len(model_params),
+            task=task,
+            n_labels=n_labels,
+            crypto_type="",
+            crypto_system=None,
+            messengers=messengers,
+            logger=logger,
+        )
+
+        model.trees = [
             DecisionTree(
                 task=task,
                 n_labels=n_labels,
@@ -527,67 +538,12 @@ class ActiveTreeParty(BaseModelComponent):
         ]
 
         for i, (record, root) in enumerate(model_params):
-            tree = trees[i]
-            tree.record = record
-            tree.root = root
+            model.trees[i].record = record
+            model.trees[i].root = root
 
-        features = dataset.features
-        labels = dataset.labels
-
-        if task == "multi":
-            raw_outputs = np.zeros((len(labels), n_labels))
-        else:
-            raw_outputs = np.zeros(len(labels))
-
-        for tree in trees:
-            update_pred = tree.predict(features)
-            if update_pred is None:
-                # the trees after are not trained
-                break
-            raw_outputs += learning_rate * update_pred
-
-        if task == "regression":
-            outputs = raw_outputs
-            targets = outputs
-
-            mae = mean_absolute_error(labels, outputs)
-            mse = mean_squared_error(labels, outputs)
-            sse = mse * len(labels)
-            r2 = r2_score(labels, outputs)
-
-            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
-
-        elif task == "binary":
-            outputs = sigmoid(raw_outputs)
-            targets = np.round(outputs).astype(int)
-
-            acc = accuracy_score(labels, targets)
-            auc = roc_auc_score(labels, outputs)
-            f1 = f1_score(labels, targets, average="weighted")
-
-            scores = {"acc": acc, "auc": auc, "f1": f1}
-
-        elif task == "multi":
-            outputs = softmax(raw_outputs, axis=1)
-            targets = np.argmax(outputs, axis=1)
-
-            acc = accuracy_score(labels, targets)
-            auc = -1
-            f1 = -1
-
-            scores = {"acc": acc, "auc": auc, "f1": f1}
-
-        else:
-            raise ValueError("No such task label.")
-
-        for i, messenger in enumerate(messengers):
-            messenger.send(wrap_message("validate finished", content=True))
-
-        logger.log("validate finished")
-
-        for messenger in messengers:
-            messenger.send([scores, targets])
-
+        scores = model._validate(dataset)
+        targets = scores["targets"]
+        del(scores["targets"])
         return scores, targets
 
     def feature_importances_(self, importance_type: str = "split") -> Dict[str, list]:
@@ -804,7 +760,7 @@ class ActiveTreeParty(BaseModelComponent):
             mse = mean_squared_error(labels, outputs)
             sse = mse * len(labels)
             r2 = r2_score(labels, outputs)
-            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2}
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2, "targets":targets}
 
         elif self.task == "binary":
             outputs = sigmoid(raw_outputs)
@@ -820,6 +776,7 @@ class ActiveTreeParty(BaseModelComponent):
                 "f1": f1,
                 "ks": ks_value,
                 "threshold": threshold,
+                "targets":targets,
             }
 
         elif self.task == "multi":
@@ -829,7 +786,7 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = -1
             f1 = -1
-            scores = {"acc": acc, "auc": auc, "f1": f1}
+            scores = {"acc": acc, "auc": auc, "f1": f1, "targets":targets}
 
         else:
             raise ValueError("No such task label.")
@@ -867,17 +824,14 @@ class ActiveTreeParty(BaseModelComponent):
             self._removing_useless_message(tree.root)
 
         model_params = [(tree.record, tree.root) for tree in self.trees]
-        model_structure = self.get_tree_str_structures()
         saved_data = [
             model_params,
-            self.feature_importance_info,
+            self.task,
+            self.n_labels,
             self.learning_rate,
-            model_structure,
         ]
         NumpyModelIO.save(saved_data, self.model_dir, model_name)
-
         self.logger.log(f"Save model {model_name} success.")
-        return model_structure
 
     def _removing_useless_message(self, root: _DecisionNode):
         if not root:
@@ -1027,13 +981,13 @@ if __name__ == "__main__":
         drop_protection=drop_protection,
         reconnect_ports=reconnect_ports,
         saving_model=True,
-        # model_path="./models"
+        # model_dir="./models"
     )
 
     # active_party.train(active_trainset, active_testset)
-    scores, targets = active_party.online_inference(active_testset, "binary", 2, messengers, logger,
-                                                    model_name="20230320220749-active_party-vfl_sbt.model",
-                                                    model_path="./models/20230320220749",)
+    scores, targets = active_party.online_inference(active_testset, messengers, logger,
+                                                    model_dir="./models/20230404161927",
+                                                    model_name="20230404161927-active_party-vfl_sbt.model",)
     print(scores, targets)
     # feature_importance_info = pd.DataFrame(
     #     active_party.feature_importances_(importance_type='cover')

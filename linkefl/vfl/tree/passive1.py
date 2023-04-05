@@ -79,13 +79,13 @@ if __name__ == "__main__":
         messenger=messenger,
         logger=logger,
         saving_model=True,
-        # model_path="./models"
+        # model_dir="./models"
     )
 
     # passive_party.train(passive_trainset, passive_testset)
     passive_party.online_inference(passive_testset, messenger, logger,
-                                   model_path="./models/20230320220739",
-                                   model_name="./20230320220739-passive_party-vfl_sbt.model")
+                                   model_dir="./models/20230404161919",
+                                   model_name="./20230404161919-passive_party-vfl_sbt.model")
 
     # feature_importance_info = pd.DataFrame(
     #     passive_party.feature_importances_(importance_type="cover")
