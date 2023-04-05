@@ -451,8 +451,8 @@ class ActiveTreeParty(BaseModelComponent):
             self.pool.close()
 
         if self.saving_model:  # save training files.
-            self._save_model()
             model_structure = self.get_tree_str_structures()
+            self._save_model()
             for messenger_id, messenger in enumerate(self.messengers):
                 if self.messengers_validTag[messenger_id]:
                     messenger.send(model_structure)
@@ -510,6 +510,7 @@ class ActiveTreeParty(BaseModelComponent):
         ), "inference dataset should be an instance of NumpyDataset"
         (
             model_params,
+            feature_importance_info,
             task,
             n_labels,
             learning_rate,
@@ -581,27 +582,32 @@ class ActiveTreeParty(BaseModelComponent):
         return result
 
     def load_model(self, model_name: str, model_path: str = "./models") -> None:
-        model_params, feature_importance_info, lr, tree_structure = NumpyModelIO.load(
-            model_path, model_name
-        )
+        (
+            model_params,
+            feature_importance_info,
+            task,
+            n_labels,
+            learning_rate,
+        ) = NumpyModelIO.load(model_path, model_name)
 
-        if len(self.trees) != len(model_params):
-            self.trees = [
-                DecisionTree(
-                    task=self.task,
-                    n_labels=self.n_labels,
-                    crypto_type=self.crypto_type,
-                    crypto_system=self.crypto_system,
-                    messengers=self.messengers,
-                    logger=self.logger,
-                )
-                for _ in range(len(model_params))
-            ]
+        self.task = task,
+        self.n_labels = n_labels,
+        self.learning_rate = learning_rate,
+        self.trees = [
+            DecisionTree(
+                task=task,
+                n_labels=n_labels,
+                crypto_type=None,
+                crypto_system=None,
+                messengers=messengers,
+                logger=logger,
+            )
+            for _ in range(len(model_params))
+        ]
 
         for i, (record, root) in enumerate(model_params):
-            tree = self.trees[i]
-            tree.record = record
-            tree.root = root
+            self.trees[i].record = record
+            self.trees[i].root = root
 
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
@@ -826,6 +832,7 @@ class ActiveTreeParty(BaseModelComponent):
         model_params = [(tree.record, tree.root) for tree in self.trees]
         saved_data = [
             model_params,
+            self.feature_importance_info,
             self.task,
             self.n_labels,
             self.learning_rate,
