@@ -130,7 +130,7 @@ class ActiveCM20PSI(BasePSIComponent):
                 self.bucket1,
             )
 
-            ids = np.array(ids)[np.array(common_indexes)].tolist()
+            ids = np.array(ids)[np.array(common_indexes).astype(int)].tolist()
 
         # 3. find the intersection
         intersections = ids
