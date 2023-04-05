@@ -17,7 +17,6 @@ from sklearn.metrics import precision_recall_curve, roc_curve
 
 from linkefl.vfl.utils.printTree import PrettyPrintTree
 
-
 Axes = Any  # real type is matplotlib.axes.Axes
 GraphvizSource = Any  # real type is graphviz.Source
 ActiveTreeParty = Any  # real type is linkefl.vfl.tree.ActiveTreeParty
@@ -668,6 +667,7 @@ class Plot(object):
         ax.grid(grid)
 
         plt.savefig(f"{file_dir}/importance.png", pad_inches="tight")
+        plt.close()
         return ax
 
 
