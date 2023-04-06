@@ -398,7 +398,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         model_name: str,
         role: str = Const.ACTIVE_NAME,
     ):
-        models: dict = TorchModelIO.load(model_dir, model_name)
+        models: dict = TorchModelIO.load(model_dir, model_name)["model"]
         for model in models.values():
             model.eval()
         dataloader = DataLoader(dataset, batch_size=dataset.n_samples, shuffle=False)

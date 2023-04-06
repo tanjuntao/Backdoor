@@ -24,9 +24,9 @@ class TorchModelIO:
             raise Exception(f"{model_dir} not found.")
 
         with open(os.path.join(model_dir, model_name), "rb") as f:
-            model = torch.load(f)
+            checkpoint = torch.load(f)
 
-        return model
+        return checkpoint
 
     """
     @staticmethod
