@@ -38,18 +38,18 @@ except ImportError:
             "Currently only Linux and macOS are supported OS platform, "
             "but you are in a {} platform.".format(platform)
         )
-    if platform == "linux" and distro.id() == "centos":
-        platform = "centos"
-
     key = py_version + "-" + platform
-    filename = resources[key]
+    remote_filename = local_filename = resources[key]
+    if platform == "linux" and distro.id() == "centos":
+        key = py_version + "-" + "centos"
+        remote_filename = resources[key]
     this_directory = os.path.abspath(os.path.dirname(__file__))
-    fpath = os.path.join(this_directory, filename)
+    full_path = os.path.join(this_directory, local_filename)
     base_url = "https://linkefl.cyh.me/d/linkefl/wheels/"
-    full_url = base_url + filename
+    full_url = base_url + remote_filename
     try:
-        print("Downloading {} to {}".format(full_url, fpath))
-        urlretrive(full_url, fpath)
+        print("Downloading {} to {}".format(full_url, full_path))
+        urlretrive(full_url, full_path)
     except URLError as error:
         raise RuntimeError(
             "Failed to download {} with error message: {}".format(full_url, error)
