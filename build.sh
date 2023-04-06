@@ -34,6 +34,6 @@ find . -type f -name "*.so" -exec rm {} \; # macOS and Linux
 find . -type f -name "*.pyd" -exec rm {} \; # Windows
 cd ..
 
-RED='\033[0;31m'
+#RED='\033[0;31m'
 echo -e "${RED}The exit code of this script is ${TOTAL_ERRORS}"
 exit $TOTAL_ERRORS

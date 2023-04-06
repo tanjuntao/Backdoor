@@ -35,9 +35,9 @@ repos:
         stages: [commit-msg, prepare-commit-msg, manual]
   - repo: local
     hooks:
-      - id: wheel-building-checker
-        name: wheel-building-checker
-        description: "Check Cython build before every push"
+      - id: wheel-checker
+        name: wheel-checker
+        description: "Check Cython build wheel before every push"
         entry: bash build.sh
         language: system
         files: ''
