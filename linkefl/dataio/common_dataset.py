@@ -1099,9 +1099,9 @@ class CommonDataset:
         if self.role == Const.ACTIVE_NAME and self.dataset_type == "classification" and len(np.unique(self.labels)) == 2:
             # Calculate the iv value and iv_rate for binary classification datasets.
             iv_idxes = list(range(self.n_features))
-            _, _, iv = Basewoe(dataset=self, idxes=iv_idxes)._cal_woe(
-                self.labels, "active", modify=False
-            )
+            cal_iv = Basewoe(modify=False, idxes=iv_idxes, label=self.labels)
+            cal_iv(self, self.role)
+            iv = cal_iv.bin_iv
             # plot feature iv valueddc
             Plot.plot_iv(iv, pics_dir)
             iv = pd.DataFrame(iv, index=[0])
