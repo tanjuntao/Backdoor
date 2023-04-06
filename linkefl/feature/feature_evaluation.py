@@ -9,7 +9,7 @@ import shap
 import xgboost as xgb
 from xgboost import XGBClassifier, XGBRegressor
 
-from linkefl.dataio import NumpyDataset
+from linkefl.dataio import NumpyDataset, TorchDataset
 from linkefl.dataio.common_dataset import CommonDataset
 
 
@@ -33,6 +33,8 @@ class FeatureEvaluation(object):
         # 0. param check
         assert isinstance(
             trainset, NumpyDataset
+        )or isinstance(
+            trainset, TorchDataset
         ), "trainset should be an instance of NumpyDataset"
 
         # 1. set model and train

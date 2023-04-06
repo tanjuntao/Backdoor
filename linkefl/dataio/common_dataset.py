@@ -1096,8 +1096,8 @@ class CommonDataset:
             data=top3_ratio_data, index=["top1", "top2", "top3"], columns=col_names
         )
 
-        if self.role == Const.ACTIVE_NAME:
-            # Calculate the iv value and iv_rate.
+        if self.role == Const.ACTIVE_NAME and self.dataset_type == "classification" and len(np.unique(self.labels)) == 2:
+            # Calculate the iv value and iv_rate for binary classification datasets.
             iv_idxes = list(range(self.n_features))
             _, _, iv = Basewoe(dataset=self, idxes=iv_idxes)._cal_woe(
                 self.labels, "active", modify=False
@@ -1110,13 +1110,6 @@ class CommonDataset:
             iv_rate = pd.DataFrame(
                 data=iv.values / iv_sum, index=["iv_rate"], columns=col_names
             )
-
-            # Calculate the xgb_importance.
-            importance, _ = FeatureEvaluation.tree_importance(self, save_pic=False)
-            importance = importance.reshape(1, -1)
-            importance = pd.DataFrame(
-                data=importance, index=["xgb_importance"], columns=col_names
-            )
         else:
             iv = pd.DataFrame(
                 data=np.zeros((1, self.n_features)), index=["iv"], columns=col_names
@@ -1126,6 +1119,20 @@ class CommonDataset:
                 index=["iv_rate"],
                 columns=col_names,
             )
+
+        if self.role == Const.ACTIVE_NAME:
+            # Calculate the xgb_importance.
+            if self.dataset_type == "regression":
+                importance, _ = FeatureEvaluation.tree_importance(self, task="regression", save_pic=False)
+            elif len(np.unique(self.labels)) == 2:
+                importance, _ = FeatureEvaluation.tree_importance(self, task="binary", save_pic=False)
+            else:
+                importance, _ = FeatureEvaluation.tree_importance(self, task="multi", save_pic=False)
+            importance = importance.reshape(1, -1)
+            importance = pd.DataFrame(
+                data=importance, index=["xgb_importance"], columns=col_names
+            )
+        else:
             importance = pd.DataFrame(
                 data=np.zeros((1, self.n_features)),
                 index=["xgb_importance"],
