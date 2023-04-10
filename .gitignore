@@ -16,6 +16,7 @@
 linkefl.egg-info/
 cifar-10-batches-py
 models/
+linkefl/hfl/data/
 
 ### macOS ###
 # General
