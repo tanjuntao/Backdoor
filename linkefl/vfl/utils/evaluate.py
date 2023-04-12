@@ -153,6 +153,21 @@ class Plot(object):
 
         plt.savefig(f"{file_dir}/convergence_analysis_loss.png")
         plt.close()
+    def plot_test_loss( test_loss, file_dir="./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(list(range(len(test_loss))), test_loss, label="test_loss")
+        # ax.set_xlim(0, len(test_loss)-0.95)
+        # ax.set_ylim(0, 1.02)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(1))
+        ax.grid(True, linestyle="-.")
+        ax.set_title("Convergence Analysis")
+        ax.set_ylabel("loss", labelpad=5, loc="center")
+        ax.set_xlabel("epoch", labelpad=5, loc="center")
+        plt.legend(loc="best")
+
+        plt.savefig(f"{file_dir}/convergence_analysis_loss.png")
+        plt.close()
 
     @staticmethod
     def plot_train_test_auc(train_auc, test_auc, file_dir="./models"):
@@ -175,12 +190,46 @@ class Plot(object):
         plt.close()
 
     @staticmethod
+    def plot_test_auc( test_auc, file_dir="./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(list(range(len(test_auc))), test_auc, label="test_auc")
+        # ax.set_xlim(0, len(train_auc) - 0.95)
+        # ax.set_ylim(0, 1.02)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(1))
+        ax.grid(True, linestyle="-.")
+        ax.set_title("Convergence Index Analysis")
+        ax.set_ylabel("Auc", labelpad=5, loc="center")
+        ax.set_xlabel("Epoch", labelpad=5, loc="center")
+        plt.legend(loc="best")
+
+        plt.savefig(f"{file_dir}/convergence_index_analysis_auc.png")
+        plt.close()
+
+    @staticmethod
     def plot_train_test_acc(train_acc, test_acc, file_dir="./models"):
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(
             list(range(len(train_acc))), train_acc, label="train_acc"
         )  # color='darkorange'
+        ax.plot(list(range(len(test_acc))), test_acc, label="test_acc")
+        # ax.set_xlim(0, len(train_auc) - 0.95)
+        # ax.set_ylim(0, 1.02)
+        ax.xaxis.set_major_locator(plt.MultipleLocator(1))
+        ax.grid(True, linestyle="-.")
+        ax.set_title("Convergence Index Analysis(Acc)")
+        ax.set_ylabel("Acc", labelpad=5, loc="center")
+        ax.set_xlabel("Epoch", labelpad=5, loc="center")
+        plt.legend(loc="best")
+
+        plt.savefig(f"{file_dir}/convergence_index_analysis_acc.png")
+        plt.close()
+    @staticmethod
+
+    def plot_test_acc(test_acc, file_dir="./models"):
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
         ax.plot(list(range(len(test_acc))), test_acc, label="test_acc")
         # ax.set_xlim(0, len(train_auc) - 0.95)
         # ax.set_ylim(0, 1.02)

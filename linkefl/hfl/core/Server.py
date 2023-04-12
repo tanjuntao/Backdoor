@@ -22,6 +22,7 @@ class Server(BaseModelComponent):
         partyid,
         model,
         logger,
+        task,
         aggregator="FedAvg",
         lossfunction=F.nll_loss,
         device=torch.device("cpu"),
@@ -64,6 +65,10 @@ class Server(BaseModelComponent):
         self.kp = kp
         self.logger = logger
         self.saving_model = saving_model
+        self.task = task
+        self.model_dir = model_dir
+        self.model_name = model_name
+        self.pics_dir = self.model_dir
 
         if self.saving_model:
             self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -79,9 +84,6 @@ class Server(BaseModelComponent):
                     )
                     + ".model"
                 )
-            self.model_dir = model_dir
-            self.model_name = model_name
-            self.pics_dir = self.model_dir
             if not os.path.exists(self.model_dir):
                 pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
@@ -161,6 +163,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "FedAvg_seq":
             self.model = Train_server.train_FedAvg_seq(
@@ -174,6 +179,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "FedProx":
             self.model = Train_server.train_basic(
@@ -187,6 +195,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "Scaffold":
             self.model = Train_server.train_Scaffold(
@@ -200,6 +211,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "PersonalizedFed":
             self.model = Train_server.train_PersonalizedFed(
@@ -214,6 +228,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "FedDP":
             self.model = Train_server.train_basic(
@@ -227,6 +244,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
 
         self.messenger.close()

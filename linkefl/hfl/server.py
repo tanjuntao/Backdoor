@@ -29,6 +29,7 @@ if __name__ == "__main__":
     dataset_name = "mnist"
     # data_name = "fashion_mnist"
     model_dir = "./models"
+    pics_dir = "./pictures"
     data_path = "../../../LinkeFL/linkefl/hfl/data"
     Testset = MyData_image(dataset_name,data_path=data_path,train=False)
 
@@ -44,7 +45,7 @@ if __name__ == "__main__":
     num_classes = 10
     num_channels = 1
 
-    epoch = 1
+    epoch = 2
     learningrate = 0.1
     lossfunction = nn.CrossEntropyLoss()
     role = "server"
@@ -65,8 +66,10 @@ if __name__ == "__main__":
             device=device,
             epoch=epoch,
             logger=logger_factory("active_party"),
-            model_path="./models",
+            model_dir="./models",
             model_name=model_name,
+            saving_model=False,
+            task= "multi",
         )
 
     print(" Server training...")
@@ -74,7 +77,7 @@ if __name__ == "__main__":
     print("Server training done.")
     test_accuracy, test_loss = server.score(Testset)
 
-    results = Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
+    results = Server.online_inference(Testset,model_name=model_name,model_dir=model_dir,loss_fn=lossfunction,device=device)
 
 
 

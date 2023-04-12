@@ -27,6 +27,7 @@ if __name__ == "__main__":
 
     model_dir = "./models"
     dataset_name = "diabetes"
+    pics_dir = "./pictures"
     # dataset_name = "mnist"
     epoch = 3
     aggregator = "FedAvg"
@@ -82,8 +83,10 @@ if __name__ == "__main__":
             device=device,
             epoch=epoch,
             logger=logger_factory("active_party"),
-            model_dir="./models",
             model_name=model_name,
+            model_dir="./models",
+            saving_model=True,
+            task="regression",
         )
 
     print(" Server training...")
