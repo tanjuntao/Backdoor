@@ -90,6 +90,63 @@ class Server(BaseModelComponent):
 
     def fit(self, validset, trainset="", role="server"):
         # server
+        # 通用
+        residue_records = []        # y - y_pred
+        train_loss_records, valid_loss_records = [], []
+
+        # 回归
+        mae_records, mse_records, sse_records, r2_records = [], [], [], []
+
+        # 分类任务
+        f1_records = []
+        gini_records = []
+
+        train_auc_records, valid_auc_records = [], []
+        train_acc_records, valid_acc_records = [], []       # 多分类仅有
+        
+        # 回归任务
+        # Plot.plot_residual(residue_records, self.pics_dir)
+        # Plot.plot_train_test_loss(
+        #     train_loss_records, valid_loss_records, self.pics_dir
+        # )
+        # Plot.plot_regression_metrics(
+        #     mae_records, mse_records, sse_records, r2_records, self.pics_dir
+        # )
+
+        # 分类任务
+        # Plot.plot_residual(residue_records, self.pics_dir)
+        # Plot.plot_gini(gini_records, self.pics_dir)
+        # Plot.plot_f1_score(f1_records, self.pics_dir)
+        # Plot.plot_train_test_loss(
+        #     train_loss_records, valid_loss_records, self.pics_dir
+        # )
+        # Plot.plot_train_test_auc(
+        #     train_auc_records, valid_auc_records, self.pics_dir
+        # )
+
+        # # validate the final model
+        # scores = self.validate(validset)
+        # Plot.plot_ordered_lorenz_curve(
+        #     label=validset.labels, y_prob=scores["probs"], file_dir=self.pics_dir
+        # )
+        # Plot.plot_predict_distribution(
+        #     y_prob=scores["probs"], bins=10, file_dir=self.pics_dir
+        # )
+        # Plot.plot_predict_prob_box(y_prob=scores["probs"], file_dir=self.pics_dir)
+        # Plot.plot_binary_mertics(
+        #     validset.labels,
+        #     scores["probs"],
+        #     cut_point=self.KS_CUT_POINTS,
+        #     file_dir=self.pics_dir,
+        # )
+
+        # 多分类
+        # Plot.plot_train_test_loss(
+        #     train_loss_records, valid_loss_records, self.pics_dir
+        # )
+        # Plot.plot_train_test_acc(train_acc_records, valid_acc_records, self.pics_dir)
+
+
 
         if self.aggregator == "FedAvg":
             self.model = Train_server.train_basic(
