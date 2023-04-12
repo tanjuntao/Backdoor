@@ -8,6 +8,7 @@ from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.woe import PassiveWoe, TestWoe
+from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.linear.logreg import PassiveLogReg
 
 
@@ -65,9 +66,35 @@ class PassiveCreditCard(PassiveLogReg):
 
     def validate(self, validset: NumpyDataset) -> None:
         super(PassiveCreditCard, self).validate(validset)
-        valid_credit = np.around(getattr(self, "params") * validset.features * self.p)
-        passive_credit = np.sum(valid_credit, axis=1)
-        self.messenger.send(passive_credit)
+        valid_credits = np.around(getattr(self, "params") * validset.features * self.p)
+        passive_credits = np.sum(valid_credits, axis=1)
+        self.messenger.send(passive_credits)
+
+    @staticmethod
+    def online_inference(
+        dataset: NumpyDataset,
+        messenger: BaseMessenger,
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.PASSIVE_NAME,
+        p: float = 20 / math.log(2),
+    ):
+        scores, _ = super(PassiveCreditCard, PassiveCreditCard).online_inference(
+            dataset=dataset,
+            messenger=messenger,
+            logger=logger,
+            model_dir=model_dir,
+            model_name=model_name,
+            role=role,
+        )
+        params = NumpyModelIO.load(model_dir, model_name)
+        valid_credits = np.around(params * dataset.features * p)
+        passive_credits = np.sum(valid_credits, axis=1)
+        messenger.send(passive_credits)
+        final_credits = messenger.recv()
+
+        return scores, final_credits
 
 
 if __name__ == "__main__":
