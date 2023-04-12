@@ -64,6 +64,7 @@ class Server(BaseModelComponent):
         self.kp = kp
         self.logger = logger
         self.saving_model = saving_model
+
         if self.saving_model:
             self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             if model_dir is None:

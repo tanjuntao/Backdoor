@@ -77,4 +77,4 @@ if __name__ == "__main__":
     results = Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
 
 
-    print(results)
+
