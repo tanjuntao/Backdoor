@@ -89,6 +89,9 @@ class Client(BaseModelComponent):
                     )
                     + ".model"
                 )
+            self.model_dir = model_dir
+            self.model_name = model_name
+            self.pics_dir = self.model_dir
             if not os.path.exists(self.model_dir):
                 pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
