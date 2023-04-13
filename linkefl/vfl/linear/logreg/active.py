@@ -248,6 +248,9 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
             Plot.plot_train_test_auc(
                 train_auc_records, valid_auc_records, self.pics_dir
             )
+            Plot.plot_train_test_acc(
+                train_acc_records, valid_acc_records, self.pics_dir
+            )
 
             # validate the final model
             scores = self.validate(validset)

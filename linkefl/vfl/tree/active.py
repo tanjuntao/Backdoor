@@ -481,6 +481,9 @@ class ActiveTreeParty(BaseModelComponent):
                 Plot.plot_train_test_auc(
                     train_auc_record, test_auc_record, self.pics_dir
                 )
+                Plot.plot_train_test_acc(
+                    train_acc_record, test_acc_record, self.pics_dir
+                )
                 Plot.plot_binary_mertics(
                     testset.labels, outputs_test, cut_point=50, file_dir=self.pics_dir
                 )
@@ -547,7 +550,7 @@ class ActiveTreeParty(BaseModelComponent):
         targets = scores["targets"]
         for messenger in messengers:
             messenger.send((scores, targets))
-        del(scores["targets"])
+        del scores["targets"]
         return scores, targets
 
     def feature_importances_(self, importance_type: str = "split") -> Dict[str, list]:
@@ -594,9 +597,9 @@ class ActiveTreeParty(BaseModelComponent):
             tree_structures,
         ) = NumpyModelIO.load(model_path, model_name)
 
-        self.task = task,
-        self.n_labels = n_labels,
-        self.learning_rate = learning_rate,
+        self.task = (task,)
+        self.n_labels = (n_labels,)
+        self.learning_rate = (learning_rate,)
         self.trees = [
             DecisionTree(
                 task=task,
@@ -770,7 +773,7 @@ class ActiveTreeParty(BaseModelComponent):
             mse = mean_squared_error(labels, outputs)
             sse = mse * len(labels)
             r2 = r2_score(labels, outputs)
-            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2, "targets":targets}
+            scores = {"mae": mae, "mse": mse, "sse": sse, "r2": r2, "targets": targets}
 
         elif self.task == "binary":
             outputs = sigmoid(raw_outputs)
@@ -786,7 +789,7 @@ class ActiveTreeParty(BaseModelComponent):
                 "f1": f1,
                 "ks": ks_value,
                 "threshold": threshold,
-                "targets":targets,
+                "targets": targets,
             }
 
         elif self.task == "multi":
@@ -796,7 +799,7 @@ class ActiveTreeParty(BaseModelComponent):
             acc = accuracy_score(labels, targets)
             auc = -1
             f1 = -1
-            scores = {"acc": acc, "auc": auc, "f1": f1, "targets":targets}
+            scores = {"acc": acc, "auc": auc, "f1": f1, "targets": targets}
 
         else:
             raise ValueError("No such task label.")
@@ -850,7 +853,7 @@ class ActiveTreeParty(BaseModelComponent):
         if not root:
             return
 
-        del(
+        del (
             root.hist_list,
             root.sample_tag_selected,
             root.sample_tag_unselected,
@@ -858,7 +861,7 @@ class ActiveTreeParty(BaseModelComponent):
             root.split_gain,
             root.split_bin_id,
             root.split_feature_id,
-            root.depth
+            root.depth,
         )
 
         if root.left_branch:
@@ -868,7 +871,7 @@ class ActiveTreeParty(BaseModelComponent):
 
 
 if __name__ == "__main__":
-    import pandas as pd
+    pass
 
     from linkefl.common.factory import (
         crypto_factory,
@@ -998,9 +1001,13 @@ if __name__ == "__main__":
     )
 
     # active_party.train(active_trainset, active_testset)
-    scores, targets = active_party.online_inference(active_testset, messengers, logger,
-                                                    model_dir="./models/20230404161927",
-                                                    model_name="20230404161927-active_party-vfl_sbt.model",)
+    scores, targets = active_party.online_inference(
+        active_testset,
+        messengers,
+        logger,
+        model_dir="./models/20230404161927",
+        model_name="20230404161927-active_party-vfl_sbt.model",
+    )
     print(scores, targets)
     # feature_importance_info = pd.DataFrame(
     #     active_party.feature_importances_(importance_type='cover')
