@@ -2,7 +2,7 @@ import datetime
 import os
 import pathlib
 import time
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import torch
 from termcolor import colored
@@ -14,7 +14,7 @@ from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
 from linkefl.common.log import GlobalLogger
-from linkefl.dataio import MediaDataset, TorchDataset
+from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa: F403
 from linkefl.vfl.nn.enc_layer import PassiveEncLayer
@@ -156,6 +156,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
             # validate model
             if (epoch + 1) % self.val_freq == 0:
                 self.validate(testset, existing_loader=test_dataloader)
+                self.validate(trainset, existing_loader=train_dataloader)
                 is_best = self.messenger.recv()
                 if is_best:
                     print(colored("Best model updated.", "red"))
