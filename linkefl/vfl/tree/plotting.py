@@ -155,7 +155,6 @@ class Plot(object):
         plt.savefig(os.path.join(file_dir, "importance.png"), pad_inches="tight")
         return ax
 
-
     @staticmethod
     def plot_train_test_loss(train_loss, test_loss, file_dir="./models"):
         fig = plt.figure()
@@ -332,10 +331,12 @@ class Plot(object):
         ax = fig.add_subplot(1, 1, 1)
         ax.grid(True, linestyle="-.")
 
-        frequency_each, _, _= ax.hist(x=y_prob, bins=bins, range=(0, 1), color="steelblue")
-        indexes = [1/(2*bins)+1/bins*i for i in range(bins)]
+        frequency_each, _, _ = ax.hist(
+            x=y_prob, bins=bins, range=(0, 1), color="steelblue"
+        )
+        indexes = [1 / (2 * bins) + 1 / bins * i for i in range(bins)]
         for x, y in zip(indexes, frequency_each):
-            plt.text(x, y+0.01, f"{y}", horizontalalignment='center')
+            plt.text(x, y + 0.01, f"{y}", horizontalalignment="center")
 
         ax.set_title("Predict Probability Distribution")
         ax.set_ylabel("Count", labelpad=5, loc="center")
@@ -346,7 +347,6 @@ class Plot(object):
 
     @staticmethod
     def plot_predict_prob_box(y_prob, file_dir="./models"):
-
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
         ax.grid(True, linestyle="-.")
@@ -378,25 +378,24 @@ class Plot(object):
 
     @staticmethod
     def plot_iv(iv_dict, file_dir="./models"):
-        '''
+        """
         _, _, iv_dict = woe.cal_woe()
         woe is in [ActiveWoe(), PassiveWoe()]
         Then iv_dict is the input of this function
-        '''
+        """
         feature_list = list(iv_dict.keys())
         iv_list = [iv_dict[key] for key in feature_list]
         fig, ax = plt.subplots()
         ax.barh(feature_list, iv_list)
-        ax.set_xlabel('IV values')
-        ax.set_ylabel('Feature Ids')
-        ax.set_title('Feature IV Analysis')
+        ax.set_xlabel("IV values")
+        ax.set_ylabel("Feature Ids")
+        ax.set_title("Feature IV Analysis")
 
         plt.savefig(os.path.join(file_dir, "iv_analysis.png"))
         plt.close()
 
     @staticmethod
     def plot_bimodal_distribution(data_1, data_2, bins_value=50, file_dir="./models"):
-
         from scipy.stats import norm
 
         data = np.concatenate((data_1, data_2))
@@ -405,11 +404,11 @@ class Plot(object):
         probs = counts / float(counts.sum())
         pdf_1 = norm.pdf(bins, data_1.mean(), data_1.std())
         pdf_2 = norm.pdf(bins, data_2.mean(), data_2.std())
-        plt.plot(bins, probs, label='Data')  # 绘制数据的折线图，添加标签 'Data'
-        plt.plot(bins, pdf_1 + pdf_2, label='PDF')  # 绘制两个正态分布曲线之和的折线图，添加标签 'PDF'
-        plt.title('Bimodal Distribution')
-        plt.xlabel('Value')
-        plt.ylabel('Frequency')
+        plt.plot(bins, probs, label="Data")  # 绘制数据的折线图，添加标签 'Data'
+        plt.plot(bins, pdf_1 + pdf_2, label="PDF")  # 绘制两个正态分布曲线之和的折线图，添加标签 'PDF'
+        plt.title("Bimodal Distribution")
+        plt.xlabel("Value")
+        plt.ylabel("Frequency")
         plt.legend(loc="best")
 
         plt.savefig(os.path.join(file_dir, "bimodal_distribution.png"))
@@ -417,17 +416,16 @@ class Plot(object):
 
     @staticmethod
     def plot_ordered_lorenz_curve(label, y_prob, file_dir="./models"):
-
         label_ranking = np.argsort(label)
         label = label[label_ranking]
         cum_l = np.cumsum(label) / label.sum()
         y_prob = y_prob[label_ranking]
 
         plt.plot(y_prob, cum_l)
-        plt.plot([0, 1], [0, 1], 'k--')
-        plt.xlabel('percentage x')
-        plt.ylabel('percentage y')
-        plt.title('Lorenz curve')
+        plt.plot([0, 1], [0, 1], "k--")
+        plt.xlabel("percentage x")
+        plt.ylabel("percentage y")
+        plt.title("Lorenz curve")
         plt.legend(loc="best")
 
         plt.savefig(os.path.join(file_dir, "ordered_lorenz_curve.png"))
@@ -435,8 +433,7 @@ class Plot(object):
 
     @staticmethod
     def plot_pca(dataset, y_pred, color_num, file_dir="./models"):
-        """Plot pca png for vfl-kmeans model.
-        """
+        """Plot pca png for vfl-kmeans model."""
         pca = PCA(n_components=2)
         features = dataset.features
         pca.fit(features)
@@ -467,12 +464,11 @@ class Plot(object):
 
     @staticmethod
     def plot_silhoutte(dataset, y_pred, n_cluster, file_dir):
-        """Plot silhoutte png for vfl-kmeans model.
-        """
+        """Plot silhoutte png for vfl-kmeans model."""
         features = dataset.features
         silhouette_values = silhouette_samples(features, y_pred)
 
-        sil_per_cls = [[], [], []]
+        sil_per_cls = [[] for _ in range(n_cluster)]
         for cls_idx in range(n_cluster):
             for idx in range(len(y_pred)):
                 if y_pred[idx] == cls_idx:

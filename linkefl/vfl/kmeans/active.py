@@ -5,40 +5,37 @@ import pathlib
 import time
 from typing import Optional
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_samples
 
-from linkefl.base import BaseModelComponent, BaseMessenger
-from linkefl.common.log import GlobalLogger
+from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
-from linkefl.vfl.tree.plotting import Plot
+from linkefl.vfl.utils.evaluate import Plot
 
 
 class ActiveConstrainedSeedKMeans(BaseModelComponent):
     """Constrained seed KMeans algorithm proposed by Basu et al. in 2002."""
 
     def __init__(
-            self,
-            messenger: BaseMessenger,
-            logger: GlobalLogger,
-            crypto_type: str,
-            n_clusters: int,
-            *,
-            n_init: int = 10,
-            max_iter: int = 30,
-            tol: float = 0.0001,
-            verbose: bool = False,
-            invalid_label: int = -1,
-            unsupervised: bool = True,
-            random_state: Optional[int] = None,
-            saving_model: bool = False,
-            model_dir: Optional[str] = None,
-            model_name: Optional[str] = None,
+        self,
+        messenger: BaseMessenger,
+        logger: GlobalLogger,
+        crypto_type: str,
+        n_clusters: int,
+        *,
+        n_init: int = 10,
+        max_iter: int = 30,
+        tol: float = 0.0001,
+        verbose: bool = False,
+        invalid_label: int = -1,
+        unsupervised: bool = True,
+        random_state: Optional[int] = None,
+        saving_model: bool = False,
+        model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         """Initialization a constrained seed kmeans estimator.
         Args:
@@ -53,7 +50,8 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             invalid_label: Special sign to indicate which samples are unlabeled.
                 If the y value of a sample equals to this value, then that sample
                 is a unlabeled one.
-            unsupervised: If set to be True, then all labels are invalid and we implement an unsupervised Kmeans
+            unsupervised: If set to be True, then all labels are invalid and we
+                implement an unsupervised Kmeans
         """
         self.n_clusters = n_clusters
         self.n_init = n_init
@@ -75,9 +73,7 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
                 default_dir = "models"
                 model_dir = os.path.join(default_dir, self.create_time)
             if model_name is None:
-                algo_name = (
-                    Const.AlgoNames.VFL_KMEANS
-                )
+                algo_name = Const.AlgoNames.VFL_KMEANS
                 model_name = (
                     "{time}-{role}-{algo_name}".format(
                         time=self.create_time,
@@ -182,7 +178,9 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
 
             Plot.plot_pca(X_active_dataset, y_pred, self.n_clusters, self.pics_dir)
-            Plot.plot_silhoutte(X_active_dataset, y_pred, self.n_clusters, self.pics_dir)
+            Plot.plot_silhoutte(
+                X_active_dataset, y_pred, self.n_clusters, self.pics_dir
+            )
 
     def score(self, X_active_dataset, role=Const.ACTIVE_NAME):
         """Predict the associated cluster index of samples.
@@ -202,19 +200,19 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             min_norm_passive = self.messenger.recv()
             if type(X_active) == np.ndarray:
                 min_idx = (
-                        np.square(
-                            np.linalg.norm(
-                                self.cluster_centers_active_ - X_active[i], axis=1
-                            )
+                    np.square(
+                        np.linalg.norm(
+                            self.cluster_centers_active_ - X_active[i], axis=1
                         )
-                        + np.square(min_norm_passive)
+                    )
+                    + np.square(min_norm_passive)
                 ).argmin()
             else:
                 min_idx = (
-                        torch.square(
-                            torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
-                        )
-                        + torch.square(min_norm_passive)
+                    torch.square(
+                        torch.norm(self.cluster_centers_active_ - X_active[i], dim=1)
+                    )
+                    + torch.square(min_norm_passive)
                 ).argmin()
             indices[i] = min_idx
 
@@ -226,13 +224,15 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
             return torch.tensor(indices)
 
     @staticmethod
-    def online_inference(dataset, messenger, logger, model_dir, model_name, role=Const.ACTIVE_NAME):
+    def online_inference(
+        dataset, messenger, logger, model_dir, model_name, role=Const.ACTIVE_NAME
+    ):
         (
             n_clusters,
             inertia_,
             cluster_centers_active_,
             indices,
-         ) = NumpyModelIO.load(model_dir, model_name)
+        ) = NumpyModelIO.load(model_dir, model_name)
 
         active_model = ActiveConstrainedSeedKMeans(
             messenger=messenger,
@@ -422,13 +422,13 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
 
                 if type(X_active) == np.ndarray:
                     min_idx = (
-                            np.square(np.linalg.norm(cur_centers - X_active[i], axis=1))
-                            + np.square(passive_norm)
+                        np.square(np.linalg.norm(cur_centers - X_active[i], axis=1))
+                        + np.square(passive_norm)
                     ).argmin()
                 else:
                     min_idx = (
-                            torch.square(torch.norm(cur_centers - X_active[i], dim=1))
-                            + torch.square(passive_norm)
+                        torch.square(torch.norm(cur_centers - X_active[i], dim=1))
+                        + torch.square(passive_norm)
                     ).argmin()
 
                 # print('min index', min_idx)
@@ -546,64 +546,9 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
 
         return output
 
-    def pca_plot(self, X_active_dataset, estimator, color_num):
-        import pandas as pd
-        import seaborn as sns
-
-        pca_active = PCA(n_components=2)
-        X_active = X_active_dataset.features
-        pca_active.fit(X_active)
-        X_active_projection = pca_active.transform(X_active)
-
-        x_lim_left = 1.2 * X_active_projection[:, 0].min()
-        x_lim_right = 1.2 * X_active_projection[:, 0].max()
-        y_lim_down = 1.2 * X_active_projection[:, 1].min()
-        y_lim_up = 1.2 * X_active_projection[:, 1].max()
-
-        df = pd.DataFrame()
-        df["dim1"] = X_active_projection[:, 0]
-        df["dim2"] = X_active_projection[:, 1]
-        if self.model_name == "sklearn_kmeans":
-            df["y"] = estimator.labels_
-        else:
-            df["y"] = estimator.indices
-        plt.close()
-        plt.xlim(x_lim_left, x_lim_right)
-        plt.ylim(y_lim_down, y_lim_up)
-        sns.scatterplot(
-            x="dim1",
-            y="dim2",
-            hue=df.y.tolist(),
-            palette=sns.color_palette("hls", color_num),
-            data=df,
-        )
-        if self.saving_model:
-            plt.savefig(os.path.join(self.model_dir, "clusters.png"))
-        else:
-            plt.show()
-        plt.close()
-
-    def sil_plot(self, X_active_dataset, estimator, n_cluster):
-        X_active = X_active_dataset.features
-
-        silhouette_values = silhouette_samples(X_active, estimator.indices)
-        sil_per_cls = [[], [], []]
-        for cls_idx in range(n_cluster):
-            for idx in range(len(estimator.indices)):
-                if estimator.indices[idx] == cls_idx:
-                    sil_per_cls[cls_idx].append(silhouette_values[idx])
-
-        plt.boxplot(sil_per_cls)
-        plt.title("Silhouette Coefficient Distribution for Each Cluster")
-        if self.saving_model:
-            plt.savefig(os.path.join(self.model_dir, "silhoutte.png"))
-        else:
-            plt.show()
-        plt.close()
-
 
 if __name__ == "__main__":
-    from linkefl.common.factory import messenger_factory, logger_factory
+    from linkefl.common.factory import logger_factory, messenger_factory
 
     active_ip = "localhost"
     active_port = 20001
@@ -621,7 +566,7 @@ if __name__ == "__main__":
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     print("Active party started, listening...")
 
-    dataset_name = "digits"
+    dataset_name = "epsilon"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
@@ -647,7 +592,7 @@ if __name__ == "__main__":
     # y[11], y[19] = 1, 1
     # y[13], y[16] = 2, 2
 
-    n_cluster = 3
+    n_cluster = 10
     active = ActiveConstrainedSeedKMeans(
         messenger=_messenger,
         logger=_logger,
@@ -655,16 +600,16 @@ if __name__ == "__main__":
         n_clusters=n_cluster,
         n_init=2,
         verbose=False,
-        saving_model=True
+        saving_model=True,
     )
 
-    # begin_train = time.time()
-    # active.fit(active_trainset, active_trainset)
-    # end_train = time.time()
+    begin_train = time.time()
+    active.fit(active_trainset, active_trainset)
+    end_train = time.time()
 
-    scores, y_pred = ActiveConstrainedSeedKMeans.online_inference(
-        active_trainset, _messenger, _logger,
-        "./models/20230321170104", "20230321170104-active_party-vfl_kmeans.model",
-        Const.ACTIVE_NAME
-    )
-    print(scores, y_pred)
+    # scores, y_pred = ActiveConstrainedSeedKMeans.online_inference(
+    #     active_trainset, _messenger, _logger,
+    #     "./models/20230321170104", "20230321170104-active_party-vfl_kmeans.model",
+    #     Const.ACTIVE_NAME
+    # )
+    # print(scores, y_pred)
