@@ -104,7 +104,12 @@ class AddIntercept(BaseTransformComponent):
         if isinstance(dataset, np.ndarray):
             if has_label:
                 n_samples = dataset.shape[0]
-                dataset = np.c_[dataset, np.ones(n_samples)]
+                # dataset = np.c_[dataset, np.ones(n_samples)]
+                dataset = np.concatenate(
+                    (dataset, np.ones(n_samples)[:, np.newaxis]),
+                    axis=1,
+                    dtype=np.float128,  # important: preserve precision of id column
+                )
             else:
                 pass  # no need to append an intercept column for passive party dataset
         elif isinstance(dataset, torch.Tensor):
