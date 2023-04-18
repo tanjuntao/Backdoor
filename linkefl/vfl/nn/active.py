@@ -330,6 +330,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
         for epoch in range(self.epochs):
             print("Epoch: {}".format(epoch))
             for batch_idx, (X, y) in enumerate(train_dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
                 # forward
                 logits = self.models["top"](
                     self.models["cut"](self.models["bottom"](X))
@@ -384,11 +386,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
         labels, probs = np.array([]), np.array([])
         with torch.no_grad():
             for batch, (X, y) in enumerate(dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
                 logits = self.models["top"](
                     self.models["cut"](self.models["bottom"](X))
                 )
-                labels = np.append(labels, y.numpy().astype(np.int32))
-                probs = np.append(probs, torch.sigmoid(logits[:, 1]).numpy())
+                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
+                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
                 correct += (logits.argmax(1) == y).type(torch.float).sum().item()
             test_loss /= n_batches
