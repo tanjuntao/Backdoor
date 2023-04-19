@@ -399,7 +399,8 @@ class Plot(object):
     def _plot_lift(cls, label, y_prob, file_dir):
         result = pd.DataFrame([label, y_prob]).T
         result.columns = ["target", "proba"]
-        result = result.sort_values(["proba", "target"], ascending=False).reset_index()
+        # result = result.sort_values(["proba", "target"], ascending=False).reset_index()
+        result = result.sort_values(by="proba", ascending=False).reset_index()
 
         del result["index"]
         result.set_index((result.index + 1) / result.shape[0], inplace=True)
