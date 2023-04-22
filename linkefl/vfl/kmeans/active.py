@@ -494,9 +494,12 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
                 )
 
             if difference < self.tol:
+                self.messenger.send('break')
                 if self.verbose:
                     print("Converged at iteration {}.\n".format(iter_))
                 break
+            else:
+                self.messenger.send('continue')
 
             # ATTENSION: Avoid using direct assignment like
             # cur_centers = new_centers_active
@@ -592,7 +595,7 @@ if __name__ == "__main__":
     # y[11], y[19] = 1, 1
     # y[13], y[16] = 2, 2
 
-    n_cluster = 10
+    n_cluster = 2
     active = ActiveConstrainedSeedKMeans(
         messenger=_messenger,
         logger=_logger,

@@ -343,9 +343,7 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
             self.messenger.send(difference_passive)
 
-            if difference_passive < self.tol:
-                if self.verbose:
-                    print("Converged at iteration {}.\n".format(iter_))
+            if self.messenger.recv() == 'break':
                 break
 
             # ATTENSION: Avoid using direct assignment
@@ -467,7 +465,7 @@ if __name__ == "__main__":
 
     X_passive = passive_trainset.features
 
-    n_cluster = 10
+    n_cluster = 2
     passive = PassiveConstrainedSeedKMeans(
         messenger=_messenger,
         logger=_logger,
