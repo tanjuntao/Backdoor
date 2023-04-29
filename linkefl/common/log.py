@@ -173,6 +173,31 @@ class GlobalLogger:
         log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
         log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
 
+    def log_step(
+        self,
+        name: str,
+        status: str,
+        begin: float,
+        end: Union[float, None],
+        failure_reason: Optional[str] = None,
+        level: str = "info",
+    ):
+        duration = end - begin
+        json_msg = {
+            "name": name,
+            "status": status,
+            "begin": self._time_formatter(begin),
+            "end": self._time_formatter(end),
+            "duration": duration,
+            "failure_reason": failure_reason,
+            "role": self.role,  # type: ignore
+        }
+        if hasattr(self, "metainfo"):
+            json_msg.update(getattr(self, "metainfo"))
+        json_msg = json.dumps({"componentLog": json_msg})
+        log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
+        log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
+
     def log_task(
         self,
         begin: float,
