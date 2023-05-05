@@ -467,19 +467,18 @@ class ActiveTreeParty(BaseModelComponent):
             Plot.plot_trees(tree_strs, self.pics_dir)
             Plot.plot_importance(self, importance_type="split", file_dir=self.pics_dir)
 
-            Plot.plot_ordered_lorenz_curve(
-                label=testset.labels, y_prob=outputs_test, file_dir=self.pics_dir
-            )
-            Plot.plot_predict_distribution(
-                y_prob=outputs, bins=10, file_dir=self.pics_dir
-            )
-            Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_dir)
-
             if self.task == "regression":
                 Plot.plot_train_test_loss(
                     train_loss_record, test_loss_record, self.pics_dir
                 )
                 Plot.plot_residual(residual_record, self.pics_dir)
+                Plot.plot_ordered_lorenz_curve(
+                    label=testset.labels, y_prob=outputs_test, file_dir=self.pics_dir
+                )
+                Plot.plot_predict_distribution(
+                    y_prob=outputs, bins=10, file_dir=self.pics_dir
+                )
+                Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_dir)
                 Plot.plot_regression_metrics(
                     MAE_record, MSE_record, SSE_record, R2_record, self.pics_dir
                 )
@@ -494,6 +493,13 @@ class ActiveTreeParty(BaseModelComponent):
                 Plot.plot_train_test_acc(
                     train_acc_record, test_acc_record, self.pics_dir
                 )
+                Plot.plot_ordered_lorenz_curve(
+                    label=testset.labels, y_prob=outputs_test, file_dir=self.pics_dir
+                )
+                Plot.plot_predict_distribution(
+                    y_prob=outputs, bins=10, file_dir=self.pics_dir
+                )
+                Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_dir)
                 Plot.plot_binary_mertics(
                     testset.labels, outputs_test, cut_point=50, file_dir=self.pics_dir
                 )
