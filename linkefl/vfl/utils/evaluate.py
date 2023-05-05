@@ -75,7 +75,10 @@ class TreePrint(object):
 
         if root.value is not None:
             # leaf node
-            print_val = f"value: {root.value: .3f}"
+            if isinstance(root.value, (int, float)):
+                print_val = f"value: {root.value: .3f}"
+            else:
+                print_val = f"value: {root.value[0]: .3f}"
         else:
             # mid node
             if root.party_id == 0:
