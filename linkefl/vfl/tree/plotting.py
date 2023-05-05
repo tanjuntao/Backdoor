@@ -528,7 +528,10 @@ def _prepare_print_val(tree, root):
 
     if root.value is not None:
         # leaf node
-        print_val = f"value: {root.value: .3f}"
+        if type(root.value) != list:
+            print_val = f"value: {root.value: .3f}"
+        else:
+            print_val = f"value: {root.value[0]: .3f}"
     else:
         # mid node
         if root.party_id == 0:
