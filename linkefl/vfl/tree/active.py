@@ -370,6 +370,11 @@ class ActiveTreeParty(BaseModelComponent):
             labels_onehot = np.zeros((len(labels), self.n_labels))
             labels_onehot[np.arange(len(labels)), labels] = 1
 
+            (
+                train_acc_record,
+                test_acc_record,
+            ) = ([], [])
+
             raw_outputs = np.zeros((len(labels), self.n_labels))
             outputs = softmax(raw_outputs, axis=1)  # softmax of raw_outputs
 
@@ -462,12 +467,6 @@ class ActiveTreeParty(BaseModelComponent):
             Plot.plot_trees(tree_strs, self.pics_dir)
             Plot.plot_importance(self, importance_type="split", file_dir=self.pics_dir)
 
-            # 模型拟合相关
-            Plot.plot_train_test_loss(
-                train_loss_record, test_loss_record, self.pics_dir
-            )
-
-            # 预测概率相关
             Plot.plot_ordered_lorenz_curve(
                 label=testset.labels, y_prob=outputs_test, file_dir=self.pics_dir
             )
@@ -477,11 +476,17 @@ class ActiveTreeParty(BaseModelComponent):
             Plot.plot_predict_prob_box(y_prob=outputs, file_dir=self.pics_dir)
 
             if self.task == "regression":
+                Plot.plot_train_test_loss(
+                    train_loss_record, test_loss_record, self.pics_dir
+                )
                 Plot.plot_residual(residual_record, self.pics_dir)
                 Plot.plot_regression_metrics(
                     MAE_record, MSE_record, SSE_record, R2_record, self.pics_dir
                 )
             elif self.task == "binary":
+                Plot.plot_train_test_loss(
+                    train_loss_record, test_loss_record, self.pics_dir
+                )
                 Plot.plot_residual(residual_record, self.pics_dir)
                 Plot.plot_train_test_auc(
                     train_auc_record, test_auc_record, self.pics_dir
@@ -494,9 +499,7 @@ class ActiveTreeParty(BaseModelComponent):
                 )
                 Plot.plot_f1_score(f1_record, self.pics_dir)
             else:
-                Plot.plot_train_test_acc(
-                    train_acc_record, test_acc_record, self.pics_dir
-                )
+                pass
 
 
     def score(
