@@ -17,10 +17,11 @@ from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory, partial_crypto_factory
 from linkefl.common.log import GlobalLogger
-from linkefl.dataio import MediaDataset, TorchDataset
+from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa: F403
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
+from linkefl.vfl.utils.evaluate import Plot
 
 
 def loss_reweight(y):
@@ -144,6 +145,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         start_time = time.time()
         best_acc, best_auc = 0.0, 0.0
+        train_acc_records, valid_acc_records = [], []
+        train_auc_records, valid_auc_records = [], []
+        train_loss_records, valid_loss_records = [], []
         for epoch in range(self.epochs):
             print(f"Epoch: {epoch}")
             self.logger.log(f"Epoch {epoch} started...")
@@ -184,29 +188,37 @@ class ActiveNeuralNetwork(BaseModelComponent):
             is_best = False
             if (epoch + 1) % self.val_freq == 0:
                 scores = self.validate(testset, existing_loader=test_dataloader)
-                curr_acc, curr_auc, curr_loss = (
-                    scores["acc"],
-                    scores["auc"],
-                    scores["loss"],
+                train_scores = self.validate(trainset, existing_loader=train_dataloader)
+                print(
+                    f"Test Error: \n Accuracy: {(100 * scores['acc']):>0.2f}%,"
+                    f" Auc: {(100 * scores['auc']):>0.2f}%,"
+                    f" Avg loss: {scores['loss']:>8f}"
                 )
+
+                train_loss_records.append(train_scores["loss"])
+                valid_loss_records.append(scores["loss"])
+                train_auc_records.append(train_scores["auc"])
+                valid_auc_records.append(scores["auc"])
+                train_acc_records.append(train_scores["acc"])
+                valid_acc_records.append(scores["acc"])
                 self.logger.log_metric(
                     epoch=epoch + 1,
-                    loss=curr_loss,
-                    acc=curr_acc,
-                    auc=curr_auc,
+                    loss=scores["loss"],
+                    acc=scores["acc"],
+                    auc=scores["auc"],
                     total_epoch=self.epochs,
                 )
-                if curr_auc == 0:  # multi-class
-                    if curr_acc > best_acc:
-                        best_acc = curr_acc
+                if scores["auc"] == 0:  # multi-class
+                    if scores["acc"] > best_acc:
+                        best_acc = scores["acc"]
                         is_best = True
                     # no need to update best_auc here, because it always equals zero.
                 else:  # binary-class
-                    if curr_auc > best_auc:
-                        best_auc = curr_auc
+                    if scores["auc"] > best_auc:
+                        best_auc = scores["auc"]
                         is_best = True
-                    if curr_acc > best_acc:
-                        best_acc = curr_acc
+                    if scores["acc"] > best_acc:
+                        best_acc = scores["acc"]
                 if is_best:
                     print(colored("Best model updated.", "red"))
                     self.logger.log("Best model updates.")
@@ -222,6 +234,17 @@ class ActiveNeuralNetwork(BaseModelComponent):
         # close pool
         if self.enc_layer is not None:
             self.enc_layer.close_pool()
+
+        if self.saving_model:
+            Plot.plot_train_test_loss(
+                train_loss_records, valid_loss_records, self.pics_dir
+            )
+            Plot.plot_train_test_acc(
+                train_acc_records, valid_acc_records, self.pics_dir
+            )
+            Plot.plot_train_test_auc(
+                train_auc_records, valid_auc_records, self.pics_dir
+            )
 
         print(colored(f"elapsed time: {time.time() - start_time}", "red"))
         print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
@@ -272,11 +295,6 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 auc = roc_auc_score(labels, probs)
             else:
                 auc = 0
-            print(
-                f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
-                f" Auc: {(100 * auc):>0.2f}%,"
-                f" Avg loss: {test_loss:>8f}"
-            )
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
             return scores
@@ -312,6 +330,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
         for epoch in range(self.epochs):
             print("Epoch: {}".format(epoch))
             for batch_idx, (X, y) in enumerate(train_dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
                 # forward
                 logits = self.models["top"](
                     self.models["cut"](self.models["bottom"](X))
@@ -366,11 +386,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
         labels, probs = np.array([]), np.array([])
         with torch.no_grad():
             for batch, (X, y) in enumerate(dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
                 logits = self.models["top"](
                     self.models["cut"](self.models["bottom"](X))
                 )
-                labels = np.append(labels, y.numpy().astype(np.int32))
-                probs = np.append(probs, torch.sigmoid(logits[:, 1]).numpy())
+                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
+                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
                 correct += (logits.argmax(1) == y).type(torch.float).sum().item()
             test_loss /= n_batches
@@ -398,7 +420,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         model_name: str,
         role: str = Const.ACTIVE_NAME,
     ):
-        models: dict = TorchModelIO.load(model_dir, model_name)
+        models: dict = TorchModelIO.load(model_dir, model_name)["model"]
         for model in models.values():
             model.eval()
         dataloader = DataLoader(dataset, batch_size=dataset.n_samples, shuffle=False)

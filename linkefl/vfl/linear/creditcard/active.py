@@ -8,6 +8,7 @@ from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.feature.woe import ActiveWoe, TestWoe
+from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.linear.logreg import ActiveLogReg
 
 
@@ -74,15 +75,49 @@ class ActiveCreditCard(ActiveLogReg):
     def validate(self, validset: NumpyDataset) -> Dict[str, float]:
         scores = super(ActiveCreditCard, self).validate(validset)
         params = getattr(self, "params")
-        base_credit = round(self.q + self.p * params[-1], 0)
-        valid_credit = np.around(params * validset.features * self.p)
-        active_credit = np.sum(valid_credit[:, 0:-1], axis=1)
+        base_credits = round(self.q + self.p * params[-1], 0)
+        valid_credits = np.around(params * validset.features * self.p)
+        active_credits = np.sum(valid_credits[:, 0:-1], axis=1)
         for msger in self.messengers:
-            passive_credit = msger.recv()
-            active_credit += passive_credit
-        final_credit = active_credit + base_credit
-        scores.update({"credit": final_credit})
+            passive_credits = msger.recv()
+            active_credits += passive_credits
+        final_credits = active_credits + base_credits
+        scores.update({"credits": final_credits})
         return scores
+
+    @staticmethod
+    def online_inference(
+        dataset: NumpyDataset,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        positive_thresh: float = 0.5,
+        role: str = Const.ACTIVE_NAME,
+        p: float = 20 / math.log(2),
+        q: float = 600 - 20 * math.log(50) / math.log(2),
+    ):
+        scores, _ = super(ActiveCreditCard, ActiveCreditCard).online_inference(
+            dataset=dataset,
+            messengers=messengers,
+            logger=logger,
+            model_dir=model_dir,
+            model_name=model_name,
+            positive_thresh=positive_thresh,
+            role=role,
+        )
+        params = NumpyModelIO.load(model_dir, model_name)
+        base_credits = round(q + p * params[-1], 0)
+        valid_credits = np.around(params * dataset.features * p)
+        active_credits = np.sum(valid_credits[:, 0:-1], axis=1)
+        for msger in messengers:
+            passive_credits = msger.recv()
+            active_credits += passive_credits
+        final_credits = active_credits + base_credits
+        for msger in messengers:
+            msger.send(final_credits)
+
+        return scores, final_credits
 
 
 if __name__ == "__main__":

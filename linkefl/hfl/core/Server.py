@@ -22,6 +22,7 @@ class Server(BaseModelComponent):
         partyid,
         model,
         logger,
+        task,
         aggregator="FedAvg",
         lossfunction=F.nll_loss,
         device=torch.device("cpu"),
@@ -64,6 +65,11 @@ class Server(BaseModelComponent):
         self.kp = kp
         self.logger = logger
         self.saving_model = saving_model
+        self.task = task
+        self.model_dir = model_dir
+        self.model_name = model_name
+        self.pics_dir = self.model_dir
+
         if self.saving_model:
             self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             if model_dir is None:
@@ -90,6 +96,63 @@ class Server(BaseModelComponent):
 
     def fit(self, validset, trainset="", role="server"):
         # server
+        # 通用
+        residue_records = []        # y - y_pred
+        train_loss_records, valid_loss_records = [], []
+
+        # 回归
+        mae_records, mse_records, sse_records, r2_records = [], [], [], []
+
+        # 分类任务
+        f1_records = []
+        gini_records = []
+
+        train_auc_records, valid_auc_records = [], []
+        train_acc_records, valid_acc_records = [], []       # 多分类仅有
+        
+        # 回归任务
+        # Plot.plot_residual(residue_records, self.pics_dir)
+        # Plot.plot_train_test_loss(
+        #     train_loss_records, valid_loss_records, self.pics_dir
+        # )
+        # Plot.plot_regression_metrics(
+        #     mae_records, mse_records, sse_records, r2_records, self.pics_dir
+        # )
+
+        # 分类任务
+        # Plot.plot_residual(residue_records, self.pics_dir)
+        # Plot.plot_gini(gini_records, self.pics_dir)
+        # Plot.plot_f1_score(f1_records, self.pics_dir)
+        # Plot.plot_train_test_loss(
+        #     train_loss_records, valid_loss_records, self.pics_dir
+        # )
+        # Plot.plot_train_test_auc(
+        #     train_auc_records, valid_auc_records, self.pics_dir
+        # )
+
+        # # validate the final model
+        # scores = self.validate(validset)
+        # Plot.plot_ordered_lorenz_curve(
+        #     label=validset.labels, y_prob=scores["probs"], file_dir=self.pics_dir
+        # )
+        # Plot.plot_predict_distribution(
+        #     y_prob=scores["probs"], bins=10, file_dir=self.pics_dir
+        # )
+        # Plot.plot_predict_prob_box(y_prob=scores["probs"], file_dir=self.pics_dir)
+        # Plot.plot_binary_mertics(
+        #     validset.labels,
+        #     scores["probs"],
+        #     cut_point=self.KS_CUT_POINTS,
+        #     file_dir=self.pics_dir,
+        # )
+
+        # 多分类
+        # Plot.plot_train_test_loss(
+        #     train_loss_records, valid_loss_records, self.pics_dir
+        # )
+        # Plot.plot_train_test_acc(train_acc_records, valid_acc_records, self.pics_dir)
+
+
 
         if self.aggregator == "FedAvg":
             self.model = Train_server.train_basic(
@@ -103,6 +166,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "FedAvg_seq":
             self.model = Train_server.train_FedAvg_seq(
@@ -116,6 +182,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "FedProx":
             self.model = Train_server.train_basic(
@@ -129,6 +198,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "Scaffold":
             self.model = Train_server.train_Scaffold(
@@ -142,6 +214,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "PersonalizedFed":
             self.model = Train_server.train_PersonalizedFed(
@@ -156,6 +231,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
         elif self.aggregator == "FedDP":
             self.model = Train_server.train_basic(
@@ -169,6 +247,9 @@ class Server(BaseModelComponent):
                 self.logger,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
 
         self.messenger.close()

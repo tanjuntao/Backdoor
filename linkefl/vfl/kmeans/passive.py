@@ -2,20 +2,17 @@ import copy
 import datetime
 import os
 import pathlib
+from typing import Optional
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from typing import Optional
-from sklearn.decomposition import PCA
-from sklearn.metrics import silhouette_samples
 
-from linkefl.base import BaseModelComponent, BaseMessenger
-from linkefl.common.log import GlobalLogger
+from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
+from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
-from linkefl.vfl.tree.plotting import Plot
+from linkefl.vfl.utils.evaluate import Plot
 
 
 class PassiveConstrainedSeedKMeans(BaseModelComponent):
@@ -72,9 +69,7 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
                 default_dir = "models"
                 model_dir = os.path.join(default_dir, self.create_time)
             if model_name is None:
-                algo_name = (
-                    Const.AlgoNames.VFL_KMEANS
-                )
+                algo_name = Const.AlgoNames.VFL_KMEANS
                 model_name = (
                     "{time}-{role}-{algo_name}".format(
                         time=self.create_time,
@@ -88,7 +83,6 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
             self.pics_dir = self.model_dir
             if not os.path.exists(self.model_dir):
                 pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
-
 
     def fit(self, trainset, validset, role=Const.PASSIVE_NAME):
         return self.train(trainset)
@@ -104,8 +98,6 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
         Returns:
             self: The estimator itself.
         """
-        X_passive = X_passive_dataset.features
-
         self.messenger.send("start signal.")
         self._check_params(X_passive_dataset)
 
@@ -117,7 +109,9 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
             init_centers_passive = self._init_centroids(X_passive_dataset)
             if self.verbose:
                 print("Initialization complete")
-            new_centers_passive, self.indices = self._kmeans(X_passive_dataset, init_centers_passive)
+            new_centers_passive, self.indices = self._kmeans(
+                X_passive_dataset, init_centers_passive
+            )
             if self.messenger.recv() is True:
                 best_centers_passive = new_centers_passive
 
@@ -126,14 +120,13 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
         y_pred = self.score(X_passive_dataset)
 
         if self.saving_model:
-            saved_data = (
-                self.n_clusters,
-                self.cluster_centers_passive_
-            )
+            saved_data = (self.n_clusters, self.cluster_centers_passive_)
             NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
 
             Plot.plot_pca(X_passive_dataset, y_pred, self.n_clusters, self.pics_dir)
-            Plot.plot_silhoutte(X_passive_dataset, y_pred, self.n_clusters, self.pics_dir)
+            Plot.plot_silhoutte(
+                X_passive_dataset, y_pred, self.n_clusters, self.pics_dir
+            )
 
     def score(self, X_passive_dataset, role=Const.PASSIVE_NAME):
         """Predict the associated cluster index of samples.
@@ -168,7 +161,9 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
             return torch.tensor(self.indices)
 
     @staticmethod
-    def online_inference(dataset, messenger, logger, model_dir, model_name, role=Const.PASSIVE_NAME):
+    def online_inference(
+        dataset, messenger, logger, model_dir, model_name, role=Const.PASSIVE_NAME
+    ):
         n_clusters, cluster_centers_passive_ = NumpyModelIO.load(model_dir, model_name)
 
         passive_model = PassiveConstrainedSeedKMeans(
@@ -260,7 +255,7 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
     def _kmeans(self, X_passive_dataset, init_centers_passive):
         """KMeans algorithm implementation."""
-        X_passive = X_passive_dataset.features        
+        X_passive = X_passive_dataset.features
 
         # indices = copy.copy(y)
         # if type(indices) == list:
@@ -348,9 +343,7 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
             self.messenger.send(difference_passive)
 
-            if difference_passive < self.tol:
-                if self.verbose:
-                    print("Converged at iteration {}.\n".format(iter_))
+            if self.messenger.recv() == 'break':
                 break
 
             # ATTENSION: Avoid using direct assignment
@@ -425,77 +418,18 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
     def _save_model(self):
         if self.saving_model:
-            saved_data = [
-                self.n_clusters,
-                self.cluster_centers_passive_
-            ]
+            saved_data = [self.n_clusters, self.cluster_centers_passive_]
             NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
 
-    def load_model(self, model_path='./models', model_name='vfl_kmeans_passive'):
-        self.n_clusters, self.cluster_centers_passive_ = NumpyModelIO.load(model_path, model_name)
-        return self.n_clusters, self.cluster_centers_passive_
-
-    def pca_plot(self, X_passive_dataset, estimator, color_num):
-
-        import pandas as pd
-        import seaborn as sns
-
-        pca_active = PCA(n_components=2)
-        X_passive = X_passive_dataset.features
-        pca_active.fit(X_passive)
-        X_active_projection = pca_active.transform(X_passive)
-
-        x_lim_left = 1.2 * X_active_projection[:, 0].min()
-        x_lim_right = 1.2 * X_active_projection[:, 0].max()
-        y_lim_down = 1.2 * X_active_projection[:, 1].min()
-        y_lim_up = 1.2 * X_active_projection[:, 1].max()
-
-        df = pd.DataFrame()
-        df["dim1"] = X_active_projection[:, 0]
-        df["dim2"] = X_active_projection[:, 1]
-        if self.model_name == "sklearn_kmeans":
-            df["y"] = estimator.labels_
-        else:
-            df["y"] = estimator.indices
-        plt.close()
-        plt.xlim(x_lim_left, x_lim_right)
-        plt.ylim(y_lim_down, y_lim_up)
-        sns.scatterplot(
-            x="dim1",
-            y="dim2",
-            hue=df.y.tolist(),
-            palette=sns.color_palette("hls", color_num),
-            data=df,
+    def load_model(self, model_path="./models", model_name="vfl_kmeans_passive"):
+        self.n_clusters, self.cluster_centers_passive_ = NumpyModelIO.load(
+            model_path, model_name
         )
-        if self.saving_model:
-            plt.savefig(os.path.join(self.pics_dir, "clusters.png"))
-        else:
-            plt.show()
-        plt.close()
-
-    def sil_plot(self, X_passive_dataset, estimator, n_cluster):
-        X_passive = X_passive_dataset.features
-
-        silhouette_values = silhouette_samples(X_passive, estimator.indices)
-        sil_per_cls = [[], [], []]
-        for cls_idx in range(n_cluster):
-            for idx in range(len(estimator.indices)):
-                if estimator.indices[idx] == cls_idx:
-                    sil_per_cls[cls_idx].append(silhouette_values[idx])
-    
-        plt.boxplot(sil_per_cls)
-        # plt.show()
-        plt.title('Silhouette Coefficient Distribution for Each Cluster')
-        if self.saving_model:
-            plt.savefig(os.path.join(self.pics_dir, "silhoutte.png"))
-        else:
-            plt.show()
-        plt.close()
-
+        return self.n_clusters, self.cluster_centers_passive_
 
 
 if __name__ == "__main__":
-    from linkefl.common.factory import messenger_factory, logger_factory
+    from linkefl.common.factory import logger_factory, messenger_factory
 
     active_ip = "localhost"
     active_port = 20001
@@ -511,7 +445,7 @@ if __name__ == "__main__":
         passive_port=passive_port,
     )
     _logger = logger_factory(role=Const.PASSIVE_NAME)
-    dataset_name = "digits"
+    dataset_name = "epsilon"
     passive_feat_frac = 0.5
     feat_perm_option = Const.SEQUENCE
     _random_state = None
@@ -531,7 +465,7 @@ if __name__ == "__main__":
 
     X_passive = passive_trainset.features
 
-    n_cluster = 3
+    n_cluster = 2
     passive = PassiveConstrainedSeedKMeans(
         messenger=_messenger,
         logger=_logger,
@@ -539,14 +473,14 @@ if __name__ == "__main__":
         n_clusters=n_cluster,
         n_init=2,
         verbose=False,
-        saving_model=True
+        saving_model=True,
     )
 
-    # passive.fit(passive_trainset, passive_trainset)
+    passive.fit(passive_trainset, passive_trainset)
 
-    scores, y_pred = PassiveConstrainedSeedKMeans.online_inference(
-        passive_trainset, _messenger, _logger,
-        "./models/20230321170106", "20230321170106-passive_party-vfl_kmeans.model",
-        Const.PASSIVE_NAME
-    )
-    print(scores, y_pred)
+    # scores, y_pred = PassiveConstrainedSeedKMeans.online_inference(
+    #     passive_trainset, _messenger, _logger,
+    #     "./models/20230321170106", "20230321170106-passive_party-vfl_kmeans.model",
+    #     Const.PASSIVE_NAME
+    # )
+    # print(scores, y_pred)

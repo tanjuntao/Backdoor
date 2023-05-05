@@ -6,6 +6,7 @@ from linkefl.feature.pearson import PassivePearson
 from linkefl.feature.transform import scale
 from linkefl.feature.woe import PassiveWoe
 
+
 if __name__ == "__main__":
     # Active
     # 0. Set parameters
@@ -17,9 +18,9 @@ if __name__ == "__main__":
     crypto_type = Const.FAST_PAILLIER
     key_size = 1024
     active_ip = "localhost"
-    active_port = 20000
+    active_port = 20001
     passive_ip = "localhost"
-    passive_port = 20002
+    passive_port = 20003
 
     # Passive
     # 1. Loading datasets and preprocessing
@@ -81,19 +82,24 @@ if __name__ == "__main__":
     )
     # print(passive_trainset.n_features)
     # 明文计算被动方本地woe & iv值
-    # split, woe, iv = PassiveWoe(
-    #     dataset=passive_trainset,
-    #     idxes=[2,3],
-    #     messenger=_messenger
-    # ).cal_woe()
-    # print(split, woe, iv)
+    cal_woe = PassiveWoe(
+        idxes=[2,3],
+        modify=False,
+        crypto_type=Const.PLAIN,
+        messenger=_messenger
+    )
+    cal_woe(passive_trainset, Const.PASSIVE_NAME)
+    woe, iv = cal_woe.bin_woe, cal_woe.bin_iv
+    print(woe, iv)
     # 密文计算被动方woe & iv值
-    PassiveWoe(
-        dataset=passive_trainset,
-        idxes=[2, 3],
-        messenger=_messenger,
-        cryptosystem=_crypto,
-    ).cal_woe_encry()
+    # cal_woe = PassiveWoe(
+    #     idxes=[2, 3],
+    #     modify=False,
+    #     crypto_type=Const.PAILLIER,
+    #     messenger=_messenger,
+    #     cryptosystem=_crypto,
+    # )
+    # cal_woe(passive_trainset, Const.PASSIVE_NAME)
 
     # chi_bin = PassiveChiBin(
     #     dataset=passive_trainset,

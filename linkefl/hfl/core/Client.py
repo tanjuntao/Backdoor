@@ -23,6 +23,7 @@ class Client(BaseModelComponent):
         partyid,
         model,
         optimizer,
+        task,
         aggregator="FedAvg",
         lossfunction=F.nll_loss,
         device=torch.device("cpu"),
@@ -70,6 +71,10 @@ class Client(BaseModelComponent):
         self.batch_size = batch_size
         self.iter = iter
         self.saving_model = saving_model
+        self.task = task
+        self.model_dir = model_dir
+        self.model_name = model_name
+        self.pics_dir = self.model_dir
         if self.saving_model:
             self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             if model_dir is None:
@@ -147,6 +152,9 @@ class Client(BaseModelComponent):
                 validset,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
 
         elif self.aggregator == "FedAvg_seq":
@@ -164,6 +172,9 @@ class Client(BaseModelComponent):
                 validset,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
 
         elif self.aggregator == "FedProx":
@@ -182,6 +193,9 @@ class Client(BaseModelComponent):
                 validset,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
 
         elif self.aggregator == "Scaffold":
@@ -202,6 +216,9 @@ class Client(BaseModelComponent):
                 validset,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
                 self.E,
                 self.lr,
             )
@@ -222,6 +239,9 @@ class Client(BaseModelComponent):
                 validset,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
 
         elif self.aggregator == "FedDP":
@@ -244,6 +264,9 @@ class Client(BaseModelComponent):
                 validset,
                 self.model_dir,
                 self.model_name,
+                self.task,
+                self.saving_model,
+                self.pics_dir,
             )
 
     def score(self, testset, role="client"):

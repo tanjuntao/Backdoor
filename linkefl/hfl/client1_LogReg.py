@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     # 设置相关参数
     HOST = "127.0.0.1"
-    PORT = 23705
+    PORT = 33705
     world_size = 2
     partyid = 1
 
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     learningrate = 0.01
     iter = 5
     batch_size = 64
-
+    pics_dir = "./pictures"
     # 线性回归模型
     model_name = "HFLLogReg"
     in_features = 64
@@ -97,8 +97,8 @@ if __name__ == "__main__":
         device=device,
         epoch=epoch,
         batch_size=batch_size,
-        model_path="./models",
         model_name=model_name,
+        model_dir="./models",
     )
 
 

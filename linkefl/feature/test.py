@@ -23,13 +23,13 @@ if __name__ == "__main__":
         "localhost",
     ]
     active_port = [
-        20000,
+        20001,
     ]
     passive_ip = [
         "localhost",
     ]
     passive_port = [
-        20002,
+        20003,
     ]
 
     # 1. Load datasets
@@ -114,20 +114,26 @@ if __name__ == "__main__":
     # print(feature_psi)
 
     # 明文计算主动方本地的woe & iv值
-    # split, woe, iv = ActiveWoe(
-    #     dataset=active_trainset,
-    #     idxes=[2, 3],
-    #     messenger=_messenger
-    # ).cal_woe()
-    # print(split, woe, iv)
-    # 密文计算被动方的woe & iv值
-    woe, iv = ActiveWoe(
-        dataset=active_trainset,
+    cal_woe = ActiveWoe(
         idxes=[2, 3],
-        messengers=_messengers,
-        cryptosystem=_crypto,
-    ).cal_woe_encry()
+        modify=False,
+        crypto_type=Const.PLAIN,
+        messengers=_messengers
+    )
+    cal_woe(active_trainset, Const.ACTIVE_NAME)
+    woe, iv = cal_woe.bin_woe, cal_woe.bin_iv
     print(woe, iv)
+    # 密文计算被动方的woe & iv值
+    # cal_woe = ActiveWoe(
+    #     idxes=[2, 3],
+    #     modify=False,
+    #     crypto_type=Const.PAILLIER,
+    #     messengers=_messengers,
+    #     cryptosystem=_crypto,
+    # )
+    # cal_woe(dataset=active_trainset, role=Const.ACTIVE_NAME)
+    # woe, iv = cal_woe.bin_woe, cal_woe.bin_iv
+    # print(woe, iv)
 
     # chi_bin = ActiveChiBin(
     #     dataset=active_trainset,

@@ -126,16 +126,16 @@ class GlobalLogger:
     ):
         json_msg = {
             "epoch": epoch,
-            "loss": round(loss, GlobalLogger._PRECISION),
-            "acc": round(acc, GlobalLogger._PRECISION),
-            "auc": round(auc, GlobalLogger._PRECISION),
-            "f1": round(f1, GlobalLogger._PRECISION),
-            "ks": round(ks, GlobalLogger._PRECISION),
-            "ks_threshold": round(ks_threshold, GlobalLogger._PRECISION),
-            "mae": round(mae, GlobalLogger._PRECISION),
-            "mse": round(mse, GlobalLogger._PRECISION),
-            "sse": round(sse, GlobalLogger._PRECISION),
-            "r2": round(r2, GlobalLogger._PRECISION),
+            "loss": round(float(loss), GlobalLogger._PRECISION),
+            "acc": round(float(acc), GlobalLogger._PRECISION),
+            "auc": round(float(auc), GlobalLogger._PRECISION),
+            "f1": round(float(f1), GlobalLogger._PRECISION),
+            "ks": round(float(ks), GlobalLogger._PRECISION),
+            "ks_threshold": round(float(ks_threshold), GlobalLogger._PRECISION),
+            "mae": round(float(mae), GlobalLogger._PRECISION),
+            "mse": round(float(mse), GlobalLogger._PRECISION),
+            "sse": round(float(sse), GlobalLogger._PRECISION),
+            "r2": round(float(r2), GlobalLogger._PRECISION),
             "time": self._time_formatter(time.time()),
             "progress": epoch / total_epoch,
             "role": self.role,  # type: ignore
@@ -164,6 +164,31 @@ class GlobalLogger:
             "end": self._time_formatter(end),
             "duration": duration,
             "progress": progress,
+            "failure_reason": failure_reason,
+            "role": self.role,  # type: ignore
+        }
+        if hasattr(self, "metainfo"):
+            json_msg.update(getattr(self, "metainfo"))
+        json_msg = json.dumps({"componentLog": json_msg})
+        log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
+        log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
+
+    def log_step(
+        self,
+        name: str,
+        status: str,
+        begin: float,
+        end: Union[float, None],
+        failure_reason: Optional[str] = None,
+        level: str = "info",
+    ):
+        duration = end - begin
+        json_msg = {
+            "name": name,
+            "status": status,
+            "begin": self._time_formatter(begin),
+            "end": self._time_formatter(end),
+            "duration": duration,
             "failure_reason": failure_reason,
             "role": self.role,  # type: ignore
         }

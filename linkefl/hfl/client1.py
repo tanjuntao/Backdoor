@@ -51,7 +51,7 @@ if __name__ == "__main__":
     num_channels = 1
     model = Nets(net_name, num_classes,dataset_name, num_channels)
 
-    epoch = 1
+    epoch = 2
     learningrate = 0.01
     batch_size = 64
     lossfunction = nn.CrossEntropyLoss()
@@ -68,8 +68,10 @@ if __name__ == "__main__":
         device=device,
         epoch=epoch,
         batch_size=batch_size,
-        model_path="./models",
+        model_dir="./models",
         model_name=model_name,
+        saving_model=True,
+        task="multi",
     )
 
 

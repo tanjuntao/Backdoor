@@ -14,8 +14,8 @@ if __name__ == "__main__":
     # 设置相关参数
     device = torch.device("cuda:{}".format(0) if torch.cuda.is_available() else "cpu")
     HOST = "127.0.0.1"
-    PORT = [23705,23706]
-    world_size = 2
+    PORT = [33705,33706]
+    world_size = 1
     partyid = 0
 
     server_messenger = messenger(
@@ -28,6 +28,7 @@ if __name__ == "__main__":
 
     model_dir = "./models"
     dataset_name = "digits"
+    pics_dir = "./pictures"
     # dataset_name = "mnist"
     epoch = 1
     aggregator = "FedAvg"
@@ -86,8 +87,10 @@ if __name__ == "__main__":
             device=device,
             epoch=epoch,
             logger=logger_factory("active_party"),
-            model_path="./models",
             model_name=model_name,
+            model_dir="./models",
+            saving_model=True,
+            task="binary",
         )
 
     print(" Server training...")
@@ -95,6 +98,6 @@ if __name__ == "__main__":
     print("Server training done.")
     test_accuracy, test_loss = server.score(Testset)
 
-    result = Server.online_inference(Testset,model_name=model_name,model_path=model_dir,loss_fn=lossfunction,device=device)
+    result = Server.online_inference(Testset,model_name=model_name,model_dir=model_dir,loss_fn=lossfunction,device=device)
 
     print(result)

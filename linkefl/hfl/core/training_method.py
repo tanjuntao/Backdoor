@@ -1,13 +1,23 @@
 import collections
 import copy
 from math import ceil
-
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
+    roc_auc_score,
+)
+from scipy.special import softmax
 
 from linkefl.hfl.core.aggregator import Aggregator_client, Aggregator_server
 from linkefl.hfl.utils.dp_mechanism import add_dp
 from linkefl.modelio.torch_model import TorchModelIO
+from linkefl.vfl.utils.evaluate import  Plot
 
 # tensor to list
 def modelpara_to_list(para):
@@ -42,8 +52,106 @@ def test(model, testset, lossfunction, device,epoch=0):
         )
     )
 
-
     return accuracy, test_loss
+
+def validate(model, testset, lossfunction, device,task):
+    test_loss = 0
+    correct = 0
+    batch_size = 32
+    test_set = DataLoader(testset, batch_size=batch_size, shuffle=False)
+    model.eval()
+    num_batches = ceil(len(test_set.dataset) / float(batch_size))
+    outputs = []
+    labels = []
+    scores = {"mae": -1, "mse": -1, "sse": -1, "r2": -1,"acc": -1,"auc": -1,"f1": -1,"loss":-1}
+
+    for idx, (data, target) in enumerate(test_set):
+        data, target = data.to(device), target.to(device).to(torch.long)
+        log_probs = model(data)
+        # test_loss += self.lossfunction(log_probs, target, reduction='sum').item()
+        test_loss += lossfunction(log_probs, target).item()
+        # y_pred = log_probs.data.max(1, keepdim=True)[1]
+        outputs.extend(log_probs.detach().numpy())
+        labels.extend(target.detach().numpy())
+
+    scores["loss"] = test_loss / num_batches
+
+    if task == "regression":
+        mae = mean_absolute_error(labels, outputs)
+        mse = mean_squared_error(labels, outputs)
+        sse = mse * len(labels)
+        r2 = r2_score(labels, outputs)
+        scores["mae"] = mae
+        scores["mse"] = mse
+        scores["sse"] = sse
+        scores["r2"] = r2
+
+    elif task == "binary":
+        outputs = softmax(outputs, axis=1)
+        targets = np.argmax(outputs, axis=1)
+        acc = accuracy_score(labels, targets)
+        f1 = f1_score(labels, targets, average="weighted")
+        targets = outputs[:,1]
+        auc = roc_auc_score(labels, targets)
+
+        scores["acc"] = acc
+        scores["auc"] = auc
+        scores["f1"] = f1
+
+    elif task == "multi":
+        outputs = softmax(outputs, axis=1)
+        targets = np.argmax(outputs, axis=1)
+        acc = accuracy_score(labels, targets)
+        auc = -1
+        f1 = -1
+
+        scores["acc"] = acc
+
+    else:
+        raise ValueError("No such task label.")
+
+    return scores
+
+def plot(records,task,pics_dir):
+
+    # 通用
+    valid_loss_records =  [item["loss"] for item in records]
+    mae_records = [item["mae"] for item in records]
+    mse_records = [item["mse"] for item in records]
+    sse_records = [item["sse"] for item in records]
+    r2_records = [item["r2"] for item in records]
+
+    f1_records = [item["f1"] for item in records]
+    auc_records = [item["auc"] for item in records]
+    acc_records = [item["acc"] for item in records]
+
+    # 回归任务
+    if task == "regression":
+
+        Plot.plot_test_loss( valid_loss_records, pics_dir)
+        Plot.plot_regression_metrics(
+            mae_records, mse_records, sse_records, r2_records, pics_dir
+        )
+
+    # 分类任务
+    elif task == "binary":
+
+        Plot.plot_f1_score(f1_records, pics_dir)
+        Plot.plot_test_loss( valid_loss_records, pics_dir
+        )
+        Plot.plot_test_auc(auc_records, pics_dir)
+
+    # 多分类
+    elif task == "multi":
+
+        Plot.plot_test_loss( valid_loss_records, pics_dir)
+        Plot.plot_test_acc(acc_records, pics_dir)
+
+    else:
+        raise ValueError("No such task label.")
+
+
+
 
 
 # list to tensor
@@ -55,8 +163,11 @@ def list_to_tensor(data):
 
 class Train_server:
     @staticmethod
-    def train_basic(epoch, world_size, server, model, device, testset, lossfunction,logger,path,name):
+    def train_basic(epoch, world_size, server, model, device, testset,
+                    lossfunction,logger,path,name,task,saving_model,pics_dir):
         aggregator = Aggregator_server.FedAvg
+
+        records = []
         for j in range(epoch):
             recDatas = []
             for i in range(world_size):
@@ -81,23 +192,37 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            acc,test_loss = test(model, testset, lossfunction, device,epoch)
+
+            scores = validate(model, testset, lossfunction, device, task)
+            records.append(scores)
+
             logger.log_metric(
                 j,
-                test_loss,
-                acc.item()/100,
+                scores["loss"],
+                scores["acc"],
+                scores["auc"],
+                scores["f1"],
                 0,
                 0,
+                scores["mae"],
+                scores["mse"],
+                scores["sse"],
+                scores["r2"],
                 total_epoch=epoch,
             )
-        TorchModelIO.save(model,path,name)
+
+        if saving_model:
+            TorchModelIO.save(model,path,name)
+            plot(records,task,pics_dir)
+
         return model
 
     @staticmethod
     def train_FedAvg_seq(
-        epoch, world_size, server, model, device, testset, lossfunction,logger,path,name
-    ):
+        epoch, world_size, server, model, device, testset, lossfunction,logger,path,
+            name,task,saving_model,pics_dir):
         aggregator = Aggregator_server.FedAvg_seq
+        records = []
         for j in range(epoch):
             recDatas = []
             for i in range(world_size):
@@ -122,26 +247,38 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            acc, test_loss = test(model, testset, lossfunction, device, epoch)
+            scores = validate(model, testset, lossfunction, device, task)
+            records.append(scores)
+
             logger.log_metric(
                 j,
-                test_loss,
-                acc.item() / 100,
+                scores["loss"],
+                scores["acc"],
+                scores["auc"],
+                scores["f1"],
                 0,
                 0,
+                scores["mae"],
+                scores["mse"],
+                scores["sse"],
+                scores["r2"],
                 total_epoch=epoch,
             )
 
-        TorchModelIO.save(model, path, name)
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
         return model
 
     @staticmethod
     def train_Scaffold(
-        epoch, world_size, server, model, device, testset, lossfunction, logger,path,name,E=30,
+        epoch, world_size, server, model, device, testset, lossfunction, logger,path,
+            name,task,saving_model,pics_dir,E=30,
     ):
         server_control = {}
         server_delta_control = {}
         server_delta_y = {}
+        records = []
         for k, v in model.named_parameters():
             server_control[k] = torch.zeros_like(v.data).numpy().tolist()
             server_delta_control[k] = torch.zeros_like(v.data).numpy().tolist()
@@ -216,24 +353,35 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            acc, test_loss = test(model, testset, lossfunction, device, epoch)
+            scores = validate(model, testset, lossfunction, device, task)
+            records.append(scores)
+
             logger.log_metric(
                 j,
-                test_loss,
-                acc.item() / 100,
+                scores["loss"],
+                scores["acc"],
+                scores["auc"],
+                scores["f1"],
                 0,
                 0,
+                scores["mae"],
+                scores["mse"],
+                scores["sse"],
+                scores["r2"],
                 total_epoch=epoch,
             )
 
-        TorchModelIO.save(model, path, name)
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
         return model
 
     @staticmethod
     def train_PersonalizedFed(
-        epoch, world_size, server, model, device, kp, testset, lossfunction,logger,path,name
+        epoch, world_size, server, model, device, kp, testset, lossfunction,logger,path,name,task,saving_model,pics_dir
     ):
         aggregator = Aggregator_server.PersonalizedFed
+        records = []
         for j in range(epoch):
             recDatas = []
             for i in range(world_size):
@@ -258,17 +406,28 @@ class Train_server:
             # 加载参数到网络
             model.load_state_dict(new_net)
             print("epoch:", j)
-            acc, test_loss = test(model, testset, lossfunction, device, epoch)
+            scores = validate(model, testset, lossfunction, device, task)
+            records.append(scores)
+
             logger.log_metric(
                 j,
-                test_loss,
-                acc.item() / 100,
+                scores["loss"],
+                scores["acc"],
+                scores["auc"],
+                scores["f1"],
                 0,
                 0,
+                scores["mae"],
+                scores["mse"],
+                scores["sse"],
+                scores["r2"],
                 total_epoch=epoch,
             )
 
-        TorchModelIO.save(model, path, name)
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
+
         return model
 
 
@@ -288,9 +447,13 @@ class Train_client:
         testset,
         path,
         name,
+        task,
+        saving_model,
+        pics_dir,
     ):
         model.train()
         aggregator = Aggregator_client.FedAvg
+        records = []
         for epoch in range(epoch):
             # 模型训练
 
@@ -328,7 +491,14 @@ class Train_client:
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
 
-        TorchModelIO.save(model,path, name)
+            scores = validate(model, testset, lf, device, task)
+            records.append(scores)
+
+
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
+
         return model
 
     @staticmethod
@@ -347,9 +517,13 @@ class Train_client:
         testset,
         path,
         name,
+        task,
+        saving_model,
+        pics_dir,
     ):
         model.train()
         aggregator = Aggregator_client.FedProx
+        records = []
         for epoch in range(epoch):
             # 模型训练
 
@@ -386,7 +560,14 @@ class Train_client:
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
 
-        TorchModelIO.save(model,path, name)
+            scores = validate(model, testset, lf, device, task)
+            records.append(scores)
+
+
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
+
         return model
 
     @staticmethod
@@ -404,12 +585,15 @@ class Train_client:
         testset,
         path,
         name,
+        task,
+        saving_model,
+        pics_dir,
         E=30,
         lr=0.01,
     ):
         model.train()
         aggregator = Aggregator_client.Scaffold
-
+        records = []
         #
         data = client.rec()
 
@@ -504,7 +688,14 @@ class Train_client:
                 global_net[key] = torch.tensor((global_net[key])).to(device)
             global_net = collections.OrderedDict(global_net)
             model.load_state_dict(global_net)
-        TorchModelIO.save(model,path, name)
+            scores = validate(model, testset, lf, device, task)
+            records.append(scores)
+
+
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
+
         return model
 
     @staticmethod
@@ -523,9 +714,13 @@ class Train_client:
         testset,
         path,
         name,
+        task,
+        saving_model,
+        pics_dir,
     ):
         model.train()
         aggregator = Aggregator_client.FedAvg
+        records = []
         for epoch in range(epoch):
             # 模型训练
 
@@ -568,7 +763,13 @@ class Train_client:
 
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
-        TorchModelIO.save(model,path, name)
+            scores = validate(model, testset, lf, device, task)
+            records.append(scores)
+
+
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
         return model
 
     @staticmethod
@@ -591,9 +792,13 @@ class Train_client:
         testset,
         path,
         name,
+        task,
+        saving_model,
+        pics_dir,
     ):
         model.train()
         aggregator = Aggregator_client.FedDP
+        records = []
         for epoch in range(epoch):
             # 模型训练
 
@@ -635,5 +840,11 @@ class Train_client:
                 new_net[key] = torch.tensor((new_net[key])).to(device)
             new_net = collections.OrderedDict(new_net)
             model.load_state_dict(new_net)
-        TorchModelIO.save(model,path, name)
+            scores = validate(model, testset, lf, device, task)
+            records.append(scores)
+
+
+        if saving_model:
+            TorchModelIO.save(model, path, name)
+            plot(records, task, pics_dir)
         return model

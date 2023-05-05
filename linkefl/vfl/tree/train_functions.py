@@ -126,7 +126,7 @@ def leaf_weight_multi(gh, sample_tag, reg_lambda):
     g_sum = grad[sample_id].sum(axis=0)
     h_sum = hess[sample_id].sum(axis=0)
 
-    weight = -(g_sum / h_sum + reg_lambda)
+    weight = -(g_sum / (h_sum + reg_lambda))
 
     return weight
 
