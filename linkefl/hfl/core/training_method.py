@@ -63,7 +63,7 @@ def validate(model, testset, lossfunction, device,task):
     num_batches = ceil(len(test_set.dataset) / float(batch_size))
     outputs = []
     labels = []
-    scores = {"mae": -1, "mse": -1, "sse": -1, "r2": -1,"acc": -1,"auc": -1,"f1": -1,"loss":-1}
+    scores = {"mae": 0, "mse": 0, "sse": 0, "r2": 0,"acc": 0,"auc": 0,"f1": 0,"loss":0}
 
     for idx, (data, target) in enumerate(test_set):
         data, target = data.to(device), target.to(device).to(torch.long)
