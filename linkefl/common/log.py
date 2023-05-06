@@ -194,7 +194,7 @@ class GlobalLogger:
         }
         if hasattr(self, "metainfo"):
             json_msg.update(getattr(self, "metainfo"))
-        json_msg = json.dumps({"componentLog": json_msg})
+        json_msg = json.dumps({"stepLog": json_msg})
         log_func = GlobalLogger._LOGLEVEL_MAPPER[level]
         log_func(json_msg, stacklevel=self.stacklevel)  # type: ignore
 
