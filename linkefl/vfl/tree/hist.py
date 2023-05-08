@@ -81,7 +81,7 @@ class ActiveHist:
         bin_nonzero_compress = crypto_system.decrypt_data(
             bin_nonzero_compress, pool=pool
         )
-        bin_nonzero = np.empty((capacity, len(bin_nonzero_compress)), dtype=np.object)
+        bin_nonzero = np.empty((capacity, len(bin_nonzero_compress)), dtype=object)
 
         for i in range(capacity):
             bin_nonzero[i] = bin_nonzero_compress % (1 << gh_length)
@@ -90,7 +90,7 @@ class ActiveHist:
         bin_nonzero[bin_nonzero > (1 << (gh_length - 1))] -= 1 << gh_length
         bin_nonzero = bin_nonzero.flatten()
 
-        bin_gh_int = np.zeros(shape, dtype=np.object)
+        bin_gh_int = np.zeros(shape, dtype=object)
         bin_gh_int[target] = bin_nonzero[: target[0].shape[0]]
 
         return cls.splitgh_hist(task, n_labels, bin_gh_int, h_length, r)
@@ -115,7 +115,7 @@ class ActiveHist:
 
         bin_gh_int = np.zeros(
             (bin_gh_compress_multi.shape[0], bin_gh_compress_multi.shape[1], n_labels),
-            dtype=np.object,
+            dtype=object,
         )
 
         last_count = n_labels % capacity
