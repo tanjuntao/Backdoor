@@ -561,12 +561,38 @@ class ActiveTreeParty(BaseModelComponent):
             model.trees[i].record = record
             model.trees[i].root = root
 
-        scores = model._validate(dataset)
-        targets = scores["targets"]
+        preds = model._pred(dataset)
         for messenger in messengers:
-            messenger.send((scores, targets))
-        del scores["targets"]
-        return scores, targets
+            messenger.send(preds)
+        return preds
+
+    def _pred(self, testset):
+        features = testset.features
+        labels = testset.labels
+
+        if self.task == "multi":
+            raw_outputs = np.zeros((len(labels), self.n_labels))
+        else:
+            raw_outputs = np.zeros(len(labels))
+
+        for tree in self.trees:
+            update_pred = tree.predict(features)
+            if update_pred is None:
+                # the trees after are not trained
+                break
+            raw_outputs += self.learning_rate * update_pred
+
+        if self.task == "regression":
+            outputs = raw_outputs
+        elif self.task == "binary":
+            outputs = sigmoid(raw_outputs)
+        elif self.task == "multi":
+            outputs = softmax(raw_outputs, axis=1)
+        else:
+            raise ValueError("No such task label.")
+
+        return outputs
+
 
     def feature_importances_(self, importance_type: str = "split") -> Dict[str, list]:
         """

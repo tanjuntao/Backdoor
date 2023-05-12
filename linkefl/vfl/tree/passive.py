@@ -372,8 +372,8 @@ class PassiveTreeParty(BaseModelComponent):
             else:
                 raise KeyError
 
-        scores, preds = messenger.recv()
-        return scores, preds
+        preds = messenger.recv()
+        return preds
 
     def _init_tree_info(self):
         """Initialize the tree-level information store"""
