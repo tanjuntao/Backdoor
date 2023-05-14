@@ -266,13 +266,8 @@ class ActiveLinReg(BaseLinearActive, BaseModelComponent):
             curr_wx = messenger.recv()
             total_wx += curr_wx
         y_pred = total_wx
-        loss = ((dataset.labels - y_pred) ** 2).mean()
-        r2 = r2_score(dataset.labels, y_pred)
-        scores = {"loss": loss, "r2": r2}
-        for messenger in messengers:
-            messenger.send([scores, y_pred])
 
-        return scores, y_pred
+        return y_pred
 
 
 if __name__ == "__main__":

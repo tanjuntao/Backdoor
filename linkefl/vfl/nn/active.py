@@ -426,10 +426,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
         dataloader = DataLoader(dataset, batch_size=dataset.n_samples, shuffle=False)
         messenger = messengers[0]
 
-        n_batches = len(dataloader)
-        test_loss, correct = 0.0, 0
-        labels, probs = np.array([]), np.array([])
-        loss_fn = nn.CrossEntropyLoss()
+        # n_batches = len(dataloader)
+        # test_loss, correct = 0.0, 0
+        # labels, probs = np.array([]), np.array([])
+        # loss_fn = nn.CrossEntropyLoss()
         with torch.no_grad():
             preds = None
             for batch, (X, y) in enumerate(dataloader):
@@ -437,29 +437,30 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 passive_repr = messenger.recv()
                 top_input = active_repr + passive_repr
                 logits = models["top"](top_input)
-                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
-                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
-                test_loss += loss_fn(logits, y).item()
-                correct += (logits.argmax(1) == y).type(torch.float).sum().item()
+                # labels = np.append(labels, y.cpu().numpy().astype(np.int32))
+                # probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
+                # test_loss += loss_fn(logits, y).item()
+                # correct += (logits.argmax(1) == y).type(torch.float).sum().item()
                 if preds is None:
                     preds = logits.argmax(1)
                 else:
                     preds = torch.concat((preds, logits.argmax(1)), dim=0)
-            test_loss /= n_batches
-            acc = correct / dataset.n_samples
-            n_classes = len(torch.unique(dataset.labels))
-            if n_classes == 2:
-                auc = roc_auc_score(labels, probs)
-            else:
-                auc = 0
-            print(
-                f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
-                f" Auc: {(100 * auc):>0.2f}%,"
-                f" Avg loss: {test_loss:>8f}"
-            )
+            # test_loss /= n_batches
+            # acc = correct / dataset.n_samples
+            # n_classes = len(torch.unique(dataset.labels))
+            # if n_classes == 2:
+            #     auc = roc_auc_score(labels, probs)
+            # else:
+            #     auc = 0
+            # print(
+            #     f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
+            #     f" Auc: {(100 * auc):>0.2f}%,"
+            #     f" Avg loss: {test_loss:>8f}"
+            # )
 
-            scores = {"acc": acc, "auc": auc, "loss": test_loss}
-            return scores, preds
+            # scores = {"acc": acc, "auc": auc, "loss": test_loss}
+            # return scores, preds
+            return preds
 
 
 if __name__ == "__main__":

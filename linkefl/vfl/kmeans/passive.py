@@ -177,10 +177,11 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
         y_pred = passive_model.score(dataset)
 
-        dis = passive_model._cal_dis(dataset)
-        scores = {"distance": dis}
+        # dis = passive_model._cal_dis(dataset)
+        # scores = {"distance": dis}
 
-        return scores, y_pred
+        # return scores, y_pred
+        return y_pred
 
     def _check_params(self, X_passive_dataset):
         """Check if the parameters of the algorithm and the inputs to it are valid."""
@@ -343,7 +344,7 @@ class PassiveConstrainedSeedKMeans(BaseModelComponent):
 
             self.messenger.send(difference_passive)
 
-            if self.messenger.recv() == 'break':
+            if self.messenger.recv() == "break":
                 break
 
             # ATTENSION: Avoid using direct assignment

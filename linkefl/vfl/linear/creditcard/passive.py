@@ -80,21 +80,10 @@ class PassiveCreditCard(PassiveLogReg):
         role: str = Const.PASSIVE_NAME,
         p: float = 20 / math.log(2),
     ):
-        scores, _ = super(PassiveCreditCard, PassiveCreditCard).online_inference(
-            dataset=dataset,
-            messenger=messenger,
-            logger=logger,
-            model_dir=model_dir,
-            model_name=model_name,
-            role=role,
-        )
         params = NumpyModelIO.load(model_dir, model_name)
         valid_credits = np.around(params * dataset.features * p)
         passive_credits = np.sum(valid_credits, axis=1)
         messenger.send(passive_credits)
-        final_credits = messenger.recv()
-
-        return scores, final_credits
 
 
 if __name__ == "__main__":

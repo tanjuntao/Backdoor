@@ -347,14 +347,8 @@ class ActiveLogReg(BaseLinearActive, BaseModelComponent):
             total_wx += curr_wx
         probs = sigmoid(total_wx)
         preds = (probs > positive_thresh).astype(np.int32)
-        accuracy = accuracy_score(dataset.labels, preds)
-        f1 = f1_score(dataset.labels, preds)
-        auc = roc_auc_score(dataset.labels, probs)
 
-        scores = {"acc": accuracy, "auc": auc, "f1": f1}
-        for messenger in messengers:
-            messenger.send([scores, preds])
-        return scores, preds
+        return preds
 
 
 if __name__ == "__main__":

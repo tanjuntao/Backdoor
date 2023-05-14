@@ -97,15 +97,6 @@ class ActiveCreditCard(ActiveLogReg):
         p: float = 20 / math.log(2),
         q: float = 600 - 20 * math.log(50) / math.log(2),
     ):
-        scores, _ = super(ActiveCreditCard, ActiveCreditCard).online_inference(
-            dataset=dataset,
-            messengers=messengers,
-            logger=logger,
-            model_dir=model_dir,
-            model_name=model_name,
-            positive_thresh=positive_thresh,
-            role=role,
-        )
         params = NumpyModelIO.load(model_dir, model_name)
         base_credits = round(q + p * params[-1], 0)
         valid_credits = np.around(params * dataset.features * p)
@@ -114,10 +105,8 @@ class ActiveCreditCard(ActiveLogReg):
             passive_credits = msger.recv()
             active_credits += passive_credits
         final_credits = active_credits + base_credits
-        for msger in messengers:
-            msger.send(final_credits)
 
-        return scores, final_credits
+        return final_credits
 
 
 if __name__ == "__main__":

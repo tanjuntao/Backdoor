@@ -246,10 +246,11 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
 
         y_pred = active_model.score(dataset)
 
-        dis = active_model._cal_dis(dataset)
-        scores = {"distance": dis}
+        # dis = active_model._cal_dis(dataset)
+        # scores = {"distance": dis}
 
-        return scores, y_pred
+        # return scores, y_pred
+        return y_pred
 
     def _cal_dis(self, X_active_dataset):
         """Opposite of the value of X_active on the K-means objective."""
@@ -494,12 +495,12 @@ class ActiveConstrainedSeedKMeans(BaseModelComponent):
                 )
 
             if difference < self.tol:
-                self.messenger.send('break')
+                self.messenger.send("break")
                 if self.verbose:
                     print("Converged at iteration {}.\n".format(iter_))
                 break
             else:
-                self.messenger.send('continue')
+                self.messenger.send("continue")
 
             # ATTENSION: Avoid using direct assignment like
             # cur_centers = new_centers_active

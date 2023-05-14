@@ -334,8 +334,6 @@ class BaseLinearPassive(BaseLinear, ABC):
         model_params = NumpyModelIO.load(model_dir, model_name)
         wx = np.matmul(dataset.features, model_params)
         messenger.send(wx)
-        scores, preds = messenger.recv()
-        return scores, preds
 
 
 class BaseLinearActive(BaseLinear, ABC):
