@@ -455,7 +455,6 @@ class ActiveNeuralNetwork(BaseModelComponent):
         for model in models.values():
             model.eval()
         dataloader = DataLoader(dataset, batch_size=dataset.n_samples, shuffle=False)
-        messenger = messengers[0]
 
         n_batches = len(dataloader)
         test_loss, correct = 0.0, 0
@@ -465,8 +464,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
             preds = None
             for batch, (X, y) in enumerate(dataloader):
                 active_repr = models["cut"](models["bottom"](X))
-                passive_repr = messenger.recv()
-                top_input = active_repr + passive_repr
+                top_input = active_repr
+                for msger in messengers:
+                    passive_repr = msger.recv()
+                    top_input += passive_repr
                 logits = models["top"](top_input)
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
