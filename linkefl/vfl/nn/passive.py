@@ -307,6 +307,8 @@ if __name__ == "__main__":
     #     train=False,
     #     download=True,
     # )
+    # passive_trainset = TorchDataset.feature_split(passive_trainset, n_splits=2)[0]
+    # passive_testset = TorchDataset.feature_split(passive_testset, n_splits=2)[0]
     print("Done.")
 
     # 2. Create PyTorch models and optimizers

@@ -101,14 +101,18 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
         # exists when training started
-        self.cryptosystem = None
-        self.enc_layer = None
+        self.cryptosystem_list: list = []
+        self.enc_layer_list: list = []
 
     def _sync_pubkey(self):
         print("Waiting for public key...")
-        public_key, crypto_type = self.messengers[0].recv()
+        public_key_list, crypto_type_list = [], []
+        for msger in self.messengers:
+            pubkey, crypto_type = msger.recv()
+            public_key_list.append(pubkey)
+            crypto_type_list.append(crypto_type)
         print("Done!")
-        return public_key, crypto_type
+        return public_key_list, crypto_type_list
 
     def _init_dataloader(self, dataset, shuffle=False):
         bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
@@ -125,20 +129,27 @@ class ActiveNeuralNetwork(BaseModelComponent):
         train_dataloader = self._init_dataloader(trainset)
         test_dataloader = self._init_dataloader(testset)
 
-        public_key, crypto_type = self._sync_pubkey()
-        self.cryptosystem = partial_crypto_factory(crypto_type, public_key=public_key)
-        if crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
-            in_nodes = self.messenger.recv()
-            self.enc_layer = ActiveEncLayer(
-                in_nodes=in_nodes,
-                out_nodes=self.models["cut"].out_nodes,
-                eta=self.learning_rate,
-                messenger=self.messenger,
-                cryptosystem=self.cryptosystem,
-                num_workers=self.num_workers,
-                random_state=self.random_state,
-                encode_precision=self.encode_precision,
-            )
+        public_key_list, crypto_type_list = self._sync_pubkey()
+        for idx, (public_key, crypto_type) in enumerate(
+            zip(public_key_list, crypto_type_list)
+        ):
+            cryptosystem = partial_crypto_factory(crypto_type, public_key=public_key)
+            if crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
+                in_nodes = self.messengers[idx].recv()
+                enc_layer = ActiveEncLayer(
+                    in_nodes=in_nodes,
+                    out_nodes=self.models["cut"].out_nodes,
+                    eta=self.learning_rate,
+                    messenger=self.messengers[idx],
+                    cryptosystem=cryptosystem,
+                    num_workers=self.num_workers,
+                    random_state=self.random_state,
+                    encode_precision=self.encode_precision,
+                )
+            else:
+                enc_layer = None
+            self.cryptosystem_list.append(cryptosystem)
+            self.enc_layer_list.append(enc_layer)
 
         for model in self.models.values():
             model.train()
@@ -157,9 +168,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 y = y.to(self.device)
                 active_repr = self.models["cut"](self.models["bottom"](X))
                 top_input = active_repr.data
-                for msger in self.messengers:
-                    if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                        self.enc_layer.fed_forward()
+                for idx, msger in enumerate(self.messengers):
+                    if self.cryptosystem_list[idx].type in (
+                        Const.PAILLIER,
+                        Const.FAST_PAILLIER,
+                    ):
+                        self.enc_layer_list[idx].fed_forward()
                         passive_repr = msger.recv().to(self.device)
                     else:
                         passive_repr = msger.recv().to(self.device)
@@ -178,9 +192,14 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 for optmizer in self.optimizers.values():
                     optmizer.step()
                 # send back passive party's gradient
-                for msger in self.messengers:
-                    if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                        passive_grad = self.enc_layer.fed_backward(top_input.grad)
+                for idx, msger in enumerate(self.messengers):
+                    if self.cryptosystem_list[idx].type in (
+                        Const.PAILLIER,
+                        Const.FAST_PAILLIER,
+                    ):
+                        passive_grad = self.enc_layer_list[idx].fed_backward(
+                            top_input.grad
+                        )
                         msger.send(passive_grad)
                     else:
                         msger.send(top_input.grad)
@@ -237,8 +256,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     msger.send(is_best)
 
         # close pool
-        if self.enc_layer is not None:
-            self.enc_layer.close_pool()
+        for enc_layer in self.enc_layer_list:
+            if enc_layer is not None:
+                enc_layer.close_pool()
 
         if self.saving_model:
             Plot.plot_train_test_loss(
@@ -282,9 +302,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 y = y.to(self.device)
                 active_repr = self.models["cut"](self.models["bottom"](X))
                 top_input = active_repr
-                for msger in self.messengers:
-                    if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                        self.enc_layer.fed_forward()
+                for idx, msger in enumerate(self.messengers):
+                    if self.cryptosystem_list[idx].type in (
+                        Const.PAILLIER,
+                        Const.FAST_PAILLIER,
+                    ):
+                        self.enc_layer_list[idx].fed_forward()
                         passive_repr = msger.recv()
                     else:
                         passive_repr = msger.recv().to(self.device)
@@ -481,18 +504,10 @@ if __name__ == "__main__":
     _dataset_name = "tab_mnist"
     _passive_feat_frac = 0.5
     _feat_perm_option = Const.SEQUENCE
-    _active_ips = [
-        "localhost", "localhost"
-    ]
-    _active_ports = [
-        20000, 20001
-    ]
-    _passive_ips = [
-        "localhost", "localhost"
-    ]
-    _passive_ports = [
-        30000, 30001
-    ]
+    _active_ips = ["localhost", "localhost"]
+    _active_ports = [20000, 20001]
+    _passive_ips = ["localhost", "localhost"]
+    _passive_ports = [30000, 30001]
     _epochs = 10
     _batch_size = 100
     _learning_rate = 0.001
