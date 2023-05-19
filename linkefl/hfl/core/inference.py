@@ -54,9 +54,11 @@ def inference_hfl(
                 y_pred = log_probs.data.max(1, keepdim=True)[1]
                 # correct += y_pred.eq(target.data.view_as(y_pred)).long().cpu().sum()
                 preds.extend(y_pred.numpy().tolist())
+                # preds.extend(y_pred.numpy())
         # test_loss /= num_batches
         # acc = correct / len(dataloader.dataset)
         # scores = {"acc": acc, "auc": 0, "loss": test_loss, "preds": preds}
+        preds = sum(preds,[])
         scores = {"preds": preds}
 
     return scores
