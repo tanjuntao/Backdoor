@@ -39,6 +39,7 @@ def inference_hfl(
                 preds.extend(log_probs.numpy().tolist())
         # test_loss /= num_batches
         # scores = {"loss": test_loss, "preds": preds}
+        preds = sum(preds, [])
         scores = {"preds": preds}
     else:
         with torch.no_grad():
