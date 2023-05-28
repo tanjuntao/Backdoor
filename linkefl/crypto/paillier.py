@@ -924,28 +924,12 @@ def _cipher_mat_vec_product(cipher_vector, plain_matrix, executor_pool, schedule
     for result in async_results:
         assert result.get() is True
 
-    # 2. transpose enc_result
-    enc_result = np.array(enc_result).transpose()
-
-    # 3. average enc_result
-    avg_result = [None] * width
-    data_size = width
-    n_schedulers = scheduler_pool._processes
-    quotient = data_size // n_schedulers
-    remainder = data_size % n_schedulers
-    async_results = []
-    for idx in range(n_schedulers):
-        start = idx * quotient
-        end = (idx + 1) * quotient
-        if idx == n_schedulers - 1:
-            end += remainder
-        # this will modify avg_result in place
-        result = scheduler_pool.apply_async(
-            _target_row_add, args=(enc_result, avg_result, start, end)
-        )
-        async_results.append(result)
-    for result in async_results:
-        assert result.get() is True
+    # 2. summation alone the vertical axis
+    # Note: when summing each column of enc_result, using a simple for-loop will be
+    # faster than using multiprocessing, this may be because the parameters need to be
+    # pickled and transferred to child processes, which is time-consuming.
+    enc_result = np.array(enc_result)
+    avg_result = [fast_add_ciphers(enc_result[:, i]) for i in range(width)]
 
     return np.array(avg_result)
 
@@ -954,13 +938,6 @@ def _target_row_mul(enc_vector, plain_matrix, enc_result, start, end, executor_p
     for k in range(start, end):
         enc_row = fast_mul_ciphers(plain_matrix[k], enc_vector[k], executor_pool)
         enc_result[k] = enc_row
-    return True
-
-
-def _target_row_add(enc_result, avg_result, start, end):
-    for k in range(start, end):
-        row_sum = fast_add_ciphers(enc_result[k])
-        avg_result[k] = row_sum
     return True
 
 
