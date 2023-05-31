@@ -1,5 +1,4 @@
 import multiprocessing
-import os
 from typing import Optional
 
 import numpy as np
@@ -7,7 +6,7 @@ import torch
 
 from linkefl.base import BaseCryptoSystem, BaseMessenger, BasePartialCryptoSystem
 from linkefl.common.const import Const
-from linkefl.crypto.paillier import cipher_matmul, encode
+from linkefl.crypto.paillier import encode, fast_cipher_matmul
 
 
 class PassiveEncLayer:
@@ -127,7 +126,7 @@ class ActiveEncLayer:
             precision=self.encode_precision,
             pool=self.encode_pool,
         )
-        enc_z_tilde = cipher_matmul(
+        enc_z_tilde = fast_cipher_matmul(
             cipher_matrix=enc_a,
             plain_matrix=w_tilde_encode,
             executor_pool=self.thread_pool,
@@ -144,7 +143,7 @@ class ActiveEncLayer:
             precision=self.encode_precision,
             pool=self.encode_pool,
         )
-        enc_w_tilde_grad = cipher_matmul(
+        enc_w_tilde_grad = fast_cipher_matmul(
             cipher_matrix=self.curr_enc_a.transpose(),
             plain_matrix=grad_encode,
             executor_pool=self.thread_pool,
@@ -155,7 +154,7 @@ class ActiveEncLayer:
 
         w_tilde_grad, enc_w_acc = self.messenger.recv()
 
-        enc_a_grad_noise = cipher_matmul(
+        enc_a_grad_noise = fast_cipher_matmul(
             cipher_matrix=enc_w_acc,
             plain_matrix=grad_encode.transpose(),
             executor_pool=self.thread_pool,

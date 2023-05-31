@@ -860,7 +860,7 @@ class FastPaillier(BaseCryptoSystem):
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
-def cipher_matmul(
+def fast_cipher_matmul(
     cipher_matrix: np.ndarray,
     plain_matrix: np.ndarray,
     executor_pool: ThreadPool,
@@ -929,19 +929,19 @@ def _cipher_mat_vec_product(cipher_vector, plain_matrix, executor_pool, schedule
     # faster than using multiprocessing, this may be because the parameters need to be
     # pickled and transferred to child processes, which is time-consuming.
     enc_result = np.array(enc_result)
-    avg_result = [fast_add_ciphers(enc_result[:, i]) for i in range(width)]
+    avg_result = [fast_cipher_sum(enc_result[:, i]) for i in range(width)]
 
     return np.array(avg_result)
 
 
 def _target_row_mul(enc_vector, plain_matrix, enc_result, start, end, executor_pool):
     for k in range(start, end):
-        enc_row = fast_mul_ciphers(plain_matrix[k], enc_vector[k], executor_pool)
+        enc_row = fast_cipher_mul(plain_matrix[k], enc_vector[k], executor_pool)
         enc_result[k] = enc_row
     return True
 
 
-def fast_add_ciphers(
+def fast_cipher_sum(
     cipher_vector: Union[List[EncryptedNumber], np.ndarray]
 ) -> EncryptedNumber:
     """
@@ -989,7 +989,7 @@ def fast_add_ciphers(
     return EncryptedNumber(public_key, int(final_cipher), min_exp)
 
 
-def fast_mul_ciphers(
+def fast_cipher_mul(
     plain_vector: Union[List[EncodedNumber], np.ndarray],
     cipher: EncryptedNumber,
     thread_pool: Optional[ThreadPool] = None,

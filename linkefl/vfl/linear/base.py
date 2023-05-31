@@ -15,7 +15,7 @@ from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import partial_crypto_factory
 from linkefl.common.log import GlobalLogger
-from linkefl.crypto.paillier import cipher_matmul, encode
+from linkefl.crypto.paillier import encode, fast_cipher_matmul
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
@@ -179,7 +179,7 @@ class BaseLinearPassive(BaseLinear, ABC):
             raise RuntimeError("you should not use pool when crypto type is Plain.")
 
         x_encode = getattr(self, "x_encode")
-        enc_train_grad = cipher_matmul(
+        enc_train_grad = fast_cipher_matmul(
             cipher_matrix=enc_residue[
                 np.newaxis, :
             ],  # remember to add an addition axis

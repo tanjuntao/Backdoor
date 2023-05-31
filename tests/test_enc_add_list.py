@@ -2,16 +2,14 @@ import concurrent.futures
 import multiprocessing
 import multiprocessing.pool
 import os
-import pickle
 import random
 import time
 
 import gmpy2
-from phe import EncodedNumber, EncryptedNumber, paillier
+from phe import EncryptedNumber, paillier
 from tqdm import tqdm
 
-from linkefl.crypto.paillier import fast_add_ciphers
-
+from linkefl.crypto.paillier import fast_cipher_sum
 
 if __name__ == "__main__":
     size = 10000
@@ -97,7 +95,7 @@ if __name__ == "__main__":
     # option 4: use LinkeFL's fast_add_ciphers
     thread_pool = multiprocessing.pool.ThreadPool(os.cpu_count())
     start_time = time.time()
-    res = fast_add_ciphers(cipher_vector=enc_data, thread_pool=thread_pool)
+    res = fast_cipher_sum(cipher_vector=enc_data, thread_pool=thread_pool)
     print("LinkeFL fast_add_ciphers time: {}".format(time.time() - start_time))
     print(priv_key.decrypt(res))
     thread_pool.close()
