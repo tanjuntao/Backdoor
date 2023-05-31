@@ -1,34 +1,26 @@
 import concurrent.futures
-import multiprocessing
-import multiprocessing.pool
 import os
-import random
 import time
 
 import gmpy2
-from phe import EncryptedNumber, paillier
-from tqdm import tqdm
+import numpy as np
+from phe import EncryptedNumber
 
-from linkefl.crypto.paillier import fast_cipher_sum
+from linkefl.crypto.paillier import FastPaillier, fast_cipher_sum
 
 if __name__ == "__main__":
     size = 10000
     BASE = 16
-    pub_key, priv_key = paillier.generate_paillier_keypair(n_length=1024)
-    random_data = [random.random() for _ in range(size)]
-    enc_data = []
-    for rand in tqdm(random_data):
-        enc_data.append(pub_key.encrypt(rand))
-
-    sorted_enc_data = sorted(enc_data, key=lambda enc_val: enc_val.exponent)
-    print(sorted_enc_data[0].exponent)
-    print(sorted_enc_data[-1].exponent)
+    np.random.seed(0)
+    crypto = FastPaillier(key_size=1024, num_enc_zeros=1000, gen_from_set=False)
+    random_data = np.random.rand(size) * 2 - 1
+    enc_data = crypto.encrypt_vector(random_data)
 
     # option 1: compute the summation of encrypted numbers with the buildin sum function
     start = time.time()
     res = sum(enc_data)
-    print("Elapsed time: {}".format(time.time() - start))
-    print(priv_key.decrypt(res))
+    print("python sum time: {}".format(time.time() - start))
+    print(crypto.decrypt(res))
 
     # option 2: break down the whole computation
     start_time = time.time()
@@ -41,11 +33,11 @@ if __name__ == "__main__":
     start = time.time()
     res = ciphertexts[0]
     for cipher in ciphertexts[1:]:
-        res = gmpy2.mod(gmpy2.mul(res, cipher), pub_key.nsquare)
-    final_sum_enc = EncryptedNumber(pub_key, int(res), min_exponent)
-    print("Elapsed time: {}".format(time.time() - start_time))
+        res = gmpy2.mod(gmpy2.mul(res, cipher), crypto.pub_key.nsquare)
+    final_sum_enc = EncryptedNumber(crypto.pub_key, int(res), min_exponent)
+    print("manually sum time: {}".format(time.time() - start_time))
     # print('Mulmod time: {}'.format(time.time() - start))
-    print(priv_key.decrypt(final_sum_enc))
+    print(crypto.decrypt(final_sum_enc))
 
     # option 3: using powmod_list() function
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count())
@@ -77,25 +69,29 @@ if __name__ == "__main__":
                     exp,
                     min_exponent,
                     BASE,
-                    pub_key.nsquare,
+                    crypto.pub_key.nsquare,
                 )
             )
         for task in concurrent.futures.as_completed(tasks):
             aligned_ciphers = task.result()
             res = aligned_ciphers[0]
             for cipher in aligned_ciphers[1:]:
-                res = gmpy2.mod(gmpy2.mul(res, cipher), pub_key.nsquare)
+                res = gmpy2.mod(gmpy2.mul(res, cipher), crypto.pub_key.nsquare)
             sumed_encs.append(res)
         final_sum_enc = sumed_encs[0]
         for cipher in sumed_encs[1:]:
-            final_sum_enc = gmpy2.mod(gmpy2.mul(final_sum_enc, cipher), pub_key.nsquare)
-    print("Elapsed time: {}".format(time.time() - start_time))
-    print(priv_key.decrypt(EncryptedNumber(pub_key, int(final_sum_enc), min_exponent)))
+            final_sum_enc = gmpy2.mod(
+                gmpy2.mul(final_sum_enc, cipher), crypto.pub_key.nsquare
+            )
+    print("thread pool time: {}".format(time.time() - start_time))
+    print(
+        crypto.decrypt(
+            EncryptedNumber(crypto.pub_key, int(final_sum_enc), min_exponent)
+        )
+    )
 
     # option 4: use LinkeFL's fast_add_ciphers
-    thread_pool = multiprocessing.pool.ThreadPool(os.cpu_count())
     start_time = time.time()
-    res = fast_cipher_sum(cipher_vector=enc_data, thread_pool=thread_pool)
-    print("LinkeFL fast_add_ciphers time: {}".format(time.time() - start_time))
-    print(priv_key.decrypt(res))
-    thread_pool.close()
+    res = fast_cipher_sum(cipher_vector=enc_data)
+    print("fast_cipher_sum time: {}".format(time.time() - start_time))
+    print(crypto.decrypt(res))
