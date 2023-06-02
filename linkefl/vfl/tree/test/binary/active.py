@@ -92,7 +92,7 @@ if __name__ == "__main__":
     n_labels = 2
     key_size = 1024
 
-    crypto_type = Const.FAST_PAILLIER           # Const.PLAIN, Const.FAST_PAILLIER
+    crypto_type = Const.PLAIN           # Const.PLAIN, Const.FAST_PAILLIER
     compress = True                    # False, True
     training_mode = "lightgbm"          # "lightgbm", "xgboost"
     sampling_method = "uniform"         # "uniform", "goss"

@@ -67,7 +67,7 @@ if __name__ == "__main__":
     feat_perm_option = Const.SEQUENCE
 
     task = "binary"
-    crypto_type = Const.FAST_PAILLIER   # Const.PLAIN, Const.FAST_PAILLIER
+    crypto_type = Const.PLAIN   # Const.PLAIN, Const.FAST_PAILLIER
     colsample_bytree = 1
     saving_model = True
     model_dir = "../../models/test_binary"

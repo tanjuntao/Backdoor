@@ -1,4 +1,3 @@
-import pandas as pd
 
 from linkefl.common.const import Const
 from linkefl.common.factory import (
@@ -84,7 +83,7 @@ if __name__ == "__main__":
         model_name=model_name,
     )
 
-    # passive_party.train(passive_trainset, passive_testset)
+    passive_party.train(passive_trainset, passive_testset)
 
     # passive_party.online_inference(passive_testset, messenger, logger,
     #                                model_dir=model_dir,
@@ -94,9 +93,6 @@ if __name__ == "__main__":
     #     passive_party.feature_importances_(importance_type="cover")
     # )
     # print(feature_importance_info)
-    passive_party.load_model(model_dir, model_name)
-    passive_party.save_model_structure()
-
 
     # 4. Close messenger, finish training
     messenger.close()
