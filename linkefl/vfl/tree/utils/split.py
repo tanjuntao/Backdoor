@@ -1,7 +1,6 @@
 import numpy as np
 
 
-# todo: check reg_gamma here.
 def find_split(hist_list, task, reg_lambda, reg_gamma):
     """find the best split point in a list of hists
 
@@ -59,7 +58,6 @@ def _split_gain_multi(bin_gh, bin_gh_left, bin_gh_right, reg_lambda, reg_gamma):
     left_score = _structure_score_multi(bin_gh_left, reg_lambda)
     right_score = _structure_score_multi(bin_gh_right, reg_lambda)
     current_score = _structure_score_multi(bin_gh, reg_lambda)
-    # todo: check new cal func here.
     gain = 0.5 * (left_score + right_score - current_score) - reg_gamma
 
     return gain

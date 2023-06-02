@@ -1,10 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: UTF-8 -*-
-# @Project : LinkeFL
-# @File    : node_cal.py
-# @Author  : HaoRan Cheng
-# @Date    : 2023/5/9 20:56
-
 import numpy as np
 
 
