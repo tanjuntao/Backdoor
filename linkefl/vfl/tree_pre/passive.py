@@ -8,16 +8,18 @@ from multiprocessing import Pool
 from typing import Dict, Optional
 
 import numpy as np
-import pandas as pd
 
 from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
-from linkefl.vfl.tree.core.hist import PassiveHist
-from linkefl.vfl.tree.utils.bins import Bins
-from linkefl.vfl.tree.utils.util_func import wrap_message, get_latest_filename
+from linkefl.vfl.tree.data_functions import (
+    get_bin_info,
+    get_latest_filename,
+    wrap_message,
+)
+from linkefl.vfl.tree.hist import PassiveHist
 
 
 class PassiveTreeParty(BaseModelComponent):
@@ -49,14 +51,11 @@ class PassiveTreeParty(BaseModelComponent):
         self.max_bin = max_bin
         self.colsample_bytree = colsample_bytree
         self.saving_model = saving_model
-
         if self.saving_model:
             self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-
             if model_dir is None:
                 default_dir = "models"
                 model_dir = os.path.join(default_dir, self.create_time)
-
             if model_name is None:
                 model_name = (
                     "{time}-{role}-{algo_name}".format(
@@ -66,10 +65,8 @@ class PassiveTreeParty(BaseModelComponent):
                     )
                     + ".model"
                 )
-
             self.model_dir = model_dir
             self.model_name = model_name
-
             if not os.path.exists(self.model_dir):
                 pathlib.Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
@@ -101,13 +98,6 @@ class PassiveTreeParty(BaseModelComponent):
     ) -> None:
         self.train(trainset, validset)
 
-    def score(
-        self,
-        testset: NumpyDataset,
-        role: str = Const.PASSIVE_NAME,
-    ) -> None:
-        self.predict(testset)
-
     def train(self, trainset: NumpyDataset, testset: NumpyDataset) -> None:
         assert isinstance(
             trainset, NumpyDataset
@@ -119,7 +109,7 @@ class PassiveTreeParty(BaseModelComponent):
         start_time = time.time()
 
         self.logger.log("Building hist...")
-        self.bin_index, self.bin_split = Bins.get_bin_info(
+        self.bin_index, self.bin_split = get_bin_info(
             trainset.features, self.max_bin, self.pool
         )
         self.logger.log("Done")
@@ -162,7 +152,7 @@ class PassiveTreeParty(BaseModelComponent):
                     record_id,
                     sample_tag_selected_left,
                     sample_tag_unselected_left,
-                ) = self._split_node(
+                ) = self._save_record(
                     feature_id, split_id, sample_tag_selected, sample_tag_unselected
                 )
                 self.logger.log(f"threshold saved in record_id: {record_id}")
@@ -184,14 +174,31 @@ class PassiveTreeParty(BaseModelComponent):
 
                 # store temp file
                 if self.saving_model:
-                    self.save_model()
-                self.logger.log("temp model saved")
+                    # model_name = (
+                    #     f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    # )
+                    model_name = self.model_name
+                    NumpyModelIO.save(
+                        [self.record, self.feature_importance_info],
+                        self.model_dir,
+                        model_name,
+                    )
 
-                self.predict(testset)
+                self.logger.log("temp model saved")
+                self._validate(testset)
 
             elif data["name"] == "train finished" and data["content"] is True:
                 if self.saving_model:
-                    self.save_model()
+                    # model_name = (
+                    #     f"{self.model_name}-{trainset.n_samples}_samples.model"
+                    # )
+                    model_structure = self.messenger.recv()
+                    model_name = self.model_name
+                    NumpyModelIO.save(
+                        [self.record, self.feature_importance_info, model_structure],
+                        self.model_dir,
+                        model_name,
+                    )
                 self.logger.log_component(
                     name=Const.VERTICAL_SBT,
                     status=Const.SUCCESS,
@@ -210,7 +217,7 @@ class PassiveTreeParty(BaseModelComponent):
             self.pool.close()
 
         self.logger.log(
-            "Total training and validation time: {:.4f}".format(
+            "Total training and validation time: {:.2f}".format(
                 time.time() - start_time
             )
         )
@@ -223,111 +230,12 @@ class PassiveTreeParty(BaseModelComponent):
     ) -> None:
         """breakpoint retraining function."""
         model_name = get_latest_filename(load_model_path)
-        self.load_model(load_model_path, model_name)
+        self.record, self.feature_importance_info, model_structure = NumpyModelIO.load(
+            load_model_path, model_name
+        )
         self.train(trainset, testset)
 
-    def predict(self, testset: NumpyDataset) -> None:
-        assert isinstance(
-            testset, NumpyDataset
-        ), "testset should be an instance of NumpyDataset"
-
-        features = testset.features
-
-        while True:
-            # ready to receive instructions from active party
-            data = self.messenger.recv()
-            if data["name"] == "validate finished" and data["content"] is True:
-                self.logger.log("validate finished")
-                break
-            elif data["name"] == "judge":
-                sample_id, record_id = data["content"]
-                result = self._judge(features[sample_id], record_id)
-                self.messenger.send(wrap_message("judge", content=result))
-            else:
-                raise KeyError
-
-    @staticmethod
-    def online_inference(
-        dataset: NumpyDataset,
-        messenger: BaseMessenger,
-        logger: GlobalLogger,
-        model_dir: str,
-        model_name: str,
-        role: str = Const.PASSIVE_NAME,
-    ):
-        assert isinstance(
-            dataset, NumpyDataset
-        ), "inference dataset should be an instance of NumpyDataset"
-
-        record, feature_importance_info = NumpyModelIO.load(model_dir, model_name)
-
-        features = dataset.features
-        while True:
-            # ready to receive instructions from active party
-            data = messenger.recv()
-            if data["name"] == "validate finished" and data["content"] is True:
-                logger.log("validate finished")
-                break
-            elif data["name"] == "judge":
-                sample_id, record_id = data["content"]
-
-                feature_id, threshold = record[record_id]
-                # feature_id is float thanks to threshold...
-                result = (
-                    True if features[sample_id][int(feature_id)] > threshold else False
-                )  # avoid numpy bool
-
-                messenger.send(wrap_message("judge", content=result))
-            else:
-                raise KeyError
-
-        preds = messenger.recv()
-        return preds
-
-    def _init_tree_info(self):
-        """Initialize the tree-level information store"""
-        self.record_tree = None
-        self.feature_importance_info_tree = {
-            "split": defaultdict(int),  # Total number of splits
-            "cover": defaultdict(float),  # Total sample covered
-        }
-
-        # perform feature selection
-        feature_num = self.bin_index.shape[1]
-        self.feature_index_selected = random.sample(
-            list(range(feature_num)), int(feature_num * self.colsample_bytree)
-        )
-        self.bin_index_selected = np.array(self.bin_index.copy())
-        self.bin_index_selected = self.bin_index_selected[
-            :, self.feature_index_selected
-        ]
-
-        self.logger.log("init tree information and feature selection done")
-
-    def _get_hist(self, sample_tag):
-        hist = PassiveHist(
-            task=self.task,
-            sample_tag=sample_tag,
-            bin_index=self.bin_index_selected,
-            gh_data=self.gh_recv,
-        )
-
-        if (
-            self.task == "binary"
-            and self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER)
-            and self.compress
-        ):
-            return hist.compress(self.capacity, self.padding)
-        else:
-            return hist.bin_gh_data
-
-    def _judge(self, feature, record_id):
-        feature_id, threshold = self.record[record_id]
-        result = True if feature[int(feature_id)] > threshold else False
-
-        return result
-
-    def _split_node(
+    def _save_record(
         self, feature_id, split_id, sample_tag_selected, sample_tag_unselected
     ):
         feature_id_origin = self.feature_index_selected[feature_id]
@@ -370,6 +278,122 @@ class PassiveTreeParty(BaseModelComponent):
             sample_tag_selected_left,
             sample_tag_unselected_left,
         )
+
+    def _get_hist(self, sample_tag):
+        hist = PassiveHist(
+            task=self.task,
+            sample_tag=sample_tag,
+            bin_index=self.bin_index_selected,
+            gh_data=self.gh_recv,
+        )
+
+        if (
+            self.task == "binary"
+            and self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER)
+            and self.compress
+        ):
+            return hist.compress(self.capacity, self.padding)
+        else:
+            return hist.bin_gh_data
+
+    def _validate(self, testset):
+        assert isinstance(
+            testset, NumpyDataset
+        ), "testset should be an instance of NumpyDataset"
+
+        features = testset.features
+
+        while True:
+            # ready to receive instructions from active party
+            data = self.messenger.recv()
+            if data["name"] == "validate finished" and data["content"] is True:
+                self.logger.log("validate finished")
+                break
+            elif data["name"] == "judge":
+                sample_id, record_id = data["content"]
+                result = self._judge(features[sample_id], record_id)
+                self.messenger.send(wrap_message("judge", content=result))
+            else:
+                raise KeyError
+
+    def _judge(self, feature, record_id):
+        feature_id, threshold = self.record[record_id]
+        # feature_id is float thanks to threshold...
+        result = (
+            True if feature[int(feature_id)] > threshold else False
+        )  # avoid numpy bool
+
+        return result
+
+    def score(
+        self,
+        testset: NumpyDataset,
+        role: str = Const.PASSIVE_NAME,
+    ) -> None:
+        self.predict(testset)
+
+    def predict(self, testset: NumpyDataset) -> None:
+        self._validate(testset)
+
+    @staticmethod
+    def online_inference(
+            dataset: NumpyDataset,
+            messenger: BaseMessenger,
+            logger: GlobalLogger,
+            model_dir: str,
+            model_name: str,
+            role: str = Const.PASSIVE_NAME,
+    ):
+        assert isinstance(
+            dataset, NumpyDataset
+        ), "inference dataset should be an instance of NumpyDataset"
+        record, feature_importance_info, model_structure = NumpyModelIO.load(
+            model_dir, model_name
+        )
+
+        features = dataset.features
+
+        while True:
+            # ready to receive instructions from active party
+            data = messenger.recv()
+            if data["name"] == "validate finished" and data["content"] is True:
+                logger.log("validate finished")
+                break
+            elif data["name"] == "judge":
+                sample_id, record_id = data["content"]
+
+                feature_id, threshold = record[record_id]
+                # feature_id is float thanks to threshold...
+                result = (
+                    True if features[sample_id][int(feature_id)] > threshold else False
+                )  # avoid numpy bool
+
+                messenger.send(wrap_message("judge", content=result))
+            else:
+                raise KeyError
+
+        preds = messenger.recv()
+        return preds
+
+    def _init_tree_info(self):
+        """Initialize the tree-level information store"""
+        self.record_tree = None
+        self.feature_importance_info_tree = {
+            "split": defaultdict(int),  # Total number of splits
+            "cover": defaultdict(float),  # Total sample covered
+        }
+
+        # perform feature selection
+        feature_num = self.bin_index.shape[1]
+        self.feature_index_selected = random.sample(
+            list(range(feature_num)), int(feature_num * self.colsample_bytree)
+        )
+        self.bin_index_selected = np.array(self.bin_index.copy())
+        self.bin_index_selected = self.bin_index_selected[
+            :, self.feature_index_selected
+        ]
+
+        self.logger.log("init tree information and feature selection done")
 
     def _merge_tree_info(self):
         """Merge information from a single tree"""
@@ -415,22 +439,3 @@ class PassiveTreeParty(BaseModelComponent):
         }
 
         return result
-
-    def save_model(self):
-        NumpyModelIO.save(
-            [self.record, self.feature_importance_info],
-            self.model_dir,
-            self.model_name,
-        )
-        self.logger.log(f"Save model {self.model_name} success.")
-
-    def load_model(self, model_dir, model_name):
-        record, feature_importance_info = NumpyModelIO.load(model_dir, model_name)
-        self.record = record
-        self.feature_importance_info = feature_importance_info
-        self.logger.log(f"Load model {model_name} success.")
-
-    def save_model_structure(self):
-        df_record = pd.DataFrame(self.record)
-        print(df_record)
-

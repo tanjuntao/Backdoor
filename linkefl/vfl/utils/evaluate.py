@@ -29,7 +29,7 @@ class Evaluate(object):
         pass
 
     @staticmethod
-    def eval_ks(labels, y_probs, cut_point=500):
+    def eval_ks(labels, y_probs, cut_point=50):
         good_len = len([x for x in labels if x == 0])
         bad_len = len([x for x in labels if x == 1])
         pred_prob_labels = list(zip(y_probs, labels))
@@ -105,7 +105,6 @@ class TreePrint(object):
     @classmethod
     def tree_to_str(cls, tree, tree_structure):
         """
-
         Args:
             tree: DecisionTree
             tree_structure: str, can be "HORIZONTAL" or "VERTICAL"
