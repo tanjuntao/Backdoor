@@ -18,14 +18,14 @@ if sys.version_info < (3, 7):
 
 class PrintTree:
     @classmethod
-    def plot_tree_strs(
+    def save_tree_strs(
         cls,
         tree_strs: Optional[Dict[str, str]] = None,
         trees: Optional[List[DecisionTree]] = None,
         tree_structure: str = "VERTICAL",
         file_dir: str = "./models",
     ):
-        file_path = os.path.join(file_dir, "trees.txt")
+        file_path = os.path.join(file_dir, "tree_structure.txt")
 
         if tree_strs is None:
             tree_strs = cls.get_tree_strs(trees, tree_structure)
