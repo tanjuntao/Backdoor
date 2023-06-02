@@ -137,15 +137,6 @@ class PassiveTreeParty(BaseModelComponent):
                 self._init_tree_info()  # information for building a new tree
                 self.logger.log("start a new tree")
 
-                self.logger.log_component(
-                    name=Const.VERTICAL_SBT,
-                    status=Const.RUNNING,
-                    begin=start_time,
-                    end=time.time(),
-                    duration=time.time() - start_time,
-                    progress=0.5,  # passive party does not know the total tree number
-                )
-
             elif data["name"] == "hist":
                 sample_tag = data["content"]
                 bin_gh_data = self._get_hist(sample_tag)
@@ -192,14 +183,6 @@ class PassiveTreeParty(BaseModelComponent):
             elif data["name"] == "train finished" and data["content"] is True:
                 if self.saving_model:
                     self.save_model()
-                self.logger.log_component(
-                    name=Const.VERTICAL_SBT,
-                    status=Const.SUCCESS,
-                    begin=start_time,
-                    end=time.time(),
-                    duration=time.time() - start_time,
-                    progress=1.0,
-                )
                 self.logger.log("train finished")
                 break
 
@@ -259,7 +242,7 @@ class PassiveTreeParty(BaseModelComponent):
             dataset, NumpyDataset
         ), "inference dataset should be an instance of NumpyDataset"
 
-        record, feature_importance_info = NumpyModelIO.load(model_dir, model_name)
+        record, feature_importance_info, _ = NumpyModelIO.load(model_dir, model_name)
 
         features = dataset.features
         while True:
@@ -417,20 +400,35 @@ class PassiveTreeParty(BaseModelComponent):
         return result
 
     def save_model(self):
-        NumpyModelIO.save(
-            [self.record, self.feature_importance_info],
-            self.model_dir,
-            self.model_name,
-        )
+        model_arch = self.get_model_structure()
+        saved_data = [
+            self.record,
+            self.feature_importance_info,
+            model_arch,     # set for LinkeFL-Servicer's func "modelio"
+        ]
+        NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
+
         self.logger.log(f"Save model {self.model_name} success.")
 
     def load_model(self, model_dir, model_name):
+        # record, feature_importance_info, _ = NumpyModelIO.load(model_dir, model_name)
         record, feature_importance_info = NumpyModelIO.load(model_dir, model_name)
         self.record = record
         self.feature_importance_info = feature_importance_info
         self.logger.log(f"Load model {model_name} success.")
 
-    def save_model_structure(self):
+    def get_model_structure(self):
         df_record = pd.DataFrame(self.record)
-        print(df_record)
+        df_record.columns = ["feature_id", "threshold"]
+        df_record["feature_id"] = df_record["feature_id"].astype(int)
+
+        file_path = os.path.join(self.model_dir, "tree_record.txt")
+        with open(file_path, "w") as f:
+            print(df_record, file=f)
+
+        # convert pd.Dataframe to str
+        with open(file_path, "r") as f:
+            model_arch = f.read()
+
+        return model_arch
 

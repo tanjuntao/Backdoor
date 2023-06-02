@@ -348,9 +348,6 @@ class ActiveTreeParty(BaseModelComponent):
         # save model and training fig.
         if self.saving_model:
             self.save_model()
-            PrintTree.plot_tree_strs(
-                trees=self.trees, tree_structure="VERTICAL", file_dir=self.pics_dir
-            )
             Plot.plot_importance(self, importance_type="split", file_dir=self.pics_dir)
             metrics_record.save_mertic_pics(
                 labels=testset.labels, y_preds=outputs_test, pics_dir=self.pics_dir
@@ -434,6 +431,7 @@ class ActiveTreeParty(BaseModelComponent):
             n_labels,
             learning_rate,
             feature_importance_info,
+            model_arch,
         ) = NumpyModelIO.load(model_dir, model_name)
 
         model = ActiveTreeParty(
@@ -476,14 +474,19 @@ class ActiveTreeParty(BaseModelComponent):
         self.logger.log(f"Remove useless information done.")
 
         model_params = [(tree.record, tree.root) for tree in self.trees]
+        model_arch = PrintTree.get_tree_strs(
+            trees=self.trees, tree_structure="VERTICAL"
+        )
         saved_data = [
             model_params,
             self.task,
             self.n_labels,
             self.learning_rate,
             self.feature_importance_info,
+            model_arch,     # set for LinkeFL-Servicer's func "modelio"
         ]
         NumpyModelIO.save(saved_data, self.model_dir, self.model_name)
+        PrintTree.save_tree_strs(tree_strs=model_arch, file_dir=self.pics_dir)
         self.logger.log(f"Save model {self.model_name} success.")
 
     def load_model(
@@ -497,6 +500,7 @@ class ActiveTreeParty(BaseModelComponent):
             n_labels,
             learning_rate,
             feature_importance_info,
+            model_arch,
         ) = NumpyModelIO.load(model_path, model_name)
 
         self.task = (task,)
