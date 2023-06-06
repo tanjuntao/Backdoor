@@ -10,12 +10,13 @@ public key and the encrpytion of m1 and m2, one can compute the encryption of m1
 import functools
 import math
 import multiprocessing.pool
+import os
 import random
 import time
 import warnings
 from multiprocessing import Manager
 from multiprocessing.pool import Pool, ThreadPool
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import gmpy2
 import numpy as np
@@ -860,88 +861,7 @@ class FastPaillier(BaseCryptoSystem):
         return self.priv_key_obj.raw_decrypt_data(encrypted_data, pool)
 
 
-def cipher_matmul(
-    cipher_matrix: np.ndarray,
-    plain_matrix: np.ndarray,
-    executor_pool: ThreadPool,
-    scheduler_pool: ThreadPool,
-) -> np.ndarray:
-    """
-
-    Parameters
-    ----------
-    cipher_matrix
-    plain_matrix
-    executor_pool
-    scheduler_pool
-
-    Returns
-    -------
-
-    """
-    assert cipher_matrix.shape[1] == plain_matrix.shape[0], (
-        "Matrix shape dismatch error. cipher_matrix shape is {}, plain_matrix shape"
-        " is {}".format(cipher_matrix.shape, plain_matrix.shape)
-    )
-
-    if executor_pool is None and scheduler_pool is None:
-        return np.matmul(cipher_matrix, plain_matrix)
-
-    result_matrix = []
-    for i in range(len(cipher_matrix)):
-        curr_result = _cipher_mat_vec_product(
-            cipher_vector=cipher_matrix[i],
-            plain_matrix=plain_matrix,
-            executor_pool=executor_pool,
-            scheduler_pool=scheduler_pool,
-        )
-        result_matrix.append(curr_result)
-
-    return np.array(result_matrix)
-
-
-def _cipher_mat_vec_product(cipher_vector, plain_matrix, executor_pool, scheduler_pool):
-    height, width = plain_matrix.shape
-
-    # 1. multiply each raw of plain_matrix with its corresponding enc value
-    enc_result = [None] * height
-    data_size = height
-    n_schedulers = scheduler_pool._processes
-    quotient = data_size // n_schedulers
-    remainder = data_size % n_schedulers
-    async_results = []
-    for idx in range(n_schedulers):
-        start = idx * quotient
-        end = (idx + 1) * quotient
-        if idx == n_schedulers - 1:
-            end += remainder
-        # this will modify enc_result in place
-        result = scheduler_pool.apply_async(
-            _target_row_mul,
-            args=(cipher_vector, plain_matrix, enc_result, start, end, executor_pool),
-        )
-        async_results.append(result)
-    for result in async_results:
-        assert result.get() is True
-
-    # 2. summation alone the vertical axis
-    # Note: when summing each column of enc_result, using a simple for-loop will be
-    # faster than using multiprocessing, this may be because the parameters need to be
-    # pickled and transferred to child processes, which is time-consuming.
-    enc_result = np.array(enc_result)
-    avg_result = [fast_add_ciphers(enc_result[:, i]) for i in range(width)]
-
-    return np.array(avg_result)
-
-
-def _target_row_mul(enc_vector, plain_matrix, enc_result, start, end, executor_pool):
-    for k in range(start, end):
-        enc_row = fast_mul_ciphers(plain_matrix[k], enc_vector[k], executor_pool)
-        enc_result[k] = enc_row
-    return True
-
-
-def fast_add_ciphers(
+def fast_cipher_sum(
     cipher_vector: Union[List[EncryptedNumber], np.ndarray]
 ) -> EncryptedNumber:
     """
@@ -989,67 +909,158 @@ def fast_add_ciphers(
     return EncryptedNumber(public_key, int(final_cipher), min_exp)
 
 
-def fast_mul_ciphers(
-    plain_vector: Union[List[EncodedNumber], np.ndarray],
+def fast_cipher_matmul(
+    cipher_matrix: np.ndarray,
+    encode_matrix: np.ndarray,
+    encode_mappings: List[Dict[str, List[int]]],
+    executor_pool: ThreadPool,
+    scheduler_pool: ThreadPool,
+) -> np.ndarray:
+    """
+
+    Parameters
+    ----------
+    cipher_matrix
+    encode_matrix
+    encode_mappings
+    executor_pool
+    scheduler_pool
+
+    Returns
+    -------
+
+    """
+    assert cipher_matrix.shape[1] == encode_matrix.shape[0], (
+        "Matrix shape dismatch error. cipher_matrix shape is {}, encode_matrix shape"
+        " is {}".format(cipher_matrix.shape, encode_matrix.shape)
+    )
+
+    if executor_pool is None and scheduler_pool is None:
+        return np.matmul(cipher_matrix, encode_matrix)
+
+    result_matrix = []
+    for i in range(len(cipher_matrix)):
+        curr_result = _cipher_mat_vec_product(
+            cipher_vector=cipher_matrix[i],
+            encode_matrix=encode_matrix,
+            encode_mappings=encode_mappings,
+            executor_pool=executor_pool,
+            scheduler_pool=scheduler_pool,
+        )
+        result_matrix.append(curr_result)
+
+    return np.array(result_matrix)
+
+
+def _cipher_mat_vec_product(
+    cipher_vector, encode_matrix, encode_mappings, executor_pool, scheduler_pool
+):
+    height, width = encode_matrix.shape
+
+    # 1. multiply each raw of plain_matrix with its corresponding enc value
+    enc_result = [None] * height
+    data_size = height
+    n_schedulers = scheduler_pool._processes
+    quotient = data_size // n_schedulers
+    remainder = data_size % n_schedulers
+    async_results = []
+    for idx in range(n_schedulers):
+        start = idx * quotient
+        end = (idx + 1) * quotient
+        if idx == n_schedulers - 1:
+            end += remainder
+        # this will modify enc_result in place
+        result = scheduler_pool.apply_async(
+            _target_row_mul,
+            args=(
+                cipher_vector,
+                encode_matrix,
+                encode_mappings,
+                enc_result,
+                start,
+                end,
+                executor_pool,
+            ),
+        )
+        async_results.append(result)
+    for result in async_results:
+        assert result.get() is True
+
+    # 2. summation alone the vertical axis
+    # Note: when summing each column of enc_result, using a simple for-loop will be
+    # faster than using multiprocessing, this may be because the parameters need to be
+    # pickled and transferred to child processes, which is time-consuming.
+    enc_result = np.array(enc_result)
+    avg_result = [fast_cipher_sum(enc_result[:, i]) for i in range(width)]
+
+    return np.array(avg_result)
+
+
+def _target_row_mul(
+    enc_vector, encode_matrix, encode_mappings, enc_result, start, end, executor_pool
+):
+    for k in range(start, end):
+        enc_row = fast_cipher_mul(
+            encode_matrix[k], enc_vector[k], encode_mappings[k], executor_pool
+        )
+        enc_result[k] = enc_row
+    return True
+
+
+def fast_cipher_mul(
+    encode_vector: Union[List[EncodedNumber], np.ndarray],
     cipher: EncryptedNumber,
+    encode_mapping: Dict[str, List[int]],
     thread_pool: Optional[ThreadPool] = None,
 ) -> List[Union[EncryptedNumber, None]]:
     """
 
     Parameters
     ----------
-    plain_vector
+    encode_vector
     cipher
+    encode_mapping
     thread_pool
 
     Returns
     -------
 
     """
-    assert type(plain_vector) in (
+    assert type(encode_vector) in (
         list,
         np.ndarray,
-    ), "plain_vector's dtype can only be Python list or Numpy array."
+    ), "encode_vector's dtype can only be Python list or Numpy array."
+    create_pool = False
     if thread_pool is None:
-        n_workers = 2
+        create_pool = True
+        n_workers = os.cpu_count()
         thread_pool = multiprocessing.pool.ThreadPool(n_workers)
     public_key = cipher.public_key
-    n, nsquare, max_int = public_key.n, public_key.nsquare, public_key.max_int
+    nsquare = public_key.nsquare
     ciphertext, exponent = cipher.ciphertext(be_secure=False), cipher.exponent
     ciphertext_inverse = gmpy2.invert(ciphertext, nsquare)
 
-    pos_idxs, neg_idxs = [], []
-    pos_exps, neg_exps = [], []
-    for i, encoded_number in enumerate(plain_vector):
-        encoding = encoded_number.encoding
-        if n - max_int <= encoding:
-            neg_idxs.append(i)
-            neg_exps.append(n - encoding)
-        else:
-            pos_idxs.append(i)
-            pos_exps.append(encoding)
+    pos_idxs, neg_idxs = encode_mapping["pos_idxs"], encode_mapping["neg_idxs"]
+    pos_exps, neg_exps = encode_mapping["pos_exps"], encode_mapping["neg_exps"]
+    pos_result = thread_pool.apply_async(
+        _target_mul_ciphers, args=(ciphertext, pos_exps, nsquare)
+    )
+    neg_result = thread_pool.apply_async(
+        _target_mul_ciphers, args=(ciphertext_inverse, neg_exps, nsquare)
+    )
+    pos_ciphertexts = pos_result.get()
+    neg_ciphertexts = neg_result.get()
 
-    async_results = []
-    for mode in ("pos", "neg"):
-        if mode == "pos":
-            result = thread_pool.apply_async(
-                _target_mul_ciphers, args=(ciphertext, pos_exps, nsquare)
-            )
-        else:
-            result = thread_pool.apply_async(
-                _target_mul_ciphers, args=(ciphertext_inverse, neg_exps, nsquare)
-            )
-        async_results.append(result)
-    pos_ciphertexts = async_results[0].get()
-    neg_ciphertexts = async_results[1].get()
-
-    result_vector = [None] * len(plain_vector)  # plain_vector is never modified
+    result_vector = [None] * len(encode_vector)  # plain_vector is never modified
     for pos_i, pos_cipher in zip(pos_idxs, pos_ciphertexts):
-        exp = plain_vector[pos_i].exponent + exponent
+        exp = encode_vector[pos_i].exponent + exponent
         result_vector[pos_i] = EncryptedNumber(public_key, int(pos_cipher), exp)
     for neg_i, neg_cipher in zip(neg_idxs, neg_ciphertexts):
-        exp = plain_vector[neg_i].exponent + exponent
+        exp = encode_vector[neg_i].exponent + exponent
         result_vector[neg_i] = EncryptedNumber(public_key, int(neg_cipher), exp)
+
+    if create_pool:
+        thread_pool.close()
 
     return result_vector
 
@@ -1065,7 +1076,7 @@ def encode(
     precision: float = 0.001,
     pool: Optional[Pool] = None,
     num_workers: int = 1,
-) -> np.ndarray:
+) -> Tuple[np.ndarray, List[Dict[str, List[int]]]]:
     """
 
     Parameters
@@ -1080,41 +1091,73 @@ def encode(
     -------
 
     """
-    data_flat = raw_data.flatten()
+    assert len(raw_data.shape) == 2, (
+        "raw_data can only be a numpy array with 2 axis, but got a shape"
+        f" {raw_data.shape} instead."
+    )
+    data_encode = []
+    encode_mappings = []
     # remember to use val.item(), otherwise,
     # "TypeError('argument should be a string or a Rational instance'" will be raised
-    if len(data_flat) < 1000 or (pool is None and num_workers == 1):
-        if len(data_flat) < 1000:
+    if raw_data.size < 1000 or (pool is None and num_workers == 1):
+        if raw_data.size < 1000 and pool is not None:
             warnings.warn(
                 "It's not recommended to use multiprocessing when the number of"
                 " elements inraw_data is less than 1000. Still use single process.",
                 stacklevel=2,
             )
-        data_encode = [
-            EncodedNumber.encode(raw_pub_key, val.item(), precision=precision)
-            for val in data_flat
-        ]
-        return np.array(data_encode).reshape(raw_data.shape)
+        n_rows, n_cols = raw_data.shape
+        for i in range(n_rows):
+            encode_vector, vector_mapping = _target_encode(
+                *raw_data[i],
+                raw_pub_key=raw_pub_key,
+                precision=precision,
+            )
+            data_encode.append(encode_vector)
+            encode_mappings.append(vector_mapping)
+        return np.array(data_encode), encode_mappings
 
     create_pool = False
     if pool is None:
         create_pool = True
         pool = multiprocessing.pool.Pool(num_workers)
 
-    data_encode = pool.map(
+    result = pool.starmap(
         functools.partial(_target_encode, raw_pub_key=raw_pub_key, precision=precision),
-        data_flat,
+        raw_data,
     )
+    for encode_vector, vector_mapping in result:
+        data_encode.append(encode_vector)
+        encode_mappings.append(vector_mapping)
     if create_pool:
         pool.close()
-    return np.array(data_encode).reshape(raw_data.shape)
+    return np.array(data_encode), encode_mappings
 
 
-def _target_encode(value, raw_pub_key, precision):
-    value = value.item()
-    return EncodedNumber.encode(
-        public_key=raw_pub_key, scalar=value, precision=precision
-    )
+def _target_encode(*vector, raw_pub_key, precision):
+    n, max_int = raw_pub_key.n, raw_pub_key.max_int
+    pos_idxs, neg_idxs = [], []
+    pos_exps, neg_exps = [], []
+    encode_vector = []
+
+    for i, value in enumerate(vector):
+        encode_number = EncodedNumber.encode(raw_pub_key, value, precision=precision)
+        encode_vector.append(encode_number)
+        encoding = encode_number.encoding
+        if n - max_int <= encoding:
+            neg_idxs.append(i)
+            neg_exps.append(n - encoding)
+        else:
+            pos_idxs.append(i)
+            pos_exps.append(encoding)
+    vector_mapping = {
+        "pos_idxs": pos_idxs,
+        "neg_idxs": neg_idxs,
+        "pos_exps": pos_exps,
+        "neg_exps": neg_exps,
+    }
+
+    return encode_vector, vector_mapping
 
 
 if __name__ == "__main__":

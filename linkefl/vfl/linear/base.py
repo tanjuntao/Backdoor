@@ -15,7 +15,7 @@ from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
 from linkefl.common.factory import partial_crypto_factory
 from linkefl.common.log import GlobalLogger
-from linkefl.crypto.paillier import cipher_matmul, encode
+from linkefl.crypto.paillier import encode, fast_cipher_matmul
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
@@ -179,11 +179,11 @@ class BaseLinearPassive(BaseLinear, ABC):
             raise RuntimeError("you should not use pool when crypto type is Plain.")
 
         x_encode = getattr(self, "x_encode")
-        enc_train_grad = cipher_matmul(
-            cipher_matrix=enc_residue[
-                np.newaxis, :
-            ],  # remember to add an addition axis
-            plain_matrix=x_encode[batch_idxes],
+        x_encode_mappings = getattr(self, "x_encode_mappings")
+        enc_train_grad = fast_cipher_matmul(
+            cipher_matrix=enc_residue[np.newaxis, :],
+            encode_matrix=x_encode[batch_idxes],
+            encode_mappings=x_encode_mappings[batch_idxes],
             executor_pool=executor_pool,
             scheduler_pool=scheduler_pool,
         )
@@ -233,7 +233,7 @@ class BaseLinearPassive(BaseLinear, ABC):
         if self.crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
             print("encoding dataset...")
             begin_time = time.time()
-            x_encode = encode(
+            x_encode, x_encode_mappings = encode(
                 raw_data=getattr(self, "x_train"),
                 raw_pub_key=public_key,
                 precision=self.encode_precision,
@@ -242,6 +242,7 @@ class BaseLinearPassive(BaseLinear, ABC):
             print("Done!")
             print(colored("encoding time: {}".format(time.time() - begin_time), "red"))
             setattr(self, "x_encode", x_encode)
+            setattr(self, "x_encode_mappings", np.array(x_encode_mappings))
 
         bs = self.batch_size if self.batch_size != -1 else trainset.n_samples
         n_samples = trainset.n_samples
