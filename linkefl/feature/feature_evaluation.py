@@ -28,7 +28,11 @@ class FeatureEvaluation(object):
         max_num_features_plot: int = 25,
         pic_path: str = "./eval_results",
     ):
-        """Measure feature importance based on tree model."""
+        """Measure feature importance based on tree model.
+        
+        Return:
+            importances: list, the importance score corresponding to each feature
+        """
 
         # 0. param check
         assert isinstance(
@@ -53,7 +57,6 @@ class FeatureEvaluation(object):
         # 2. feature evaluation
         if evaluation_way == "xgboost":
             importances = model.feature_importances_
-            ranking = np.argsort(importances)[::-1]
 
             if save_pic:
                 xgb.plot_importance(
@@ -77,7 +80,6 @@ class FeatureEvaluation(object):
                 importances = np.mean(
                     np.abs(shap_values.values), axis=0
                 )  # summation along the vertical axis
-                ranking = np.argsort(importances)[::-1]
             elif task == "multi":
                 # in multiclass case, shape of shap_values is
                 # (n_samples, n_features, n_classes)
@@ -87,11 +89,11 @@ class FeatureEvaluation(object):
                 importances = np.mean(
                     np.mean(np.abs(shap_values.values), axis=2), axis=0
                 )
-                ranking = np.argsort(importances)[::-1]
         else:
             raise ValueError("Unsupported evaluation way.")
 
-        return importances, ranking
+        # ranking = np.argsort(importances)[::-1]
+        return list(importances)
 
     @classmethod
     def collinearity_anay(
@@ -102,7 +104,12 @@ class FeatureEvaluation(object):
         max_num_features_plot: int = 5,
         pic_path: str = "./eval_results",
     ):
-        """Using Variance Inflation Factor for characteristic collinearity analysis."""
+        """Using Variance Inflation Factor for characteristic collinearity analysis.
+        
+        Return:
+            corr: List[List], feature_nums * feature_nums, 
+                the collinearity value of corresponding features
+        """
         # 0. param check
         assert isinstance(
             dateset, NumpyDataset
@@ -138,7 +145,7 @@ class FeatureEvaluation(object):
             plt.close()
             print("save collinearity_anay.png success.")
 
-        return corr
+        return corr.tolist()
 
     @classmethod
     def calculate_psi(
@@ -149,6 +156,10 @@ class FeatureEvaluation(object):
         max_num_features_plot: int = 10,
         pic_path: str = "./eval_results",
     ):
+        """
+        Return:
+            psi: list, the psi value corresponding to the feature.
+        """
         psi_all = []
         for i in range(trainset.features.shape[1]):
             psi, _ = cls._calculate_feature_psi(
@@ -331,18 +342,43 @@ if __name__ == "__main__":
     from linkefl.common.const import Const
     from linkefl.dataio import NumpyDataset
 
-    np_dataset = NumpyDataset.from_csv(
-        role=Const.ACTIVE_NAME,
-        abs_path="/Users/tanjuntao/LinkeFL-Servicer/data/电商平台精准营销数据202206.csv",
-        dataset_type=Const.CLASSIFICATION,
-        has_header=False,
-    )
-    print(np_dataset.features.shape)
-    # FeatureEvaluation.tree_importance(np_dataset, pic_path="./")
-    # FeatureEvaluation.collinearity_anay(np_dataset, pic_path="./")
-    # trainset, testset = NumpyDataset.train_test_split(np_dataset, test_size=0.2)
-    # FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
+    dataset_name = "cancer"
+    passive_feat_frac = 0.8
+    feat_perm_option = Const.SEQUENCE
 
-    np_dataset01 = NumpyDataset.feature_split(np_dataset, n_splits=10)[1]
-    print(np_dataset01.features.shape, np_dataset01.header)
-    np_dataset01.describe()
+    trainset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root="../vfl/data",
+        train=True,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+    testset = NumpyDataset.buildin_dataset(
+        role=Const.ACTIVE_NAME,
+        dataset_name=dataset_name,
+        root="../vfl/data",
+        train=False,
+        download=True,
+        passive_feat_frac=passive_feat_frac,
+        feat_perm_option=feat_perm_option,
+    )
+
+    # np_dataset01 = NumpyDataset.feature_split(trainset, n_splits=10)[1]
+    # print(np_dataset01.features.shape, np_dataset01.header)
+    # np_dataset01.describe()
+
+    # test1
+    # importances = FeatureEvaluation.tree_importance(trainset, pic_path="./")
+    # print(importances, type(importances))
+
+    # test2
+    # corr = FeatureEvaluation.collinearity_anay(trainset, pic_path="./")
+    # print(corr, type(corr))
+
+    # test3
+    # psi = FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
+    # print(psi, type(psi))
+
+    
