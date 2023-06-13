@@ -90,6 +90,7 @@ class ActiveTreeParty(BaseModelComponent):
         """
 
         self._check_parameters(
+            logger,
             training_mode,
             task,
             n_labels,
@@ -180,8 +181,9 @@ class ActiveTreeParty(BaseModelComponent):
             "cover": defaultdict(float),  # Total sample covered
         }
 
+    @staticmethod
     def _check_parameters(
-        self,
+        logger,
         training_mode,
         task,
         n_labels,
@@ -209,7 +211,7 @@ class ActiveTreeParty(BaseModelComponent):
 
         if task == "multi":
             if compress is True:
-                self.logger.log(
+                logger.log(
                     "compress should be set only when task is binary",
                     level="warning",
                 )
