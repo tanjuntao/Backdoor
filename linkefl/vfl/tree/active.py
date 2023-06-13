@@ -588,8 +588,10 @@ class ActiveTreeParty(BaseModelComponent):
             outputs = raw_outputs
         elif self.task == "binary":
             outputs = sigmoid(raw_outputs)
+            outputs = (outputs > 0.5).astype(np.int32)
         elif self.task == "multi":
             outputs = softmax(raw_outputs, axis=1)
+            outputs = outputs.argmax(axis=1)
         else:
             raise ValueError("No such task label.")
 
