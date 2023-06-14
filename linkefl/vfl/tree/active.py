@@ -564,6 +564,10 @@ class ActiveTreeParty(BaseModelComponent):
             model.trees[i].root = root
 
         preds = model._pred(dataset)
+
+        for messenger in messengers:
+            messenger.send(wrap_message("validate finished", content=True))
+
         for messenger in messengers:
             messenger.send(preds)
         return preds
