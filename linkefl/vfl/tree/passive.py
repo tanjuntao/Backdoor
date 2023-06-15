@@ -418,6 +418,8 @@ class PassiveTreeParty(BaseModelComponent):
         self.logger.log(f"Load model {model_name} success.")
 
     def get_model_structure(self):
+        if self.record is None:
+            self.record = np.array([-1, -1]).reshape(1, 2)
         df_record = pd.DataFrame(self.record)
         df_record.columns = ["feature_id", "threshold"]
         df_record["feature_id"] = df_record["feature_id"].astype(int)
