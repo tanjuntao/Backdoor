@@ -3,13 +3,11 @@ import datetime
 import multiprocessing
 import multiprocessing.pool
 import os
-import random
 import time
 from abc import ABC, abstractmethod
 
 import numpy as np
 from phe import EncodedNumber
-from termcolor import colored
 
 from linkefl.common.const import Const
 from linkefl.common.factory import (
@@ -18,7 +16,7 @@ from linkefl.common.factory import (
     partial_crypto_factory,
 )
 from linkefl.config import BaseConfig
-from linkefl.crypto.paillier import fast_add_ciphers, fast_mul_ciphers
+from linkefl.crypto.paillier import fast_cipher_mul, fast_cipher_sum
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 
@@ -278,7 +276,7 @@ class BaseLinearPassive(BaseLinear):
         x_encode, enc_residue, batch_idxes, enc_train_grads, start, end, executor_pool
     ):
         for k in range(start, end):
-            curr_grad = fast_mul_ciphers(
+            curr_grad = fast_cipher_mul(
                 x_encode[batch_idxes[k]],  # remember to obtain the sample index first
                 enc_residue[k],
                 executor_pool,
@@ -290,7 +288,7 @@ class BaseLinearPassive(BaseLinear):
     def _target_grad_add(enc_train_grads, avg_grad, start, end, executor_pool):
         batch_size = len(enc_train_grads[start])
         for k in range(start, end):
-            grad = fast_add_ciphers(enc_train_grads[k], executor_pool)
+            grad = fast_cipher_sum(enc_train_grads[k], executor_pool)
             avg_grad[k] = grad * (-1.0 / batch_size)
         return True
 
@@ -626,7 +624,6 @@ class BaseLinearActive_disconnection(BaseLinearActive):
             task=task,
             world_size=world_size,
         )
-        pass
 
     def _sync_pubkey(self):
         for id in range(self.world_size):

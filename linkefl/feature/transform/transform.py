@@ -108,7 +108,7 @@ class AddIntercept(BaseTransformComponent):
                 dataset = np.concatenate(
                     (dataset, np.ones(n_samples)[:, np.newaxis]),
                     axis=1,
-                    dtype=np.float128,  # important: preserve precision of id column
+                    # dtype=np.float128,  # important: preserve precision of id column
                 )
             else:
                 pass  # no need to append an intercept column for passive party dataset

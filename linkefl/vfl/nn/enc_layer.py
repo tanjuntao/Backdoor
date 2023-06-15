@@ -1,5 +1,4 @@
 import multiprocessing
-import os
 from typing import Optional
 
 import numpy as np
@@ -7,7 +6,7 @@ import torch
 
 from linkefl.base import BaseCryptoSystem, BaseMessenger, BasePartialCryptoSystem
 from linkefl.common.const import Const
-from linkefl.crypto.paillier import cipher_matmul, encode
+from linkefl.crypto.paillier import encode, fast_cipher_matmul
 
 
 class PassiveEncLayer:
@@ -121,15 +120,16 @@ class ActiveEncLayer:
     def fed_forward(self):
         enc_a = self.messenger.recv()  # is a numpy array, shape: (bs, input_nodes)
         self.curr_enc_a = enc_a
-        w_tilde_encode = encode(
+        w_tilde_encode, encode_mappings = encode(
             raw_data=self.w_tilde,
             raw_pub_key=self.cryptosystem.pub_key,
             precision=self.encode_precision,
             pool=self.encode_pool,
         )
-        enc_z_tilde = cipher_matmul(
+        enc_z_tilde = fast_cipher_matmul(
             cipher_matrix=enc_a,
-            plain_matrix=w_tilde_encode,
+            encode_matrix=w_tilde_encode,
+            encode_mappings=encode_mappings,
             executor_pool=self.thread_pool,
             scheduler_pool=self.scheduler_pool,
         )
@@ -138,15 +138,23 @@ class ActiveEncLayer:
 
     def fed_backward(self, grad):
         grad = grad.cpu().numpy()
-        grad_encode = encode(
+        grad_transpose = grad.transpose()
+        grad_encode, grad_mappings = encode(
             raw_data=grad,
             raw_pub_key=self.cryptosystem.pub_key,
             precision=self.encode_precision,
             pool=self.encode_pool,
         )
-        enc_w_tilde_grad = cipher_matmul(
+        grad_transpose_encode, grad_transpose_mappings = encode(
+            raw_data=grad_transpose,
+            raw_pub_key=self.cryptosystem.pub_key,
+            precision=self.encode_precision,
+            pool=self.encode_pool,
+        )
+        enc_w_tilde_grad = fast_cipher_matmul(
             cipher_matrix=self.curr_enc_a.transpose(),
-            plain_matrix=grad_encode,
+            encode_matrix=grad_encode,
+            encode_mappings=grad_mappings,
             executor_pool=self.thread_pool,
             scheduler_pool=self.scheduler_pool,
         )
@@ -155,9 +163,10 @@ class ActiveEncLayer:
 
         w_tilde_grad, enc_w_acc = self.messenger.recv()
 
-        enc_a_grad_noise = cipher_matmul(
+        enc_a_grad_noise = fast_cipher_matmul(
             cipher_matrix=enc_w_acc,
-            plain_matrix=grad_encode.transpose(),
+            encode_matrix=grad_transpose_encode,
+            encode_mappings=grad_transpose_mappings,
             executor_pool=self.thread_pool,
             scheduler_pool=self.scheduler_pool,
         )
