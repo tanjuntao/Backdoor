@@ -93,7 +93,8 @@ class FeatureEvaluation(object):
             raise ValueError("Unsupported evaluation way.")
 
         # ranking = np.argsort(importances)[::-1]
-        return list(importances)
+        importances = importances.tolist()
+        return importances
 
     @classmethod
     def collinearity_anay(
@@ -145,7 +146,8 @@ class FeatureEvaluation(object):
             plt.close()
             print("save collinearity_anay.png success.")
 
-        return corr.tolist()
+        corr = corr.tolist()
+        return corr
 
     @classmethod
     def calculate_psi(
@@ -341,6 +343,22 @@ class FeatureEvaluation(object):
 if __name__ == "__main__":
     from linkefl.common.const import Const
     from linkefl.dataio import NumpyDataset
+    import json
+
+    class JsonParams:
+        def __init__(self):
+            pass
+
+        @classmethod
+        def from_json(cls, json_data):
+            obj = cls()
+            obj.__dict__.update(json_data)
+            return obj
+
+    def json2object(json_params: dict):
+        # ref: converting nested json into python object
+        # https://stackoverflow.com/a/43776386/8418540
+        return json.loads(json.dumps(json_params), object_hook=JsonParams.from_json)
 
     dataset_name = "cancer"
     passive_feat_frac = 0.8
@@ -370,15 +388,19 @@ if __name__ == "__main__":
     # np_dataset01.describe()
 
     # test1
-    # importances = FeatureEvaluation.tree_importance(trainset, pic_path="./")
-    # print(importances, type(importances))
+    importances = FeatureEvaluation.tree_importance(trainset, pic_path="./")
+    print(importances, type(importances))
 
     # test2
-    # corr = FeatureEvaluation.collinearity_anay(trainset, pic_path="./")
-    # print(corr, type(corr))
+    corr = FeatureEvaluation.collinearity_anay(trainset, pic_path="./")
+    print(corr, type(corr))
 
     # test3
-    # psi = FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
-    # print(psi, type(psi))
+    psi = FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
+    print(psi, type(psi))
 
+    data = {"product": "test", "anay_data": {"importances": importances, "corr": corr, "psi": psi}}
+    params = json2object(data)
+    print(type(params), type(params.anay_data))
+    print(params.anay_data.psi)
     
