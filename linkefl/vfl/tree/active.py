@@ -466,7 +466,16 @@ class ActiveTreeParty(BaseModelComponent):
         for messenger in messengers:
             messenger.send(preds)
 
-        return preds
+        if task == "regression":
+            results = preds
+        elif task == "binary":
+            results = sigmoid(preds)
+        elif task == "multi":
+            results = np.array(preds).argmax(axis=1)
+        else:
+            raise ValueError("Not support task.")
+
+        return list(results)
 
     def save_model(self):
         for tree in self.trees:
