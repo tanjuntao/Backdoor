@@ -93,7 +93,8 @@ class FeatureEvaluation(object):
             raise ValueError("Unsupported evaluation way.")
 
         # ranking = np.argsort(importances)[::-1]
-        return list(importances)
+        importances = importances.tolist()
+        return importances
 
     @classmethod
     def collinearity_anay(
@@ -119,6 +120,7 @@ class FeatureEvaluation(object):
         if evaluation_way == "pearson" or evaluation_way == "spearman":
             features = pd.DataFrame(dateset.features)
             corr = features.corr(method=f"{evaluation_way}")
+            corr = corr.fillna(0)       # "nan" cannot be processed by json.
         elif evaluation_way == "vif":
             # todo: to be write.
             raise NotImplementedError("to be done.")
@@ -145,7 +147,8 @@ class FeatureEvaluation(object):
             plt.close()
             print("save collinearity_anay.png success.")
 
-        return corr.tolist()
+        corr = corr.tolist()
+        return corr
 
     @classmethod
     def calculate_psi(
@@ -263,6 +266,11 @@ class FeatureEvaluation(object):
 
         return psi, stat_df
 
+    def _deal_nan(self, data, set_val = -1):
+        index = np.isnan(data)
+        data[index] = set_val
+        return data
+
     @classmethod
     def _plot_bar(
         cls,
@@ -341,15 +349,31 @@ class FeatureEvaluation(object):
 if __name__ == "__main__":
     from linkefl.common.const import Const
     from linkefl.dataio import NumpyDataset
+    import json
 
-    dataset_name = "cancer"
+    class JsonParams:
+        def __init__(self):
+            pass
+
+        @classmethod
+        def from_json(cls, json_data):
+            obj = cls()
+            obj.__dict__.update(json_data)
+            return obj
+
+    def json2object(json_params: dict):
+        # ref: converting nested json into python object
+        # https://stackoverflow.com/a/43776386/8418540
+        return json.loads(json.dumps(json_params), object_hook=JsonParams.from_json)
+
+    dataset_name = "diabetes"
     passive_feat_frac = 0.8
     feat_perm_option = Const.SEQUENCE
 
     trainset = NumpyDataset.buildin_dataset(
         role=Const.ACTIVE_NAME,
         dataset_name=dataset_name,
-        root="../vfl/data",
+        root="../vfl/diabetes",
         train=True,
         download=True,
         passive_feat_frac=passive_feat_frac,
@@ -370,15 +394,20 @@ if __name__ == "__main__":
     # np_dataset01.describe()
 
     # test1
-    # importances = FeatureEvaluation.tree_importance(trainset, pic_path="./")
-    # print(importances, type(importances))
+    importances = FeatureEvaluation.tree_importance(trainset, pic_path="./")
+    print(importances, type(importances))
 
     # test2
-    # corr = FeatureEvaluation.collinearity_anay(trainset, pic_path="./")
-    # print(corr, type(corr))
+    corr = FeatureEvaluation.collinearity_anay(trainset, pic_path="./")
+    print(corr, type(corr))
 
     # test3
+    psi = [np.nan]* 3
     # psi = FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
     # print(psi, type(psi))
 
+    data = {"product": "test", "anay_data": {"importances": importances, "corr": corr, "psi": psi}}
+    params = json2object(data)
+    print(type(params), type(params.anay_data))
+    print(params.anay_data.psi)
     

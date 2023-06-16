@@ -12,7 +12,8 @@ from linkefl.common.log import GlobalLogger
 from linkefl.dataio import NumpyDataset
 from linkefl.modelio import NumpyModelIO
 from linkefl.vfl.linear.base import BaseLinearActive
-from linkefl.vfl.tree.plotting import Plot
+# from linkefl.vfl.tree.plotting import Plot
+from linkefl.vfl.utils.evaluate import Plot
 
 
 class ActiveLinReg(BaseLinearActive, BaseModelComponent):
