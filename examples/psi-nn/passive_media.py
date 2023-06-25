@@ -5,20 +5,29 @@ from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory
 from linkefl.dataio import MediaDataset
 from linkefl.messenger import FastSocket
-from linkefl.modelzoo import CutLayer, ResNet18
+from linkefl.modelzoo import *
 from linkefl.vfl.nn import PassiveNeuralNetwork
+from linkefl.modelzoo.security_model import resnet20
+
+# seed = 0
+# torch.manual_seed(seed)
+# torch.cuda.manual_seed(seed)
+# torch.cuda.manual_seed_all(seed)
+# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.benchmark = False
+
 
 if __name__ == "__main__":
     # 0. Set parameters
     _dataset_dir = "data"
-    _dataset_name = "mnist"
+    _dataset_name = "cifar10"
     _active_ip = "localhost"
     _active_port = 20000
     _passive_ip = "localhost"
     _passive_port = 30000
     _epochs = 50
-    _batch_size = 256
-    _learning_rate = 0.001
+    _batch_size = 128
+    _learning_rate = 0.1
     _crypto_type = Const.PLAIN
     _key_size = 1024
     _logger = logger_factory(role=Const.PASSIVE_NAME)
@@ -60,7 +69,8 @@ if __name__ == "__main__":
 
     # 2. VFL training
     print(colored("2. Passive party started training...", "red"))
-    bottom_model = ResNet18(in_channel=1).to(_device)
+    bottom_model = ResNet18(in_channel=3).to(_device)
+    # bottom_model = resnet20().to(_device)
     cut_layer = CutLayer(*_cut_nodes, random_state=_random_state).to(_device)
     _models = {"bottom": bottom_model, "cut": cut_layer}
     _optimizers = {

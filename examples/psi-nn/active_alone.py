@@ -3,28 +3,16 @@ from termcolor import colored
 from torch import nn
 
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory,messenger_factory
+from linkefl.common.factory import logger_factory
 from linkefl.dataio import MediaDataset
-from linkefl.messenger import FastSocket
-from linkefl.modelzoo import MLP, CutLayer, ResNet18
+from linkefl.modelzoo import *
 from linkefl.vfl.nn import ActiveNeuralNetwork
-
-# seed = 0
-# torch.manual_seed(seed)
-# torch.cuda.manual_seed(seed)
-# torch.cuda.manual_seed_all(seed)
-# torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = False
 
 
 if __name__ == "__main__":
     # 0. Set parameters
     _dataset_dir = "data"
     _dataset_name = "cifar10"
-    _active_ips = ["localhost"]
-    _active_ports = [20000]
-    _passive_ips = ["localhost"]
-    _passive_ports = [30000]
     _epochs = 50
     _batch_size = 128
     _learning_rate = 0.1
@@ -36,19 +24,6 @@ if __name__ == "__main__":
     _n_classes = 10
     _top_nodes = [10, _n_classes]
     _logger = logger_factory(role=Const.ACTIVE_NAME)
-    _messengers = [
-        messenger_factory(
-            messenger_type=Const.FAST_SOCKET,
-            role=Const.ACTIVE_NAME,
-            active_ip=ac_ip,
-            active_port=ac_port,
-            passive_ip=pass_ip,
-            passive_port=pass_port,
-        )
-        for ac_ip, ac_port, pass_ip, pass_port in zip(
-            _active_ips, _active_ports, _passive_ips, _passive_ports
-        )
-    ]
 
     # 1. Load dataset
     active_trainset = MediaDataset(
@@ -92,7 +67,7 @@ if __name__ == "__main__":
         models=_models,
         optimizers=_optimizers,
         loss_fn=_loss_fn,
-        messengers=_messengers,
+        messengers=None,
         logger=_logger,
         device=_device,
         num_workers=1,
@@ -100,9 +75,5 @@ if __name__ == "__main__":
         random_state=_random_state,
         saving_model=_saving_model,
     )
-    active_party.train(active_trainset, active_testset)
+    active_party.train_alone(active_trainset, active_testset)
     print(colored("3. Active party finished vfl_nn training.", "red"))
-
-    # 3. Close messenger, finish training
-    for messenger in _messengers:
-        messenger.close()
