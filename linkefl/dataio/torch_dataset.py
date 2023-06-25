@@ -12,14 +12,14 @@ from linkefl.dataio.common_dataset import CommonDataset
 
 class TorchDataset(CommonDataset, Dataset):
     def __init__(
-        self,
-        *,
-        role: str,
-        raw_dataset: Union[np.ndarray, torch.Tensor],
-        header: List[str],
-        dataset_type: str,
-        transform: Optional[BaseTransformComponent] = None,
-        header_type: Optional[List[str]] = None,
+            self,
+            *,
+            role: str,
+            raw_dataset: Union[np.ndarray, torch.Tensor],
+            header: List[str],
+            dataset_type: str,
+            transform: Optional[BaseTransformComponent] = None,
+            header_type: Optional[List[str]] = None,
     ):
         if isinstance(raw_dataset, np.ndarray):
             # PyTorch forward() function expects tensor type of Float rather Double,
@@ -41,7 +41,7 @@ class TorchDataset(CommonDataset, Dataset):
 
     @staticmethod
     def _load_buildin_dataset(
-        role, name, root, train, download, frac, perm_option, seed=None
+            role, name, root, train, download, frac, perm_option, seed=None
     ):
         if name not in Const.PYTORCH_DATASET:
             # the following answer shows how to call staticmethod in superclass:
@@ -180,49 +180,55 @@ class TorchDataset(CommonDataset, Dataset):
 
 class MediaDataset(TorchDataset, Dataset):
     def __init__(
-        self,
-        *,
-        role: str,
-        dataset_name: str,
-        root: str,
-        train: bool,
-        download: bool = False,
+            self,
+            *,
+            role: str,
+            dataset_name: str,
+            root: str,
+            train: bool,
+            download: bool = False,
     ):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
         assert dataset_name in (
             "cifar10",
             "mnist",
             "fashion_mnist",
-        ), "not supported dataset"
+        ), f"{dataset_name} is not supported right now."
 
         self.role = role
-        self._prepare_data(
-            role=role, name=dataset_name, root=root, train=train, download=download
+        buildin_dataset, _labels = self._prepare_data(
+            name=dataset_name, root=root, train=train, download=download
         )
-
-    def __len__(self):
-        return getattr(self, "_features").shape[0]
-
-    def __getitem__(self, idx):
-        if self.role == Const.ACTIVE_NAME:
-            return getattr(self, "_features")[idx], getattr(self, "_labels")[idx]
-        else:
-            return getattr(self, "_features")[idx]
+        self.buildin_dataset = buildin_dataset
+        setattr(self, "_labels", _labels)
+        self.seed_maps = {idx: 0 for idx in range(len(self.buildin_dataset))}
 
     @property
     def labels(self):
         return getattr(self, "_labels")
 
-    def _prepare_data(self, role, name, root, train, download):
+    def __len__(self):
+        return len(self.buildin_dataset)
+
+    def __getitem__(self, idx):
+        transform_seed = self.seed_maps[idx]
+        torch.manual_seed(transform_seed)  # set seed for torchvision transform
+        self.seed_maps[idx] += 1  # change seed for next epoch
+        image, label = self.buildin_dataset[idx]  # torchvision transform is done here
+        if self.role == Const.ACTIVE_NAME:
+            return image[:, :16, :], label  # first half
+        else:
+            return image[:, 16:, :]  # second half
+
+    def _prepare_data(self, name, root, train, download):
         from torchvision import datasets, transforms
-        from tqdm import trange
 
         # prepare transforms and load buildin dataset
         if name == "cifar10":
             if train:
                 transform = transforms.Compose(
                     [
-                        transforms.Resize((64, 32)),
+                        transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
                         transforms.ToTensor(),
                         transforms.Normalize(
@@ -233,7 +239,6 @@ class MediaDataset(TorchDataset, Dataset):
             else:
                 transform = transforms.Compose(
                     [
-                        transforms.Resize((64, 32)),
                         transforms.ToTensor(),
                         transforms.Normalize(
                             (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
@@ -249,7 +254,7 @@ class MediaDataset(TorchDataset, Dataset):
             if train:
                 transform = transforms.Compose(
                     [
-                        transforms.Resize((64, 32)),
+                        transforms.Resize(32),
                         transforms.RandomHorizontalFlip(),
                         transforms.ToTensor(),
                         transforms.Normalize((0.1307,), (0.3081,)),
@@ -258,7 +263,7 @@ class MediaDataset(TorchDataset, Dataset):
             else:
                 transform = transforms.Compose(
                     [
-                        transforms.Resize((64, 32)),
+                        transforms.Resize(32),
                         transforms.ToTensor(),
                         transforms.Normalize((0.1307,), (0.3081,)),
                     ]
@@ -276,23 +281,7 @@ class MediaDataset(TorchDataset, Dataset):
         else:
             raise ValueError("not suported now.")
 
-        # split image
-        n_samples = len(buildin_dataset)
-        imgs = []
-        for i in trange(n_samples):
-            image, _ = buildin_dataset[i]
-            if role == Const.PASSIVE_NAME:
-                image = image[:, :32, :]  # the first half
-            else:
-                image = image[:, 32:, :]  # the second half
-            imgs.append(image)
-        _feats = torch.stack(imgs)  # stack() will create a new dimension
-
-        if role == Const.ACTIVE_NAME:
-            setattr(self, "_features", _feats)
-            setattr(self, "_labels", _labels)
-        else:
-            setattr(self, "_features", _feats)
+        return buildin_dataset, _labels
 
 
 if __name__ == "__main__":
