@@ -4,69 +4,14 @@ from linkefl.modelzoo.util import TorchModuleType, make_nn_module
 
 
 class VGG(nn.Module):
+    # fmt: off
     cfg = {
         "VGG11": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
-        "VGG13": [
-            64,
-            64,
-            "M",
-            128,
-            128,
-            "M",
-            256,
-            256,
-            "M",
-            512,
-            512,
-            "M",
-            512,
-            512,
-            "M",
-        ],
-        "VGG16": [
-            64,
-            64,
-            "M",
-            128,
-            128,
-            "M",
-            256,
-            256,
-            256,
-            "M",
-            512,
-            512,
-            512,
-            "M",
-            512,
-            512,
-            512,
-            "M",
-        ],
-        "VGG19": [
-            64,
-            64,
-            "M",
-            128,
-            128,
-            "M",
-            256,
-            256,
-            256,
-            256,
-            "M",
-            512,
-            512,
-            512,
-            512,
-            "M",
-            512,
-            512,
-            512,
-            512,
-            "M",
-        ],
+        "VGG13": [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],  # noqa: E501
+        "VGG16": [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],  # noqa: E501
+        "VGG19": [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],  # noqa: E501
     }
+    # fmt: on
 
     def __init__(
         self,
@@ -100,7 +45,7 @@ class VGG(nn.Module):
                 layers += [
                     nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
                     nn.BatchNorm2d(x),
-                    self.activation(inplace=True),
+                    nn.ReLU(inplace=True),
                 ]
                 in_channels = x
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]

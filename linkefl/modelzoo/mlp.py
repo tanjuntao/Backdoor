@@ -1,3 +1,4 @@
+import torch.nn.functional as F
 import torch.random
 from torch import nn
 
@@ -30,10 +31,13 @@ class MLP(nn.Module):
         n_layers = len(num_nodes) - 1
         for i in range(n_layers):
             modules.append(nn.Linear(num_nodes[i], num_nodes[i + 1]))
+            modules.append(nn.BatchNorm1d(num_nodes[i + 1]))
             modules.append(self.activation)
         if activate_input:
             modules.insert(0, self.activation)
+            modules.insert(0, nn.BatchNorm1d(num_nodes[0]))
         if not activate_output:
+            modules.pop()
             modules.pop()
         self.sequential = nn.Sequential(*modules)
 
@@ -49,8 +53,9 @@ class CutLayer(nn.Module):
         self.out_nodes = out_nodes
         if random_state is not None:
             torch.random.manual_seed(random_state)
+        self.bn = nn.BatchNorm1d(in_nodes)
         self.linear = nn.Linear(in_nodes, out_nodes)  # no activation
 
     def forward(self, x):
-        outputs = self.linear(x)
+        outputs = self.linear(F.relu(self.bn(x)))
         return outputs
