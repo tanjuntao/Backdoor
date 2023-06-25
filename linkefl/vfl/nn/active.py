@@ -20,6 +20,7 @@ from linkefl.common.log import GlobalLogger
 from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa: F403
+from linkefl.util.progress import progress_bar
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 from linkefl.vfl.utils.evaluate import Plot
 
@@ -43,25 +44,25 @@ def loss_reweight(y):
 
 class ActiveNeuralNetwork(BaseModelComponent):
     def __init__(
-        self,
-        *,
-        epochs: int,
-        batch_size: int,
-        learning_rate: float,
-        models: Dict[str, nn.Module],
-        optimizers: Dict[str, Optimizer],
-        loss_fn: _Loss,
-        messengers: List[BaseMessenger],
-        logger: GlobalLogger,
-        rank: int = 0,
-        num_workers: int = 1,
-        val_freq: int = 1,
-        device: str = "cpu",
-        encode_precision: float = 0.001,
-        random_state: Optional[int] = None,
-        saving_model: bool = False,
-        model_dir: Optional[str] = None,
-        model_name: Optional[str] = None,
+            self,
+            *,
+            epochs: int,
+            batch_size: int,
+            learning_rate: float,
+            models: Dict[str, nn.Module],
+            optimizers: Dict[str, Optimizer],
+            loss_fn: _Loss,
+            messengers: List[BaseMessenger],
+            logger: GlobalLogger,
+            rank: int = 0,
+            num_workers: int = 1,
+            val_freq: int = 1,
+            device: str = "cpu",
+            encode_precision: float = 0.001,
+            random_state: Optional[int] = None,
+            saving_model: bool = False,
+            model_dir: Optional[str] = None,
+            model_name: Optional[str] = None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -78,7 +79,11 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.encode_precision = encode_precision
         self.random_state = random_state
         if random_state is not None:
-            torch.random.manual_seed(random_state)
+            torch.manual_seed(random_state)
+            torch.cuda.manual_seed(random_state)
+            torch.cuda.manual_seed_all(random_state)
+            torch.backends.cudnn.deterministic = True  # important
+            torch.backends.cudnn.benchmark = False
         self.saving_model = saving_model
         if self.saving_model:
             self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -87,12 +92,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 model_dir = os.path.join(default_dir, self.create_time)
             if model_name is None:
                 model_name = (
-                    "{time}-{role}-{algo_name}".format(
-                        time=self.create_time,
-                        role=Const.ACTIVE_NAME,
-                        algo_name=Const.AlgoNames.VFL_NN,
-                    )
-                    + ".model"
+                        "{time}-{role}-{algo_name}".format(
+                            time=self.create_time,
+                            role=Const.ACTIVE_NAME,
+                            algo_name=Const.AlgoNames.VFL_NN,
+                        )
+                        + ".model"
                 )
             self.model_dir = model_dir
             self.model_name = model_name
@@ -114,9 +119,16 @@ class ActiveNeuralNetwork(BaseModelComponent):
         print("Done!")
         return public_key_list, crypto_type_list
 
-    def _init_dataloader(self, dataset, shuffle=False):
+    def _init_dataloader(self, dataset, shuffle=False, num_workers=1,
+                         persistent_workers=True):
         bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
-        dataloader = DataLoader(dataset, batch_size=bs, shuffle=shuffle)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=bs,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            persistent_workers=persistent_workers,
+        )
         return dataloader
 
     def train(self, trainset: TorchDataset, testset: TorchDataset) -> None:
@@ -126,12 +138,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
         assert isinstance(
             testset, TorchDataset
         ), "testset should be an instance of TorchDataset"
-        train_dataloader = self._init_dataloader(trainset)
-        test_dataloader = self._init_dataloader(testset)
+        train_dataloader = self._init_dataloader(trainset, shuffle=True, num_workers=2)
+        test_dataloader = self._init_dataloader(testset, num_workers=2)
 
         public_key_list, crypto_type_list = self._sync_pubkey()
         for idx, (public_key, crypto_type) in enumerate(
-            zip(public_key_list, crypto_type_list)
+                zip(public_key_list, crypto_type_list)
         ):
             cryptosystem = partial_crypto_factory(crypto_type, public_key=public_key)
             if crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
@@ -151,17 +163,18 @@ class ActiveNeuralNetwork(BaseModelComponent):
             self.cryptosystem_list.append(cryptosystem)
             self.enc_layer_list.append(enc_layer)
 
-        for model in self.models.values():
-            model.train()
-
         start_time = time.time()
         best_acc, best_auc = 0.0, 0.0
         train_acc_records, valid_acc_records = [], []
         train_auc_records, valid_auc_records = [], []
         train_loss_records, valid_loss_records = [], []
         for epoch in range(self.epochs):
-            print(f"Epoch: {epoch}")
+            train_loss, correct, total = 0, 0, 0
+            for model in self.models.values():
+                model.train()
             self.logger.log(f"Epoch {epoch} started...")
+            print(f"Epoch: {epoch}")
+            torch.manual_seed(epoch)  # fix dataloader batching order when shuffle=True
             for batch_idx, (X, y) in enumerate(train_dataloader):
                 # 1. forward
                 X = X.to(self.device)
@@ -170,8 +183,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 top_input = active_repr.data
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
-                        Const.PAILLIER,
-                        Const.FAST_PAILLIER,
+                            Const.PAILLIER,
+                            Const.FAST_PAILLIER,
                     ):
                         self.enc_layer_list[idx].fed_forward()
                         passive_repr = msger.recv().to(self.device)
@@ -194,8 +207,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 # send back passive party's gradient
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
-                        Const.PAILLIER,
-                        Const.FAST_PAILLIER,
+                            Const.PAILLIER,
+                            Const.FAST_PAILLIER,
                     ):
                         passive_grad = self.enc_layer_list[idx].fed_backward(
                             top_input.grad
@@ -203,26 +216,25 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         msger.send(passive_grad)
                     else:
                         msger.send(top_input.grad)
-                if batch_idx % 100 == 0:
-                    loss, current = loss.item(), batch_idx * len(X)
-                    print(f"loss: {loss:>7f}  [{current:>5d}/{trainset.n_samples:>5d}]")
+
+                train_loss += loss.item()
+                _, predicted = logits.max(1)
+                total += y.size(0)
+                correct += predicted.eq(y).sum().item()
+                progress_bar(batch_idx, len(train_dataloader),
+                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                             % (train_loss / (batch_idx + 1), 100. * correct / total,
+                                correct, total))
 
             # validate model
             is_best = False
             if (epoch + 1) % self.val_freq == 0:
                 scores = self.validate(testset, existing_loader=test_dataloader)
-                train_scores = self.validate(trainset, existing_loader=train_dataloader)
-                print(
-                    f"Test Error: \n Accuracy: {(100 * scores['acc']):>0.2f}%,"
-                    f" Auc: {(100 * scores['auc']):>0.2f}%,"
-                    f" Avg loss: {scores['loss']:>8f}"
-                )
-
-                train_loss_records.append(train_scores["loss"])
+                train_loss_records.append(train_loss / len(train_dataloader))
                 valid_loss_records.append(scores["loss"])
-                train_auc_records.append(train_scores["auc"])
+                train_auc_records.append(0)  # TODO
                 valid_auc_records.append(scores["auc"])
-                train_acc_records.append(train_scores["acc"])
+                train_acc_records.append(correct / total)
                 valid_acc_records.append(scores["acc"])
                 self.logger.log_metric(
                     epoch=epoch + 1,
@@ -279,14 +291,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.logger.log("Best testing auc: {:.5f}".format(best_auc))
 
     def validate(
-        self,
-        testset: TorchDataset,
-        *,
-        existing_loader: Optional[DataLoader] = None,
+            self,
+            testset: TorchDataset,
+            *,
+            existing_loader: Optional[DataLoader] = None,
     ) -> Dict[str, float]:
         if existing_loader is None:
-            bs = testset.n_samples if self.batch_size == -1 else self.batch_size
-            dataloader = DataLoader(testset, batch_size=bs, shuffle=False)
+            dataloader = self._init_dataloader(testset, num_workers=2)
         else:
             dataloader = existing_loader
 
@@ -294,18 +305,18 @@ class ActiveNeuralNetwork(BaseModelComponent):
             model.eval()
 
         n_batches = len(dataloader)
-        test_loss, correct = 0.0, 0
+        test_loss, correct, total = 0, 0, 0
         labels, probs = np.array([]), np.array([])
         with torch.no_grad():
-            for batch, (X, y) in enumerate(dataloader):
+            for batch_idx, (X, y) in enumerate(dataloader):
                 X = X.to(self.device)
                 y = y.to(self.device)
                 active_repr = self.models["cut"](self.models["bottom"](X))
                 top_input = active_repr
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
-                        Const.PAILLIER,
-                        Const.FAST_PAILLIER,
+                            Const.PAILLIER,
+                            Const.FAST_PAILLIER,
                     ):
                         self.enc_layer_list[idx].fed_forward()
                         passive_repr = msger.recv()
@@ -317,10 +328,16 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
-                correct += (logits.argmax(1) == y).type(torch.float).sum().item()
+                _, predicted = logits.max(1)
+                total += y.size(0)
+                correct += predicted.eq(y).sum().item()
+                progress_bar(batch_idx, len(dataloader),
+                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                             % (test_loss / (batch_idx + 1), 100. * correct / total,
+                                correct, total))
 
             test_loss /= n_batches
-            acc = correct / testset.n_samples
+            acc = correct / total
             n_classes = len(torch.unique(testset.labels))
             if n_classes == 2:
                 auc = roc_auc_score(labels, probs)
@@ -331,15 +348,15 @@ class ActiveNeuralNetwork(BaseModelComponent):
             return scores
 
     def fit(
-        self,
-        trainset: TorchDataset,
-        validset: TorchDataset,
-        role: str = Const.ACTIVE_NAME,
+            self,
+            trainset: TorchDataset,
+            validset: TorchDataset,
+            role: str = Const.ACTIVE_NAME,
     ) -> None:
         self.train(trainset, validset)
 
     def score(
-        self, testset: TorchDataset, role: str = Const.ACTIVE_NAME
+            self, testset: TorchDataset, role: str = Const.ACTIVE_NAME
     ) -> Dict[str, float]:
         return self.validate(testset)
 
@@ -350,15 +367,16 @@ class ActiveNeuralNetwork(BaseModelComponent):
         assert isinstance(
             testset, TorchDataset
         ), "testset should be an instance of TorchDataset"
-        train_dataloader = self._init_dataloader(trainset)
-        test_dataloader = self._init_dataloader(testset)
-
-        for model in self.models.values():
-            model.train()
+        train_dataloader = self._init_dataloader(trainset, shuffle=True, num_workers=2)
+        test_dataloader = self._init_dataloader(testset, num_workers=2)
 
         start_time = time.time()
         best_acc, best_auc = 0, 0
         for epoch in range(self.epochs):
+            for model in self.models.values():
+                model.train()
+            correct, total = 0, 0
+            train_loss = 0
             print("Epoch: {}".format(epoch))
             for batch_idx, (X, y) in enumerate(train_dataloader):
                 X = X.to(self.device)
@@ -368,6 +386,14 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     self.models["cut"](self.models["bottom"](X))
                 )
                 loss = self.loss_fn(logits, y)
+                train_loss += loss.item()
+                _, predicted = logits.max(1)
+                total += y.size(0)
+                correct += predicted.eq(y).sum().item()
+                progress_bar(batch_idx, len(train_dataloader),
+                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                             % (train_loss / (batch_idx + 1), 100. * correct / total,
+                                correct, total))
 
                 # backward
                 for optmizer in self.optimizers.values():
@@ -375,9 +401,6 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 loss.backward()
                 for optmizer in self.optimizers.values():
                     optmizer.step()
-                if batch_idx % 100 == 0:
-                    loss, current = loss.item(), batch_idx * len(X)
-                    print(f"loss: {loss:>7f}  [{current:>5d}/{trainset.n_samples:>5d}]")
 
             scores = self.validate_alone(testset, existing_loader=test_dataloader)
             curr_acc, curr_auc = scores["acc"], scores["auc"]
@@ -398,14 +421,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
 
     def validate_alone(
-        self,
-        testset: TorchDataset,
-        *,
-        existing_loader: Optional[DataLoader] = None,
+            self,
+            testset: TorchDataset,
+            *,
+            existing_loader: Optional[DataLoader] = None,
     ):
         if existing_loader is None:
-            bs = testset.n_samples if self.batch_size == -1 else self.batch_size
-            dataloader = DataLoader(testset, batch_size=bs, shuffle=False)
+            dataloader = self._init_dataloader(testset, num_workers=2)
         else:
             dataloader = existing_loader
 
@@ -413,10 +435,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
             model.eval()
 
         n_batches = len(dataloader)
-        test_loss, correct = 0.0, 0
+        test_loss, correct, total = 0.0, 0, 0
         labels, probs = np.array([]), np.array([])
         with torch.no_grad():
-            for batch, (X, y) in enumerate(dataloader):
+            for batch_idx, (X, y) in enumerate(dataloader):
                 X = X.to(self.device)
                 y = y.to(self.device)
                 logits = self.models["top"](
@@ -425,31 +447,33 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
-                correct += (logits.argmax(1) == y).type(torch.float).sum().item()
+                _, predicted = logits.max(1)
+                total += y.size(0)
+                correct += predicted.eq(y).sum().item()
+                progress_bar(batch_idx, len(dataloader),
+                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                             % (test_loss / (batch_idx + 1), 100. * correct / total,
+                                correct, total))
+
             test_loss /= n_batches
-            acc = correct / testset.n_samples
+            acc = correct / total
             n_classes = len(torch.unique(testset.labels))
             if n_classes == 2:
                 auc = roc_auc_score(labels, probs)
             else:
                 auc = 0
-            print(
-                f"Test Error: \n Accuracy: {(100 * acc):>0.2f}%,"
-                f" Auc: {(100 * auc):>0.2f}%,"
-                f" Avg loss: {test_loss:>8f}"
-            )
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
             return scores
 
     @staticmethod
     def online_inference(
-        dataset: TorchDataset,
-        messengers: List[BaseMessenger],
-        logger: GlobalLogger,
-        model_dir: str,
-        model_name: str,
-        role: str = Const.ACTIVE_NAME,
+            dataset: TorchDataset,
+            messengers: List[BaseMessenger],
+            logger: GlobalLogger,
+            model_dir: str,
+            model_name: str,
+            role: str = Const.ACTIVE_NAME,
     ):
         models: dict = TorchModelIO.load(model_dir, model_name)["model"]
         for model in models.values():

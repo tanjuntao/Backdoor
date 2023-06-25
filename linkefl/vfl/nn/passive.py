@@ -57,7 +57,12 @@ class PassiveNeuralNetwork(BaseModelComponent):
         self.encode_precision = encode_precision
         self.random_state = random_state
         if random_state is not None:
-            torch.random.manual_seed(random_state)
+            torch.manual_seed(random_state)
+            torch.cuda.manual_seed(random_state)
+            torch.cuda.manual_seed_all(random_state)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+        self.saving_model = saving_model
         self.saving_model = saving_model
         if self.saving_model:
             self.create_time = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -89,9 +94,15 @@ class PassiveNeuralNetwork(BaseModelComponent):
         self.messenger.send([public_key, crypto_type])
         print("Done.")
 
-    def _init_dataloader(self, dataset, shuffle=False):
+    def _init_dataloader(self, dataset, shuffle=False, num_workers=1, persistent_workers=True):
         bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
-        dataloader = DataLoader(dataset, batch_size=bs, shuffle=shuffle)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=bs,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            persistent_workers=persistent_workers,
+        )
         return dataloader
 
     def train(self, trainset: TorchDataset, testset: TorchDataset) -> None:
@@ -101,8 +112,8 @@ class PassiveNeuralNetwork(BaseModelComponent):
         assert isinstance(
             testset, TorchDataset
         ), "testset should be an instance of TorchDataset"
-        train_dataloader = self._init_dataloader(trainset)
-        test_dataloader = self._init_dataloader(testset)
+        train_dataloader = self._init_dataloader(trainset, shuffle=True, num_workers=2)
+        test_dataloader = self._init_dataloader(testset, num_workers=2)
 
         self._sync_pubkey()
         if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
@@ -123,6 +134,9 @@ class PassiveNeuralNetwork(BaseModelComponent):
 
         start_time = time.time()
         for epoch in range(self.epochs):
+            torch.manual_seed(epoch)  # fix dataloader batching order when shuffle=True
+            for model in self.models.values():
+                model.train()
             print(f"Epoch: {epoch}")
             self.logger.log(f"Epoch {epoch} started...")
             for batch_idx, X in enumerate(train_dataloader):
@@ -156,7 +170,6 @@ class PassiveNeuralNetwork(BaseModelComponent):
             # validate model
             if (epoch + 1) % self.val_freq == 0:
                 self.validate(testset, existing_loader=test_dataloader)
-                self.validate(trainset, existing_loader=train_dataloader)
                 is_best = self.messenger.recv()
                 if is_best:
                     print(colored("Best model updated.", "red"))
@@ -183,8 +196,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
         existing_loader: Optional[DataLoader] = None,
     ) -> None:
         if existing_loader is None:
-            bs = testset.n_samples if self.batch_size == -1 else self.batch_size
-            dataloader = DataLoader(testset, batch_size=bs, shuffle=False)
+            dataloader = self._init_dataloader(testset, num_workers=2)
         else:
             dataloader = existing_loader
 
