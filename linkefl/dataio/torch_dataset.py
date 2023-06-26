@@ -192,6 +192,7 @@ class MediaDataset(TorchDataset, Dataset):
         assert dataset_name in (
             "cifar10",
             "cifar100",
+            "cinic10",
             "mnist",
             "fashion_mnist",
         ), f"{dataset_name} is not supported right now."
@@ -283,6 +284,73 @@ class MediaDataset(TorchDataset, Dataset):
                 )
             _labels = buildin_dataset.targets.clone().detach()
 
+        elif name == "cinic10":
+            import glob
+            import os
+            from shutil import copyfile
+
+            mean = (0.47889522, 0.47227842, 0.43047404)
+            std = (0.24205776, 0.23828046, 0.25874835)
+
+            cinic_directory = root
+            splitted_path = os.path.normpath(cinic_directory).split(os.sep)
+            splitted_path[-1] = "CINIC10-enlarge"
+            enlarge_directory = os.path.join(*splitted_path)
+
+            if not os.path.exists(enlarge_directory):
+                print("combining trainset and validset...")
+                os.makedirs(enlarge_directory)
+                os.makedirs(os.path.join(enlarge_directory, "train"))
+                os.makedirs(os.path.join(enlarge_directory, "test"))
+                # fmt: off
+                classes = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]  # noqa: E501
+                # fmt: on
+                for c in classes:
+                    os.makedirs(os.path.join(enlarge_directory, "train", c))
+                    os.makedirs(os.path.join(enlarge_directory, "test", c))
+
+                for s in ("train", "valid", "test"):
+                    for c in classes:
+                        source_dir = os.path.join(cinic_directory, s, c)
+                        filenames = glob.glob("{}/*.png".format(source_dir))
+                        for fn in filenames:
+                            dest_fn = fn.split("/")[-1]
+                            if s == "train" or s == "valid":
+                                dest_fn = os.path.join(
+                                    enlarge_directory, "train", c, dest_fn
+                                )
+                            else:
+                                dest_fn = os.path.join(
+                                    enlarge_directory, "test", c, dest_fn
+                                )
+                            # if not os.path.islink(dest_fn):
+                            #     os.symlink(fn, dest_fn)
+                            copyfile(fn, dest_fn)
+                print("done.")
+
+            if train:
+                transform = transforms.Compose(
+                    [
+                        transforms.RandomCrop(32, padding=4),
+                        transforms.RandomHorizontalFlip(),
+                        transforms.ToTensor(),
+                        transforms.Normalize(mean, std),
+                    ]
+                )
+                buildin_dataset = datasets.ImageFolder(
+                    os.path.join(enlarge_directory, "train"),
+                    transform=transform,
+                )
+            else:
+                transform = transforms.Compose(
+                    [transforms.ToTensor(), transforms.Normalize(mean, std)]
+                )
+                buildin_dataset = datasets.ImageFolder(
+                    os.path.join(enlarge_directory, "test"),
+                    transform=transform,
+                )
+            _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
+
         else:
             raise ValueError("not suported now.")
 
@@ -290,7 +358,7 @@ class MediaDataset(TorchDataset, Dataset):
 
 
 if __name__ == "__main__":
-    # from torchvision import datasets, transforms
+    pass
     #
     # _transform = transforms.Compose([
     #     transforms.ToTensor(),
