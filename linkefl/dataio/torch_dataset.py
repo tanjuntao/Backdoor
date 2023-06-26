@@ -12,14 +12,14 @@ from linkefl.dataio.common_dataset import CommonDataset
 
 class TorchDataset(CommonDataset, Dataset):
     def __init__(
-            self,
-            *,
-            role: str,
-            raw_dataset: Union[np.ndarray, torch.Tensor],
-            header: List[str],
-            dataset_type: str,
-            transform: Optional[BaseTransformComponent] = None,
-            header_type: Optional[List[str]] = None,
+        self,
+        *,
+        role: str,
+        raw_dataset: Union[np.ndarray, torch.Tensor],
+        header: List[str],
+        dataset_type: str,
+        transform: Optional[BaseTransformComponent] = None,
+        header_type: Optional[List[str]] = None,
     ):
         if isinstance(raw_dataset, np.ndarray):
             # PyTorch forward() function expects tensor type of Float rather Double,
@@ -41,7 +41,7 @@ class TorchDataset(CommonDataset, Dataset):
 
     @staticmethod
     def _load_buildin_dataset(
-            role, name, root, train, download, frac, perm_option, seed=None
+        role, name, root, train, download, frac, perm_option, seed=None
     ):
         if name not in Const.PYTORCH_DATASET:
             # the following answer shows how to call staticmethod in superclass:
@@ -180,17 +180,18 @@ class TorchDataset(CommonDataset, Dataset):
 
 class MediaDataset(TorchDataset, Dataset):
     def __init__(
-            self,
-            *,
-            role: str,
-            dataset_name: str,
-            root: str,
-            train: bool,
-            download: bool = False,
+        self,
+        *,
+        role: str,
+        dataset_name: str,
+        root: str,
+        train: bool,
+        download: bool = False,
     ):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
         assert dataset_name in (
             "cifar10",
+            "cifar100",
             "mnist",
             "fashion_mnist",
         ), f"{dataset_name} is not supported right now."
@@ -224,28 +225,32 @@ class MediaDataset(TorchDataset, Dataset):
         from torchvision import datasets, transforms
 
         # prepare transforms and load buildin dataset
-        if name == "cifar10":
+        if name in ("cifar10", "cifar100"):
+            if name == "cifar10":
+                mean = (0.4914, 0.4822, 0.4465)
+                std = (0.2023, 0.1994, 0.2010)
+                constructor = datasets.CIFAR10
+            else:
+                mean = (0.5071, 0.4865, 0.4409)
+                std = (0.2673, 0.2564, 0.2762)
+                constructor = datasets.CIFAR100
             if train:
                 transform = transforms.Compose(
                     [
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
                         transforms.ToTensor(),
-                        transforms.Normalize(
-                            (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
-                        ),
+                        transforms.Normalize(mean, std),
                     ]
                 )
             else:
                 transform = transforms.Compose(
                     [
                         transforms.ToTensor(),
-                        transforms.Normalize(
-                            (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
-                        ),
+                        transforms.Normalize(mean, std),
                     ]
                 )
-            buildin_dataset = datasets.CIFAR10(
+            buildin_dataset = constructor(
                 root=root, train=train, download=download, transform=transform
             )
             _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
