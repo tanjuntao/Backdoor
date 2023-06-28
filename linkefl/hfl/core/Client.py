@@ -305,6 +305,7 @@ class Client(BaseModelComponent):
         device=torch.device("cpu"),
         optimizer_arch=None,
         role="client",
+        model_type="classification",
     ):
 
         scores = inference_hfl(
@@ -313,6 +314,7 @@ class Client(BaseModelComponent):
             model_dir=model_dir,
             loss_fn=loss_fn,
             device=device,
+            model_type=model_type,
         )
         return scores
 

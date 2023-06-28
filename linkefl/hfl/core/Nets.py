@@ -375,8 +375,8 @@ class LinReg(nn.Module):
     def __init__(self,in_features):
         super(LinReg, self).__init__()
         self.linear = nn.Linear(in_features, 1)
-        nn.init.constant_(self.linear.weight, 0.1)
-        nn.init.constant_(self.linear.bias, 0.1)
+        # nn.init.constant_(self.linear.weight, 0.1)
+        # nn.init.constant_(self.linear.bias, 0.1)
     def forward(self, x):
         x = x.to(torch.float32)
         out = self.linear(x)

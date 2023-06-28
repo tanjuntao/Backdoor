@@ -94,6 +94,7 @@ def validate(model, testset, lossfunction, device,task):
         targets = outputs[:,1]
         auc = roc_auc_score(labels, targets)
 
+
         scores["acc"] = acc
         scores["auc"] = auc
         scores["f1"] = f1

@@ -12,6 +12,7 @@ def inference_hfl(
     infer_step=64,
     device=torch.device("cpu"),
     optimizer_arch=None,
+    model_type = "classification",
 ):
     # 加载模型
     model = TorchModelIO.load(model_dir=model_dir, model_name=model_name)["model"]
@@ -23,7 +24,7 @@ def inference_hfl(
     # labels, probs = np.array([]), np.array([])  # used for computing AUC score
     preds = []
 
-    if model_name == "HFLLinReg":
+    if model_type == "regression":
         with torch.no_grad():
             for idx, (data, target) in enumerate(dataloader):
                 data, target = data.to(device), target.to(device).to(torch.long)

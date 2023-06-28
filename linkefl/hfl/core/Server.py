@@ -289,6 +289,7 @@ class Server(BaseModelComponent):
         device=torch.device("cpu"),
         optimizer_arch=None,
         role="server",
+        model_type="classification"
     ):
 
         scores = inference_hfl(
@@ -297,6 +298,7 @@ class Server(BaseModelComponent):
             model_dir=model_dir,
             loss_fn=loss_fn,
             device=device,
+            model_type=model_type,
         )
         return scores
 
