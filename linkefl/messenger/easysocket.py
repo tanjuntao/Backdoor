@@ -10,7 +10,7 @@ from linkefl.common.const import Const
 
 
 class EasySocketServer:
-    def __init__(self, active_ip, active_port, passive_num, verbose=False):
+    def __init__(self, active_ip, active_port, passive_num, accept_timeout=300, verbose=False):
         """Initialize socket messenger.
 
         After Initialzation, a daemon socket will run in backend
@@ -25,11 +25,15 @@ class EasySocketServer:
 
         self.messengers = []
         print(f"Waiting for {passive_num} passive party to connect...")
+
+        self.sock_daemon.settimeout(accept_timeout)
         for _ in range(passive_num):
             conn, addr = self.sock_daemon.accept()
             messenger = EasySocket(role=Const.ACTIVE_NAME, conn=conn, verbose=verbose)
             self.messengers.append(messenger)
             print(f"Accept connection from {addr}.")
+        self.sock_daemon.settimeout(None)
+
         print("All connected.")
 
     def get_messengers(self):
