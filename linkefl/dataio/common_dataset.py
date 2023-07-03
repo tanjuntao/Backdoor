@@ -1123,12 +1123,12 @@ class CommonDataset:
         if self.role == Const.ACTIVE_NAME:
             # Calculate the xgb_importance.
             if self.dataset_type == "regression":
-                importance, _ = FeatureEvaluation.tree_importance(self, task="regression", save_pic=False)
+                importance = FeatureEvaluation.tree_importance(self, task="regression", save_pic=False)
             elif len(np.unique(self.labels)) == 2:
-                importance, _ = FeatureEvaluation.tree_importance(self, task="binary", save_pic=False)
+                importance = FeatureEvaluation.tree_importance(self, task="binary", save_pic=False)
             else:
-                importance, _ = FeatureEvaluation.tree_importance(self, task="multi", save_pic=False)
-            importance = importance.reshape(1, -1)
+                importance = FeatureEvaluation.tree_importance(self, task="multi", save_pic=False)
+            importance = np.array(importance).reshape(1, -1)
             importance = pd.DataFrame(
                 data=importance, index=["xgb_importance"], columns=col_names
             )
@@ -1144,7 +1144,15 @@ class CommonDataset:
         )
         info = info.round(4)
 
-        stat = {}
+        stat = {
+            "plots": {
+                "min": {"name": "min_plot", "content": "", "data": []},
+                "max": {"name": "max_plot", "content": "", "data": []},
+                "mid": {"name": "mid_plot", "content": "", "data": []},
+                "std": {"name": "std_plot", "content": "", "data": []},
+                "box": {"name": "box_plot", "content": "", "data": []},
+            }
+        }
         for field in col_names:
             tstat = dict()
             tstat["missing_rate"] = round(
@@ -1166,6 +1174,14 @@ class CommonDataset:
             tstat["std"] = float(info.loc["std"][field])
             tstat["median"] = float(info.loc["50%"][field])
             stat[field] = tstat
+
+        # store plot data.
+        stat["plots"]["min"]["data"] = [col_names, info.loc["max", :].values.tolist()]
+        stat["plots"]["max"]["data"] = [col_names, info.loc["min", :].values.tolist()]
+        stat["plots"]["mid"]["data"] = [col_names, info.loc["50%", :].values.tolist()]
+        stat["plots"]["std"]["data"] = [col_names, info.loc["std", :].values.tolist()]
+        stat["plots"]["box"]["data"] = [col_names[:10], self.features[:, :10].tolist()]
+
         static_result["stat"] = stat
 
         # Plot max/min/median pictures.
@@ -1181,6 +1197,7 @@ class CommonDataset:
         Plot.plot_bar(
             col_names, info.loc["std", :].values, "std value", "std_plot", pics_dir
         )
+        # boxplot fig, only show the top 10 features.
         Plot.plot_box(self.features[:, :10], col_names[:10], pics_dir)
 
         return static_result
@@ -1452,16 +1469,16 @@ class CommonDataset:
         return header
 
 
-if __name__ == '__main__':
-    CommonDataset.buildin_dataset(
-        role=Const.ACTIVE_NAME,
-        dataset_name="criteo",
-        root="data",
-        train=True,
-        passive_feat_frac=0.5,
-        feat_perm_option=Const.SEQUENCE,
-        download=True,
-    )
+# if __name__ == '__main__':
+#     CommonDataset.buildin_dataset(
+#         role=Const.ACTIVE_NAME,
+#         dataset_name="criteo",
+#         root="data",
+#         train=True,
+#         passive_feat_frac=0.5,
+#         feat_perm_option=Const.SEQUENCE,
+#         download=True,
+#     )
 # if __name__ == "__main__":
 # from linkefl.feature.transform import OneHot
 #

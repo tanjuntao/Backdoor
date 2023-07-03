@@ -115,7 +115,7 @@ class FeatureEvaluation(object):
         assert isinstance(
             dateset, NumpyDataset
         ), "dataset should be an instance of NumpyDataset"
-
+ 
         # 1. collinearity_anay
         if evaluation_way == "pearson" or evaluation_way == "spearman":
             features = pd.DataFrame(dateset.features)
@@ -366,14 +366,14 @@ if __name__ == "__main__":
         # https://stackoverflow.com/a/43776386/8418540
         return json.loads(json.dumps(json_params), object_hook=JsonParams.from_json)
 
-    dataset_name = "diabetes"
+    dataset_name = "cancer"
     passive_feat_frac = 0.8
     feat_perm_option = Const.SEQUENCE
 
     trainset = NumpyDataset.buildin_dataset(
         role=Const.ACTIVE_NAME,
         dataset_name=dataset_name,
-        root="../vfl/diabetes",
+        root="../vfl/data",
         train=True,
         download=True,
         passive_feat_frac=passive_feat_frac,
@@ -388,26 +388,23 @@ if __name__ == "__main__":
         passive_feat_frac=passive_feat_frac,
         feat_perm_option=feat_perm_option,
     )
+    trainset.describe()
 
-    # np_dataset01 = NumpyDataset.feature_split(trainset, n_splits=10)[1]
-    # print(np_dataset01.features.shape, np_dataset01.header)
-    # np_dataset01.describe()
+    # # test1
+    # importances = FeatureEvaluation.tree_importance(trainset, pic_path="./")
+    # print(importances, type(importances))
 
-    # test1
-    importances = FeatureEvaluation.tree_importance(trainset, pic_path="./")
-    print(importances, type(importances))
+    # # test2
+    # corr = FeatureEvaluation.collinearity_anay(trainset, pic_path="./")
+    # print(corr, type(corr))
 
-    # test2
-    corr = FeatureEvaluation.collinearity_anay(trainset, pic_path="./")
-    print(corr, type(corr))
+    # # test3
+    # psi = [np.nan]* 3
+    # # psi = FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
+    # # print(psi, type(psi))
 
-    # test3
-    psi = [np.nan]* 3
-    # psi = FeatureEvaluation.calculate_psi(trainset, testset, pic_path="./")
-    # print(psi, type(psi))
-
-    data = {"product": "test", "anay_data": {"importances": importances, "corr": corr, "psi": psi}}
-    params = json2object(data)
-    print(type(params), type(params.anay_data))
-    print(params.anay_data.psi)
+    # data = {"product": "test", "anay_data": {"importances": importances, "corr": corr, "psi": psi}}
+    # params = json2object(data)
+    # print(type(params), type(params.anay_data))
+    # print(params.anay_data.psi)
     
