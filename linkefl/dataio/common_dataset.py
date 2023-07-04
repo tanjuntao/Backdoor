@@ -1176,8 +1176,8 @@ class CommonDataset:
             stat[field] = tstat
 
         # store plot data.
-        stat["plots"]["min"]["data"] = [col_names, info.loc["max", :].values.tolist()]
-        stat["plots"]["max"]["data"] = [col_names, info.loc["min", :].values.tolist()]
+        stat["plots"]["min"]["data"] = [col_names, info.loc["min", :].values.tolist()]
+        stat["plots"]["max"]["data"] = [col_names, info.loc["max", :].values.tolist()]
         stat["plots"]["mid"]["data"] = [col_names, info.loc["50%", :].values.tolist()]
         stat["plots"]["std"]["data"] = [col_names, info.loc["std", :].values.tolist()]
         stat["plots"]["box"]["data"] = [col_names[:10], self.features[:, :10].tolist()]
