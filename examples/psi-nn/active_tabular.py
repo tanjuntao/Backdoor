@@ -3,24 +3,21 @@ from termcolor import colored
 from torch import nn
 
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
+from linkefl.common.factory import logger_factory, messenger_factory
 from linkefl.dataio import TorchDataset
-from linkefl.messenger import FastSocket
 from linkefl.modelzoo import MLP, CutLayer
 from linkefl.psi import ActiveCM20PSI
 from linkefl.vfl.nn import ActiveNeuralNetwork
 
 if __name__ == "__main__":
     # 0. Set parameters
-    _dataset_path = (
-        "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-active-train.csv"
-    )
+    _dataset_path = "./data/tabmnist-active000.csv"
     _has_header = False
     _test_size = 0.2
-    _active_ip = "localhost"
-    _active_port = 20000
-    _passive_ip = "localhost"
-    _passive_port = 30000
+    _active_ips = ["localhost"]
+    _active_ports = [20000]
+    _passive_ips = ["localhost"]
+    _passive_ports = [30000]
     _epochs = 50
     _batch_size = 256
     _learning_rate = 0.01
@@ -28,17 +25,23 @@ if __name__ == "__main__":
     _random_state = None
     _device = "cuda" if torch.cuda.is_available() else "cpu"
     _saving_model = True
-    _bottom_nodes = [39, 25, 10]
-    _cut_nodes = [10, 10]
-    _top_nodes = [10, 2]
+    _bottom_nodes = [392, 256, 128]
+    _cut_nodes = [128, 64]
+    _top_nodes = [64, 10]
     _logger = logger_factory(role=Const.ACTIVE_NAME)
-    _messenger = FastSocket(
-        role=Const.ACTIVE_NAME,
-        active_ip=_active_ip,
-        active_port=_active_port,
-        passive_ip=_passive_ip,
-        passive_port=_passive_port,
-    )
+    _messengers = [
+        messenger_factory(
+            messenger_type=Const.FAST_SOCKET,
+            role=Const.ACTIVE_NAME,
+            active_ip=ac_ip,
+            active_port=ac_port,
+            passive_ip=pass_ip,
+            passive_port=pass_port,
+        )
+        for ac_ip, ac_port, pass_ip, pass_port in zip(
+            _active_ips, _active_ports, _passive_ips, _passive_ports
+        )
+    ]
 
     # 1. Load dataset
     active_dataset = TorchDataset.from_csv(
@@ -51,7 +54,7 @@ if __name__ == "__main__":
 
     # 2. Run PSI
     print(colored("2. PSI protocol started, computing...", "red"))
-    active_psi = ActiveCM20PSI(messengers=[_messenger], logger=_logger)
+    active_psi = ActiveCM20PSI(messengers=_messengers, logger=_logger)
     common_ids = active_psi.run(active_dataset.ids)
     print(f"lenght of common ids: {len(common_ids)}")
     active_dataset.filter(common_ids)
@@ -93,7 +96,7 @@ if __name__ == "__main__":
         models=_models,
         optimizers=_optimizers,
         loss_fn=_loss_fn,
-        messenger=_messenger,
+        messengers=_messengers,
         logger=_logger,
         device=_device,
         num_workers=1,
@@ -105,4 +108,5 @@ if __name__ == "__main__":
     print(colored("5. Active party finished vfl_nn training.", "red"))
 
     # 5. Close messenger, finish training
-    _messenger.close()
+    for messenger in _messengers:
+        messenger.close()

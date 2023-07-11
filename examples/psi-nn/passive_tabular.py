@@ -11,7 +11,7 @@ from linkefl.vfl.nn import PassiveNeuralNetwork
 
 if __name__ == "__main__":
     # 0. Set parameters
-    _dataset_path = "/Users/tanjuntao/LinkeFL/linkefl/vfl/data/tabular/census-passive1-train.csv"  # noqa: E501
+    _dataset_path = "./data/tabmnist-passive001.csv"
     _has_header = False
     _test_size = 0.2
     _active_ip = "localhost"
@@ -24,8 +24,8 @@ if __name__ == "__main__":
     _crypto_type = Const.PLAIN
     _key_size = 1024
     _logger = logger_factory(role=Const.PASSIVE_NAME)
-    _bottom_nodes = [20, 10]
-    _cut_nodes = [10, 10]
+    _bottom_nodes = [392, 256, 128]
+    _cut_nodes = [128, 64]
     _random_state = None
     _saving_model = True
     _device = "cuda" if torch.cuda.is_available() else "cpu"

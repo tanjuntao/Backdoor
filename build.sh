@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # remove pre-build directories if they exist
 if [[ -d build ]]; then
   rm -rf build
@@ -22,13 +23,13 @@ fi
 # obtain cpu cores via python
 n_cores=$(python3 -c "import os; print(os.cpu_count())")
 # build binary extensions parallelly via multiprocessing
-python3 setup.py build_ext -j $n_cores --inplace
+python3 setup.py build_ext -j "$n_cores" --inplace
 TOTAL_ERRORS=$((TOTAL_ERRORS + $?));
 python3 setup.py sdist bdist_wheel
 TOTAL_ERRORS=$((TOTAL_ERRORS + $?));
 
 # remove the generated C files and compiled files by Cython
-cd linkefl
+cd linkefl || exit
 find . -type f -name "*.c" -exec rm {} \;
 find . -type f -name "*.so" -exec rm {} \; # macOS and Linux
 find . -type f -name "*.pyd" -exec rm {} \; # Windows
