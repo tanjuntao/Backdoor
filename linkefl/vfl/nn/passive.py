@@ -2,7 +2,7 @@ import datetime
 import os
 import pathlib
 import time
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import torch
 from termcolor import colored
@@ -32,6 +32,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
         messenger: BaseMessenger,
         cryptosystem: BaseCryptoSystem,
         logger: GlobalLogger,
+        schedulers: Optional[Dict[str, Any]] = None,
         rank: int = 1,
         num_workers: int = 1,
         val_freq: int = 1,
@@ -50,6 +51,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
         self.messenger = messenger
         self.cryptosystem = cryptosystem
         self.logger = logger
+        self.schedulers = schedulers
         self.rank = rank
         self.num_workers = num_workers
         self.val_freq = val_freq
@@ -94,7 +96,9 @@ class PassiveNeuralNetwork(BaseModelComponent):
         self.messenger.send([public_key, crypto_type])
         print("Done.")
 
-    def _init_dataloader(self, dataset, shuffle=False, num_workers=1, persistent_workers=True):
+    def _init_dataloader(
+        self, dataset, shuffle=False, num_workers=1, persistent_workers=True
+    ):
         bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
         dataloader = DataLoader(
             dataset,
@@ -166,6 +170,11 @@ class PassiveNeuralNetwork(BaseModelComponent):
                     passive_repr.backward(grad)
                     self.optimizers["cut"].step()
                     self.optimizers["bottom"].step()
+
+            # update learning rate scheduler
+            if self.schedulers is not None:
+                for scheduler in self.schedulers.values():
+                    scheduler.step()
 
             # validate model
             if (epoch + 1) % self.val_freq == 0:

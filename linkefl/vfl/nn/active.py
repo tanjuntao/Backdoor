@@ -2,7 +2,7 @@ import datetime
 import os
 import pathlib
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -44,25 +44,27 @@ def loss_reweight(y):
 
 class ActiveNeuralNetwork(BaseModelComponent):
     def __init__(
-            self,
-            *,
-            epochs: int,
-            batch_size: int,
-            learning_rate: float,
-            models: Dict[str, nn.Module],
-            optimizers: Dict[str, Optimizer],
-            loss_fn: _Loss,
-            messengers: List[BaseMessenger],
-            logger: GlobalLogger,
-            rank: int = 0,
-            num_workers: int = 1,
-            val_freq: int = 1,
-            device: str = "cpu",
-            encode_precision: float = 0.001,
-            random_state: Optional[int] = None,
-            saving_model: bool = False,
-            model_dir: Optional[str] = None,
-            model_name: Optional[str] = None,
+        self,
+        *,
+        epochs: int,
+        batch_size: int,
+        learning_rate: float,
+        models: Dict[str, nn.Module],
+        optimizers: Dict[str, Optimizer],
+        loss_fn: _Loss,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        schedulers: Optional[Dict[str, Any]] = None,
+        topk: int = 1,
+        rank: int = 0,
+        num_workers: int = 1,
+        val_freq: int = 1,
+        device: str = "cpu",
+        encode_precision: float = 0.001,
+        random_state: Optional[int] = None,
+        saving_model: bool = False,
+        model_dir: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -72,6 +74,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.loss_fn = loss_fn
         self.messengers = messengers
         self.logger = logger
+        self.schedulers = schedulers
+        self.topk = topk
         self.rank = rank
         self.num_workers = num_workers
         self.val_freq = val_freq
@@ -92,12 +96,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 model_dir = os.path.join(default_dir, self.create_time)
             if model_name is None:
                 model_name = (
-                        "{time}-{role}-{algo_name}".format(
-                            time=self.create_time,
-                            role=Const.ACTIVE_NAME,
-                            algo_name=Const.AlgoNames.VFL_NN,
-                        )
-                        + ".model"
+                    "{time}-{role}-{algo_name}".format(
+                        time=self.create_time,
+                        role=Const.ACTIVE_NAME,
+                        algo_name=Const.AlgoNames.VFL_NN,
+                    )
+                    + ".model"
                 )
             self.model_dir = model_dir
             self.model_name = model_name
@@ -119,8 +123,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         print("Done!")
         return public_key_list, crypto_type_list
 
-    def _init_dataloader(self, dataset, shuffle=False, num_workers=1,
-                         persistent_workers=True):
+    def _init_dataloader(
+        self, dataset, shuffle=False, num_workers=1, persistent_workers=True
+    ):
         bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
         dataloader = DataLoader(
             dataset,
@@ -143,7 +148,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         public_key_list, crypto_type_list = self._sync_pubkey()
         for idx, (public_key, crypto_type) in enumerate(
-                zip(public_key_list, crypto_type_list)
+            zip(public_key_list, crypto_type_list)
         ):
             cryptosystem = partial_crypto_factory(crypto_type, public_key=public_key)
             if crypto_type in (Const.PAILLIER, Const.FAST_PAILLIER):
@@ -183,8 +188,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 top_input = active_repr.data
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
-                            Const.PAILLIER,
-                            Const.FAST_PAILLIER,
+                        Const.PAILLIER,
+                        Const.FAST_PAILLIER,
                     ):
                         self.enc_layer_list[idx].fed_forward()
                         passive_repr = msger.recv().to(self.device)
@@ -207,8 +212,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 # send back passive party's gradient
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
-                            Const.PAILLIER,
-                            Const.FAST_PAILLIER,
+                        Const.PAILLIER,
+                        Const.FAST_PAILLIER,
                     ):
                         passive_grad = self.enc_layer_list[idx].fed_backward(
                             top_input.grad
@@ -218,13 +223,26 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         msger.send(top_input.grad)
 
                 train_loss += loss.item()
-                _, predicted = logits.max(1)
+                _, predicted = logits.topk(self.topk, dim=1)
                 total += y.size(0)
+                y = y.view(y.size(0), -1).expand_as(predicted)
                 correct += predicted.eq(y).sum().item()
-                progress_bar(batch_idx, len(train_dataloader),
-                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                             % (train_loss / (batch_idx + 1), 100. * correct / total,
-                                correct, total))
+                progress_bar(
+                    batch_idx,
+                    len(train_dataloader),
+                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                    % (
+                        train_loss / (batch_idx + 1),
+                        100.0 * correct / total,
+                        correct,
+                        total,
+                    ),
+                )
+
+            # update learning rate scheduler
+            if self.schedulers is not None:
+                for scheduler in self.schedulers:
+                    scheduler.step()
 
             # validate model
             is_best = False
@@ -291,10 +309,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.logger.log("Best testing auc: {:.5f}".format(best_auc))
 
     def validate(
-            self,
-            testset: TorchDataset,
-            *,
-            existing_loader: Optional[DataLoader] = None,
+        self,
+        testset: TorchDataset,
+        *,
+        existing_loader: Optional[DataLoader] = None,
     ) -> Dict[str, float]:
         if existing_loader is None:
             dataloader = self._init_dataloader(testset, num_workers=2)
@@ -315,8 +333,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 top_input = active_repr
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
-                            Const.PAILLIER,
-                            Const.FAST_PAILLIER,
+                        Const.PAILLIER,
+                        Const.FAST_PAILLIER,
                     ):
                         self.enc_layer_list[idx].fed_forward()
                         passive_repr = msger.recv()
@@ -328,13 +346,21 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
-                _, predicted = logits.max(1)
+                _, predicted = logits.topk(self.topk, dim=1)
                 total += y.size(0)
+                y = y.view(y.size(0), -1).expand_as(predicted)
                 correct += predicted.eq(y).sum().item()
-                progress_bar(batch_idx, len(dataloader),
-                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                             % (test_loss / (batch_idx + 1), 100. * correct / total,
-                                correct, total))
+                progress_bar(
+                    batch_idx,
+                    len(dataloader),
+                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                    % (
+                        test_loss / (batch_idx + 1),
+                        100.0 * correct / total,
+                        correct,
+                        total,
+                    ),
+                )
 
             test_loss /= n_batches
             acc = correct / total
@@ -348,15 +374,15 @@ class ActiveNeuralNetwork(BaseModelComponent):
             return scores
 
     def fit(
-            self,
-            trainset: TorchDataset,
-            validset: TorchDataset,
-            role: str = Const.ACTIVE_NAME,
+        self,
+        trainset: TorchDataset,
+        validset: TorchDataset,
+        role: str = Const.ACTIVE_NAME,
     ) -> None:
         self.train(trainset, validset)
 
     def score(
-            self, testset: TorchDataset, role: str = Const.ACTIVE_NAME
+        self, testset: TorchDataset, role: str = Const.ACTIVE_NAME
     ) -> Dict[str, float]:
         return self.validate(testset)
 
@@ -387,13 +413,21 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 )
                 loss = self.loss_fn(logits, y)
                 train_loss += loss.item()
-                _, predicted = logits.max(1)
+                _, predicted = logits.topk(self.topk, dim=1)
                 total += y.size(0)
+                y = y.view(y.size(0), -1).expand_as(predicted)
                 correct += predicted.eq(y).sum().item()
-                progress_bar(batch_idx, len(train_dataloader),
-                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                             % (train_loss / (batch_idx + 1), 100. * correct / total,
-                                correct, total))
+                progress_bar(
+                    batch_idx,
+                    len(train_dataloader),
+                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                    % (
+                        train_loss / (batch_idx + 1),
+                        100.0 * correct / total,
+                        correct,
+                        total,
+                    ),
+                )
 
                 # backward
                 for optmizer in self.optimizers.values():
@@ -401,6 +435,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 loss.backward()
                 for optmizer in self.optimizers.values():
                     optmizer.step()
+
+            if self.schedulers is not None:
+                for scheduler in self.schedulers.values():
+                    scheduler.step()
 
             scores = self.validate_alone(testset, existing_loader=test_dataloader)
             curr_acc, curr_auc = scores["acc"], scores["auc"]
@@ -421,10 +459,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
 
     def validate_alone(
-            self,
-            testset: TorchDataset,
-            *,
-            existing_loader: Optional[DataLoader] = None,
+        self,
+        testset: TorchDataset,
+        *,
+        existing_loader: Optional[DataLoader] = None,
     ):
         if existing_loader is None:
             dataloader = self._init_dataloader(testset, num_workers=2)
@@ -447,13 +485,21 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
-                _, predicted = logits.max(1)
+                _, predicted = logits.topk(self.topk, dim=1)
                 total += y.size(0)
+                y = y.view(y.size(0), -1).expand_as(predicted)
                 correct += predicted.eq(y).sum().item()
-                progress_bar(batch_idx, len(dataloader),
-                             'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                             % (test_loss / (batch_idx + 1), 100. * correct / total,
-                                correct, total))
+                progress_bar(
+                    batch_idx,
+                    len(dataloader),
+                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                    % (
+                        test_loss / (batch_idx + 1),
+                        100.0 * correct / total,
+                        correct,
+                        total,
+                    ),
+                )
 
             test_loss /= n_batches
             acc = correct / total
@@ -468,12 +514,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
     @staticmethod
     def online_inference(
-            dataset: TorchDataset,
-            messengers: List[BaseMessenger],
-            logger: GlobalLogger,
-            model_dir: str,
-            model_name: str,
-            role: str = Const.ACTIVE_NAME,
+        dataset: TorchDataset,
+        messengers: List[BaseMessenger],
+        logger: GlobalLogger,
+        model_dir: str,
+        model_name: str,
+        role: str = Const.ACTIVE_NAME,
     ):
         models: dict = TorchModelIO.load(model_dir, model_name)["model"]
         for model in models.values():
