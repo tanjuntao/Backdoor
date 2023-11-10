@@ -187,6 +187,9 @@ class MediaDataset(TorchDataset, Dataset):
         root: str,
         train: bool,
         download: bool = False,
+        fine_tune=False,
+        fine_tune_per_class=32,
+        active_full_image=False,
     ):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
         assert dataset_name in (
@@ -198,6 +201,9 @@ class MediaDataset(TorchDataset, Dataset):
         ), f"{dataset_name} is not supported right now."
 
         self.role = role
+        self.fine_tune = fine_tune
+        self.fine_tune_per_class = fine_tune_per_class
+        self.active_full_image = active_full_image
         buildin_dataset, _labels = self._prepare_data(
             name=dataset_name, root=root, train=train, download=download
         )
@@ -218,7 +224,11 @@ class MediaDataset(TorchDataset, Dataset):
         self.seed_maps[idx] += 1  # change seed for next epoch
         image, label = self.buildin_dataset[idx]  # torchvision transform is done here
         if self.role == Const.ACTIVE_NAME:
-            return image[:, :16, :], label  # first half
+            if self.active_full_image:
+                return image, label             # full image
+            else:
+                return image[:, :16, :], label  # first half image
+            
         else:
             return image[:, 16:, :]  # second half
 
@@ -254,6 +264,26 @@ class MediaDataset(TorchDataset, Dataset):
             buildin_dataset = constructor(
                 root=root, train=train, download=download, transform=transform
             )
+            # """
+            if self.fine_tune:
+                if train:
+                    import numpy as np
+                    targets = np.array(buildin_dataset.targets)
+                    new_data, new_target = [], []
+                    n_classes = 10 if name == "cifar10" else 100
+                    for label in range(n_classes):
+                        curr_data = buildin_dataset.data[targets == label][:self.fine_tune_per_class]
+                        new_data.append(curr_data)
+                        new_target.extend([label] * self.fine_tune_per_class)
+                    buildin_dataset.data = np.vstack(new_data)
+                    buildin_dataset.targets = new_target
+                    # import random
+                    # random.seed(0)
+                    # perm = list(range(per_class * 10))
+                    # random.shuffle(perm)
+                    # buildin_dataset.data = np.array(new_data)[perm]
+                    # buildin_dataset.targets = np.array(new_target)[perm].tolist()
+            # """
             _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
 
         elif name in ("mnist", "fashion_mnist"):
@@ -282,6 +312,25 @@ class MediaDataset(TorchDataset, Dataset):
                 buildin_dataset = datasets.FashionMNIST(
                     root=root, train=train, download=download, transform=transform
                 )
+            # """
+            if self.fine_tune:
+                if train:
+                    import numpy as np
+                    targets = buildin_dataset.targets
+                    new_data, new_target = [], []
+                    for label in range(10):
+                        curr_data = buildin_dataset.data[targets == label][:self.fine_tune_per_class]
+                        new_data.append(curr_data)
+                        new_target.extend([label] * self.fine_tune_per_class)
+                    buildin_dataset.data = torch.vstack(new_data)
+                    buildin_dataset.targets = torch.tensor(new_target, dtype=torch.long)
+                    # import random
+                    # random.seed(0)
+                    # perm = list(range(per_class * 10))
+                    # random.shuffle(perm)
+                    # buildin_dataset.data = np.array(new_data)[perm]
+                    # buildin_dataset.targets = np.array(new_target)[perm].tolist()
+            # """
             _labels = buildin_dataset.targets.clone().detach()
 
         elif name == "cinic10":
@@ -349,6 +398,20 @@ class MediaDataset(TorchDataset, Dataset):
                     os.path.join(enlarge_directory, "test"),
                     transform=transform,
                 )
+            if self.fine_tune:
+                if train:
+                    import numpy as np
+                    targets = buildin_dataset.targets  # Python List
+                    samples = buildin_dataset.samples
+                    targets = np.array(targets)
+                    samples = np.array(samples)
+                    new_samples, new_targets = [], []
+                    for label in range(10):
+                        curr_data = samples[targets == label][:self.fine_tune_per_class].tolist()
+                        new_samples.extend(curr_data)
+                        new_targets.extend([label] * self.fine_tune_per_class)
+                    buildin_dataset.samples = new_samples
+                    buildin_dataset.targets = new_targets
             _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
 
         else:
