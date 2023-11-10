@@ -6,7 +6,7 @@ from linkefl.modelzoo.util import TorchModuleType, make_nn_module
 class VGG(nn.Module):
     # fmt: off
     cfg = {
-        "VGG11": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
+        "VGG11": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M_Half"],
         "VGG13": [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],  # noqa: E501
         "VGG16": [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],  # noqa: E501
         "VGG19": [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],  # noqa: E501
@@ -41,6 +41,8 @@ class VGG(nn.Module):
         for x in cfg:
             if x == "M":
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            elif x == "M_Half":
+                layers += [nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2))]
             else:
                 layers += [
                     nn.Conv2d(in_channels, x, kernel_size=3, padding=1),

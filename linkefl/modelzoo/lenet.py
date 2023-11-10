@@ -17,9 +17,10 @@ class LeNet(nn.Module):
         # input size should be [in_channel, 32, 32]
         self.conv1 = nn.Conv2d(in_channel, 6, 5)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.LazyLinear(120)
-        self.fc2 = nn.LazyLinear(84)
-        self.fc3 = nn.LazyLinear(self.num_classes)
+        self.fc1 = nn.Linear(80, 120)      # half image
+        # self.fc1 = nn.Linear(400, 120)   # full image
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x):
         out = self.activation((self.conv1(x)))
