@@ -65,6 +65,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         saving_model: bool = False,
         model_dir: Optional[str] = None,
         model_name: Optional[str] = None,
+        save_every_epoch=False,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -82,6 +83,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.device = device
         self.encode_precision = encode_precision
         self.random_state = random_state
+        self.save_every_epoch = save_every_epoch
         if random_state is not None:
             torch.manual_seed(random_state)
             torch.cuda.manual_seed(random_state)
@@ -124,9 +126,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
         return public_key_list, crypto_type_list
 
     def _init_dataloader(
-        self, dataset, shuffle=False, num_workers=1, persistent_workers=True
+        self, dataset, shuffle=False, num_workers=1, persistent_workers=True, bs=None,
     ):
-        bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
+        if bs is None:
+            bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
         dataloader = DataLoader(
             dataset,
             batch_size=bs,
@@ -170,11 +173,15 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         start_time = time.time()
         best_acc, best_auc = 0.0, 0.0
+        if self.topk > 1:
+            best_topk_acc = 0.0
         train_acc_records, valid_acc_records = [], []
         train_auc_records, valid_auc_records = [], []
         train_loss_records, valid_loss_records = [], []
         for epoch in range(self.epochs):
             train_loss, correct, total = 0, 0, 0
+            if self.topk > 1:
+                topk_correct = 0
             for model in self.models.values():
                 model.train()
             self.logger.log(f"Epoch {epoch} started...")
@@ -223,10 +230,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         msger.send(top_input.grad)
 
                 train_loss += loss.item()
-                _, predicted = logits.topk(self.topk, dim=1)
-                total += y.size(0)
-                y = y.view(y.size(0), -1).expand_as(predicted)
+                _, predicted = logits.max(1)
                 correct += predicted.eq(y).sum().item()
+                total += y.size(0)
                 progress_bar(
                     batch_idx,
                     len(train_dataloader),
@@ -238,10 +244,14 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         total,
                     ),
                 )
+                if self.topk > 1:
+                    _, predicted = logits.topk(self.topk, dim=1)
+                    y = y.view(y.size(0), -1).expand_as(predicted)
+                    topk_correct += predicted.eq(y).sum().item()
 
             # update learning rate scheduler
             if self.schedulers is not None:
-                for scheduler in self.schedulers:
+                for scheduler in self.schedulers.values():
                     scheduler.step()
 
             # validate model
@@ -265,6 +275,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     if scores["acc"] > best_acc:
                         best_acc = scores["acc"]
                         is_best = True
+                    if self.topk > 1:
+                        if scores["topk_acc"] > best_topk_acc:
+                            best_topk_acc = scores["topk_acc"]
+                            print("best topk_acc updated.")
                     # no need to update best_auc here, because it always equals zero.
                 else:  # binary-class
                     if scores["auc"] > best_auc:
@@ -282,6 +296,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
                             self.model_name,
                             epoch=epoch,
                         )
+                if self.save_every_epoch:
+                    TorchModelIO.save(
+                        self.models,
+                        self.model_dir,
+                        f"active_epoch_{epoch}.model",
+                        epoch=epoch,
+                    )
                 for msger in self.messengers:
                     msger.send(is_best)
 
@@ -303,6 +324,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         print(colored(f"elapsed time: {time.time() - start_time}", "red"))
         print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
+        if self.topk > 1:
+            print(colored("Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"))
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
         self.logger.log(f"elapsed time: {time.time() - start_time}")
         self.logger.log("Best testing accuracy: {:.5f}".format(best_acc))
@@ -324,6 +347,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         n_batches = len(dataloader)
         test_loss, correct, total = 0, 0, 0
+        if self.topk > 1:
+            topk_correct = 0
         labels, probs = np.array([]), np.array([])
         with torch.no_grad():
             for batch_idx, (X, y) in enumerate(dataloader):
@@ -346,10 +371,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
-                _, predicted = logits.topk(self.topk, dim=1)
-                total += y.size(0)
-                y = y.view(y.size(0), -1).expand_as(predicted)
+                _, predicted = logits.max(1)
                 correct += predicted.eq(y).sum().item()
+                total += y.size(0)
                 progress_bar(
                     batch_idx,
                     len(dataloader),
@@ -361,6 +385,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         total,
                     ),
                 )
+                if self.topk > 1:
+                    _, predicted = logits.topk(self.topk, dim=1)
+                    y = y.view(y.size(0), -1).expand_as(predicted)
+                    topk_correct += predicted.eq(y).sum().item()
 
             test_loss /= n_batches
             acc = correct / total
@@ -371,6 +399,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 auc = 0
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
+            if self.topk > 1:
+                scores["topk_acc"] = topk_correct / total
             return scores
 
     def fit(
@@ -393,16 +423,20 @@ class ActiveNeuralNetwork(BaseModelComponent):
         assert isinstance(
             testset, TorchDataset
         ), "testset should be an instance of TorchDataset"
-        train_dataloader = self._init_dataloader(trainset, shuffle=True, num_workers=2)
-        test_dataloader = self._init_dataloader(testset, num_workers=2)
+        train_dataloader = self._init_dataloader(trainset, shuffle=True, num_workers=2, bs=self.batch_size)
+        test_dataloader = self._init_dataloader(testset, num_workers=2, bs=256)
 
         start_time = time.time()
         best_acc, best_auc = 0, 0
+        if self.topk > 1:
+            best_topk_acc = 0
         for epoch in range(self.epochs):
             for model in self.models.values():
                 model.train()
             correct, total = 0, 0
             train_loss = 0
+            if self.topk > 1:
+                topk_correct = 0
             print("Epoch: {}".format(epoch))
             for batch_idx, (X, y) in enumerate(train_dataloader):
                 X = X.to(self.device)
@@ -413,10 +447,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 )
                 loss = self.loss_fn(logits, y)
                 train_loss += loss.item()
-                _, predicted = logits.topk(self.topk, dim=1)
-                total += y.size(0)
-                y = y.view(y.size(0), -1).expand_as(predicted)
+                _, predicted = logits.max(1)
                 correct += predicted.eq(y).sum().item()
+                total += y.size(0)
                 progress_bar(
                     batch_idx,
                     len(train_dataloader),
@@ -428,6 +461,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         total,
                     ),
                 )
+                if self.topk > 1:
+                    _, predicted = logits.topk(self.topk, dim=1)
+                    y = y.view(y.size(0), -1).expand_as(predicted)
+                    topk_correct += predicted.eq(y).sum().item()
 
                 # backward
                 for optmizer in self.optimizers.values():
@@ -440,12 +477,23 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 for scheduler in self.schedulers.values():
                     scheduler.step()
 
-            scores = self.validate_alone(testset, existing_loader=test_dataloader)
+            scores, _ = self.validate_alone(testset, existing_loader=test_dataloader)
             curr_acc, curr_auc = scores["acc"], scores["auc"]
             if curr_auc == 0:  # multi-class
                 if curr_acc > best_acc:
                     best_acc = curr_acc
                     print(colored("Best model updated.", "red"))
+                    if self.saving_model:
+                        TorchModelIO.save(
+                            self.models,
+                            self.model_dir,
+                            self.model_name,
+                            epoch=epoch,
+                        )
+                if self.topk > 1:
+                    if scores["topk_acc"] > best_topk_acc:
+                        best_topk_acc = scores["topk_acc"]
+                        print("best topk_acc updated.")
                 # no need to update best_auc here, because it always equals zero.
             else:  # binary-class
                 if curr_auc > best_auc:
@@ -456,7 +504,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         print(colored(f"elapsed time: {time.time() - start_time}", "red"))
         print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
+        if self.topk > 1:
+            print(colored("Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"))
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
+        return best_acc
 
     def validate_alone(
         self,
@@ -465,30 +516,38 @@ class ActiveNeuralNetwork(BaseModelComponent):
         existing_loader: Optional[DataLoader] = None,
     ):
         if existing_loader is None:
-            dataloader = self._init_dataloader(testset, num_workers=2)
+            dataloader = self._init_dataloader(testset, num_workers=2, bs=256)
         else:
             dataloader = existing_loader
 
         for model in self.models.values():
             model.eval()
 
+        total_embeddings = None
+        start_idx = 0
         n_batches = len(dataloader)
         test_loss, correct, total = 0.0, 0, 0
+        if self.topk > 1:
+            topk_correct = 0
         labels, probs = np.array([]), np.array([])
         with torch.no_grad():
             for batch_idx, (X, y) in enumerate(dataloader):
                 X = X.to(self.device)
                 y = y.to(self.device)
-                logits = self.models["top"](
-                    self.models["cut"](self.models["bottom"](X))
-                )
+                embedding = self.models["bottom"](X)
+                if total_embeddings is None:
+                    total_embeddings = torch.zeros(len(testset), embedding.size(1)).to(self.device)
+                index = torch.arange(start_idx, start_idx + X.size(0)).to(self.device)
+                total_embeddings.index_copy_(0, index, embedding)
+                start_idx = start_idx + X.size(0)
+
+                logits = self.models["top"](self.models["cut"](embedding))
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
-                _, predicted = logits.topk(self.topk, dim=1)
-                total += y.size(0)
-                y = y.view(y.size(0), -1).expand_as(predicted)
+                _, predicted = logits.max(1)
                 correct += predicted.eq(y).sum().item()
+                total += y.size(0)
                 progress_bar(
                     batch_idx,
                     len(dataloader),
@@ -500,6 +559,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         total,
                     ),
                 )
+                if self.topk > 1:
+                    _, predicted = logits.topk(self.topk, dim=1)
+                    y = y.view(y.size(0), -1).expand_as(predicted)
+                    topk_correct += predicted.eq(y).sum().item()
 
             test_loss /= n_batches
             acc = correct / total
@@ -510,7 +573,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 auc = 0
 
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
-            return scores
+            if self.topk > 1:
+                scores["topk_acc"] = topk_correct / total
+            return scores, total_embeddings
 
     @staticmethod
     def online_inference(
