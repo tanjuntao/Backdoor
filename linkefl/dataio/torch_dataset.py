@@ -201,6 +201,7 @@ class MediaDataset(TorchDataset, Dataset):
         ), f"{dataset_name} is not supported right now."
 
         self.role = role
+        self.dataset_name = dataset_name
         self.fine_tune = fine_tune
         self.fine_tune_per_class = fine_tune_per_class
         self.active_full_image = active_full_image
@@ -223,6 +224,8 @@ class MediaDataset(TorchDataset, Dataset):
         torch.manual_seed(transform_seed)  # set seed for torchvision transform
         self.seed_maps[idx] += 1  # change seed for next epoch
         image, label = self.buildin_dataset[idx]  # torchvision transform is done here
+        if self.dataset_name == "cinic10":
+            label = int(label)
         if self.role == Const.ACTIVE_NAME:
             if self.active_full_image:
                 return image, label             # full image
@@ -408,6 +411,7 @@ class MediaDataset(TorchDataset, Dataset):
                     new_samples, new_targets = [], []
                     for label in range(10):
                         curr_data = samples[targets == label][:self.fine_tune_per_class].tolist()
+                        curr_data = [(item[0], item[1]) for item in curr_data]
                         new_samples.extend(curr_data)
                         new_targets.extend([label] * self.fine_tune_per_class)
                     buildin_dataset.samples = new_samples
