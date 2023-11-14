@@ -163,6 +163,8 @@ class CommonDataset:
         download: bool = False,
         transform: Optional[BaseTransformComponent] = None,
         seed: Optional[int] = None,
+        fine_tune=False,
+        fine_tune_per_class=32,
     ) -> CommonDataset:
         def _check_params():
             assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "Invalid role"
@@ -190,6 +192,24 @@ class CommonDataset:
             perm_option=feat_perm_option,
             seed=seed,
         )
+        if fine_tune:
+            if dataset_name in ("tab_mnist", "tab_fashion_mnist"):
+                n_classes = 10
+                new_dataset = []
+                if train and role == Const.ACTIVE_NAME:
+                    for label in range(n_classes):
+                        curr_dataset = np_dataset[np_dataset[:, 1].type(torch.int32) == label][:fine_tune_per_class]
+                        new_dataset.append(curr_dataset)
+                    torch.cat(new_dataset, out=np_dataset)
+            else:
+                n_classes = 2
+                new_dataset = []
+                if train and role == Const.ACTIVE_NAME:
+                    for label in range(n_classes):
+                        curr_dataset = np_dataset[np_dataset[:, 1].astype(np.int32) == label][::fine_tune_per_class]
+                        new_dataset.append(curr_dataset)
+                    np_dataset = np.vstack(new_dataset)
+
         if dataset_name in Const.DATA_TYPE_DICT[Const.REGRESSION]:
             dataset_type = Const.REGRESSION
         else:
