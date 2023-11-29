@@ -190,6 +190,8 @@ class MediaDataset(TorchDataset, Dataset):
         fine_tune=False,
         fine_tune_per_class=32,
         active_full_image=False,
+        world_size=2,
+        rank=0,
     ):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
         assert dataset_name in (
@@ -205,6 +207,8 @@ class MediaDataset(TorchDataset, Dataset):
         self.fine_tune = fine_tune
         self.fine_tune_per_class = fine_tune_per_class
         self.active_full_image = active_full_image
+        self.world_size = world_size
+        self.rank = rank
         buildin_dataset, _labels = self._prepare_data(
             name=dataset_name, root=root, train=train, download=download
         )
@@ -226,14 +230,29 @@ class MediaDataset(TorchDataset, Dataset):
         image, label = self.buildin_dataset[idx]  # torchvision transform is done here
         if self.dataset_name == "cinic10":
             label = int(label)
-        if self.role == Const.ACTIVE_NAME:
-            if self.active_full_image:
-                return image, label             # full image
+        
+        #### two party
+        if self.world_size == 2:
+            if self.role == Const.ACTIVE_NAME:
+                if self.active_full_image:
+                    return image, label             # full image
+                else:
+                    return image[:, :16, :], label  # first half image
             else:
-                return image[:, :16, :], label  # first half image
-            
-        else:
-            return image[:, 16:, :]  # second half
+                return image[:, 16:, :]  # second half
+        
+        #### four party
+        elif self.world_size == 4:
+            if self.rank == 0:
+                return image[:, :16, :16], label
+            elif self.rank == 1:
+                return image[:, :16, 16:]
+            elif self.rank == 2:
+                return image[:, 16:, :16]
+            elif self.rank == 3:
+                return image[:, 16:, 16:]
+            else:
+                raise ValueError(f"invalid rank: {self.rank}")
 
     def _prepare_data(self, name, root, train, download):
         from torchvision import datasets, transforms
