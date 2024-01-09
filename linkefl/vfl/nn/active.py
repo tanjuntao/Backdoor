@@ -15,12 +15,18 @@ from torch.utils.data import DataLoader
 
 from linkefl.base import BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory, partial_crypto_factory
+from linkefl.common.factory import partial_crypto_factory
 from linkefl.common.log import GlobalLogger
 from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa: F403
 from linkefl.util.progress import progress_bar
+from linkefl.vfl.nn.defenses import (
+    DiscreteGradient,
+    DistanceCorrelationLoss,
+    LabelDP,
+    TensorPruner,
+)
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 from linkefl.vfl.utils.evaluate import Plot
 
@@ -66,6 +72,17 @@ class ActiveNeuralNetwork(BaseModelComponent):
         model_dir: Optional[str] = None,
         model_name: Optional[str] = None,
         save_every_epoch=False,
+        defense=None,
+        ng_noise_scale=None,
+        cg_preserved_ratio=None,
+        dg_bins_num=None,
+        dg_bound_abs=3e-2,
+        dcor_weight=1e-2,
+        labeldp_eps=0.1,
+        mid_weight=1e-3,
+        mid_model=None,
+        mid_optimizer=None,
+        mid_scheduler=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -84,6 +101,30 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.encode_precision = encode_precision
         self.random_state = random_state
         self.save_every_epoch = save_every_epoch
+        self.defense = defense
+        if defense is not None:
+            if defense == "ng":
+                from torch.distributions.normal import Normal
+
+                self.ng = Normal(0.0, ng_noise_scale)
+            elif defense == "cg":
+                self.cg = TensorPruner(zip_percent=cg_preserved_ratio)
+            elif defense == "dg":
+                self.dg = DiscreteGradient(bins_num=dg_bins_num, bound_abs=dg_bound_abs)
+            elif defense == "dcor":
+                self.dcor_weight = dcor_weight
+                self.dcor = DistanceCorrelationLoss()
+            elif defense == "mid":
+                self.mid_weight = mid_weight
+                self.mid_model = mid_model
+                self.mid_optimizer = mid_optimizer
+                self.mid_scheduler = mid_scheduler
+            elif defense == "fedpass":
+                pass
+            elif defense == "labeldp":
+                self.labeldp = LabelDP(eps=labeldp_eps)
+            else:
+                raise ValueError(f"unrecognized defense: {defense}")
         if random_state is not None:
             torch.manual_seed(random_state)
             torch.cuda.manual_seed(random_state)
@@ -126,7 +167,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
         return public_key_list, crypto_type_list
 
     def _init_dataloader(
-        self, dataset, shuffle=False, num_workers=1, persistent_workers=True, bs=None,
+        self,
+        dataset,
+        shuffle=False,
+        num_workers=1,
+        persistent_workers=True,
+        bs=None,
     ):
         if bs is None:
             bs = dataset.n_samples if self.batch_size == -1 else self.batch_size
@@ -178,7 +224,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         train_acc_records, valid_acc_records = [], []
         train_auc_records, valid_auc_records = [], []
         train_loss_records, valid_loss_records = [], []
+        importance_records = []
         for epoch in range(self.epochs):
+            layer_importance = {}
             train_loss, correct, total = 0, 0, 0
             if self.topk > 1:
                 topk_correct = 0
@@ -188,10 +236,29 @@ class ActiveNeuralNetwork(BaseModelComponent):
             print(f"Epoch: {epoch}")
             torch.manual_seed(epoch)  # fix dataloader batching order when shuffle=True
             for batch_idx, (X, y) in enumerate(train_dataloader):
+                # labeldp defense
+                if self.defense is not None and self.defense == "labeldp":
+                    y_onehot = torch.zeros(y.size(0), self.models["top"].out_nodes)
+                    y_onehot.scatter_(1, y.view(-1, 1).long(), 1).float()
+                    y_dp = self.labeldp(y_onehot)
+                    y = torch.argmax(y_dp, dim=1)
+
                 # 1. forward
                 X = X.to(self.device)
                 y = y.to(self.device)
                 active_repr = self.models["cut"](self.models["bottom"](X))
+                # mid defense
+                mid_loss = None
+                if self.defense is not None and self.defense == "mid":
+                    active_repr, mu, std = self.mid_model(active_repr)
+                    if self.mid_weight == 0:
+                        mid_loss = None
+                    else:
+                        mid_loss = 0.5 * torch.sum(
+                            mu.pow(2) + std.pow(2) - 2 * std.log() - 1
+                        )
+                        mid_loss = mid_loss * self.mid_weight
+
                 top_input = active_repr.data
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
@@ -208,14 +275,26 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 logits = self.models["top"](top_input)
                 loss = self.loss_fn(logits, y)
 
+                # dcor defense
+                dcor_loss = None
+                if self.defense is not None and self.defense == "dcor":
+                    if self.dcor_weight == 0:
+                        dcor_loss = None
+                    else:
+                        y_onehot = nn.functional.one_hot(y, num_classes=logits.size(1))
+                        dcor_loss = self.dcor(active_repr, y_onehot) * self.dcor_weight
+                        # print(f"========> dcor: {dcor_loss}")
+
                 # 2. backward
                 for optmizer in self.optimizers.values():
                     optmizer.zero_grad()
+                if self.defense is not None and self.defense == "mid":
+                    self.mid_optimizer.zero_grad()
                 loss.backward()
-                # update active party's top model, cut layer and bottom model
-                active_repr.backward(top_input.grad)
-                for optmizer in self.optimizers.values():
-                    optmizer.step()
+                if dcor_loss is not None:
+                    dcor_loss.backward(retain_graph=True)
+                if mid_loss is not None:
+                    mid_loss.backward(retain_graph=True)
                 # send back passive party's gradient
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
@@ -228,6 +307,35 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         msger.send(passive_grad)
                     else:
                         msger.send(top_input.grad)
+                # update active party's top model, cut layer and bottom model
+                active_repr_grad = top_input.grad
+                if self.defense is not None:
+                    if self.defense == "ng":
+                        noise = self.ng.sample(top_input.grad.shape).to(
+                            active_repr_grad.device
+                        )
+                        active_repr_grad = active_repr_grad + noise
+                    elif self.defense == "cg":
+                        self.cg.update_thresh_hold(top_input.grad)
+                        active_repr_grad = self.cg.prune_tensor(top_input.grad)
+                    elif self.defense == "dg":
+                        active_repr_grad = self.dg.apply(top_input.grad)
+                    else:
+                        pass
+                active_repr.backward(active_repr_grad)
+                # NEW: estimate layer importance via gradient norms
+                for name, param in self.models["bottom"].named_parameters():
+                    if "conv" not in name:
+                        continue
+                    if name not in layer_importance:
+                        layer_importance[name] = 0
+                    mean_grad = torch.abs(torch.flatten(param.grad.data)).mean().item()
+                    layer_importance[name] += mean_grad
+
+                for optmizer in self.optimizers.values():
+                    optmizer.step()
+                if self.defense is not None and self.defense == "mid":
+                    self.mid_optimizer.step()
 
                 train_loss += loss.item()
                 _, predicted = logits.max(1)
@@ -253,6 +361,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
             if self.schedulers is not None:
                 for scheduler in self.schedulers.values():
                     scheduler.step()
+            if self.defense is not None and self.defense == "mid":
+                self.mid_scheduler.step()
 
             # validate model
             is_best = False
@@ -305,6 +415,19 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     )
                 for msger in self.messengers:
                     msger.send(is_best)
+            # NEW: sort layer importance and print
+            sorted_layer_importance = {
+                k: v
+                for k, v in sorted(
+                    layer_importance.items(), key=lambda item: item[1], reverse=True
+                )
+            }
+            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+            print(f"Epoch: {epoch}, sorted layer importance: ")
+            for name, importance in sorted_layer_importance.items():
+                print(f"{name}: {importance}")
+            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            importance_records.append(layer_importance)
 
         # close pool
         for enc_layer in self.enc_layer_list:
@@ -325,11 +448,68 @@ class ActiveNeuralNetwork(BaseModelComponent):
         print(colored(f"elapsed time: {time.time() - start_time}", "red"))
         print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
         if self.topk > 1:
-            print(colored("Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"))
+            print(
+                colored(
+                    "Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"
+                )
+            )
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
         self.logger.log(f"elapsed time: {time.time() - start_time}")
         self.logger.log("Best testing accuracy: {:.5f}".format(best_acc))
         self.logger.log("Best testing auc: {:.5f}".format(best_auc))
+
+        import pickle
+
+        import matplotlib.pyplot as plt
+
+        with open(f"{self.model_dir}/importance_records.pkl", "wb") as f:
+            pickle.dump(importance_records, f)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        x_epochs = list(range(self.epochs))
+        conv1 = [importance["conv1.weight"] for importance in importance_records]
+        layer1_0_conv1 = [
+            importance["layer1.0.conv1.weight"] for importance in importance_records
+        ]
+        layer1_0_conv2 = [
+            importance["layer1.0.conv2.weight"] for importance in importance_records
+        ]
+        layer1_1_conv1 = [
+            importance["layer1.1.conv1.weight"] for importance in importance_records
+        ]
+        layer1_1_conv2 = [
+            importance["layer1.1.conv2.weight"] for importance in importance_records
+        ]
+        layer2_0_conv1 = [
+            importance["layer2.0.conv1.weight"] for importance in importance_records
+        ]
+        layer2_0_conv2 = [
+            importance["layer2.0.conv2.weight"] for importance in importance_records
+        ]
+        layer2_1_conv1 = [
+            importance["layer2.1.conv1.weight"] for importance in importance_records
+        ]
+        layer2_1_conv2 = [
+            importance["layer2.1.conv2.weight"] for importance in importance_records
+        ]
+        ax.plot(x_epochs, conv1, label="conv1")
+        ax.plot(x_epochs, layer1_0_conv1, label="layer1.0.conv1.weight")
+        ax.plot(x_epochs, layer1_0_conv2, label="layer1.0.conv2.weight")
+        ax.plot(x_epochs, layer1_1_conv1, label="layer1.1.conv1.weight")
+        ax.plot(x_epochs, layer1_1_conv2, label="layer1.1.conv2.weight")
+        ax.plot(x_epochs, layer2_0_conv1, label="layer2.0.conv1.weight")
+        ax.plot(x_epochs, layer2_0_conv2, label="layer2.0.conv2.weight")
+        ax.plot(x_epochs, layer2_1_conv1, label="layer2.1.conv1.weight")
+        ax.plot(x_epochs, layer2_1_conv2, label="layer2.1.conv2.weight")
+
+        ax.grid(True, linestyle="-.")
+        ax.set_title("Layer gradient")
+        ax.set_ylabel("L1 grad", labelpad=5, loc="center")
+        ax.set_xlabel("Epoch", labelpad=5, loc="center")
+        plt.legend(loc="best")
+        plt.savefig(f"{self.model_dir}/layer_grad.png")
+        plt.close()
 
     def validate(
         self,
@@ -344,6 +524,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         for model in self.models.values():
             model.eval()
+        if self.defense is not None and self.defense == "mid":
+            self.mid_model.eval()
 
         n_batches = len(dataloader)
         test_loss, correct, total = 0, 0, 0
@@ -355,6 +537,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 X = X.to(self.device)
                 y = y.to(self.device)
                 active_repr = self.models["cut"](self.models["bottom"](X))
+                if self.defense is not None and self.defense == "mid":
+                    active_repr, _, _ = self.mid_model(active_repr)
                 top_input = active_repr
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
@@ -423,7 +607,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         assert isinstance(
             testset, TorchDataset
         ), "testset should be an instance of TorchDataset"
-        train_dataloader = self._init_dataloader(trainset, shuffle=True, num_workers=2, bs=self.batch_size)
+        train_dataloader = self._init_dataloader(
+            trainset, shuffle=True, num_workers=2, bs=self.batch_size
+        )
         test_dataloader = self._init_dataloader(testset, num_workers=2, bs=256)
 
         start_time = time.time()
@@ -505,7 +691,11 @@ class ActiveNeuralNetwork(BaseModelComponent):
         print(colored(f"elapsed time: {time.time() - start_time}", "red"))
         print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
         if self.topk > 1:
-            print(colored("Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"))
+            print(
+                colored(
+                    "Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"
+                )
+            )
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
         return best_acc
 
@@ -536,7 +726,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 y = y.to(self.device)
                 embedding = self.models["bottom"](X)
                 if total_embeddings is None:
-                    total_embeddings = torch.zeros(len(testset), embedding.size(1)).to(self.device)
+                    total_embeddings = torch.zeros(len(testset), embedding.size(1)).to(
+                        self.device
+                    )
                 index = torch.arange(start_idx, start_idx + X.size(0)).to(self.device)
                 total_embeddings.index_copy_(0, index, embedding)
                 start_idx = start_idx + X.size(0)
@@ -628,163 +820,3 @@ class ActiveNeuralNetwork(BaseModelComponent):
             # scores = {"acc": acc, "auc": auc, "loss": test_loss}
             # return scores, preds
             return preds
-
-
-if __name__ == "__main__":
-    from torch import nn
-
-    from linkefl.common.factory import messenger_factory
-    from linkefl.modelzoo.mlp import MLP, CutLayer
-    from linkefl.util import num_input_nodes
-
-    # 0. Set parameters
-    _dataset_name = "tab_mnist"
-    _passive_feat_frac = 0.5
-    _feat_perm_option = Const.SEQUENCE
-    _active_ips = ["localhost", "localhost"]
-    _active_ports = [20000, 20001]
-    _passive_ips = ["localhost", "localhost"]
-    _passive_ports = [30000, 30001]
-    _epochs = 10
-    _batch_size = 100
-    _learning_rate = 0.001
-    _logger = logger_factory(role=Const.ACTIVE_NAME)
-    _loss_fn = nn.CrossEntropyLoss()
-    _num_workers = 1
-    _random_state = None
-    _saving_model = True
-    _device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    _messengers = [
-        messenger_factory(
-            messenger_type=Const.FAST_SOCKET,
-            role=Const.ACTIVE_NAME,
-            active_ip=ac_ip,
-            active_port=ac_port,
-            passive_ip=pass_ip,
-            passive_port=pass_port,
-        )
-        for ac_ip, ac_port, pass_ip, pass_port in zip(
-            _active_ips, _active_ports, _passive_ips, _passive_ports
-        )
-    ]
-
-    # 1. Load datasets
-    print("Loading dataset...")
-    active_trainset = TorchDataset.buildin_dataset(
-        dataset_name=_dataset_name,
-        role=Const.ACTIVE_NAME,
-        root="../data",
-        train=True,
-        download=True,
-        passive_feat_frac=_passive_feat_frac,
-        feat_perm_option=_feat_perm_option,
-        seed=_random_state,
-    )
-    active_testset = TorchDataset.buildin_dataset(
-        dataset_name=_dataset_name,
-        role=Const.ACTIVE_NAME,
-        root="../data",
-        train=False,
-        download=True,
-        passive_feat_frac=_passive_feat_frac,
-        feat_perm_option=_feat_perm_option,
-        seed=_random_state,
-    )
-    # active_trainset = MediaDataset(
-    #     role=Const.ACTIVE_NAME,
-    #     dataset_name=_dataset_name,
-    #     root="../data",
-    #     train=False,
-    #     download=True,
-    # )
-    # active_testset = MediaDataset(
-    #     role=Const.ACTIVE_NAME,
-    #     dataset_name=_dataset_name,
-    #     root="../data",
-    #     train=False,
-    #     download=True,
-    # )
-    print("Done.")
-
-    # 2. Create PyTorch models and optimizers
-    weight = loss_reweight(active_trainset.labels)
-    _loss_fn = nn.CrossEntropyLoss(weight=weight.to(_device))
-    # _loss_fn = nn.CrossEntropyLoss()
-
-    input_nodes = num_input_nodes(
-        dataset_name=_dataset_name,
-        role=Const.ACTIVE_NAME,
-        passive_feat_frac=_passive_feat_frac,
-    )
-    # # mnist & fashion_mnist
-    bottom_nodes = [input_nodes, 256, 128]
-    cut_nodes = [128, 64]
-    top_nodes = [64, 10]
-
-    # criteo
-    # bottom_nodes = [input_nodes, 15, 10]
-    # cut_nodes = [10, 10]
-    # top_nodes = [10, 2]
-
-    # census
-    # bottom_nodes = [input_nodes, 20, 10]
-    # cut_nodes = [10, 10]
-    # top_nodes = [10, 2]
-
-    # epsilon
-    # bottom_nodes = [input_nodes, 25, 10]
-    # cut_nodes = [10, 10]
-    # top_nodes = [10, 2]
-
-    # credit
-    # bottom_nodes = [input_nodes, 3, 3]
-    # cut_nodes = [3, 3]
-    # top_nodes = [3, 2]
-
-    # default_credit
-    # bottom_nodes = [input_nodes, 8, 5]
-    # cut_nodes = [5, 5]
-    # top_nodes = [5, 2]
-    _bottom_model = MLP(
-        bottom_nodes,
-        activate_input=False,
-        activate_output=True,
-        random_state=_random_state,
-    ).to(_device)
-    # _bottom_model = ResNet18(in_channel=1).to(_device)
-    _cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
-    _top_model = MLP(
-        top_nodes,
-        activate_input=True,
-        activate_output=False,
-        random_state=_random_state,
-    ).to(_device)
-    _models = {"bottom": _bottom_model, "cut": _cut_layer, "top": _top_model}
-    _optimizers = {
-        name: torch.optim.SGD(
-            model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
-        )
-        for name, model in _models.items()
-    }
-
-    # Initialize vertical NN protocol and start training
-    print("Active party started, listening...")
-    active_party = ActiveNeuralNetwork(
-        epochs=_epochs,
-        batch_size=_batch_size,
-        learning_rate=_learning_rate,
-        models=_models,
-        optimizers=_optimizers,
-        loss_fn=_loss_fn,
-        messengers=_messengers,
-        logger=_logger,
-        num_workers=_num_workers,
-        device=_device,
-        random_state=_random_state,
-        saving_model=_saving_model,
-    )
-    active_party.train(active_trainset, active_testset)
-
-    # Close messenger, finish training
-    for msger_ in _messengers:
-        msger_.close()
