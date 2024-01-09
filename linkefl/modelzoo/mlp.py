@@ -24,6 +24,8 @@ class MLP(nn.Module):
         random_state
         """
         super(MLP, self).__init__()
+        self.in_nodes = num_nodes[0]
+        self.out_nodes = num_nodes[-1]
         self.activation = make_nn_module(activation)
         if random_state is not None:
             torch.random.manual_seed(random_state)
