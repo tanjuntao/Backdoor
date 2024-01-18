@@ -1,5 +1,6 @@
 import torch
 from args_parser import get_args, get_mask_layers, get_model_dir
+from mask import layer_masking
 from termcolor import colored
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
@@ -10,8 +11,6 @@ from linkefl.dataio import MediaDataset
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *
 from linkefl.vfl.nn import ActiveNeuralNetwork
-
-from .mask import layer_masking
 
 args = get_args()
 

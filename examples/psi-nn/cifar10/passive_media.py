@@ -1,4 +1,5 @@
 import torch.optim.optimizer
+from args_parser import get_args, get_model_dir
 from termcolor import colored
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
@@ -9,8 +10,6 @@ from linkefl.dataio import MediaDataset
 from linkefl.messenger import EasySocket
 from linkefl.modelzoo import *  # noqa
 from linkefl.vfl.nn import PassiveNeuralNetwork
-
-from .parser import get_args, get_model_dir
 
 args = get_args()
 
