@@ -200,6 +200,7 @@ class MediaDataset(TorchDataset, Dataset):
             "cinic10",
             "mnist",
             "fashion_mnist",
+            "svhn",
         ), f"{dataset_name} is not supported right now."
 
         self.role = role
@@ -230,18 +231,18 @@ class MediaDataset(TorchDataset, Dataset):
         image, label = self.buildin_dataset[idx]  # torchvision transform is done here
         if self.dataset_name == "cinic10":
             label = int(label)
-        
-        #### two party
+
+        # two party
         if self.world_size == 2:
             if self.role == Const.ACTIVE_NAME:
                 if self.active_full_image:
-                    return image, label             # full image
+                    return image, label  # full image
                 else:
                     return image[:, :16, :], label  # first half image
             else:
                 return image[:, 16:, :]  # second half
-        
-        #### four party
+
+        # four party
         elif self.world_size == 4:
             if self.rank == 0:
                 return image[:, :16, :16], label
@@ -290,11 +291,14 @@ class MediaDataset(TorchDataset, Dataset):
             if self.fine_tune:
                 if train:
                     import numpy as np
+
                     targets = np.array(buildin_dataset.targets)
                     new_data, new_target = [], []
                     n_classes = 10 if name == "cifar10" else 100
                     for label in range(n_classes):
-                        curr_data = buildin_dataset.data[targets == label][:self.fine_tune_per_class]
+                        curr_data = buildin_dataset.data[targets == label][
+                            : self.fine_tune_per_class
+                        ]
                         new_data.append(curr_data)
                         new_target.extend([label] * self.fine_tune_per_class)
                     buildin_dataset.data = np.vstack(new_data)
@@ -338,10 +342,13 @@ class MediaDataset(TorchDataset, Dataset):
             if self.fine_tune:
                 if train:
                     import numpy as np
+
                     targets = buildin_dataset.targets
                     new_data, new_target = [], []
                     for label in range(10):
-                        curr_data = buildin_dataset.data[targets == label][:self.fine_tune_per_class]
+                        curr_data = buildin_dataset.data[targets == label][
+                            : self.fine_tune_per_class
+                        ]
                         new_data.append(curr_data)
                         new_target.extend([label] * self.fine_tune_per_class)
                     buildin_dataset.data = torch.vstack(new_data)
@@ -423,19 +430,65 @@ class MediaDataset(TorchDataset, Dataset):
             if self.fine_tune:
                 if train:
                     import numpy as np
+
                     targets = buildin_dataset.targets  # Python List
                     samples = buildin_dataset.samples
                     targets = np.array(targets)
                     samples = np.array(samples)
                     new_samples, new_targets = [], []
                     for label in range(10):
-                        curr_data = samples[targets == label][:self.fine_tune_per_class].tolist()
+                        curr_data = samples[targets == label][
+                            : self.fine_tune_per_class
+                        ].tolist()
                         curr_data = [(item[0], item[1]) for item in curr_data]
                         new_samples.extend(curr_data)
                         new_targets.extend([label] * self.fine_tune_per_class)
                     buildin_dataset.samples = new_samples
                     buildin_dataset.targets = new_targets
             _labels = torch.tensor(buildin_dataset.targets, dtype=torch.long)
+
+        elif name == "svhn":
+            if train:
+                split = "train"
+                transform = transforms.Compose(
+                    [
+                        transforms.Resize(32),
+                        transforms.RandomHorizontalFlip(),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    ]
+                )
+            else:
+                transform = transforms.Compose(
+                    [
+                        transforms.Resize(32),
+                        transforms.ToTensor(),
+                        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+                    ]
+                )
+                split = "test"
+            buildin_dataset = datasets.SVHN(
+                root=root,
+                split=split,
+                download=download,
+                transform=transform,
+            )
+            if self.fine_tune:
+                if train:
+                    import numpy as np
+
+                    targets = buildin_dataset.labels  # numpy array
+                    new_data, new_target = [], []
+                    for label in range(10):
+                        curr_data = buildin_dataset.data[targets == label][
+                            : self.fine_tune_per_class
+                        ]
+                        new_data.append(curr_data)
+                        new_target.extend([label] * self.fine_tune_per_class)
+                    buildin_dataset.data = np.vstack(new_data)
+                    # buildin_dataset.targets = np.array(new_target, dtype=np.int64)
+                    buildin_dataset.labels = np.array(new_target, dtype=np.int64)
+            _labels = torch.from_numpy(buildin_dataset.labels)
 
         else:
             raise ValueError("not suported now.")
