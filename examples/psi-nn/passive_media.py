@@ -21,8 +21,10 @@ args = get_args()
 # torch.backends.cudnn.benchmark = False
 
 
+
 if __name__ == "__main__":
     # Set params
+    data_prefix = ".."
     _epochs = 50
     _learning_rate = 0.1
     _random_state = None
@@ -33,20 +35,20 @@ if __name__ == "__main__":
     if args.dataset in ("cifar10", "cinic10"):
         if args.dataset == "cifar10":
             _batch_size = 128
-            _dataset_dir = "../data"
+            _dataset_dir = f"{data_prefix}/data"
         else:
             _batch_size = 256
-            _dataset_dir = "../data/CINIC10"
+            _dataset_dir = f"{data_prefix}/data/CINIC10"
         num_classes = 10
         _cut_nodes = [10, 10]
     elif args.dataset == "cifar100":
         _batch_size = 128
-        _dataset_dir = "../data"
+        _dataset_dir = f"{data_prefix}/data"
         num_classes = 100
         _cut_nodes = [100, 100]
     elif args.dataset in ("mnist", "fashion_mnist", "svhn"):
         _batch_size = 128
-        _dataset_dir = "../data"
+        _dataset_dir = f"{data_prefix}/data"
         topk = 1
         _cut_nodes = [10, 10]
         num_classes = 10
