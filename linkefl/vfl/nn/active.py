@@ -309,19 +309,16 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         msger.send(top_input.grad)
                 # update active party's top model, cut layer and bottom model
                 active_repr_grad = top_input.grad
-                if self.defense is not None:
-                    if self.defense == "ng":
-                        noise = self.ng.sample(top_input.grad.shape).to(
-                            active_repr_grad.device
-                        )
-                        active_repr_grad = active_repr_grad + noise
-                    elif self.defense == "cg":
-                        self.cg.update_thresh_hold(top_input.grad)
-                        active_repr_grad = self.cg.prune_tensor(top_input.grad)
-                    elif self.defense == "dg":
-                        active_repr_grad = self.dg.apply(top_input.grad)
-                    else:
-                        pass
+                if self.defense is not None and self.defense == "ng":
+                    noise = self.ng.sample(top_input.grad.shape).to(
+                        active_repr_grad.device
+                    )
+                    active_repr_grad = active_repr_grad + noise
+                if self.defense is not None and self.defense == "cg":
+                    self.cg.update_thresh_hold(top_input.grad)
+                    active_repr_grad = self.cg.prune_tensor(top_input.grad)
+                if self.defense is not None and self.defense == "dg":
+                    active_repr_grad = self.dg.apply(top_input.grad)
                 active_repr.backward(active_repr_grad)
                 # NEW: estimate layer importance via gradient norms
                 for name, param in self.models["bottom"].named_parameters():
@@ -697,7 +694,10 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 )
             )
         print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
-        return best_acc
+        if self.topk > 1:
+            return (best_acc, best_topk_acc)
+        else:
+            return (best_acc,)
 
     def validate_alone(
         self,
