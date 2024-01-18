@@ -1,8 +1,10 @@
 import torch
+from termcolor import colored
 from torch import nn
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory, messenger_factory
+from linkefl.common.factory import logger_factory
 from linkefl.dataio import TorchDataset
 from linkefl.modelzoo.mlp import MLP, CutLayer
 from linkefl.util import num_input_nodes
@@ -14,62 +16,34 @@ if __name__ == "__main__":
     _dataset_name = "tab_fashion_mnist"
     _passive_feat_frac = 0.5
     _feat_perm_option = Const.SEQUENCE
-    _active_ips = [
-        "localhost",
-    ]
-    _active_ports = [
-        20000,
-    ]
-    _passive_ips = [
-        "localhost",
-    ]
-    _passive_ports = [
-        30000,
-    ]
     _epochs = 50
     _batch_size = 128
     _learning_rate = 0.1
     _logger = logger_factory(role=Const.ACTIVE_NAME)
     _loss_fn = nn.CrossEntropyLoss()
-    _num_workers = 1
-    _random_state = None
-    _saving_model = True
-    _device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    _messengers = [
-        messenger_factory(
-            messenger_type=Const.FAST_SOCKET,
-            role=Const.ACTIVE_NAME,
-            active_ip=ac_ip,
-            active_port=ac_port,
-            passive_ip=pass_ip,
-            passive_port=pass_port,
-        )
-        for ac_ip, ac_port, pass_ip, pass_port in zip(
-            _active_ips, _active_ports, _passive_ips, _passive_ports
-        )
-    ]
+    _device = "cpu"
 
     # 1. Load datasets
     print("Loading dataset...")
     active_trainset = TorchDataset.buildin_dataset(
         dataset_name=_dataset_name,
         role=Const.ACTIVE_NAME,
-        root="./data",
+        root="../data",
         train=True,
         download=True,
         passive_feat_frac=_passive_feat_frac,
         feat_perm_option=_feat_perm_option,
-        seed=_random_state,
+        seed=None,
     )
     active_testset = TorchDataset.buildin_dataset(
         dataset_name=_dataset_name,
         role=Const.ACTIVE_NAME,
-        root="./data",
+        root="../data",
         train=False,
         download=True,
         passive_feat_frac=_passive_feat_frac,
         feat_perm_option=_feat_perm_option,
-        seed=_random_state,
+        seed=None,
     )
     print("Done.")
 
@@ -83,46 +57,23 @@ if __name__ == "__main__":
         passive_feat_frac=_passive_feat_frac,
     )
     # # mnist & fashion_mnist
-    bottom_nodes = [input_nodes, 256, 128]
+    bottom_nodes = [input_nodes, 256, 128, 128]
+    # bottom_nodes = [784, 256, 128, 128]
     cut_nodes = [128, 64]
     top_nodes = [64, 10]
 
-    # criteo
-    # bottom_nodes = [input_nodes, 15, 10]
-    # cut_nodes = [10, 10]
-    # top_nodes = [10, 2]
-
-    # census
-    # bottom_nodes = [input_nodes, 20, 10]
-    # cut_nodes = [10, 10]
-    # top_nodes = [10, 2]
-
-    # epsilon
-    # bottom_nodes = [input_nodes, 25, 10]
-    # cut_nodes = [10, 10]
-    # top_nodes = [10, 2]
-
-    # credit
-    # bottom_nodes = [input_nodes, 3, 3]
-    # cut_nodes = [3, 3]
-    # top_nodes = [3, 2]
-
-    # default_credit
-    # bottom_nodes = [input_nodes, 8, 5]
-    # cut_nodes = [5, 5]
-    # top_nodes = [5, 2]
     _bottom_model = MLP(
         bottom_nodes,
         activate_input=False,
         activate_output=True,
-        random_state=_random_state,
+        random_state=None,
     ).to(_device)
-    _cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
+    _cut_layer = CutLayer(*cut_nodes, random_state=None).to(_device)
     _top_model = MLP(
         top_nodes,
         activate_input=True,
         activate_output=False,
-        random_state=_random_state,
+        random_state=None,
     ).to(_device)
     _models = {"bottom": _bottom_model, "cut": _cut_layer, "top": _top_model}
     _optimizers = {
@@ -131,7 +82,10 @@ if __name__ == "__main__":
         )
         for name, model in _models.items()
     }
-
+    schedulers = {
+        name: CosineAnnealingLR(optimizer=optimizer, T_max=_epochs, eta_min=0)
+        for name, optimizer in _optimizers.items()
+    }
     # Initialize vertical NN protocol and start training
     print("Active party started, listening...")
     active_party = ActiveNeuralNetwork(
@@ -141,15 +95,14 @@ if __name__ == "__main__":
         models=_models,
         optimizers=_optimizers,
         loss_fn=_loss_fn,
-        messengers=_messengers,
+        messengers=None,
         logger=_logger,
-        num_workers=_num_workers,
+        num_workers=1,
         device=_device,
-        random_state=_random_state,
-        saving_model=_saving_model,
+        random_state=None,
+        saving_model=False,
+        schedulers=schedulers,
     )
-    active_party.train(active_trainset, active_testset)
-
-    # Close messenger, finish training
-    for msger_ in _messengers:
-        msger_.close()
+    active_party.train_alone(active_trainset, active_testset)
+    active_party.validate_alone(active_testset)
+    print(colored("3. Active party finished vfl_nn training.", "red"))

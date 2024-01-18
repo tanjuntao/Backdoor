@@ -11,19 +11,19 @@ from linkefl.vfl.nn import ActiveNeuralNetwork
 
 if __name__ == "__main__":
     # 0. Set parameters
-    _dataset_path = "./data/tabmnist-active000.csv"
+    train_path = "../data/criteo_train.csv"
+    test_path = "../data/criteo_test.csv"
     _has_header = False
-    _test_size = 0.2
     _active_ips = ["localhost"]
     _active_ports = [20000]
     _passive_ips = ["localhost"]
     _passive_ports = [30000]
     _epochs = 50
     _batch_size = 256
-    _learning_rate = 0.01
+    _learning_rate = 0.1
     _loss_fn = nn.CrossEntropyLoss()
     _random_state = None
-    _device = "cuda" if torch.cuda.is_available() else "cpu"
+    _device = "cuda:1" if torch.cuda.is_available() else "cpu"
     _saving_model = True
     _bottom_nodes = [392, 256, 128]
     _cut_nodes = [128, 64]

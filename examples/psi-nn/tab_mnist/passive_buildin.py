@@ -1,4 +1,5 @@
 import torch
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from linkefl.common.const import Const
 from linkefl.common.factory import crypto_factory, logger_factory, messenger_factory
@@ -9,7 +10,7 @@ from linkefl.vfl.nn import PassiveNeuralNetwork
 
 if __name__ == "__main__":
     # 0. Set parameters
-    _dataset_name = "tab_fashion_mnist"
+    _dataset_name = "tab_mnist"
     _passive_feat_frac = 0.5
     _feat_perm_option = Const.SEQUENCE
     _active_ip = "localhost"
@@ -23,8 +24,7 @@ if __name__ == "__main__":
     _key_size = 1024
     _num_workers = 1
     _random_state = None
-    _device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    _saving_model = True
+    _device = "cpu"
     _logger = logger_factory(role=Const.PASSIVE_NAME)
     _messenger = messenger_factory(
         messenger_type=Const.FAST_SOCKET,
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     passive_trainset = TorchDataset.buildin_dataset(
         dataset_name=_dataset_name,
         role=Const.PASSIVE_NAME,
-        root="./data",
+        root="../data",
         train=True,
         download=True,
         passive_feat_frac=_passive_feat_frac,
@@ -56,15 +56,13 @@ if __name__ == "__main__":
     passive_testset = TorchDataset.buildin_dataset(
         dataset_name=_dataset_name,
         role=Const.PASSIVE_NAME,
-        root="./data",
+        root="../data",
         train=False,
         download=True,
         passive_feat_frac=_passive_feat_frac,
         feat_perm_option=_feat_perm_option,
         seed=_random_state,
     )
-    # passive_trainset = TorchDataset.feature_split(passive_trainset, n_splits=2)[0]
-    # passive_testset = TorchDataset.feature_split(passive_testset, n_splits=2)[0]
     print("Done.")
 
     # 2. Create PyTorch models and optimizers
@@ -74,28 +72,9 @@ if __name__ == "__main__":
         passive_feat_frac=_passive_feat_frac,
     )
     # # mnist & fashion_mnist
-    bottom_nodes = [input_nodes, 256, 128]
+    bottom_nodes = [input_nodes, 256, 128, 128]
     cut_nodes = [128, 64]
 
-    # criteo
-    # bottom_nodes = [input_nodes, 15, 10]
-    # cut_nodes = [10, 10]
-
-    # census
-    # bottom_nodes = [input_nodes, 20, 10]
-    # cut_nodes = [10, 10]
-
-    # epsilon
-    # bottom_nodes = [input_nodes, 25, 10]
-    # cut_nodes = [10, 10]
-
-    # credit
-    # bottom_nodes = [input_nodes, 3, 3]
-    # cut_nodes = [3, 3]
-
-    # default_credit
-    # bottom_nodes = [input_nodes, 8, 5]
-    # cut_nodes = [5, 5]
     _bottom_model = MLP(
         bottom_nodes,
         activate_input=False,
@@ -110,7 +89,10 @@ if __name__ == "__main__":
         )
         for name, model in _models.items()
     }
-
+    schedulers = {
+        name: CosineAnnealingLR(optimizer=optimizer, T_max=_epochs, eta_min=0)
+        for name, optimizer in _optimizers.items()
+    }
     # 3. Initialize vertical NN protocol and start fed training
     passive_party = PassiveNeuralNetwork(
         epochs=_epochs,
@@ -124,7 +106,10 @@ if __name__ == "__main__":
         num_workers=_num_workers,
         device=_device,
         random_state=_random_state,
-        saving_model=_saving_model,
+        saving_model=True,
+        schedulers=schedulers,
+        model_dir="../models/tab_mnist",
+        model_name="VFL_passive.model",
     )
     passive_party.train(passive_trainset, passive_testset)
 

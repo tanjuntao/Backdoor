@@ -1,6 +1,7 @@
 import torch
 from termcolor import colored
 from torch import nn
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
@@ -8,17 +9,16 @@ from linkefl.dataio import MediaDataset
 from linkefl.modelzoo import *
 from linkefl.vfl.nn import ActiveNeuralNetwork
 
-
 if __name__ == "__main__":
     # 0. Set parameters
-    _dataset_dir = "data"
-    _dataset_name = "cifar10"
+    _dataset_dir = "../data"
+    _dataset_name = "mnist"
     _epochs = 50
     _batch_size = 128
     _learning_rate = 0.1
     _loss_fn = nn.CrossEntropyLoss()
     _random_state = None
-    _device = "cuda" if torch.cuda.is_available() else "cpu"
+    _device = "cuda:1" if torch.cuda.is_available() else "cpu"
     _saving_model = True
     _cut_nodes = [10, 10]
     _n_classes = 10
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # 2. VFL training
     print(colored("2. Active party started training...", "red"))
-    bottom_model = ResNet18(in_channel=3).to(_device)
+    bottom_model = LeNet(in_channel=1).to(_device)
     cut_layer = CutLayer(*_cut_nodes, random_state=_random_state).to(_device)
     top_model = MLP(
         _top_nodes,
@@ -59,6 +59,11 @@ if __name__ == "__main__":
         )
         for name, model in _models.items()
     }
+    schedulers = {
+        name: CosineAnnealingLR(optimizer=optimizer, T_max=_epochs, eta_min=0)
+        for name, optimizer in _optimizers.items()
+    }
+    # schedulers = None
     # Initialize vertical NN protocol and start training
     active_party = ActiveNeuralNetwork(
         epochs=_epochs,
@@ -73,7 +78,9 @@ if __name__ == "__main__":
         num_workers=1,
         val_freq=1,
         random_state=_random_state,
-        saving_model=_saving_model,
+        saving_model=False,
+        schedulers=schedulers,
     )
     active_party.train_alone(active_trainset, active_testset)
+    active_party.validate_alone(active_testset)
     print(colored("3. Active party finished vfl_nn training.", "red"))

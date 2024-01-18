@@ -1,13 +1,17 @@
 import torch.optim.optimizer
+from args_parser import get_args, get_model_dir
 from termcolor import colored
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from linkefl.common.const import Const
-from linkefl.common.factory import crypto_factory, logger_factory
+from linkefl.common.factory import logger_factory
+from linkefl.crypto import Plain
 from linkefl.dataio import MediaDataset
-from linkefl.messenger import FastSocket
-from linkefl.modelzoo import *
+from linkefl.messenger import EasySocket
+from linkefl.modelzoo import *  # noqa
 from linkefl.vfl.nn import PassiveNeuralNetwork
-from linkefl.modelzoo.security_model import resnet20
+
+args = get_args()
 
 # seed = 0
 # torch.manual_seed(seed)
@@ -18,59 +22,67 @@ from linkefl.modelzoo.security_model import resnet20
 
 
 if __name__ == "__main__":
-    # 0. Set parameters
-    _dataset_dir = "data"
-    _dataset_name = "cifar10"
-    _active_ip = "localhost"
-    _active_port = 20000
-    _passive_ip = "localhost"
-    _passive_port = 30000
+    # Set params
     _epochs = 50
-    _batch_size = 128
     _learning_rate = 0.1
-    _crypto_type = Const.PLAIN
-    _key_size = 1024
-    _logger = logger_factory(role=Const.PASSIVE_NAME)
-    _cut_nodes = [10, 10]
     _random_state = None
-    _saving_model = True
-    _device = "cuda" if torch.cuda.is_available() else "cpu"
-    _messenger = FastSocket(
-        role=Const.PASSIVE_NAME,
-        active_ip=_active_ip,
-        active_port=_active_port,
-        passive_ip=_passive_ip,
-        passive_port=_passive_port,
-    )
-    _crypto = crypto_factory(
-        crypto_type=_crypto_type,
-        key_size=_key_size,
-        num_enc_zeros=100,
-        gen_from_set=False,
-    )
+    _device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
+    _messenger = EasySocket.init_passive(active_ip="localhost", active_port=args.port)
+    _crypto = Plain()
     _logger = logger_factory(role=Const.PASSIVE_NAME)
+    if args.dataset in ("cifar10", "cinic10"):
+        if args.dataset == "cifar10":
+            _batch_size = 128
+            _dataset_dir = "../data"
+        else:
+            _batch_size = 256
+            _dataset_dir = "../data/CINIC10"
+        num_classes = 10
+        _cut_nodes = [10, 10]
+    elif args.dataset == "cifar100":
+        _batch_size = 128
+        _dataset_dir = "../data"
+        num_classes = 100
+        _cut_nodes = [100, 100]
+    elif args.dataset in ("mnist", "fashion_mnist", "svhn"):
+        _batch_size = 128
+        _dataset_dir = "../data"
+        topk = 1
+        _cut_nodes = [10, 10]
+        num_classes = 10
+    else:
+        raise ValueError(f"{args.dataset} is not valid dataset.")
 
-    # 1. Load dataset
+    # Load dataset
     passive_trainset = MediaDataset(
         role=Const.PASSIVE_NAME,
-        dataset_name=_dataset_name,
+        dataset_name=args.dataset,
         root=_dataset_dir,
         train=True,
         download=True,
     )
     passive_testset = MediaDataset(
         role=Const.PASSIVE_NAME,
-        dataset_name=_dataset_name,
+        dataset_name=args.dataset,
         root=_dataset_dir,
         train=False,
         download=True,
     )
     print(colored("1. Finish loading dataset.", "red"))
 
-    # 2. VFL training
+    # Init models
     print(colored("2. Passive party started training...", "red"))
-    bottom_model = ResNet18(in_channel=3).to(_device)
-    # bottom_model = resnet20().to(_device)
+    if args.model == "resnet18":
+        bottom_model = ResNet18(in_channel=3, num_classes=num_classes).to(_device)
+    elif args.model == "vgg13":
+        bottom_model = VGG13(in_channel=3, num_classes=num_classes).to(_device)
+    elif args.model == "lenet":
+        in_channel = 1
+        if args.dataset == "svhn":
+            in_channel = 3
+        bottom_model = LeNet(in_channel=in_channel, num_classes=num_classes).to(_device)
+    else:
+        raise ValueError(f"{args.model} is not an valid model type.")
     cut_layer = CutLayer(*_cut_nodes, random_state=_random_state).to(_device)
     _models = {"bottom": bottom_model, "cut": cut_layer}
     _optimizers = {
@@ -79,8 +91,12 @@ if __name__ == "__main__":
         )
         for name, model in _models.items()
     }
+    schedulers = {
+        name: CosineAnnealingLR(optimizer=optimizer, T_max=_epochs, eta_min=0)
+        for name, optimizer in _optimizers.items()
+    }
 
-    # 3. Initialize vertical NN protocol and start fed training
+    # Model training
     passive_party = PassiveNeuralNetwork(
         epochs=_epochs,
         batch_size=_batch_size,
@@ -93,11 +109,22 @@ if __name__ == "__main__":
         device=_device,
         num_workers=1,
         val_freq=1,
-        saving_model=_saving_model,
+        saving_model=True,
         random_state=_random_state,
+        schedulers=schedulers,
+        model_dir=get_model_dir(),
+        model_name="VFL_passive.model",
     )
     passive_party.train(passive_trainset, passive_testset)
     print(colored("3. Passive party finish vfl_nn training.", "red"))
-
-    # 5. Close messenger, finish training
     _messenger.close()
+
+
+# fedpass
+# bottom_model = FedPassResNet18(
+#     in_channel=3,
+#     num_classes=10,
+#     loc=-100,
+#     passport_mode="multi",
+#     scale=math.sqrt(args.sigma2),
+# ).to(_device)
