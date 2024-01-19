@@ -23,7 +23,7 @@ args = get_args()
 
 if __name__ == "__main__":
     # Set params
-    data_prefix = ".."
+    data_prefix = "."
     _epochs = 50
     _learning_rate = 0.1
     _loss_fn = nn.CrossEntropyLoss()
