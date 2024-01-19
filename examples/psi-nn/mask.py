@@ -145,10 +145,22 @@ def layer_masking(model_type, bottom_model, mask_layers, device):
             )
 
     elif model_type == "mlp":
-        raise NotImplementedError()
-
+        if 1 in mask_layers:
+            bottom_model.sequential[0] = nn.Linear(
+                in_features=392, out_features=256, bias=True
+            ).to(device)
+        if 2 in mask_layers:
+            bottom_model.sequential[3] = nn.Linear(
+                in_features=256, out_features=128, bias=True
+            ).to(device)
+        if 3 in mask_layers:
+            bottom_model.sequential[7] = nn.Linear(
+                in_features=128, out_features=128, bias=True
+            ).to(device)
     else:
         raise ValueError(f"{model_type} is not valid model type.")
+
+    return bottom_model
 
 
 # fmt: off

@@ -2,7 +2,7 @@ from __future__ import annotations  # python >= 3.7, give type hint before defin
 
 import io
 import random
-from typing import Any, Dict, List, Optional, Sequence, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
 import numpy as np
 import pandas as pd
@@ -198,7 +198,9 @@ class CommonDataset:
                 new_dataset = []
                 if train and role == Const.ACTIVE_NAME:
                     for label in range(n_classes):
-                        curr_dataset = np_dataset[np_dataset[:, 1].type(torch.int32) == label][:fine_tune_per_class]
+                        curr_dataset = np_dataset[
+                            np_dataset[:, 1].type(torch.int32) == label
+                        ][:fine_tune_per_class]
                         new_dataset.append(curr_dataset)
                     torch.cat(new_dataset, out=np_dataset)
             else:
@@ -206,7 +208,9 @@ class CommonDataset:
                 new_dataset = []
                 if train and role == Const.ACTIVE_NAME:
                     for label in range(n_classes):
-                        curr_dataset = np_dataset[np_dataset[:, 1].astype(np.int32) == label][::fine_tune_per_class]
+                        curr_dataset = np_dataset[
+                            np_dataset[:, 1].astype(np.int32) == label
+                        ][:fine_tune_per_class]
                         new_dataset.append(curr_dataset)
                     np_dataset = np.vstack(new_dataset)
 
@@ -1116,7 +1120,11 @@ class CommonDataset:
             data=top3_ratio_data, index=["top1", "top2", "top3"], columns=col_names
         )
 
-        if self.role == Const.ACTIVE_NAME and self.dataset_type == "classification" and len(np.unique(self.labels)) == 2:
+        if (
+            self.role == Const.ACTIVE_NAME
+            and self.dataset_type == "classification"
+            and len(np.unique(self.labels)) == 2
+        ):
             # Calculate the iv value and iv_rate for binary classification datasets.
             iv_idxes = list(range(self.n_features))
             cal_iv = Basewoe(modify=False, idxes=iv_idxes, label=self.labels)
@@ -1143,11 +1151,17 @@ class CommonDataset:
         if self.role == Const.ACTIVE_NAME:
             # Calculate the xgb_importance.
             if self.dataset_type == "regression":
-                importance = FeatureEvaluation.tree_importance(self, task="regression", save_pic=False)
+                importance = FeatureEvaluation.tree_importance(
+                    self, task="regression", save_pic=False
+                )
             elif len(np.unique(self.labels)) == 2:
-                importance = FeatureEvaluation.tree_importance(self, task="binary", save_pic=False)
+                importance = FeatureEvaluation.tree_importance(
+                    self, task="binary", save_pic=False
+                )
             else:
-                importance = FeatureEvaluation.tree_importance(self, task="multi", save_pic=False)
+                importance = FeatureEvaluation.tree_importance(
+                    self, task="multi", save_pic=False
+                )
             importance = np.array(importance).reshape(1, -1)
             importance = pd.DataFrame(
                 data=importance, index=["xgb_importance"], columns=col_names

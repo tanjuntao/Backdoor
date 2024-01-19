@@ -61,6 +61,6 @@ def get_model_dir():
 def get_mask_layers():
     args = get_args()
     mask_layers = []
-    if args.layers != "":
+    if args.layer != "":
         mask_layers = [int(layer) for layer in args.layer.split(",")]
     return mask_layers
