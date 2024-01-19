@@ -141,7 +141,7 @@ if __name__ == "__main__":
         if args.dataset in ("tab_mnist", "tab_fashion_mnist"):
             bottom_nodes = [input_nodes, 256, 128, 128]
         else:
-            bottom_nodes = [input_nodes, 15, 10]
+            bottom_nodes = [input_nodes, 15, 10, 10]
         bottom_model = MLP(
             bottom_nodes,
             activate_input=False,
