@@ -371,9 +371,11 @@ class MediaDataset(TorchDataset, Dataset):
             std = (0.24205776, 0.23828046, 0.25874835)
 
             cinic_directory = root
-            splitted_path = os.path.normpath(cinic_directory).split(os.sep)
-            splitted_path[-1] = "CINIC10-enlarge"
-            enlarge_directory = os.path.join(*splitted_path)
+            # splitted_path = os.path.normpath(cinic_directory).split(os.sep)
+            # splitted_path[-1] = "CINIC10-enlarge"
+            enlarge_directory = os.path.join(
+                os.path.dirname(cinic_directory), "CINIC10-enlarge"
+            )
 
             if not os.path.exists(enlarge_directory):
                 print("combining trainset and validset...")
