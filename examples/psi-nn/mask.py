@@ -1,7 +1,7 @@
 import torch.nn as nn
 
 
-def layer_masking(model_type, bottom_model, mask_layers, device):
+def layer_masking(model_type, bottom_model, mask_layers, device, dataset):
     if model_type == "resnet18":
         if 1 in mask_layers:
             bottom_model.conv1 = nn.Conv2d(
@@ -72,8 +72,12 @@ def layer_masking(model_type, bottom_model, mask_layers, device):
                 512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False
             ).to(device)
         if 18 in mask_layers:
+            if dataset == "cifar100":
+                out_features = 100
+            else:
+                out_features = 10
             bottom_model.linear = nn.Linear(
-                in_features=512, out_features=10, bias=True
+                in_features=512, out_features=out_features, bias=True
             ).to(device)
 
     elif model_type == "vgg13":
@@ -118,15 +122,23 @@ def layer_masking(model_type, bottom_model, mask_layers, device):
                 512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1)
             ).to(device)
         if 11 in mask_layers:
+            if dataset == "cifar100":
+                out_features = 100
+            else:
+                out_features = 10
             bottom_model.classifier = nn.Linear(
-                in_features=512, out_features=10, bias=True
+                in_features=512, out_features=out_features, bias=True
             ).to(device)
 
     elif model_type == "lenet":
         if 1 in mask_layers:
-            bottom_model.conv1 = nn.Conv2d(1, 6, kernel_size=(5, 5), stride=(1, 1)).to(
-                device
-            )
+            if dataset == "svhn":
+                in_channel = 3
+            else:
+                in_channel = 1
+            bottom_model.conv1 = nn.Conv2d(
+                in_channel, 6, kernel_size=(5, 5), stride=(1, 1)
+            ).to(device)
         if 2 in mask_layers:
             bottom_model.conv2 = nn.Conv2d(6, 16, kernel_size=(5, 5), stride=(1, 1)).to(
                 device
@@ -145,18 +157,32 @@ def layer_masking(model_type, bottom_model, mask_layers, device):
             )
 
     elif model_type == "mlp":
-        if 1 in mask_layers:
-            bottom_model.sequential[0] = nn.Linear(
-                in_features=392, out_features=256, bias=True
-            ).to(device)
-        if 2 in mask_layers:
-            bottom_model.sequential[3] = nn.Linear(
-                in_features=256, out_features=128, bias=True
-            ).to(device)
-        if 3 in mask_layers:
-            bottom_model.sequential[7] = nn.Linear(
-                in_features=128, out_features=128, bias=True
-            ).to(device)
+        if dataset == "criteo":
+            if 1 in mask_layers:
+                bottom_model.sequential[0] = nn.Linear(
+                    in_features=20, out_features=15, bias=True
+                ).to(device)
+            if 2 in mask_layers:
+                bottom_model.sequential[3] = nn.Linear(
+                    in_features=15, out_features=10, bias=True
+                ).to(device)
+            if 3 in mask_layers:
+                bottom_model.sequential[6] = nn.Linear(
+                    in_features=10, out_features=10, bias=True
+                ).to(device)
+        else:
+            if 1 in mask_layers:
+                bottom_model.sequential[0] = nn.Linear(
+                    in_features=392, out_features=256, bias=True
+                ).to(device)
+            if 2 in mask_layers:
+                bottom_model.sequential[3] = nn.Linear(
+                    in_features=256, out_features=128, bias=True
+                ).to(device)
+            if 3 in mask_layers:
+                bottom_model.sequential[6] = nn.Linear(
+                    in_features=128, out_features=128, bias=True
+                ).to(device)
     else:
         raise ValueError(f"{model_type} is not valid model type.")
 
