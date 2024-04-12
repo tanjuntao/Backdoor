@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from linkefl.modelzoo import ConvPassportBlock
+from .passport import ConvPassportBlock
 
 
 class BasicBlock(nn.Module):

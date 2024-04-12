@@ -2,12 +2,15 @@ import torch.nn as nn
 
 from linkefl.modelzoo.util import TorchModuleType, make_nn_module
 
+from .passport import ConvPassportBlock
+
 
 class VGG(nn.Module):
     # fmt: off
     cfg = {
         "VGG11": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M_final"],
         "VGG13": [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M_final'],  # noqa: E501
+        "FedPassVGG13": [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, "passport_conv", 'M_final'],  # noqa: E501
         "VGG16": [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M_final'],  # noqa: E501
         "VGG19": [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M_final'],  # noqa: E501
     }
@@ -19,12 +22,18 @@ class VGG(nn.Module):
         in_channel,
         num_classes=10,
         activation: TorchModuleType = "ReLU",
+        loc=-1.0,
+        scale=1.0,
+        passport_mode="multi",
     ):
         super(VGG, self).__init__()
         self.in_channel = in_channel
         self.vgg_name = vgg_name
         self.num_classes = num_classes
         self.activation = make_nn_module(activation)
+        self.loc = loc
+        self.scale = scale
+        self.passport_mode = passport_mode
 
         self.feature_extractor = self._make_layers(VGG.cfg[vgg_name])
         self.classifier = nn.Linear(512, self.num_classes)
@@ -43,6 +52,22 @@ class VGG(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif x == "M_final":
                 layers += [nn.AdaptiveMaxPool2d(output_size=(1, 1))]
+            elif x == "passport_conv":
+                out_channels = 512
+                layers += [
+                    ConvPassportBlock(
+                        in_channels=in_channels,
+                        out_channels=out_channels,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1,
+                        bias=False,
+                        loc=self.loc,
+                        scale=self.scale,
+                        passport_mode=self.passport_mode,
+                        activation="relu",
+                    )
+                ]
             else:
                 layers += [
                     nn.Conv2d(in_channels, x, kernel_size=3, padding=1),
@@ -87,4 +112,23 @@ def VGG19(in_channel, num_classes=10, activation: TorchModuleType = "ReLU"):
         in_channel=in_channel,
         num_classes=num_classes,
         activation=activation,
+    )
+
+
+def FedPassVGG13(
+    in_channel,
+    num_classes=10,
+    activation: TorchModuleType = "ReLU",
+    loc=-1.0,
+    scale=1.0,
+    passport_mode="multi",
+):
+    return VGG(
+        vgg_name="VGG13",
+        in_channel=in_channel,
+        num_classes=num_classes,
+        activation=activation,
+        loc=loc,
+        scale=scale,
+        passport_mode=passport_mode,
     )
