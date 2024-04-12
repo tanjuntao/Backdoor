@@ -29,13 +29,17 @@ def get_args():
         "--mid_weight", default=1.0, type=float, help="weight of vib loss in mid"
     )
     parser.add_argument("--dcor_weight", default=1.0, type=float, help="dcor weight")
+    parser.add_argument(
+        "--world_size", default=2, type=int, help="number of total participants"
+    )
+    parser.add_argument("--rank", default=0, type=int, help="party rank")
     args = parser.parse_args()
     return args
 
 
 def get_model_dir():
     args = get_args()
-    model_dir = f"/storage/1002tjt/MC-Attack/{args.dataset}_{args.model}"
+    model_dir = f"/home/1002tjt/MC-Attack/{args.dataset}_{args.model}"
     if args.defense == "ng":
         model_dir += f"_ng_{args.noise_scale}"
     elif args.defense == "cg":
