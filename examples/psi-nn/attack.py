@@ -176,6 +176,7 @@ if __name__ == "__main__":
         bottom_model=bottom_model,
         mask_layers=get_mask_layers(),
         device=_device,
+        dataset=args.dataset,
     )
     cut_layer = CutLayer(*_cut_nodes, random_state=_random_state).to(_device)
     top_model = MLP(
@@ -184,6 +185,7 @@ if __name__ == "__main__":
         activate_output=False,
         random_state=_random_state,
     ).to(_device)
+    print(bottom_model, cut_layer, top_model)
     _models = {"bottom": bottom_model, "cut": cut_layer, "top": top_model}
     _optimizers = {
         name: torch.optim.SGD(
@@ -222,34 +224,3 @@ if __name__ == "__main__":
     )
     active_party.train_alone(fine_tune_trainset, active_testset)
     print(colored("3. Active party finished vfl_nn training.", "red"))
-
-    # fmt: off
-    # Visualization
-    # active_party.validate_alone(active_testset)
-    # bottom_model = TorchModelIO.load(
-    #     "models/cifar1030", "fine_tune_active.model")["model"]["bottom"].to(_device)
-    # cut_layer = TorchModelIO.load(
-    #     "models/cifar1030", "fine_tune_active.model")["model"]["cut"].to(_device)
-    # top_model = TorchModelIO.load(
-    #     "models/cifar1030", "fine_tune_active.model")["model"]["top"].to(_device)
-    # _models = {"bottom": bottom_model, "cut": cut_layer, "top": top_model}
-    # active_party.models = _models
-    # active_party.validate_alone(active_testset)
-    # _, total_embeddings = active_party.validate_alone(active_testset)
-
-    # # tsne visualization
-    # from sklearn.manifold import TSNE
-    # import matplotlib.pyplot as plt
-    # import numpy as np
-    # tsne = TSNE(n_components=2, random_state=0)
-    # transformed_embeddings = tsne.fit_transform(total_embeddings.cpu().numpy())
-    # test_targets = np.array(active_testset.buildin_dataset.targets)
-    # for i in range(10):
-    #     plt.scatter(
-    #         transformed_embeddings[test_targets == i, 0],
-    #         transformed_embeddings[test_targets == i, 1],
-    #         label=str(i),
-    #     )
-    # plt.legend()
-    # plt.savefig("models/cifar10_exp/embeddings_scratch.png")
-    # fmt: on
