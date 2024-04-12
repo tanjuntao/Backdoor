@@ -1,3 +1,5 @@
+import math
+
 import torch
 from args_parser import get_args, get_model_dir
 from termcolor import colored
@@ -157,6 +159,100 @@ if __name__ == "__main__":
         activate_output=False,
         random_state=_random_state,
     ).to(_device)
+    print(bottom_model, cut_layer, top_model)
+    # Prepare FedPass Models
+    if args.defense == "fedpass":
+        if args.model == "mlp":
+            # hidden, tm, tfm: 64, criteo: 128
+            top_model = nn.Sequential(
+                LinearPassportBlock(
+                    in_features=64,
+                    out_features=64,
+                    # hidden_feature=128,
+                    loc=-15,
+                    passport_mode="multi",
+                    scale=math.sqrt(args.sigma2),
+                ),
+                MLP(
+                    _top_nodes,
+                    activate_input=False,
+                    activate_output=False,
+                    random_state=_random_state,
+                ),
+            ).to(_device)
+        if args.model == "lenet":
+            if args.dataset == "svhn":
+                in_channel = 3
+            else:
+                in_channel = 1
+            bottom_model = FedPassLeNet(
+                in_channel=in_channel,
+                num_classes=10,
+                loc=-100,
+                scale=math.sqrt(args.sigma2),
+            ).to(_device)
+            top_model = nn.Sequential(
+                LinearPassportBlock(
+                    in_features=10,
+                    out_features=10,
+                    loc=-100,
+                    passport_mode="multi",
+                    scale=math.sqrt(args.sigma2),
+                ),
+                MLP(
+                    _top_nodes,
+                    activate_input=False,
+                    activate_output=False,
+                    random_state=_random_state,
+                ),
+            ).to(_device)
+        if args.model == "vgg13":
+            bottom_model = FedPassVGG13(
+                in_channel=3,
+                num_classes=100,
+                loc=-100,
+                scale=math.sqrt(args.sigma2),
+            ).to(_device)
+            top_model = nn.Sequential(
+                LinearPassportBlock(
+                    in_features=100,
+                    out_features=100,
+                    hidden_feature=1024,
+                    loc=-100,
+                    passport_mode="multi",
+                    scale=math.sqrt(args.sigma2),
+                ),
+                MLP(
+                    _top_nodes,
+                    activate_input=False,
+                    activate_output=False,
+                    random_state=_random_state,
+                ),
+            ).to(_device)
+        if args.model == "resnet18":
+            bottom_model = FedPassResNet18(
+                in_channel=3,
+                num_classes=100,
+                loc=-100,
+                passport_mode="multi",
+                scale=math.sqrt(args.sigma2),
+            ).to(_device)
+            top_model = nn.Sequential(
+                LinearPassportBlock(
+                    in_features=100,
+                    out_features=100,
+                    loc=-100,
+                    passport_mode="multi",
+                    scale=math.sqrt(args.sigma2),
+                ),
+                MLP(
+                    _top_nodes,
+                    activate_input=False,
+                    activate_output=False,
+                    random_state=_random_state,
+                ),
+            ).to(_device)
+    print(bottom_model, cut_layer, top_model)
     _models = {"bottom": bottom_model, "cut": cut_layer, "top": top_model}
     _optimizers = {
         name: torch.optim.SGD(
@@ -169,7 +265,9 @@ if __name__ == "__main__":
         for name, optimizer in _optimizers.items()
     }
     # Init mid models
-    mid_model = DeepVIB(input_shape=10, output_shape=10, z_dim=32).to(_device)
+    # mid_model = DeepVIB(input_shape=64, output_shape=64, z_dim=64).to(_device)
+    # mid_model = DeepVIB(input_shape=10, output_shape=10, z_dim=32).to(_device)
+    mid_model = DeepVIB(input_shape=100, output_shape=100, z_dim=320).to(_device)
     mid_optimizer = torch.optim.SGD(
         mid_model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
     )
@@ -210,23 +308,3 @@ if __name__ == "__main__":
     print(colored("3. Active party finished vfl_nn training.", "red"))
     for messenger in _messengers:
         messenger.close()
-
-
-# FedPass bottom model and top model ###
-# bottom_model = FedPassResNet18(
-#     in_channel=3,
-#     num_classes=10,
-#     loc=-100,
-#     passport_mode="multi",
-#     scale=math.sqrt(args.sigma2),
-# ).to(_device)
-# top_model = nn.Sequential(
-#     LinearPassportBlock(
-#         in_features=10,
-#         out_features=10,
-#         loc=-100,
-#         passport_mode="multi",
-#         scale=math.sqrt(args.sigma2),
-#     ),
-#     MLP(_top_nodes, activate_input=False, activate_output=False, random_state=_random_state),
-# ).to(_device)

@@ -1,3 +1,5 @@
+import math
+
 import torch.optim.optimizer
 from args_parser import get_args, get_model_dir
 from termcolor import colored
@@ -141,6 +143,38 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"{args.model} is not an valid model type.")
     cut_layer = CutLayer(*_cut_nodes, random_state=_random_state).to(_device)
+
+    # Prepare FedPass Models
+    if args.defense == "fedpass":
+        if args.model == "mlp":
+            pass
+        if args.model == "lenet":
+            if args.dataset == "svhn":
+                in_channel = 3
+            else:
+                in_channel = 1
+            bottom_model = FedPassLeNet(
+                in_channel=in_channel,
+                num_classes=10,
+                loc=-100,
+                scale=math.sqrt(args.sigma2),
+            ).to(_device)
+        if args.model == "vgg13":
+            bottom_model = FedPassVGG13(
+                in_channel=3,
+                num_classes=100,
+                loc=-100,
+                scale=math.sqrt(args.sigma2),
+            ).to(_device)
+        if args.model == "resnet18":
+            bottom_model = FedPassResNet18(
+                in_channel=3,
+                num_classes=100,
+                loc=-100,
+                passport_mode="multi",
+                scale=math.sqrt(args.sigma2),
+            ).to(_device)
+
     _models = {"bottom": bottom_model, "cut": cut_layer}
     _optimizers = {
         name: torch.optim.SGD(
