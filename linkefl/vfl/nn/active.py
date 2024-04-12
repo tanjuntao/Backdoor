@@ -19,7 +19,7 @@ from linkefl.common.factory import partial_crypto_factory
 from linkefl.common.log import GlobalLogger
 from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
-from linkefl.modelzoo import *  # noqa: F403
+from linkefl.modelzoo import *  # noqa
 from linkefl.util.progress import progress_bar
 from linkefl.vfl.nn.defenses import (
     DiscreteGradient,
@@ -321,14 +321,24 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     active_repr_grad = self.dg.apply(top_input.grad)
                 active_repr.backward(active_repr_grad)
                 # NEW: estimate layer importance via gradient norms
-                for name, param in self.models["bottom"].named_parameters():
-                    if "conv" not in name:
-                        continue
-                    if name not in layer_importance:
-                        layer_importance[name] = 0
-                    mean_grad = torch.abs(torch.flatten(param.grad.data)).mean().item()
-                    layer_importance[name] += mean_grad
-
+                bottom_model = self.models["bottom"]
+                for name, param in bottom_model.named_parameters():
+                    if isinstance(bottom_model, ResNet):  # noqa
+                        if "conv" in name:
+                            if name not in layer_importance:
+                                layer_importance[name] = 0
+                            mean_grad = (
+                                torch.abs(torch.flatten(param.grad.data)).mean().item()
+                            )
+                            layer_importance[name] += mean_grad
+                    if isinstance(bottom_model, VGG):  # noqa
+                        if name not in layer_importance:
+                            layer_importance[name] = 0
+                        mean_grad = (
+                            torch.abs(torch.flatten(param.grad.data)).mean().item()
+                        )
+                        layer_importance[name] += mean_grad
+                # END
                 for optmizer in self.optimizers.values():
                     optmizer.step()
                 if self.defense is not None and self.defense == "mid":
@@ -413,17 +423,17 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 for msger in self.messengers:
                     msger.send(is_best)
             # NEW: sort layer importance and print
-            sorted_layer_importance = {
-                k: v
-                for k, v in sorted(
-                    layer_importance.items(), key=lambda item: item[1], reverse=True
-                )
-            }
-            print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            print(f"Epoch: {epoch}, sorted layer importance: ")
-            for name, importance in sorted_layer_importance.items():
-                print(f"{name}: {importance}")
-            print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+            # sorted_layer_importance = {
+            #     k: v
+            #     for k, v in sorted(
+            #         layer_importance.items(), key=lambda item: item[1], reverse=True
+            #     )
+            # }
+            # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+            # print(f"Epoch: {epoch}, sorted layer importance: ")
+            # for name, importance in sorted_layer_importance.items():
+            #     print(f"{name}: {importance}")
+            # print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
             importance_records.append(layer_importance)
 
         # close pool
@@ -457,56 +467,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         import pickle
 
-        import matplotlib.pyplot as plt
-
         with open(f"{self.model_dir}/importance_records.pkl", "wb") as f:
             pickle.dump(importance_records, f)
-
-        fig = plt.figure()
-        ax = fig.add_subplot(1, 1, 1)
-        x_epochs = list(range(self.epochs))
-        conv1 = [importance["conv1.weight"] for importance in importance_records]
-        layer1_0_conv1 = [
-            importance["layer1.0.conv1.weight"] for importance in importance_records
-        ]
-        layer1_0_conv2 = [
-            importance["layer1.0.conv2.weight"] for importance in importance_records
-        ]
-        layer1_1_conv1 = [
-            importance["layer1.1.conv1.weight"] for importance in importance_records
-        ]
-        layer1_1_conv2 = [
-            importance["layer1.1.conv2.weight"] for importance in importance_records
-        ]
-        layer2_0_conv1 = [
-            importance["layer2.0.conv1.weight"] for importance in importance_records
-        ]
-        layer2_0_conv2 = [
-            importance["layer2.0.conv2.weight"] for importance in importance_records
-        ]
-        layer2_1_conv1 = [
-            importance["layer2.1.conv1.weight"] for importance in importance_records
-        ]
-        layer2_1_conv2 = [
-            importance["layer2.1.conv2.weight"] for importance in importance_records
-        ]
-        ax.plot(x_epochs, conv1, label="conv1")
-        ax.plot(x_epochs, layer1_0_conv1, label="layer1.0.conv1.weight")
-        ax.plot(x_epochs, layer1_0_conv2, label="layer1.0.conv2.weight")
-        ax.plot(x_epochs, layer1_1_conv1, label="layer1.1.conv1.weight")
-        ax.plot(x_epochs, layer1_1_conv2, label="layer1.1.conv2.weight")
-        ax.plot(x_epochs, layer2_0_conv1, label="layer2.0.conv1.weight")
-        ax.plot(x_epochs, layer2_0_conv2, label="layer2.0.conv2.weight")
-        ax.plot(x_epochs, layer2_1_conv1, label="layer2.1.conv1.weight")
-        ax.plot(x_epochs, layer2_1_conv2, label="layer2.1.conv2.weight")
-
-        ax.grid(True, linestyle="-.")
-        ax.set_title("Layer gradient")
-        ax.set_ylabel("L1 grad", labelpad=5, loc="center")
-        ax.set_xlabel("Epoch", labelpad=5, loc="center")
-        plt.legend(loc="best")
-        plt.savefig(f"{self.model_dir}/layer_grad.png")
-        plt.close()
 
     def validate(
         self,
