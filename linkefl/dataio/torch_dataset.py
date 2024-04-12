@@ -233,6 +233,8 @@ class MediaDataset(TorchDataset, Dataset):
             label = int(label)
 
         # two party
+        # P0 P0
+        # P1 P1
         if self.world_size == 2:
             if self.role == Const.ACTIVE_NAME:
                 if self.active_full_image:
@@ -242,7 +244,22 @@ class MediaDataset(TorchDataset, Dataset):
             else:
                 return image[:, 16:, :]  # second half
 
+        # three party, [C, H, W]
+        # P0 P0
+        # P1 P2
+        elif self.world_size == 3:
+            if self.rank == 0:
+                return image[:, :16, :], label
+            elif self.rank == 1:
+                return image[:, 16:, :16]
+            elif self.rank == 2:
+                return image[:, 16:, 16:]
+            else:
+                raise ValueError(f"invalid rank: {self.rank}")
+
         # four party
+        # P0 P1
+        # P2 P3
         elif self.world_size == 4:
             if self.rank == 0:
                 return image[:, :16, :16], label
