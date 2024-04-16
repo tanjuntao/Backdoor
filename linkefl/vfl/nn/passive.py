@@ -143,7 +143,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
                 model.train()
             print(f"Epoch: {epoch}")
             self.logger.log(f"Epoch {epoch} started...")
-            for batch_idx, X in enumerate(train_dataloader):
+            for batch_idx, (X, _) in enumerate(train_dataloader):
                 # 1. forward
                 X = X.to(self.device)
                 bottom_outputs = self.models["bottom"](X)
@@ -213,7 +213,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
             model.eval()
 
         with torch.no_grad():
-            for batch, X in enumerate(dataloader):
+            for batch, (X, _) in enumerate(dataloader):
                 X = X.to(self.device)
                 bottom_outputs = self.models["bottom"](X)
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):

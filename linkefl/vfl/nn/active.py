@@ -1,3 +1,4 @@
+import copy
 import datetime
 import os
 import pathlib
@@ -10,6 +11,7 @@ from sklearn.metrics import roc_auc_score
 from termcolor import colored
 from torch import nn
 from torch.nn.modules.loss import _Loss
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
@@ -20,6 +22,8 @@ from linkefl.common.log import GlobalLogger
 from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa
+from linkefl.modelzoo.mask import layer_masking
+from linkefl.modelzoo.noise import layer_noising
 from linkefl.util.progress import progress_bar
 from linkefl.vfl.nn.defenses import (
     DiscreteGradient,
@@ -83,6 +87,16 @@ class ActiveNeuralNetwork(BaseModelComponent):
         mid_model=None,
         mid_optimizer=None,
         mid_scheduler=None,
+        shadow_model=None,
+        shadow_optimizer=None,
+        shadow_scheduler=None,
+        shadow_dataset=None,
+        mc_top_model=None,
+        mc_dataset=None,
+        passive_dataset=None,
+        privacy_budget=None,
+        mc_epochs=20,
+        args=None,
     ):
         self.epochs = epochs
         self.batch_size = batch_size
@@ -123,6 +137,27 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 pass
             elif defense == "labeldp":
                 self.labeldp = LabelDP(eps=labeldp_eps)
+            elif defense == "vmask":
+                self.shadow_model = shadow_model
+                self.shadow_optimizer = shadow_optimizer
+                self.shadow_scheduler = shadow_scheduler
+                self.shadow_dataset = shadow_dataset
+                self.passive_dataset = passive_dataset
+                self.mc_top_model = mc_top_model
+                self.mc_dataset = mc_dataset
+                self.privacy_budget = privacy_budget
+                self.mc_epochs = mc_epochs
+                self.args = args
+                self.shadow_dataloader = self._init_dataloader(self.shadow_dataset,
+                                                          shuffle=True, num_workers=2,
+                                                          bs=64)
+                self.mc_dataloader = self._init_dataloader(self.mc_dataset, shuffle=True,
+                                                      num_workers=2, bs=4)
+                self.passive_dataloader = self._init_dataloader(passive_dataset,
+                                                           shuffle=False, num_workers=2,
+                                                           bs=256)
+                self.historical_grad_norms = {}
+                self.historical_masked_indices = []
             else:
                 raise ValueError(f"unrecognized defense: {defense}")
         if random_state is not None:
@@ -364,12 +399,25 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     y = y.view(y.size(0), -1).expand_as(predicted)
                     topk_correct += predicted.eq(y).sum().item()
 
+            # VMask here
+            self.shadow_model_update()
+            curr_masked_indices = self.layer_selection()
+            self.historical_masked_indices.append(curr_masked_indices)
+            self.models["bottom"] = layer_noising(
+                model_type=self.args.model,
+                bottom_model=self.models["bottom"],
+                noisy_layers=curr_masked_indices,
+                device=self.device,
+            )
+
             # update learning rate scheduler
             if self.schedulers is not None:
                 for scheduler in self.schedulers.values():
                     scheduler.step()
             if self.defense is not None and self.defense == "mid":
                 self.mid_scheduler.step()
+            if self.defense is not None and self.defense == "vmask":
+                self.shadow_scheduler.step()
 
             # validate model
             is_best = False
@@ -469,6 +517,210 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         with open(f"{self.model_dir}/importance_records.pkl", "wb") as f:
             pickle.dump(importance_records, f)
+
+    def shadow_model_update(self):
+        self.shadow_model.train()
+        for param in self.models["top"].parameters():
+            param.requires_grad = False
+
+        for batch_idx, (X, y) in enumerate(self.shadow_dataloader):
+            X = X.to(self.device)
+            y = y.to(self.device)
+            logits = self.models["top"](self.shadow_model(X))
+            loss = self.loss_fn(logits, y)
+            self.shadow_optimizer.zero_grad()
+            loss.backward()
+            for name, param in self.shadow_model.named_parameters():
+                if isinstance(self.shadow_model, ResNet):  # noqa
+                    if "conv" in name:
+                        if name not in self.historical_grad_norms:
+                            self.historical_grad_norms[name] = 0
+                        mean_grad = (
+                            torch.abs(torch.flatten(param.grad.data)).mean().item()
+                        )
+                        self.historical_grad_norms[name] += mean_grad
+                if isinstance(self.shadow_model, VGG):  # noqa
+                    if name not in self.historical_grad_norms:
+                        self.historical_grad_norms[name] = 0
+                    mean_grad = (
+                        torch.abs(torch.flatten(param.grad.data)).mean().item()
+                    )
+                    self.historical_grad_norms[name] += mean_grad
+            self.shadow_optimizer.step()
+
+        for param in self.models["top"].parameters():
+            param.requires_grad = True
+
+    def layer_selection(self, prev_masked_indices=None):
+        sorted_grad_norms = {
+            k: v for k, v in sorted(
+                self.historical_grad_norms.items(),
+                key=lambda item: item[1],
+                reverse=True,
+            )
+        }
+        layers = list(sorted_grad_norms.keys())
+
+        masked_indices = [layers.pop(0)]
+        leaked_privacy = 1.0
+
+        while leaked_privacy > self.privacy_budget:
+            masked_indices.append(layers.pop(0))
+            shadow_model = copy.deepcopy(self.shadow_model)
+            shadow_model[0] = layer_masking(
+                model_type=self.args.model, bottom_model=shadow_model[0],
+                mask_layers=masked_indices, device=self.device, dataset=self.args.dataset,
+            )
+            top_model = copy.deepcopy(self.mc_top_model)
+            leaked_privacy = self.mc_attack(shadow_model, top_model)[0]
+
+        return masked_indices
+
+    def mc_attack(self, shadow_model, top_model):
+        shadow_optimizer = torch.optim.SGD(
+            shadow_model.parameters(),
+            lr=0.01 / 100,
+            momentum=0.9,
+            weight_decay=5e-4,
+        )
+        top_optimizer = torch.optim.SGD(
+            top_model.parameters(),
+            lr=0.01,
+            momentum=0.9,
+            weight_decay=5e-4,
+        )
+        shadow_scheduler = CosineAnnealingLR(optimizer=shadow_optimizer, T_max=self.epochs, eta_min=0)
+        top_scheduler = CosineAnnealingLR(optimizer=top_optimizer, T_max=self.epochs, eta_min=0)
+
+        start_time = time.time()
+        best_acc, best_auc = 0, 0
+        if self.topk > 1:
+            best_topk_acc = 0
+        for epoch in range(self.mc_epochs):
+            shadow_model.train()
+            top_model.train()
+            correct, total = 0, 0
+            train_loss = 0
+            if self.topk > 1:
+                topk_correct = 0
+            print("Epoch: {}".format(epoch))
+            for batch_idx, (X, y) in enumerate(self.mc_dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
+                # forward
+                logits = top_model(shadow_model(X))
+                loss = self.loss_fn(logits, y)
+                train_loss += loss.item()
+                _, predicted = logits.max(1)
+                correct += predicted.eq(y).sum().item()
+                total += y.size(0)
+                progress_bar(
+                    batch_idx,
+                    len(self.mc_dataloader),
+                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                    % (
+                        train_loss / (batch_idx + 1),
+                        100.0 * correct / total,
+                        correct,
+                        total,
+                    ),
+                )
+                if self.topk > 1:
+                    _, predicted = logits.topk(self.topk, dim=1)
+                    y = y.view(y.size(0), -1).expand_as(predicted)
+                    topk_correct += predicted.eq(y).sum().item()
+
+                # backward
+                top_optimizer.zero_grad()
+                shadow_optimizer.zero_grad()
+                loss.backward()
+                top_optimizer.step()
+                shadow_optimizer.step()
+
+            top_scheduler.step()
+            shadow_scheduler.step()
+
+            scores = self.mc_validate(shadow_model, top_model)
+            curr_acc, curr_auc = scores["acc"], scores["auc"]
+            if curr_auc == 0:  # multi-class
+                if curr_acc > best_acc:
+                    best_acc = curr_acc
+                    print(colored("Best model updated.", "red"))
+                if self.topk > 1:
+                    if scores["topk_acc"] > best_topk_acc:
+                        best_topk_acc = scores["topk_acc"]
+                        print("best topk_acc updated.")
+                # no need to update best_auc here, because it always equals zero.
+            else:  # binary-class
+                if curr_auc > best_auc:
+                    best_auc = curr_auc
+                    print(colored("Best model updated.", "red"))
+                if curr_acc > best_acc:
+                    best_acc = curr_acc
+
+        print(colored(f"elapsed time: {time.time() - start_time}", "red"))
+        print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
+        if self.topk > 1:
+            print(
+                colored(
+                    "Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"
+                )
+            )
+        print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
+        if self.topk > 1:
+            return (best_acc, best_topk_acc)
+        else:
+            return (best_acc,)
+
+    def mc_validate(self, shadow_model, top_model):
+        shadow_model.eval()
+        top_model.eval()
+
+        n_batches = len(self.passive_dataloader)
+        test_loss, correct, total = 0.0, 0, 0
+        if self.topk > 1:
+            topk_correct = 0
+        labels, probs = np.array([]), np.array([])
+        with torch.no_grad():
+            for batch_idx, (X, y) in enumerate(self.passive_dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
+                logits = top_model(shadow_model(X))
+                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
+                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
+                test_loss += self.loss_fn(logits, y).item()
+                _, predicted = logits.max(1)
+                correct += predicted.eq(y).sum().item()
+                total += y.size(0)
+                progress_bar(
+                    batch_idx,
+                    len(self.passive_dataloader),
+                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                    % (
+                        test_loss / (batch_idx + 1),
+                        100.0 * correct / total,
+                        correct,
+                        total,
+                    ),
+                )
+                if self.topk > 1:
+                    _, predicted = logits.topk(self.topk, dim=1)
+                    y = y.view(y.size(0), -1).expand_as(predicted)
+                    topk_correct += predicted.eq(y).sum().item()
+
+            test_loss /= n_batches
+            acc = correct / total
+            n_classes = len(torch.unique(self.passive_dataset.labels))
+            if n_classes == 2:
+                auc = roc_auc_score(labels, probs)
+            else:
+                auc = 0
+
+            scores = {"acc": acc, "auc": auc, "loss": test_loss}
+            if self.topk > 1:
+                scores["topk_acc"] = topk_correct / total
+            return scores
+
 
     def validate(
         self,

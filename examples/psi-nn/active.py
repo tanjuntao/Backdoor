@@ -1,3 +1,4 @@
+import copy
 import math
 
 import torch
@@ -16,12 +17,12 @@ from linkefl.vfl.nn import ActiveNeuralNetwork
 
 args = get_args()
 
-# seed = 0
-# torch.manual_seed(seed)
-# torch.cuda.manual_seed(seed)
-# torch.cuda.manual_seed_all(seed)
-# torch.backends.cudnn.deterministic = True
-# torch.backends.cudnn.benchmark = False
+seed = 0
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 
 if __name__ == "__main__":
@@ -273,6 +274,64 @@ if __name__ == "__main__":
     )
     mid_scheduler = CosineAnnealingLR(optimizer=mid_optimizer, T_max=_epochs, eta_min=0)
 
+    # VMask
+    privacy_budget = 0.5
+    shadow_model = nn.Sequential(copy.deepcopy(bottom_model), copy.deepcopy(cut_layer))
+    shadow_optimizer = torch.optim.SGD(
+        shadow_model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
+    )
+    shadow_scheduler = CosineAnnealingLR(optimizer=shadow_optimizer, T_max=_epochs, eta_min=0)
+    mc_top_model = copy.deepcopy(top_model)
+    shadow_per_class = 1000
+    if args.model in ("resnet18", "vgg13", "lenet"):
+        shadow_dataset = MediaDataset(
+            role=Const.PASSIVE_NAME,
+            dataset_name=args.dataset,
+            root=_dataset_dir,
+            train=True,
+            download=True,
+            fine_tune=True,
+            fine_tune_per_class=shadow_per_class,
+        )
+        mc_dataset = MediaDataset(
+            role=Const.PASSIVE_NAME,
+            dataset_name=args.dataset,
+            root=_dataset_dir,
+            train=True,
+            download=True,
+            fine_tune=True,
+            fine_tune_per_class=args.per_class,
+        )
+    elif args.model == "mlp":
+        _passive_feat_frac = 0.5
+        _feat_perm_option = Const.SEQUENCE
+        active_trainset = TorchDataset.buildin_dataset(
+            dataset_name=args.dataset,
+            role=Const.ACTIVE_NAME,
+            root=_dataset_dir,
+            train=True,
+            download=True,
+            passive_feat_frac=_passive_feat_frac,
+            feat_perm_option=_feat_perm_option,
+            seed=_random_state,
+            fine_tune=True,
+            fine_tune_per_class=shadow_per_class,
+        )
+        mc_dataset = TorchDataset.buildin_dataset(
+            dataset_name=args.dataset,
+            role=Const.ACTIVE_NAME,
+            root=_dataset_dir,
+            train=True,
+            download=True,
+            passive_feat_frac=_passive_feat_frac,
+            feat_perm_option=_feat_perm_option,
+            seed=_random_state,
+            fine_tune=True,
+            fine_tune_per_class=args.per_class,
+        )
+    else:
+        raise ValueError(f"{args.model} is not an valid model type.")
+
     # Model training
     active_party = ActiveNeuralNetwork(
         epochs=_epochs,
@@ -303,6 +362,12 @@ if __name__ == "__main__":
         mid_model=mid_model,
         mid_optimizer=mid_optimizer,
         mid_scheduler=mid_scheduler,
+        shadow_model=shadow_model,
+        shadow_optimizer=shadow_optimizer,
+        shadow_scheduler=shadow_scheduler,
+        mc_dataset=mc_dataset,
+        privacy_budget=privacy_budget,
+        args=args,
     )
     active_party.train(active_trainset, active_testset)
     print(colored("3. Active party finished vfl_nn training.", "red"))

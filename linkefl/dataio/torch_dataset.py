@@ -242,7 +242,7 @@ class MediaDataset(TorchDataset, Dataset):
                 else:
                     return image[:, :16, :], label  # first half image
             else:
-                return image[:, 16:, :]  # second half
+                return image[:, 16:, :], label  # second half
 
         # three party, [C, H, W]
         # P0 P0
