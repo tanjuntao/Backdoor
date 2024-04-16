@@ -104,3 +104,57 @@ def layer_noising(model_type, bottom_model, noisy_layers, device, sigma=0.01):
         raise ValueError(f"invalid model type: {model_type}")
 
     return bottom_model
+
+
+def layer_dict(model_type):
+    if model_type == "resnet18":
+        layers = {
+            "conv1.weight": 0,
+            "layer1.0.conv1.weight": 0,
+            "layer1.0.conv2.weight": 0,
+            "layer1.1.conv1.weight": 0,
+            "layer1.1.conv2.weight": 0,
+            "layer2.0.conv1.weight": 0,
+            "layer2.0.conv2.weight": 0,
+            "layer2.1.conv1.weight": 0,
+            "layer2.1.conv2.weight": 0,
+            "layer3.0.conv1.weight": 0,
+            "layer3.0.conv2.weight": 0,
+            "layer3.1.conv1.weight": 0,
+            "layer3.1.conv2.weight": 0,
+            "layer4.0.conv1.weight": 0,
+            "layer4.0.conv2.weight": 0,
+            "layer4.1.conv1.weight": 0,
+            "layer4.1.conv2.weight": 0,
+        }
+    elif model_type == "vgg13":
+        layers = {
+            "feature_extractor.0.weight": 0,
+            "feature_extractor.3.weight": 0,
+            "feature_extractor.7.weight": 0,
+            "feature_extractor.10.weight": 0,
+            "feature_extractor.14.weight": 0,
+            "feature_extractor.17.weight": 0,
+            "feature_extractor.21.weight": 0,
+            "feature_extractor.24.weight": 0,
+            "feature_extractor.28.weight": 0,
+            "feature_extractor.31.weight": 0,
+        }
+    elif model_type == "lenet5":
+        layers = {
+            "conv1.weight": 0,
+            "conv2.weight": 0,
+            "fc1.weight": 0,
+            "fc2.weight": 0,
+            "fc3.weight": 0,
+        }
+    elif model_type == "mlp":
+        layers = {
+            "sequential.0.weight": 0,
+            "sequential.3.weight": 0,
+            "sequential.6.weight": 0,
+        }
+    else:
+        raise ValueError(f"invalid model type: {model_type}")
+
+    return layers
