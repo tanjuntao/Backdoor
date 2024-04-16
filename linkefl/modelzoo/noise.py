@@ -47,25 +47,25 @@ def layer_noising(model_type, bottom_model, noisy_layers, device, sigma=0.01):
 
     elif model_type == "vgg13":
         for layer in noisy_layers:
-            if layer == 1:
+            if layer == "feature_extractor.0.weight":
                 weight = bottom_model.feature_extractor[0].weight.data
-            elif layer == 2:
+            elif layer == "feature_extractor.3.weight":
                 weight = bottom_model.feature_extractor[3].weight.data
-            elif layer == 3:
+            elif layer == "feature_extractor.7.weight":
                 weight = bottom_model.feature_extractor[7].weight.data
-            elif layer == 4:
+            elif layer == "feature_extractor.10.weight":
                 weight = bottom_model.feature_extractor[10].weight.data
-            elif layer == 5:
+            elif layer == "feature_extractor.14.weight":
                 weight = bottom_model.feature_extractor[14].weight.data
-            elif layer == 6:
+            elif layer == "feature_extractor.17.weight":
                 weight = bottom_model.feature_extractor[17].weight.data
-            elif layer == 7:
+            elif layer == "feature_extractor.21.weight":
                 weight = bottom_model.feature_extractor[21].weight.data
-            elif layer == 8:
+            elif layer == "feature_extractor.24.weight":
                 weight = bottom_model.feature_extractor[24].weight.data
-            elif layer == 9:
+            elif layer == "feature_extractor.28.weight":
                 weight = bottom_model.feature_extractor[28].weight.data
-            elif layer == 10:
+            elif layer == "feature_extractor.31.weight":
                 weight = bottom_model.feature_extractor[31].weight.data
             elif layer == 11:
                 weight = bottom_model.classifier.weight.data
@@ -75,15 +75,15 @@ def layer_noising(model_type, bottom_model, noisy_layers, device, sigma=0.01):
 
     elif model_type == "lenet5":
         for layer in noisy_layers:
-            if layer == 1:
+            if layer == "conv1.weight":
                 weight = bottom_model.conv1.weight.data
-            elif layer == 2:
+            elif layer == "conv2.weight":
                 weight = bottom_model.conv2.weight.data
-            elif layer == 3:
+            elif layer == "fc1.weight":
                 weight = bottom_model.fc1.weight.data
-            elif layer == 4:
+            elif layer == "fc2.weight":
                 weight = bottom_model.fc2.weight.data
-            elif layer == 5:
+            elif layer == "fc3.weight":
                 weight = bottom_model.fc3.weight.data
             else:
                 raise ValueError(f"wrong layer index: {layer} for model {model_type}")
@@ -91,11 +91,11 @@ def layer_noising(model_type, bottom_model, noisy_layers, device, sigma=0.01):
 
     elif model_type == "mlp":
         for layer in noisy_layers:
-            if layer == 1:
+            if layer == "sequential.0.weight":
                 weight = bottom_model.sequential[0].weight.data
-            elif layer == 2:
+            elif layer == "sequential.3.weight":
                 weight = bottom_model.sequential[3].weight.data
-            elif layer == 3:
+            elif layer == "sequential.6.weight":
                 weight = bottom_model.sequential[6].weight.data
             else:
                 raise ValueError(f"wrong layer index: {layer} for model {model_type}")
