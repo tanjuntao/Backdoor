@@ -23,7 +23,7 @@ from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa
 from linkefl.modelzoo.mask import layer_masking
-from linkefl.modelzoo.noise import layer_noising
+from linkefl.modelzoo.noise import layer_dict, layer_noising
 from linkefl.util.progress import progress_bar
 from linkefl.vfl.nn.defenses import (
     DiscreteGradient,
@@ -94,7 +94,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         mc_top_model=None,
         mc_dataset=None,
         passive_dataset=None,
-        privacy_budget=None,
+        privacy_budget=0.8,
         mc_epochs=20,
         args=None,
     ):
@@ -148,16 +148,20 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 self.privacy_budget = privacy_budget
                 self.mc_epochs = mc_epochs
                 self.args = args
-                self.shadow_dataloader = self._init_dataloader(self.shadow_dataset,
-                                                          shuffle=True, num_workers=2,
-                                                          bs=64)
-                self.mc_dataloader = self._init_dataloader(self.mc_dataset, shuffle=True,
-                                                      num_workers=2, bs=4)
-                self.passive_dataloader = self._init_dataloader(passive_dataset,
-                                                           shuffle=False, num_workers=2,
-                                                           bs=256)
-                self.historical_grad_norms = {}
+                self.shadow_dataloader = self._init_dataloader(
+                    self.shadow_dataset, shuffle=True, num_workers=2, bs=64
+                )
+                self.mc_dataloader = self._init_dataloader(
+                    self.mc_dataset, shuffle=True, num_workers=2, bs=4
+                )
+                self.passive_dataloader = self._init_dataloader(
+                    passive_dataset, shuffle=False, num_workers=2, bs=256
+                )
+                self.historical_grad_norms = layer_dict(model_type=args.model)
                 self.historical_masked_indices = []
+                self.historical_leaked_privacy = []
+                self.best_model_leaked_privacy = None
+                self.best_model_masked_indices = None
             else:
                 raise ValueError(f"unrecognized defense: {defense}")
         if random_state is not None:
@@ -399,25 +403,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     y = y.view(y.size(0), -1).expand_as(predicted)
                     topk_correct += predicted.eq(y).sum().item()
 
-            # VMask here
-            self.shadow_model_update()
-            curr_masked_indices = self.layer_selection()
-            self.historical_masked_indices.append(curr_masked_indices)
-            self.models["bottom"] = layer_noising(
-                model_type=self.args.model,
-                bottom_model=self.models["bottom"],
-                noisy_layers=curr_masked_indices,
-                device=self.device,
-            )
-
             # update learning rate scheduler
             if self.schedulers is not None:
                 for scheduler in self.schedulers.values():
                     scheduler.step()
             if self.defense is not None and self.defense == "mid":
                 self.mid_scheduler.step()
-            if self.defense is not None and self.defense == "vmask":
-                self.shadow_scheduler.step()
 
             # validate model
             is_best = False
@@ -470,19 +461,42 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     )
                 for msger in self.messengers:
                     msger.send(is_best)
-            # NEW: sort layer importance and print
-            # sorted_layer_importance = {
-            #     k: v
-            #     for k, v in sorted(
-            #         layer_importance.items(), key=lambda item: item[1], reverse=True
-            #     )
-            # }
-            # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-            # print(f"Epoch: {epoch}, sorted layer importance: ")
-            # for name, importance in sorted_layer_importance.items():
-            #     print(f"{name}: {importance}")
-            # print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+
             importance_records.append(layer_importance)
+
+            # VMask here
+            if self.defense is not None and self.defense == "vmask":
+                self.shadow_model_update()
+                print(self.historical_grad_norms)
+                curr_masked_indices, leaked_privacy = self.layer_selection()
+                self.historical_masked_indices.append(curr_masked_indices)
+                self.historical_leaked_privacy.append(leaked_privacy)
+                if is_best:
+                    self.best_model_leaked_privacy = leaked_privacy
+                    self.best_model_masked_indices = copy.deepcopy(curr_masked_indices)
+                print(f"curr_masked_indices: {curr_masked_indices}")
+                if epoch == 0:
+                    u_v_diff = (set(curr_masked_indices) - set([])) | (
+                        set([]) - set(curr_masked_indices)
+                    )
+                else:
+                    u_v_diff = (
+                        set(curr_masked_indices)
+                        - set(self.historical_masked_indices[-1])
+                    ) | (
+                        set(self.historical_masked_indices[-1])
+                        - set(curr_masked_indices)
+                    )
+                u_v_diff = list(u_v_diff)
+                print(f"u_v_diff: {u_v_diff}")
+                self.models["bottom"] = layer_noising(
+                    model_type=self.args.model,
+                    bottom_model=self.models["bottom"],
+                    noisy_layers=u_v_diff,
+                    device=self.device,
+                )
+            if self.defense is not None and self.defense == "vmask":
+                self.shadow_scheduler.step()
 
         # close pool
         for enc_layer in self.enc_layer_list:
@@ -518,11 +532,23 @@ class ActiveNeuralNetwork(BaseModelComponent):
         with open(f"{self.model_dir}/importance_records.pkl", "wb") as f:
             pickle.dump(importance_records, f)
 
+        if self.defense is not None and self.defense == "vmask":
+            print(f"best model leaked privacy: {self.best_model_leaked_privacy}")
+            print(f"best model masked indices: {self.best_model_masked_indices}")
+            print(f"historical_leaked_privay: {self.historical_leaked_privacy}")
+            print(f"historical masked indices: {self.historical_masked_indices}")
+            with open(f"{self.model_dir}/historical_masked_indices.pkl", "wb") as f:
+                pickle.dump(self.historical_masked_indices, f)
+            with open(f"{self.model_dir}/best_model_masked_indices.pkl", "wb") as f:
+                pickle.dump(self.best_model_masked_indices, f)
+
     def shadow_model_update(self):
         self.shadow_model.train()
         for param in self.models["top"].parameters():
             param.requires_grad = False
 
+        correct, total = 0, 0
+        train_loss = 0
         for batch_idx, (X, y) in enumerate(self.shadow_dataloader):
             X = X.to(self.device)
             y = y.to(self.device)
@@ -530,30 +556,36 @@ class ActiveNeuralNetwork(BaseModelComponent):
             loss = self.loss_fn(logits, y)
             self.shadow_optimizer.zero_grad()
             loss.backward()
-            for name, param in self.shadow_model.named_parameters():
-                if isinstance(self.shadow_model, ResNet):  # noqa
-                    if "conv" in name:
-                        if name not in self.historical_grad_norms:
-                            self.historical_grad_norms[name] = 0
-                        mean_grad = (
-                            torch.abs(torch.flatten(param.grad.data)).mean().item()
-                        )
-                        self.historical_grad_norms[name] += mean_grad
-                if isinstance(self.shadow_model, VGG):  # noqa
-                    if name not in self.historical_grad_norms:
-                        self.historical_grad_norms[name] = 0
-                    mean_grad = (
-                        torch.abs(torch.flatten(param.grad.data)).mean().item()
-                    )
+            train_loss += loss.item()
+            _, predicted = logits.max(1)
+            correct += predicted.eq(y).sum().item()
+            total += y.size(0)
+
+            for name, param in self.shadow_model[0].named_parameters():
+                if name in self.historical_grad_norms:
+                    mean_grad = torch.abs(torch.flatten(param.grad.data)).mean().item()
                     self.historical_grad_norms[name] += mean_grad
+
             self.shadow_optimizer.step()
+            progress_bar(
+                batch_idx,
+                len(self.shadow_dataloader),
+                "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                % (
+                    loss / (batch_idx + 1),
+                    100.0 * correct / total,
+                    correct,
+                    total,
+                ),
+            )
 
         for param in self.models["top"].parameters():
             param.requires_grad = True
 
     def layer_selection(self, prev_masked_indices=None):
         sorted_grad_norms = {
-            k: v for k, v in sorted(
+            k: v
+            for k, v in sorted(
                 self.historical_grad_norms.items(),
                 key=lambda item: item[1],
                 reverse=True,
@@ -561,20 +593,23 @@ class ActiveNeuralNetwork(BaseModelComponent):
         }
         layers = list(sorted_grad_norms.keys())
 
-        masked_indices = [layers.pop(0)]
+        masked_indices = []
         leaked_privacy = 1.0
 
-        while leaked_privacy > self.privacy_budget:
+        while leaked_privacy > self.privacy_budget and layers:
             masked_indices.append(layers.pop(0))
             shadow_model = copy.deepcopy(self.shadow_model)
             shadow_model[0] = layer_masking(
-                model_type=self.args.model, bottom_model=shadow_model[0],
-                mask_layers=masked_indices, device=self.device, dataset=self.args.dataset,
+                model_type=self.args.model,
+                bottom_model=shadow_model[0],
+                mask_layers=masked_indices,
+                device=self.device,
+                dataset=self.args.dataset,
             )
             top_model = copy.deepcopy(self.mc_top_model)
             leaked_privacy = self.mc_attack(shadow_model, top_model)[0]
 
-        return masked_indices
+        return masked_indices, leaked_privacy
 
     def mc_attack(self, shadow_model, top_model):
         shadow_optimizer = torch.optim.SGD(
@@ -589,8 +624,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
             momentum=0.9,
             weight_decay=5e-4,
         )
-        shadow_scheduler = CosineAnnealingLR(optimizer=shadow_optimizer, T_max=self.epochs, eta_min=0)
-        top_scheduler = CosineAnnealingLR(optimizer=top_optimizer, T_max=self.epochs, eta_min=0)
+        shadow_scheduler = CosineAnnealingLR(
+            optimizer=shadow_optimizer, T_max=self.epochs, eta_min=0
+        )
+        top_scheduler = CosineAnnealingLR(
+            optimizer=top_optimizer, T_max=self.epochs, eta_min=0
+        )
 
         start_time = time.time()
         best_acc, best_auc = 0, 0
@@ -720,7 +759,6 @@ class ActiveNeuralNetwork(BaseModelComponent):
             if self.topk > 1:
                 scores["topk_acc"] = topk_correct / total
             return scores
-
 
     def validate(
         self,

@@ -275,12 +275,13 @@ if __name__ == "__main__":
     mid_scheduler = CosineAnnealingLR(optimizer=mid_optimizer, T_max=_epochs, eta_min=0)
 
     # VMask
-    privacy_budget = 0.5
     shadow_model = nn.Sequential(copy.deepcopy(bottom_model), copy.deepcopy(cut_layer))
     shadow_optimizer = torch.optim.SGD(
         shadow_model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
     )
-    shadow_scheduler = CosineAnnealingLR(optimizer=shadow_optimizer, T_max=_epochs, eta_min=0)
+    shadow_scheduler = CosineAnnealingLR(
+        optimizer=shadow_optimizer, T_max=_epochs, eta_min=0
+    )
     mc_top_model = copy.deepcopy(top_model)
     shadow_per_class = 1000
     if args.model in ("resnet18", "vgg13", "lenet"):
@@ -302,12 +303,19 @@ if __name__ == "__main__":
             fine_tune=True,
             fine_tune_per_class=args.per_class,
         )
+        passive_dataset = MediaDataset(
+            role=Const.PASSIVE_NAME,
+            dataset_name=args.dataset,
+            root=_dataset_dir,
+            train=False,
+            download=True,
+        )
     elif args.model == "mlp":
         _passive_feat_frac = 0.5
         _feat_perm_option = Const.SEQUENCE
-        active_trainset = TorchDataset.buildin_dataset(
+        shadow_dataset = TorchDataset.buildin_dataset(
             dataset_name=args.dataset,
-            role=Const.ACTIVE_NAME,
+            role=Const.PASSIVE_NAME,
             root=_dataset_dir,
             train=True,
             download=True,
@@ -319,7 +327,7 @@ if __name__ == "__main__":
         )
         mc_dataset = TorchDataset.buildin_dataset(
             dataset_name=args.dataset,
-            role=Const.ACTIVE_NAME,
+            role=Const.PASSIVE_NAME,
             root=_dataset_dir,
             train=True,
             download=True,
@@ -328,6 +336,16 @@ if __name__ == "__main__":
             seed=_random_state,
             fine_tune=True,
             fine_tune_per_class=args.per_class,
+        )
+        passive_dataset = TorchDataset.buildin_dataset(
+            dataset_name=args.dataset,
+            role=Const.PASSIVE_NAME,
+            root=_dataset_dir,
+            train=False,
+            download=True,
+            passive_feat_frac=_passive_feat_frac,
+            feat_perm_option=_feat_perm_option,
+            seed=_random_state,
         )
     else:
         raise ValueError(f"{args.model} is not an valid model type.")
@@ -365,8 +383,11 @@ if __name__ == "__main__":
         shadow_model=shadow_model,
         shadow_optimizer=shadow_optimizer,
         shadow_scheduler=shadow_scheduler,
+        shadow_dataset=shadow_dataset,
         mc_dataset=mc_dataset,
-        privacy_budget=privacy_budget,
+        mc_top_model=mc_top_model,
+        passive_dataset=passive_dataset,
+        privacy_budget=args.privacy_budget,
         args=args,
     )
     active_party.train(active_trainset, active_testset)

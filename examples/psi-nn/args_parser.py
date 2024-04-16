@@ -30,6 +30,9 @@ def get_args():
     )
     parser.add_argument("--dcor_weight", default=1.0, type=float, help="dcor weight")
     parser.add_argument(
+        "--privacy_budget", default=0.5, type=float, help="privacy budget in vmask"
+    )
+    parser.add_argument(
         "--world_size", default=2, type=int, help="number of total participants"
     )
     parser.add_argument("--rank", default=0, type=int, help="party rank")
@@ -39,7 +42,7 @@ def get_args():
 
 def get_model_dir():
     args = get_args()
-    model_dir = f"/home/1002tjt/MC-Attack/{args.dataset}_{args.model}"
+    model_dir = f"/home/1002tjt/models/{args.dataset}_{args.model}"
     if args.defense == "ng":
         model_dir += f"_ng_{args.noise_scale}"
     elif args.defense == "cg":
@@ -54,6 +57,8 @@ def get_model_dir():
         model_dir += f"_dcor_{args.dcor_weight}"
     elif args.defense == "mid":
         model_dir += f"_mid_{args.mid_weight}"
+    elif args.defense == "vmask":
+        model_dir += f"_vmask_{args.privacy_budget}"
     elif args.defense == "":
         if args.attempt != 0:
             model_dir += f"_attempt_{args.attempt}"
