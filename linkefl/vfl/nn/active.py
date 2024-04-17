@@ -467,26 +467,25 @@ class ActiveNeuralNetwork(BaseModelComponent):
             # VMask here
             if self.defense is not None and self.defense == "vmask":
                 self.shadow_model_update()
-                print(self.historical_grad_norms)
-                curr_masked_indices, leaked_privacy = self.layer_selection()
-                self.historical_masked_indices.append(curr_masked_indices)
-                self.historical_leaked_privacy.append(leaked_privacy)
+                TorchModelIO.save(
+                    self.shadow_model[0],
+                    self.model_dir,
+                    f"shadow_epoch_{epoch}.model",
+                    epoch=epoch,
+                )
+                prev_masked_indices = (
+                    [] if epoch == 0 else self.historical_masked_indices[-1]
+                )
+                curr_masked_indices, leaked_privacy = self.layer_selection(
+                    prev_masked_indices
+                )
                 if is_best:
                     self.best_model_leaked_privacy = leaked_privacy
                     self.best_model_masked_indices = copy.deepcopy(curr_masked_indices)
                 print(f"curr_masked_indices: {curr_masked_indices}")
-                if epoch == 0:
-                    u_v_diff = (set(curr_masked_indices) - set([])) | (
-                        set([]) - set(curr_masked_indices)
-                    )
-                else:
-                    u_v_diff = (
-                        set(curr_masked_indices)
-                        - set(self.historical_masked_indices[-1])
-                    ) | (
-                        set(self.historical_masked_indices[-1])
-                        - set(curr_masked_indices)
-                    )
+                u_v_diff = (set(curr_masked_indices) - set(prev_masked_indices)) | (
+                    set(prev_masked_indices) - set(curr_masked_indices)
+                )
                 u_v_diff = list(u_v_diff)
                 print(f"u_v_diff: {u_v_diff}")
                 self.models["bottom"] = layer_noising(
@@ -495,6 +494,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     noisy_layers=u_v_diff,
                     device=self.device,
                 )
+                self.historical_masked_indices.append(curr_masked_indices)
+                self.historical_leaked_privacy.append(leaked_privacy)
             if self.defense is not None and self.defense == "vmask":
                 self.shadow_scheduler.step()
 
@@ -582,7 +583,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         for param in self.models["top"].parameters():
             param.requires_grad = True
 
-    def layer_selection(self, prev_masked_indices=None):
+    def layer_selection(self, prev_masked_indices=None, incremental=False):
         sorted_grad_norms = {
             k: v
             for k, v in sorted(
@@ -591,11 +592,31 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 reverse=True,
             )
         }
+        print(sorted_grad_norms)
         layers = list(sorted_grad_norms.keys())
+        print(f"prev masked indices: {prev_masked_indices}")
+        print(f"sorted layers: {layers}")
 
         masked_indices = []
-        leaked_privacy = 1.0
+        if incremental:
+            masked_indices = prev_masked_indices.copy()
+            for masked_layer in prev_masked_indices:
+                layers.pop(layers.index(masked_layer))
+        else:
+            pop_layers = []
+            for idx, masked_layer in enumerate(prev_masked_indices):
+                if layers[idx] == masked_layer:
+                    masked_indices.append(masked_layer)
+                    pop_layers.append(masked_layer)
+                else:
+                    break
+            for masked_layer in pop_layers:
+                layers.pop(layers.index(masked_layer))
 
+        leaked_privacy = 1.0
+        print(f"initial masked indices: {masked_indices}")
+        if len(masked_indices) == len(prev_masked_indices) and masked_indices:
+            layers.insert(0, masked_indices.pop())
         while leaked_privacy > self.privacy_budget and layers:
             masked_indices.append(layers.pop(0))
             shadow_model = copy.deepcopy(self.shadow_model)
