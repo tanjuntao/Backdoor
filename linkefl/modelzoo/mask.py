@@ -160,7 +160,7 @@ def layer_masking(model_type, bottom_model, mask_layers, device, dataset):
         if dataset == "criteo":
             if "sequential.0.weight" in mask_layers:
                 bottom_model.sequential[0] = nn.Linear(
-                    in_features=20, out_features=15, bias=True
+                    in_features=18, out_features=15, bias=True
                 ).to(device)
             if "sequential.3.weight" in mask_layers:
                 bottom_model.sequential[3] = nn.Linear(

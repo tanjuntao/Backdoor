@@ -196,7 +196,7 @@ class CommonDataset:
             if dataset_name in ("tab_mnist", "tab_fashion_mnist"):
                 n_classes = 10
                 new_dataset = []
-                if train and role == Const.ACTIVE_NAME:
+                if train:
                     for label in range(n_classes):
                         curr_dataset = np_dataset[
                             np_dataset[:, 1].type(torch.int32) == label
@@ -206,7 +206,7 @@ class CommonDataset:
             else:
                 n_classes = 2
                 new_dataset = []
-                if train and role == Const.ACTIVE_NAME:
+                if train:
                     for label in range(n_classes):
                         curr_dataset = np_dataset[
                             np_dataset[:, 1].astype(np.int32) == label
@@ -984,13 +984,14 @@ class CommonDataset:
             if self.role == Const.ACTIVE_NAME:
                 setattr(self, "_features", self._raw_dataset[:, 2:])
             else:
-                setattr(self, "_features", self._raw_dataset[:, 1:])
+                # setattr(self, "_features", self._raw_dataset[:, 1:])
+                setattr(self, "_features", self._raw_dataset[:, 2:])
         return getattr(self, "_features")
 
     @property
     def labels(self) -> Union[np.ndarray, torch.Tensor]:  # read only
-        if self.role == Const.PASSIVE_NAME:
-            raise AttributeError("Passive party has no labels.")
+        # if self.role == Const.PASSIVE_NAME:
+        #     raise AttributeError("Passive party has no labels.")
 
         if not hasattr(self, "_labels"):
             raw_labels = self._raw_dataset[:, 1]

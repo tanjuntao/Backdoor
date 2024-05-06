@@ -157,8 +157,12 @@ class TorchDataset(CommonDataset, Dataset):
         num_passive_feats = int(frac * _feats.shape[1])
         if role == Const.PASSIVE_NAME:
             _feats = _feats[:, :num_passive_feats]
-            header = ["id"] + _feats_header
-            torch_dataset = torch.cat((torch.unsqueeze(_ids, 1), _feats), dim=1)
+            # header = ["id"] + _feats_header
+            header = ["id"] + ["y"] + _feats_header
+            torch_dataset = torch.cat(
+                (torch.unsqueeze(_ids, 1), torch.unsqueeze(_labels, 1), _feats), dim=1
+            )
+            # torch_dataset = torch.cat((torch.unsqueeze(_ids, 1), _feats), dim=1)
         else:
             _feats = _feats[:, num_passive_feats:]
             header = ["id"] + ["y"] + _feats_header
@@ -175,7 +179,7 @@ class TorchDataset(CommonDataset, Dataset):
         if self.role == Const.ACTIVE_NAME:
             return self.features[idx], self.labels[idx]
         else:
-            return self.features[idx]
+            return self.features[idx], self.labels[idx]
 
 
 class MediaDataset(TorchDataset, Dataset):

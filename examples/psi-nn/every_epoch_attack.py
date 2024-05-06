@@ -1,5 +1,5 @@
 import torch
-from args_parser import get_args, get_mask_layers, get_model_dir
+from args_parser import get_args, get_model_dir
 from mask import layer_masking
 from termcolor import colored
 from torch import nn
@@ -37,6 +37,26 @@ def init_model(model, range):
         elif isinstance(m, nn.Linear):
             nn.init.uniform_(m.weight, -range, range)
             nn.init.uniform_(m.bias, -range, range)
+
+
+def load_history_mask_indices():
+    import os
+    import pickle
+
+    from linkefl.modelzoo.noise import layer_dict
+
+    with open(
+        os.path.join(get_model_dir(), "historical_masked_indices.pkl"), "rb"
+    ) as f:
+        historical_masked_names = pickle.load(f)
+    all_names = list(layer_dict(args.model))
+    layer_indices = []
+    for epoch_masked_names in historical_masked_names:
+        epoch_indices = []
+        for name in epoch_masked_names:
+            epoch_indices.append(all_names.index(name) + 1)  # add offset
+        layer_indices.append(epoch_indices)
+    return layer_indices
 
 
 if __name__ == "__main__":
@@ -85,14 +105,14 @@ if __name__ == "__main__":
     # Load dataset
     if args.model in ("resnet18", "vgg13", "lenet"):
         active_testset = MediaDataset(
-            role=Const.ACTIVE_NAME,
+            role=Const.PASSIVE_NAME,
             dataset_name=args.dataset,
             root=_dataset_dir,
             train=False,
             download=True,
         )
         fine_tune_trainset = MediaDataset(
-            role=Const.ACTIVE_NAME,
+            role=Const.PASSIVE_NAME,
             dataset_name=args.dataset,
             root=_dataset_dir,
             train=True,
@@ -105,7 +125,7 @@ if __name__ == "__main__":
         _feat_perm_option = Const.SEQUENCE
         active_testset = TorchDataset.buildin_dataset(
             dataset_name=args.dataset,
-            role=Const.ACTIVE_NAME,
+            role=Const.PASSIVE_NAME,
             root=_dataset_dir,
             train=False,
             download=True,
@@ -115,7 +135,7 @@ if __name__ == "__main__":
         )
         fine_tune_trainset = TorchDataset.buildin_dataset(
             dataset_name=args.dataset,
-            role=Const.ACTIVE_NAME,
+            role=Const.PASSIVE_NAME,
             root=_dataset_dir,
             train=True,
             download=True,
@@ -129,10 +149,11 @@ if __name__ == "__main__":
 
     # Attack
     epoch_accs = []
+    history_indices = load_history_mask_indices()
     for epoch in range(_epochs):
         print(colored("2. Active party started training...", "red"))
         bottom_model = TorchModelIO.load(
-            get_model_dir(), f"active_epoch_{epoch}.model"
+            get_model_dir(), f"passive_epoch_{epoch}.model"
         )["model"]["bottom"].to(_device)
         if args.model == "resnet18":
             if args.scratch:
@@ -172,7 +193,7 @@ if __name__ == "__main__":
         bottom_model = layer_masking(
             model_type=args.model,
             bottom_model=bottom_model,
-            mask_layers=get_mask_layers(),
+            mask_layers=history_indices[epoch],
             device=_device,
             dataset=args.dataset,
         )

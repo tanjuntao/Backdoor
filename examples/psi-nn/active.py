@@ -233,15 +233,15 @@ if __name__ == "__main__":
         if args.model == "resnet18":
             bottom_model = FedPassResNet18(
                 in_channel=3,
-                num_classes=100,
+                num_classes=10,
                 loc=-100,
                 passport_mode="multi",
                 scale=math.sqrt(args.sigma2),
             ).to(_device)
             top_model = nn.Sequential(
                 LinearPassportBlock(
-                    in_features=100,
-                    out_features=100,
+                    in_features=10,
+                    out_features=10,
                     loc=-100,
                     passport_mode="multi",
                     scale=math.sqrt(args.sigma2),
@@ -268,13 +268,21 @@ if __name__ == "__main__":
     # Init mid models
     # mid_model = DeepVIB(input_shape=64, output_shape=64, z_dim=64).to(_device)
     # mid_model = DeepVIB(input_shape=10, output_shape=10, z_dim=32).to(_device)
-    mid_model = DeepVIB(input_shape=100, output_shape=100, z_dim=320).to(_device)
+    mid_model = DeepVIB(input_shape=10, output_shape=10, z_dim=32).to(_device)
     mid_optimizer = torch.optim.SGD(
         mid_model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
     )
     mid_scheduler = CosineAnnealingLR(optimizer=mid_optimizer, T_max=_epochs, eta_min=0)
 
     # VMask
+    if args.dataset == "criteo":
+        bottom_nodes = [18, 15, 10, 10]
+        bottom_model = MLP(
+            bottom_nodes,
+            activate_input=False,
+            activate_output=True,
+            random_state=_random_state,
+        ).to(_device)
     shadow_model = nn.Sequential(copy.deepcopy(bottom_model), copy.deepcopy(cut_layer))
     shadow_optimizer = torch.optim.SGD(
         shadow_model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
@@ -283,7 +291,6 @@ if __name__ == "__main__":
         optimizer=shadow_optimizer, T_max=_epochs, eta_min=0
     )
     mc_top_model = copy.deepcopy(top_model)
-    shadow_per_class = 1000
     if args.model in ("resnet18", "vgg13", "lenet"):
         shadow_dataset = MediaDataset(
             role=Const.PASSIVE_NAME,
@@ -292,7 +299,7 @@ if __name__ == "__main__":
             train=True,
             download=True,
             fine_tune=True,
-            fine_tune_per_class=shadow_per_class,
+            fine_tune_per_class=args.shadow_per_class,
         )
         mc_dataset = MediaDataset(
             role=Const.PASSIVE_NAME,
@@ -323,7 +330,7 @@ if __name__ == "__main__":
             feat_perm_option=_feat_perm_option,
             seed=_random_state,
             fine_tune=True,
-            fine_tune_per_class=shadow_per_class,
+            fine_tune_per_class=args.shadow_per_class,
         )
         mc_dataset = TorchDataset.buildin_dataset(
             dataset_name=args.dataset,

@@ -10,11 +10,13 @@
 *.png
 *.pt
 *-ubyte
+*.pdf
 
 .idea/
 .vscode/
 linkefl.egg-info/
 cifar-10-batches-py
+cifar-100-python
 models/
 linkefl/hfl/data/
 CINIC10/

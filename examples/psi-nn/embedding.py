@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from args_parser import get_args, get_model_dir
+from args_parser import get_args, get_mask_layers, get_model_dir
+from mask import layer_masking
 from sklearn.manifold import TSNE
 from termcolor import colored
 from torch import nn
@@ -47,7 +48,7 @@ else:
 # Load dataset
 if args.model in ("resnet18", "vgg13", "lenet"):
     active_testset = MediaDataset(
-        role=Const.ACTIVE_NAME,
+        role=Const.PASSIVE_NAME,
         dataset_name=args.dataset,
         root=_dataset_dir,
         train=False,
@@ -58,7 +59,7 @@ elif args.model == "mlp":
     _feat_perm_option = Const.SEQUENCE
     active_testset = TorchDataset.buildin_dataset(
         dataset_name=args.dataset,
-        role=Const.ACTIVE_NAME,
+        role=Const.PASSIVE_NAME,
         root=_dataset_dir,
         train=False,
         download=True,
@@ -71,9 +72,12 @@ print(colored("1. Finish loading dataset.", "red"))
 
 # Visualization
 print("loading model...")
-bottom_model = TorchModelIO.load(get_model_dir(), "VFL_active.model")["model"][
-    "bottom"
-].to(_device)
+# bottom_model = TorchModelIO.load(get_model_dir(), "VFL_active.model")["model"][
+#     "bottom"
+# ].to(_device)
+from linkefl.modelzoo import ResNet18
+
+bottom_model = ResNet18(in_channel=3, num_classes=10).to(_device)
 cut_layer = TorchModelIO.load(get_model_dir(), "VFL_active.model")["model"]["cut"].to(
     _device
 )
@@ -82,9 +86,13 @@ top_model = TorchModelIO.load(get_model_dir(), "VFL_active.model")["model"]["top
 )
 
 # mask layers
-# bottom_model = layer_masking(
-#     "resnet18", bottom_model, get_mask_layers(), device=_device
-# )
+bottom_model = layer_masking(
+    "resnet18",
+    bottom_model,
+    get_mask_layers(),
+    device=_device,
+    dataset=args.dataset,
+)
 models = {"bottom": bottom_model, "cut": cut_layer, "top": top_model}
 print("Done.")
 

@@ -24,6 +24,26 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
+import time
+from functools import partial
+
+time_dict = {}
+
+
+def _take_time_pre(layer_name, module, inputs):
+    time_dict[layer_name] = time.time()
+
+
+def _take_time(layer_name, module, inputs, ouputs):
+    time_dict[layer_name] = time.time() - time_dict[layer_name]
+
+
+def register_hook(model):
+    for layer in model.children():
+        layer.register_forward_pre_hook(partial(_take_time_pre, layer))
+        layer.register_forward_hook(partial(_take_time, layer))
+
+
 if __name__ == "__main__":
     # Set params
     data_prefix = "."
@@ -133,7 +153,7 @@ if __name__ == "__main__":
         if args.dataset in ("tab_mnist", "tab_fashion_mnist"):
             bottom_nodes = [input_nodes, 256, 128, 128]
         else:
-            bottom_nodes = [input_nodes, 15, 10, 10]
+            bottom_nodes = [18, 15, 10, 10]
         bottom_model = MLP(
             bottom_nodes,
             activate_input=False,
@@ -169,12 +189,14 @@ if __name__ == "__main__":
         if args.model == "resnet18":
             bottom_model = FedPassResNet18(
                 in_channel=3,
-                num_classes=100,
+                num_classes=10,
                 loc=-100,
                 passport_mode="multi",
                 scale=math.sqrt(args.sigma2),
             ).to(_device)
 
+    # print(bottom_model, cut_layer)
+    # register_hook(bottom_model)
     _models = {"bottom": bottom_model, "cut": cut_layer}
     _optimizers = {
         name: torch.optim.SGD(
@@ -209,6 +231,7 @@ if __name__ == "__main__":
     passive_party.train(passive_trainset, passive_testset)
     print(colored("3. Passive party finish vfl_nn training.", "red"))
     _messenger.close()
+    print(time_dict)
 
 
 # fedpass

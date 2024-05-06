@@ -477,8 +477,14 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     [] if epoch == 0 else self.historical_masked_indices[-1]
                 )
                 curr_masked_indices, leaked_privacy = self.layer_selection(
-                    prev_masked_indices
+                    prev_masked_indices,
+                    selection=self.args.selection,
                 )
+                if self.args.selection == "random":
+                    curr_masked_indices = np.random.choice(
+                        list(self.historical_grad_norms.keys()),
+                        len(curr_masked_indices),
+                    ).tolist()
                 if is_best:
                     self.best_model_leaked_privacy = leaked_privacy
                     self.best_model_masked_indices = copy.deepcopy(curr_masked_indices)
@@ -583,7 +589,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         for param in self.models["top"].parameters():
             param.requires_grad = True
 
-    def layer_selection(self, prev_masked_indices=None, incremental=False):
+    def layer_selection(self, prev_masked_indices=None, selection=None):
         sorted_grad_norms = {
             k: v
             for k, v in sorted(
@@ -592,17 +598,17 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 reverse=True,
             )
         }
-        print(sorted_grad_norms)
+        # print(sorted_grad_norms)
         layers = list(sorted_grad_norms.keys())
         print(f"prev masked indices: {prev_masked_indices}")
         print(f"sorted layers: {layers}")
 
         masked_indices = []
-        if incremental:
+        if selection == "accumu":
             masked_indices = prev_masked_indices.copy()
             for masked_layer in prev_masked_indices:
                 layers.pop(layers.index(masked_layer))
-        else:
+        elif selection == "" or selection == "random":
             pop_layers = []
             for idx, masked_layer in enumerate(prev_masked_indices):
                 if layers[idx] == masked_layer:
@@ -612,11 +618,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
                     break
             for masked_layer in pop_layers:
                 layers.pop(layers.index(masked_layer))
-
-        leaked_privacy = 1.0
+        else:
+            raise ValueError(f"invalid selection strategy: {selection}")
         print(f"initial masked indices: {masked_indices}")
         if len(masked_indices) == len(prev_masked_indices) and masked_indices:
             layers.insert(0, masked_indices.pop())
+
+        leaked_privacy = 1.0
         while leaked_privacy > self.privacy_budget and layers:
             masked_indices.append(layers.pop(0))
             shadow_model = copy.deepcopy(self.shadow_model)
@@ -628,7 +636,11 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 dataset=self.args.dataset,
             )
             top_model = copy.deepcopy(self.mc_top_model)
-            leaked_privacy = self.mc_attack(shadow_model, top_model)[0]
+            leaked_privacy = self.mc_attack(shadow_model, top_model)
+            if self.args.dataset in ("criteo", "cifar100"):
+                leaked_privacy = leaked_privacy[1]  # auc or topk acc
+            else:
+                leaked_privacy = leaked_privacy[0]  # top1 acc
 
         return masked_indices, leaked_privacy
 
@@ -730,7 +742,7 @@ class ActiveNeuralNetwork(BaseModelComponent):
         if self.topk > 1:
             return (best_acc, best_topk_acc)
         else:
-            return (best_acc,)
+            return (best_acc, best_auc)
 
     def mc_validate(self, shadow_model, top_model):
         shadow_model.eval()

@@ -33,6 +33,15 @@ def get_args():
         "--privacy_budget", default=0.5, type=float, help="privacy budget in vmask"
     )
     parser.add_argument(
+        "--shadow_per_class",
+        default=1000,
+        type=int,
+        help="shadow number of samples per class",
+    )
+    parser.add_argument(
+        "--selection", default="", type=str, help="layer selection strategy"
+    )
+    parser.add_argument(
         "--world_size", default=2, type=int, help="number of total participants"
     )
     parser.add_argument("--rank", default=0, type=int, help="party rank")
@@ -58,7 +67,9 @@ def get_model_dir():
     elif args.defense == "mid":
         model_dir += f"_mid_{args.mid_weight}"
     elif args.defense == "vmask":
-        model_dir += f"_vmask_{args.privacy_budget}"
+        model_dir += f"_vmask_{args.privacy_budget}_{args.shadow_per_class}"
+        if args.selection:
+            model_dir += f"_{args.selection}"
     elif args.defense == "":
         if args.attempt != 0:
             model_dir += f"_attempt_{args.attempt}"

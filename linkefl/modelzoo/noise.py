@@ -73,7 +73,7 @@ def layer_noising(model_type, bottom_model, noisy_layers, device, sigma=0.01):
                 raise ValueError(f"wrong layer index: {layer} for model {model_type}")
             weight.add_(gassian_noise.sample(weight.shape).to(device))
 
-    elif model_type == "lenet5":
+    elif model_type == "lenet":
         for layer in noisy_layers:
             if layer == "conv1.weight":
                 weight = bottom_model.conv1.weight.data
@@ -140,7 +140,7 @@ def layer_dict(model_type):
             "feature_extractor.28.weight": 0,
             "feature_extractor.31.weight": 0,
         }
-    elif model_type == "lenet5":
+    elif model_type == "lenet":
         layers = {
             "conv1.weight": 0,
             "conv2.weight": 0,
