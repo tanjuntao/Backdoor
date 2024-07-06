@@ -255,9 +255,9 @@ class MediaDataset(TorchDataset, Dataset):
             if self.rank == 0:
                 return image[:, :16, :], label
             elif self.rank == 1:
-                return image[:, 16:, :16]
+                return image[:, 16:, :16], label
             elif self.rank == 2:
-                return image[:, 16:, 16:]
+                return image[:, 16:, 16:], label
             else:
                 raise ValueError(f"invalid rank: {self.rank}")
 
@@ -268,11 +268,11 @@ class MediaDataset(TorchDataset, Dataset):
             if self.rank == 0:
                 return image[:, :16, :16], label
             elif self.rank == 1:
-                return image[:, :16, 16:]
+                return image[:, :16, 16:], label
             elif self.rank == 2:
-                return image[:, 16:, :16]
+                return image[:, 16:, :16], label
             elif self.rank == 3:
-                return image[:, 16:, 16:]
+                return image[:, 16:, 16:], label
             else:
                 raise ValueError(f"invalid rank: {self.rank}")
 

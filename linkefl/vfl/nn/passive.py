@@ -189,12 +189,13 @@ class PassiveNeuralNetwork(BaseModelComponent):
                             self.model_name,
                             epoch=epoch,
                         )
-                TorchModelIO.save(
-                    self.models,
-                    self.model_dir,
-                    f"passive_epoch_{epoch}.model",
-                    epoch=epoch,
-                )
+                if self.saving_model:
+                    TorchModelIO.save(
+                        self.models,
+                        self.model_dir,
+                        f"passive_epoch_{epoch}.model",
+                        epoch=epoch,
+                    )
 
         # close pool
         if self.enc_layer is not None:

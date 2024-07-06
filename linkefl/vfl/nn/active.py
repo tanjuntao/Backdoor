@@ -536,8 +536,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         import pickle
 
-        with open(f"{self.model_dir}/importance_records.pkl", "wb") as f:
-            pickle.dump(importance_records, f)
+        if self.saving_model:
+            with open(f"{self.model_dir}/importance_records.pkl", "wb") as f:
+                pickle.dump(importance_records, f)
 
         if self.defense is not None and self.defense == "vmask":
             print(f"best model leaked privacy: {self.best_model_leaked_privacy}")
