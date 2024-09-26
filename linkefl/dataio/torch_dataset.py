@@ -191,11 +191,13 @@ class MediaDataset(TorchDataset, Dataset):
         root: str,
         train: bool,
         download: bool = False,
+        valid=False,
         fine_tune=False,
         fine_tune_per_class=32,
         active_full_image=False,
         world_size=2,
         rank=0,
+        poison_samples=None,
     ):
         assert role in (Const.ACTIVE_NAME, Const.PASSIVE_NAME), "invalid role name"
         assert dataset_name in (
@@ -209,11 +211,13 @@ class MediaDataset(TorchDataset, Dataset):
 
         self.role = role
         self.dataset_name = dataset_name
+        self.valid = valid
         self.fine_tune = fine_tune
         self.fine_tune_per_class = fine_tune_per_class
         self.active_full_image = active_full_image
         self.world_size = world_size
         self.rank = rank
+        self.poison_samples = poison_samples
         buildin_dataset, _labels = self._prepare_data(
             name=dataset_name, root=root, train=train, download=download
         )
@@ -235,6 +239,12 @@ class MediaDataset(TorchDataset, Dataset):
         image, label = self.buildin_dataset[idx]  # torchvision transform is done here
         if self.dataset_name == "cinic10":
             label = int(label)
+
+        # load poison samples
+        if self.poison_samples is not None and idx in self.poison_samples:
+            image = self.poison_samples[
+                idx
+            ]  # image is already transformed, since it's been optimized in the transformed space
 
         # two party
         # P0 P0
@@ -290,14 +300,24 @@ class MediaDataset(TorchDataset, Dataset):
                 std = (0.2673, 0.2564, 0.2762)
                 constructor = datasets.CIFAR100
             if train:
-                transform = transforms.Compose(
-                    [
-                        transforms.RandomCrop(32, padding=4),
-                        transforms.RandomHorizontalFlip(),
-                        transforms.ToTensor(),
-                        transforms.Normalize(mean, std),
-                    ]
-                )
+                if (
+                    self.valid
+                ):  # validation dataset, for backdoor attack to idendity target labels in trainset
+                    transform = transforms.Compose(
+                        [
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean, std),
+                        ]
+                    )
+                else:
+                    transform = transforms.Compose(
+                        [
+                            transforms.RandomCrop(32, padding=4),
+                            transforms.RandomHorizontalFlip(),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean, std),
+                        ]
+                    )
             else:
                 transform = transforms.Compose(
                     [
