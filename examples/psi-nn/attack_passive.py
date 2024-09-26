@@ -1,3 +1,5 @@
+import pickle
+
 import torch
 from args_parser import get_args, get_model_dir
 from termcolor import colored
@@ -5,10 +7,11 @@ from torch import nn
 
 from linkefl.common.const import Const
 from linkefl.common.factory import logger_factory
+from linkefl.crypto import Plain
 from linkefl.dataio import MediaDataset, TorchDataset
-from linkefl.messenger.easysocket import EasySocketServer
+from linkefl.messenger import EasySocket
 from linkefl.modelio import TorchModelIO
-from linkefl.vfl.nn import ActiveNeuralNetwork
+from linkefl.vfl.nn import PassiveNeuralNetwork
 
 args = get_args()
 
@@ -41,15 +44,11 @@ if __name__ == "__main__":
     data_prefix = "."
     _epochs = 50
     _learning_rate = 0.01
-    _loss_fn = nn.CrossEntropyLoss()
+    _messenger = EasySocket.init_passive(active_ip="localhost", active_port=args.port)
     _random_state = None
     _device = f"cuda:{args.gpu}" if torch.cuda.is_available() else "cpu"
     _logger = logger_factory(role=Const.ACTIVE_NAME)
-    _messengers = EasySocketServer(
-        active_ip="localhost",
-        active_port=args.port,
-        passive_num=1,
-    ).get_messengers()
+    _crypto = Plain()
     if args.dataset in ("cifar10", "cinic10"):
         if args.dataset == "cifar10":
             _dataset_dir = f"{data_prefix}/data"
@@ -93,8 +92,8 @@ if __name__ == "__main__":
 
     # Load dataset
     if args.model in ("resnet18", "vgg13", "lenet"):
-        active_testset = MediaDataset(
-            role=Const.ACTIVE_NAME,
+        passive_testset = MediaDataset(
+            role=Const.PASSIVE_NAME,
             dataset_name=args.dataset,
             root=_dataset_dir,
             train=False,
@@ -103,9 +102,9 @@ if __name__ == "__main__":
     elif args.model == "mlp":
         _passive_feat_frac = 0.5
         _feat_perm_option = Const.SEQUENCE
-        active_testset = TorchDataset.buildin_dataset(
+        passive_testset = TorchDataset.buildin_dataset(
             dataset_name=args.dataset,
-            role=Const.ACTIVE_NAME,
+            role=Const.PASSIVE_NAME,
             root=_dataset_dir,
             train=False,
             download=True,
@@ -113,41 +112,42 @@ if __name__ == "__main__":
             feat_perm_option=_feat_perm_option,
             seed=_random_state,
         )
-    # print(fine_tune_trainset.buildin_dataset.data.shape)
-    # print(len(fine_tune_trainset.buildin_dataset.targets))
-    # print(fine_tune_trainset.buildin_dataset.targets)
     print(colored("1. Finish loading dataset.", "red"))
 
     # Load model
-    bottom_model = TorchModelIO.load(get_model_dir(), "VFL_active.model")["model"][
+    bottom_model = TorchModelIO.load(get_model_dir(), "VFL_passive.model")["model"][
         "bottom"
     ].to(_device)
-    cut_layer = TorchModelIO.load(get_model_dir(), "VFL_active.model")["model"][
+    cut_layer = TorchModelIO.load(get_model_dir(), "VFL_passive.model")["model"][
         "cut"
     ].to(_device)
-    top_model = TorchModelIO.load(get_model_dir(), "VFL_active.model")["model"][
-        "top"
-    ].to(_device)
+    models = {"bottom": bottom_model, "cut": cut_layer}
 
-    _models = {"bottom": bottom_model, "cut": cut_layer, "top": top_model}
-
-    active_party = ActiveNeuralNetwork(
+    # Model training
+    passive_party = PassiveNeuralNetwork(
         epochs=_epochs,
         batch_size=_batch_size,
         learning_rate=_learning_rate,
-        models=_models,
+        models=models,
         optimizers=None,
-        loss_fn=_loss_fn,
-        messengers=_messengers,
+        messenger=_messenger,
+        cryptosystem=_crypto,
         logger=_logger,
         device=_device,
         num_workers=1,
         val_freq=1,
-        topk=topk,
         random_state=_random_state,
         saving_model=False,
         schedulers=None,
         args=args,
     )
-    active_party.validate_attack(active_testset)
-    print(colored("3. Active party finished vfl_nn training.", "red"))
+
+    with open(
+        f"{get_model_dir()}/target_embedding_mean_class_{args.target}.np", "rb"
+    ) as f:
+        trigger_embedding = pickle.load(f)
+        print(trigger_embedding)
+    trigger_embedding = torch.from_numpy(trigger_embedding).to(_device)
+    # passive_party.validate_attack(passive_testset)
+    passive_party.validate_attack(passive_testset, trigger_embedding=trigger_embedding)
+    print(colored("3. passive party finished vfl_nn training.", "red"))
