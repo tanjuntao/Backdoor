@@ -1,7 +1,7 @@
-import copy
 import datetime
 import os
 import pathlib
+import pickle
 import time
 from typing import Any, Dict, List, Optional
 
@@ -11,7 +11,6 @@ from sklearn.metrics import roc_auc_score
 from termcolor import colored
 from torch import nn
 from torch.nn.modules.loss import _Loss
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
@@ -22,15 +21,7 @@ from linkefl.common.log import GlobalLogger
 from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa
-from linkefl.modelzoo.mask import layer_masking
-from linkefl.modelzoo.noise import layer_dict, layer_noising
 from linkefl.util.progress import progress_bar
-from linkefl.vfl.nn.defenses import (
-    DiscreteGradient,
-    DistanceCorrelationLoss,
-    LabelDP,
-    TensorPruner,
-)
 from linkefl.vfl.nn.enc_layer import ActiveEncLayer
 from linkefl.vfl.utils.evaluate import Plot
 
@@ -76,29 +67,12 @@ class ActiveNeuralNetwork(BaseModelComponent):
         model_dir: Optional[str] = None,
         model_name: Optional[str] = None,
         save_every_epoch=False,
-        defense=None,
-        ng_noise_scale=None,
-        cg_preserved_ratio=None,
-        dg_bins_num=None,
-        dg_bound_abs=3e-2,
-        dcor_weight=1e-2,
-        labeldp_eps=0.1,
-        mid_weight=1e-3,
-        mid_model=None,
-        mid_optimizer=None,
-        mid_scheduler=None,
-        shadow_model=None,
-        shadow_optimizer=None,
-        shadow_scheduler=None,
-        shadow_dataset=None,
-        mc_top_model=None,
-        mc_dataset=None,
-        passive_dataset=None,
-        privacy_budget=0.8,
-        mc_epochs=20,
         args=None,
+        start_epoch=0,
+        best_acc=0,
     ):
         self.epochs = epochs
+        self.start_epoch = start_epoch
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.models = models
@@ -115,55 +89,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.encode_precision = encode_precision
         self.random_state = random_state
         self.save_every_epoch = save_every_epoch
-        self.defense = defense
-        if defense is not None:
-            if defense == "ng":
-                from torch.distributions.normal import Normal
+        self.args = args
+        self.best_acc = best_acc
 
-                self.ng = Normal(0.0, ng_noise_scale)
-            elif defense == "cg":
-                self.cg = TensorPruner(zip_percent=cg_preserved_ratio)
-            elif defense == "dg":
-                self.dg = DiscreteGradient(bins_num=dg_bins_num, bound_abs=dg_bound_abs)
-            elif defense == "dcor":
-                self.dcor_weight = dcor_weight
-                self.dcor = DistanceCorrelationLoss()
-            elif defense == "mid":
-                self.mid_weight = mid_weight
-                self.mid_model = mid_model
-                self.mid_optimizer = mid_optimizer
-                self.mid_scheduler = mid_scheduler
-            elif defense == "fedpass":
-                pass
-            elif defense == "labeldp":
-                self.labeldp = LabelDP(eps=labeldp_eps)
-            elif defense == "vmask":
-                self.shadow_model = shadow_model
-                self.shadow_optimizer = shadow_optimizer
-                self.shadow_scheduler = shadow_scheduler
-                self.shadow_dataset = shadow_dataset
-                self.passive_dataset = passive_dataset
-                self.mc_top_model = mc_top_model
-                self.mc_dataset = mc_dataset
-                self.privacy_budget = privacy_budget
-                self.mc_epochs = mc_epochs
-                self.args = args
-                self.shadow_dataloader = self._init_dataloader(
-                    self.shadow_dataset, shuffle=True, num_workers=2, bs=64
-                )
-                self.mc_dataloader = self._init_dataloader(
-                    self.mc_dataset, shuffle=True, num_workers=2, bs=4
-                )
-                self.passive_dataloader = self._init_dataloader(
-                    passive_dataset, shuffle=False, num_workers=2, bs=256
-                )
-                self.historical_grad_norms = layer_dict(model_type=args.model)
-                self.historical_masked_indices = []
-                self.historical_leaked_privacy = []
-                self.best_model_leaked_privacy = None
-                self.best_model_masked_indices = None
-            else:
-                raise ValueError(f"unrecognized defense: {defense}")
         if random_state is not None:
             torch.manual_seed(random_state)
             torch.cuda.manual_seed(random_state)
@@ -257,46 +185,56 @@ class ActiveNeuralNetwork(BaseModelComponent):
             self.enc_layer_list.append(enc_layer)
 
         start_time = time.time()
-        best_acc, best_auc = 0.0, 0.0
+        best_acc, best_auc = self.best_acc, 0.0  # TODO: best_auc as init param
         if self.topk > 1:
             best_topk_acc = 0.0
         train_acc_records, valid_acc_records = [], []
         train_auc_records, valid_auc_records = [], []
         train_loss_records, valid_loss_records = [], []
-        importance_records = []
+        history_embedding_norms = []
+        history_embedding_grad_norms = []
+        history_bottom_ouput_norms = []
+        n_classes = torch.numel(torch.unique(trainset.labels))
+        ##### Main Loop ######
         for epoch in range(self.epochs):
-            layer_importance = {}
+            # layer_importance = {}
+            embedding_norm = {label: [] for label in range(n_classes)}
+            embedding_grad_norm = {label: [] for label in range(n_classes)}
+            bottom_output_norm = {label: [] for label in range(n_classes)}
             train_loss, correct, total = 0, 0, 0
             if self.topk > 1:
                 topk_correct = 0
             for model in self.models.values():
                 model.train()
             self.logger.log(f"Epoch {epoch} started...")
-            print(f"Epoch: {epoch}")
+            print(f"Epoch: {epoch}, Actual Epoch: {epoch + self.start_epoch}")
             torch.manual_seed(epoch)  # fix dataloader batching order when shuffle=True
             for batch_idx, (X, y) in enumerate(train_dataloader):
-                # labeldp defense
-                if self.defense is not None and self.defense == "labeldp":
-                    y_onehot = torch.zeros(y.size(0), self.models["top"].out_nodes)
-                    y_onehot.scatter_(1, y.view(-1, 1).long(), 1).float()
-                    y_dp = self.labeldp(y_onehot)
-                    y = torch.argmax(y_dp, dim=1)
-
                 # 1. forward
                 X = X.to(self.device)
                 y = y.to(self.device)
-                active_repr = self.models["cut"](self.models["bottom"](X))
-                # mid defense
-                mid_loss = None
-                if self.defense is not None and self.defense == "mid":
-                    active_repr, mu, std = self.mid_model(active_repr)
-                    if self.mid_weight == 0:
-                        mid_loss = None
-                    else:
-                        mid_loss = 0.5 * torch.sum(
-                            mu.pow(2) + std.pow(2) - 2 * std.log() - 1
-                        )
-                        mid_loss = mid_loss * self.mid_weight
+
+                if self.args.agg == "add":
+                    active_embedding = self.models["bottom"](X)
+                    active_repr = self.models["cut"](active_embedding)
+                elif self.args.agg == "concat":
+                    active_embedding = self.models["bottom"](X)
+                    active_repr = active_embedding
+                else:
+                    raise ValueError(f"{self.args.agg} is not supported.")
+
+                # Embedding norms
+                batch_embedding_norm = torch.norm(active_repr.data, p=2, dim=1)
+                for label in range(n_classes):
+                    embedding_norm[label].extend(
+                        batch_embedding_norm[y == label].cpu().tolist()
+                    )
+
+                batch_output_norm = torch.norm(active_embedding.data, p=2, dim=1)
+                for label in range(n_classes):
+                    bottom_output_norm[label].extend(
+                        batch_output_norm[y == label].cpu().tolist()
+                    )
 
                 top_input = active_repr.data
                 for idx, msger in enumerate(self.messengers):
@@ -308,32 +246,21 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         passive_repr = msger.recv().to(self.device)
                     else:
                         passive_repr = msger.recv().to(self.device)
-                    top_input += passive_repr
+                    if self.args.agg == "add":
+                        top_input += passive_repr
+                    elif self.args.agg == "concat":
+                        top_input = torch.concat((top_input, passive_repr), dim=1)
+
                 # top_input = active_repr.data + passive_repr
                 top_input = top_input.requires_grad_()
                 logits = self.models["top"](top_input)
                 loss = self.loss_fn(logits, y)
 
-                # dcor defense
-                dcor_loss = None
-                if self.defense is not None and self.defense == "dcor":
-                    if self.dcor_weight == 0:
-                        dcor_loss = None
-                    else:
-                        y_onehot = nn.functional.one_hot(y, num_classes=logits.size(1))
-                        dcor_loss = self.dcor(active_repr, y_onehot) * self.dcor_weight
-                        # print(f"========> dcor: {dcor_loss}")
-
                 # 2. backward
                 for optmizer in self.optimizers.values():
                     optmizer.zero_grad()
-                if self.defense is not None and self.defense == "mid":
-                    self.mid_optimizer.zero_grad()
                 loss.backward()
-                if dcor_loss is not None:
-                    dcor_loss.backward(retain_graph=True)
-                if mid_loss is not None:
-                    mid_loss.backward(retain_graph=True)
+
                 # send back passive party's gradient
                 for idx, msger in enumerate(self.messengers):
                     if self.cryptosystem_list[idx].type in (
@@ -346,42 +273,22 @@ class ActiveNeuralNetwork(BaseModelComponent):
                         msger.send(passive_grad)
                     else:
                         msger.send(top_input.grad)
-                # update active party's top model, cut layer and bottom model
-                active_repr_grad = top_input.grad
-                if self.defense is not None and self.defense == "ng":
-                    noise = self.ng.sample(top_input.grad.shape).to(
-                        active_repr_grad.device
+
+                # Embedding gradient norms
+                batch_embedding_grad_norm = torch.norm(top_input.grad.data, p=2, dim=1)
+                for label in range(n_classes):
+                    embedding_grad_norm[label].extend(
+                        batch_embedding_grad_norm[y == label].cpu().tolist()
                     )
-                    active_repr_grad = active_repr_grad + noise
-                if self.defense is not None and self.defense == "cg":
-                    self.cg.update_thresh_hold(top_input.grad)
-                    active_repr_grad = self.cg.prune_tensor(top_input.grad)
-                if self.defense is not None and self.defense == "dg":
-                    active_repr_grad = self.dg.apply(top_input.grad)
+
+                # update active party's top model, cut layer and bottom model
+                if self.args.agg == "add":
+                    active_repr_grad = top_input.grad
+                elif self.args.agg == "concat":
+                    active_repr_grad = top_input.grad[:, : active_repr.shape[1]]
                 active_repr.backward(active_repr_grad)
-                # NEW: estimate layer importance via gradient norms
-                bottom_model = self.models["bottom"]
-                for name, param in bottom_model.named_parameters():
-                    if isinstance(bottom_model, ResNet):  # noqa
-                        if "conv" in name:
-                            if name not in layer_importance:
-                                layer_importance[name] = 0
-                            mean_grad = (
-                                torch.abs(torch.flatten(param.grad.data)).mean().item()
-                            )
-                            layer_importance[name] += mean_grad
-                    if isinstance(bottom_model, VGG):  # noqa
-                        if name not in layer_importance:
-                            layer_importance[name] = 0
-                        mean_grad = (
-                            torch.abs(torch.flatten(param.grad.data)).mean().item()
-                        )
-                        layer_importance[name] += mean_grad
-                # END
                 for optmizer in self.optimizers.values():
                     optmizer.step()
-                if self.defense is not None and self.defense == "mid":
-                    self.mid_optimizer.step()
 
                 train_loss += loss.item()
                 _, predicted = logits.max(1)
@@ -407,8 +314,6 @@ class ActiveNeuralNetwork(BaseModelComponent):
             if self.schedulers is not None:
                 for scheduler in self.schedulers.values():
                     scheduler.step()
-            if self.defense is not None and self.defense == "mid":
-                self.mid_scheduler.step()
 
             # validate model
             is_best = False
@@ -450,60 +355,58 @@ class ActiveNeuralNetwork(BaseModelComponent):
                             self.models,
                             self.model_dir,
                             self.model_name,
-                            epoch=epoch,
+                            epoch=epoch + self.start_epoch,
                         )
                 if self.save_every_epoch:
                     TorchModelIO.save(
                         self.models,
                         self.model_dir,
-                        f"active_epoch_{epoch}.model",
-                        epoch=epoch,
+                        f"active_epoch_{epoch + self.start_epoch}.model",
+                        epoch=epoch + self.start_epoch,
                     )
+                    if not os.path.exists(f"{self.model_dir}/optim"):
+                        os.mkdir(f"{self.model_dir}/optim")
+                    torch.save(
+                        self.optimizers["bottom"].state_dict(),
+                        f"{self.model_dir}/optim/active_optim_bottom_epoch_{epoch + self.start_epoch}.pth",
+                    )
+                    torch.save(
+                        self.optimizers["cut"].state_dict(),
+                        f"{self.model_dir}/optim/active_optim_cut_epoch_{epoch + self.start_epoch}.pth",
+                    )
+                    torch.save(
+                        self.optimizers["top"].state_dict(),
+                        f"{self.model_dir}/optim/active_optim_top_epoch_{epoch + self.start_epoch}.pth",
+                    )
+
                 for msger in self.messengers:
                     msger.send(is_best)
 
-            importance_records.append(layer_importance)
+            embedding_norm = {
+                label: sum(values) / len(values)
+                for label, values in embedding_norm.items()
+            }
+            embedding_grad_norm = {
+                label: sum(values) / len(values)
+                for label, values in embedding_grad_norm.items()
+            }
+            bottom_output_norm = {
+                label: sum(values) / len(values)
+                for label, values in bottom_output_norm.items()
+            }
+            history_embedding_norms.append(embedding_norm)
+            history_embedding_grad_norms.append(embedding_grad_norm)
+            history_bottom_ouput_norms.append(bottom_output_norm)
 
-            # VMask here
-            if self.defense is not None and self.defense == "vmask":
-                self.shadow_model_update()
-                TorchModelIO.save(
-                    self.shadow_model[0],
-                    self.model_dir,
-                    f"shadow_epoch_{epoch}.model",
-                    epoch=epoch,
-                )
-                prev_masked_indices = (
-                    [] if epoch == 0 else self.historical_masked_indices[-1]
-                )
-                curr_masked_indices, leaked_privacy = self.layer_selection(
-                    prev_masked_indices,
-                    selection=self.args.selection,
-                )
-                if self.args.selection == "random":
-                    curr_masked_indices = np.random.choice(
-                        list(self.historical_grad_norms.keys()),
-                        len(curr_masked_indices),
-                    ).tolist()
-                if is_best:
-                    self.best_model_leaked_privacy = leaked_privacy
-                    self.best_model_masked_indices = copy.deepcopy(curr_masked_indices)
-                print(f"curr_masked_indices: {curr_masked_indices}")
-                u_v_diff = (set(curr_masked_indices) - set(prev_masked_indices)) | (
-                    set(prev_masked_indices) - set(curr_masked_indices)
-                )
-                u_v_diff = list(u_v_diff)
-                print(f"u_v_diff: {u_v_diff}")
-                self.models["bottom"] = layer_noising(
-                    model_type=self.args.model,
-                    bottom_model=self.models["bottom"],
-                    noisy_layers=u_v_diff,
-                    device=self.device,
-                )
-                self.historical_masked_indices.append(curr_masked_indices)
-                self.historical_leaked_privacy.append(leaked_privacy)
-            if self.defense is not None and self.defense == "vmask":
-                self.shadow_scheduler.step()
+        # save history embedding norms for vis
+        with open(f"{self.model_dir}/history_embedding_norms.pkl", "wb") as f:
+            pickle.dump(history_embedding_norms, f)
+        with open(f"{self.model_dir}/history_embedding_grad_norms.pkl", "wb") as f:
+            pickle.dump(history_embedding_grad_norms, f)
+        with open(f"{self.model_dir}/history_bottom_ouput_norms.pkl", "wb") as f:
+            pickle.dump(history_bottom_ouput_norms, f)
+        with open(f"{self.model_dir}/history_test_acc.pkl", "wb") as f:
+            pickle.dump(valid_acc_records, f)
 
         # close pool
         for enc_layer in self.enc_layer_list:
@@ -534,265 +437,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
         self.logger.log("Best testing accuracy: {:.5f}".format(best_acc))
         self.logger.log("Best testing auc: {:.5f}".format(best_auc))
 
-        import pickle
-
-        if self.saving_model:
-            with open(f"{self.model_dir}/importance_records.pkl", "wb") as f:
-                pickle.dump(importance_records, f)
-
-        if self.defense is not None and self.defense == "vmask":
-            print(f"best model leaked privacy: {self.best_model_leaked_privacy}")
-            print(f"best model masked indices: {self.best_model_masked_indices}")
-            print(f"historical_leaked_privay: {self.historical_leaked_privacy}")
-            print(f"historical masked indices: {self.historical_masked_indices}")
-            with open(f"{self.model_dir}/historical_masked_indices.pkl", "wb") as f:
-                pickle.dump(self.historical_masked_indices, f)
-            with open(f"{self.model_dir}/best_model_masked_indices.pkl", "wb") as f:
-                pickle.dump(self.best_model_masked_indices, f)
-
-    def shadow_model_update(self):
-        self.shadow_model.train()
-        for param in self.models["top"].parameters():
-            param.requires_grad = False
-
-        correct, total = 0, 0
-        train_loss = 0
-        for batch_idx, (X, y) in enumerate(self.shadow_dataloader):
-            X = X.to(self.device)
-            y = y.to(self.device)
-            logits = self.models["top"](self.shadow_model(X))
-            loss = self.loss_fn(logits, y)
-            self.shadow_optimizer.zero_grad()
-            loss.backward()
-            train_loss += loss.item()
-            _, predicted = logits.max(1)
-            correct += predicted.eq(y).sum().item()
-            total += y.size(0)
-
-            for name, param in self.shadow_model[0].named_parameters():
-                if name in self.historical_grad_norms:
-                    mean_grad = torch.abs(torch.flatten(param.grad.data)).mean().item()
-                    self.historical_grad_norms[name] += mean_grad
-
-            self.shadow_optimizer.step()
-            progress_bar(
-                batch_idx,
-                len(self.shadow_dataloader),
-                "Loss: %.3f | Acc: %.3f%% (%d/%d)"
-                % (
-                    loss / (batch_idx + 1),
-                    100.0 * correct / total,
-                    correct,
-                    total,
-                ),
-            )
-
-        for param in self.models["top"].parameters():
-            param.requires_grad = True
-
-    def layer_selection(self, prev_masked_indices=None, selection=None):
-        sorted_grad_norms = {
-            k: v
-            for k, v in sorted(
-                self.historical_grad_norms.items(),
-                key=lambda item: item[1],
-                reverse=True,
-            )
+        return {
+            "best_acc": best_acc,
+            "train_loss_records": train_loss_records,
+            "valid_loss_records": valid_loss_records,
+            "train_acc_records": train_acc_records,
+            "valid_acc_records": valid_acc_records,
         }
-        # print(sorted_grad_norms)
-        layers = list(sorted_grad_norms.keys())
-        print(f"prev masked indices: {prev_masked_indices}")
-        print(f"sorted layers: {layers}")
-
-        masked_indices = []
-        if selection == "accumu":
-            masked_indices = prev_masked_indices.copy()
-            for masked_layer in prev_masked_indices:
-                layers.pop(layers.index(masked_layer))
-        elif selection == "" or selection == "random":
-            pop_layers = []
-            for idx, masked_layer in enumerate(prev_masked_indices):
-                if layers[idx] == masked_layer:
-                    masked_indices.append(masked_layer)
-                    pop_layers.append(masked_layer)
-                else:
-                    break
-            for masked_layer in pop_layers:
-                layers.pop(layers.index(masked_layer))
-        else:
-            raise ValueError(f"invalid selection strategy: {selection}")
-        print(f"initial masked indices: {masked_indices}")
-        if len(masked_indices) == len(prev_masked_indices) and masked_indices:
-            layers.insert(0, masked_indices.pop())
-
-        leaked_privacy = 1.0
-        while leaked_privacy > self.privacy_budget and layers:
-            masked_indices.append(layers.pop(0))
-            shadow_model = copy.deepcopy(self.shadow_model)
-            shadow_model[0] = layer_masking(
-                model_type=self.args.model,
-                bottom_model=shadow_model[0],
-                mask_layers=masked_indices,
-                device=self.device,
-                dataset=self.args.dataset,
-            )
-            top_model = copy.deepcopy(self.mc_top_model)
-            leaked_privacy = self.mc_attack(shadow_model, top_model)
-            if self.args.dataset in ("criteo", "cifar100"):
-                leaked_privacy = leaked_privacy[1]  # auc or topk acc
-            else:
-                leaked_privacy = leaked_privacy[0]  # top1 acc
-
-        return masked_indices, leaked_privacy
-
-    def mc_attack(self, shadow_model, top_model):
-        shadow_optimizer = torch.optim.SGD(
-            shadow_model.parameters(),
-            lr=0.01 / 100,
-            momentum=0.9,
-            weight_decay=5e-4,
-        )
-        top_optimizer = torch.optim.SGD(
-            top_model.parameters(),
-            lr=0.01,
-            momentum=0.9,
-            weight_decay=5e-4,
-        )
-        shadow_scheduler = CosineAnnealingLR(
-            optimizer=shadow_optimizer, T_max=self.epochs, eta_min=0
-        )
-        top_scheduler = CosineAnnealingLR(
-            optimizer=top_optimizer, T_max=self.epochs, eta_min=0
-        )
-
-        start_time = time.time()
-        best_acc, best_auc = 0, 0
-        if self.topk > 1:
-            best_topk_acc = 0
-        for epoch in range(self.mc_epochs):
-            shadow_model.train()
-            top_model.train()
-            correct, total = 0, 0
-            train_loss = 0
-            if self.topk > 1:
-                topk_correct = 0
-            print("Epoch: {}".format(epoch))
-            for batch_idx, (X, y) in enumerate(self.mc_dataloader):
-                X = X.to(self.device)
-                y = y.to(self.device)
-                # forward
-                logits = top_model(shadow_model(X))
-                loss = self.loss_fn(logits, y)
-                train_loss += loss.item()
-                _, predicted = logits.max(1)
-                correct += predicted.eq(y).sum().item()
-                total += y.size(0)
-                progress_bar(
-                    batch_idx,
-                    len(self.mc_dataloader),
-                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
-                    % (
-                        train_loss / (batch_idx + 1),
-                        100.0 * correct / total,
-                        correct,
-                        total,
-                    ),
-                )
-                if self.topk > 1:
-                    _, predicted = logits.topk(self.topk, dim=1)
-                    y = y.view(y.size(0), -1).expand_as(predicted)
-                    topk_correct += predicted.eq(y).sum().item()
-
-                # backward
-                top_optimizer.zero_grad()
-                shadow_optimizer.zero_grad()
-                loss.backward()
-                top_optimizer.step()
-                shadow_optimizer.step()
-
-            top_scheduler.step()
-            shadow_scheduler.step()
-
-            scores = self.mc_validate(shadow_model, top_model)
-            curr_acc, curr_auc = scores["acc"], scores["auc"]
-            if curr_auc == 0:  # multi-class
-                if curr_acc > best_acc:
-                    best_acc = curr_acc
-                    print(colored("Best model updated.", "red"))
-                if self.topk > 1:
-                    if scores["topk_acc"] > best_topk_acc:
-                        best_topk_acc = scores["topk_acc"]
-                        print("best topk_acc updated.")
-                # no need to update best_auc here, because it always equals zero.
-            else:  # binary-class
-                if curr_auc > best_auc:
-                    best_auc = curr_auc
-                    print(colored("Best model updated.", "red"))
-                if curr_acc > best_acc:
-                    best_acc = curr_acc
-
-        print(colored(f"elapsed time: {time.time() - start_time}", "red"))
-        print(colored("Best testing accuracy: {:.5f}".format(best_acc), "red"))
-        if self.topk > 1:
-            print(
-                colored(
-                    "Best testing topK accuracy: {:.5f}".format(best_topk_acc), "red"
-                )
-            )
-        print(colored("Best testing auc: {:.5f}".format(best_auc), "red"))
-        if self.topk > 1:
-            return (best_acc, best_topk_acc)
-        else:
-            return (best_acc, best_auc)
-
-    def mc_validate(self, shadow_model, top_model):
-        shadow_model.eval()
-        top_model.eval()
-
-        n_batches = len(self.passive_dataloader)
-        test_loss, correct, total = 0.0, 0, 0
-        if self.topk > 1:
-            topk_correct = 0
-        labels, probs = np.array([]), np.array([])
-        with torch.no_grad():
-            for batch_idx, (X, y) in enumerate(self.passive_dataloader):
-                X = X.to(self.device)
-                y = y.to(self.device)
-                logits = top_model(shadow_model(X))
-                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
-                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
-                test_loss += self.loss_fn(logits, y).item()
-                _, predicted = logits.max(1)
-                correct += predicted.eq(y).sum().item()
-                total += y.size(0)
-                progress_bar(
-                    batch_idx,
-                    len(self.passive_dataloader),
-                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
-                    % (
-                        test_loss / (batch_idx + 1),
-                        100.0 * correct / total,
-                        correct,
-                        total,
-                    ),
-                )
-                if self.topk > 1:
-                    _, predicted = logits.topk(self.topk, dim=1)
-                    y = y.view(y.size(0), -1).expand_as(predicted)
-                    topk_correct += predicted.eq(y).sum().item()
-
-            test_loss /= n_batches
-            acc = correct / total
-            n_classes = len(torch.unique(self.passive_dataset.labels))
-            if n_classes == 2:
-                auc = roc_auc_score(labels, probs)
-            else:
-                auc = 0
-
-            scores = {"acc": acc, "auc": auc, "loss": test_loss}
-            if self.topk > 1:
-                scores["topk_acc"] = topk_correct / total
-            return scores
 
     def validate(
         self,
@@ -807,8 +458,6 @@ class ActiveNeuralNetwork(BaseModelComponent):
 
         for model in self.models.values():
             model.eval()
-        if self.defense is not None and self.defense == "mid":
-            self.mid_model.eval()
 
         n_batches = len(dataloader)
         test_loss, correct, total = 0, 0, 0
@@ -819,20 +468,17 @@ class ActiveNeuralNetwork(BaseModelComponent):
             for batch_idx, (X, y) in enumerate(dataloader):
                 X = X.to(self.device)
                 y = y.to(self.device)
-                active_repr = self.models["cut"](self.models["bottom"](X))
-                if self.defense is not None and self.defense == "mid":
-                    active_repr, _, _ = self.mid_model(active_repr)
+                if self.args.agg == "add":
+                    active_repr = self.models["cut"](self.models["bottom"](X))
+                elif self.args.agg == "concat":
+                    active_repr = self.models["bottom"](X)
                 top_input = active_repr
                 for idx, msger in enumerate(self.messengers):
-                    if self.cryptosystem_list[idx].type in (
-                        Const.PAILLIER,
-                        Const.FAST_PAILLIER,
-                    ):
-                        self.enc_layer_list[idx].fed_forward()
-                        passive_repr = msger.recv()
-                    else:
-                        passive_repr = msger.recv().to(self.device)
-                    top_input += passive_repr
+                    passive_repr = msger.recv().to(self.device)
+                    if self.args.agg == "add":
+                        top_input += passive_repr
+                    elif self.args.agg == "concat":
+                        top_input = torch.concat((active_repr, passive_repr), dim=1)
                 # top_input = active_repr + passive_repr
                 logits = self.models["top"](top_input)
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
@@ -868,6 +514,105 @@ class ActiveNeuralNetwork(BaseModelComponent):
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
             if self.topk > 1:
                 scores["topk_acc"] = topk_correct / total
+            return scores
+
+    def validate_attack(
+        self,
+        testset: TorchDataset,
+        *,
+        existing_loader: Optional[DataLoader] = None,
+    ):
+        if existing_loader is None:
+            dataloader = self._init_dataloader(testset, num_workers=2)
+        else:
+            dataloader = existing_loader
+
+        for model in self.models.values():
+            model.eval()
+
+        n_batches = len(dataloader)
+        test_loss, correct, total = 0, 0, 0
+        if self.topk > 1:
+            topk_correct = 0
+        labels, probs = np.array([]), np.array([])
+        predictions = np.array([])
+        with torch.no_grad():
+            for batch_idx, (X, y) in enumerate(dataloader):
+                X = X.to(self.device)
+                y = y.to(self.device)
+                if self.args.agg == "add":
+                    active_repr = self.models["cut"](self.models["bottom"](X))
+                elif self.args.agg == "concat":
+                    active_repr = self.models["bottom"](X)
+                top_input = active_repr
+                for idx, msger in enumerate(self.messengers):
+                    passive_repr = msger.recv().to(self.device)
+                    if self.args.agg == "add":
+                        top_input += passive_repr
+                    elif self.args.agg == "concat":
+                        top_input = torch.concat((top_input, passive_repr), dim=1)
+                # top_input = active_repr + passive_repr
+                logits = self.models["top"](top_input)
+                labels = np.append(labels, y.cpu().numpy().astype(np.int32))
+                probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
+                test_loss += self.loss_fn(logits, y).item()
+                _, predicted = logits.max(1)
+                predictions = np.append(
+                    predictions, predicted.cpu().numpy().astype(np.int32)
+                )
+                correct += predicted.eq(y).sum().item()
+                total += y.size(0)
+                progress_bar(
+                    batch_idx,
+                    len(dataloader),
+                    "Loss: %.3f | Acc: %.3f%% (%d/%d)"
+                    % (
+                        test_loss / (batch_idx + 1),
+                        100.0 * correct / total,
+                        correct,
+                        total,
+                    ),
+                )
+                if self.topk > 1:
+                    _, predicted = logits.topk(self.topk, dim=1)
+                    y = y.view(y.size(0), -1).expand_as(predicted)
+                    topk_correct += predicted.eq(y).sum().item()
+
+            test_loss /= n_batches
+            acc = correct / total
+            n_classes = len(torch.unique(testset.labels))
+            if n_classes == 2:
+                auc = roc_auc_score(labels, probs)
+            else:
+                auc = 0
+
+            scores = {"acc": acc, "auc": auc, "loss": test_loss}
+            if self.topk > 1:
+                scores["topk_acc"] = topk_correct / total
+
+            # calculate per-class backdoor attack accuracy
+            print("=======> Main Task Accuracy")
+            for category in range(n_classes):
+                category_num_samples = len(labels[labels == category])
+                category_correct = (
+                    (labels[labels == category] == predictions[labels == category])
+                    .astype(np.int32)
+                    .sum()
+                )
+                print(f"Class {category}: {category_correct / category_num_samples}")
+
+            print("=======> Backdoor Attack Accuracy")
+            asr = (predictions == self.args.target).astype(np.int32).mean()
+            print(f"Total backdoor attack success rate: {asr}")
+            for category in range(n_classes):
+                category_num_samples = len(labels[labels == category])
+                backdoor_success = (
+                    (predictions[labels == category] == self.args.target)
+                    .astype(np.int32)
+                    .sum()
+                )
+                print(f"Class {category}: {backdoor_success / category_num_samples}")
+
             return scores
 
     def fit(
@@ -911,9 +656,13 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 X = X.to(self.device)
                 y = y.to(self.device)
                 # forward
-                logits = self.models["top"](
-                    self.models["cut"](self.models["bottom"](X))
-                )
+                if self.args.agg == "add":
+                    logits = self.models["top"](
+                        self.models["cut"](self.models["bottom"](X))
+                    )
+                elif self.args.agg == "concat":
+                    logits = self.models["top"](self.models["bottom"](X))
+
                 loss = self.loss_fn(logits, y)
                 train_loss += loss.item()
                 _, predicted = logits.max(1)
@@ -990,6 +739,8 @@ class ActiveNeuralNetwork(BaseModelComponent):
         testset: TorchDataset,
         *,
         existing_loader: Optional[DataLoader] = None,
+        cal_topk_acc=False,
+        topk_confident=50,
     ):
         if existing_loader is None:
             dataloader = self._init_dataloader(testset, num_workers=2, bs=256)
@@ -1006,6 +757,9 @@ class ActiveNeuralNetwork(BaseModelComponent):
         if self.topk > 1:
             topk_correct = 0
         labels, probs = np.array([]), np.array([])
+        if cal_topk_acc:
+            softmax_probs = np.array([])
+            predictions = np.array([])
         with torch.no_grad():
             for batch_idx, (X, y) in enumerate(dataloader):
                 X = X.to(self.device)
@@ -1019,11 +773,23 @@ class ActiveNeuralNetwork(BaseModelComponent):
                 total_embeddings.index_copy_(0, index, embedding)
                 start_idx = start_idx + X.size(0)
 
-                logits = self.models["top"](self.models["cut"](embedding))
+                if self.args.agg == "add":
+                    logits = self.models["top"](self.models["cut"](embedding))
+                elif self.args.agg == "concat":
+                    logits = self.models["top"](embedding)
+                if cal_topk_acc:
+                    softmax_probs = np.append(
+                        softmax_probs,
+                        nn.functional.softmax(logits, dim=1).cpu().numpy(),
+                    )
                 labels = np.append(labels, y.cpu().numpy().astype(np.int32))
                 probs = np.append(probs, torch.sigmoid(logits[:, 1]).cpu().numpy())
                 test_loss += self.loss_fn(logits, y).item()
                 _, predicted = logits.max(1)
+                if cal_topk_acc:
+                    predictions = np.append(
+                        predictions, predicted.cpu().numpy().astype(np.int32)
+                    )
                 correct += predicted.eq(y).sum().item()
                 total += y.size(0)
                 progress_bar(
@@ -1053,6 +819,27 @@ class ActiveNeuralNetwork(BaseModelComponent):
             scores = {"acc": acc, "auc": auc, "loss": test_loss}
             if self.topk > 1:
                 scores["topk_acc"] = topk_correct / total
+
+            # calculate accuracy of TopK most confident samples
+            if cal_topk_acc:
+                softmax_probs = softmax_probs.reshape(len(labels), -1)
+                target_indices = np.where(predictions == self.args.target)[
+                    0
+                ]  # np.where returns tuple, first element is index
+                target_probs = softmax_probs[target_indices][:, self.args.target]
+                target_ground_truths = labels[target_indices]
+                topk_indices = np.argsort(target_probs)[
+                    -topk_confident:
+                ]  # ascending order
+                topk_acc = (
+                    (target_ground_truths[topk_indices] == self.args.target)
+                    .astype(np.int32)
+                    .mean()
+                )
+                scores["topk_confident_acc"] = round(float(topk_acc), 5)
+                topk_original_indices = target_indices[topk_indices]
+                scores["topk_original_indices"] = topk_original_indices  # np array
+
             return scores, total_embeddings
 
     @staticmethod

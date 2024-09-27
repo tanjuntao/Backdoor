@@ -12,7 +12,6 @@ from torch.utils.data import DataLoader
 
 from linkefl.base import BaseCryptoSystem, BaseMessenger, BaseModelComponent
 from linkefl.common.const import Const
-from linkefl.common.factory import logger_factory
 from linkefl.common.log import GlobalLogger
 from linkefl.dataio import MediaDataset, TorchDataset  # noqa: F403
 from linkefl.modelio import TorchModelIO
@@ -42,8 +41,12 @@ class PassiveNeuralNetwork(BaseModelComponent):
         saving_model: bool = False,
         model_dir: Optional[str] = None,
         model_name: Optional[str] = None,
+        args=None,
+        start_epoch=0,
     ):
+        self.args = args
         self.epochs = epochs
+        self.start_epoch = start_epoch
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.models = models
@@ -141,7 +144,7 @@ class PassiveNeuralNetwork(BaseModelComponent):
             torch.manual_seed(epoch)  # fix dataloader batching order when shuffle=True
             for model in self.models.values():
                 model.train()
-            print(f"Epoch: {epoch}")
+            print(f"Epoch: {epoch}, Actual Epoch: {epoch + self.start_epoch}")
             self.logger.log(f"Epoch {epoch} started...")
             for batch_idx, (X, _) in enumerate(train_dataloader):
                 # 1. forward
@@ -150,7 +153,10 @@ class PassiveNeuralNetwork(BaseModelComponent):
                 if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
                     passive_repr = self.enc_layer.fed_forward(bottom_outputs)
                 else:
-                    passive_repr = self.models["cut"](bottom_outputs)
+                    if self.args.agg == "add":
+                        passive_repr = self.models["cut"](bottom_outputs)
+                    elif self.args.agg == "concat":
+                        passive_repr = bottom_outputs
                 self.messenger.send(passive_repr.data)
 
                 # 2. backward
@@ -167,7 +173,10 @@ class PassiveNeuralNetwork(BaseModelComponent):
                     self.optimizers["bottom"].step()
                 else:
                     grad = self.messenger.recv().to(self.device)
-                    passive_repr.backward(grad)
+                    if self.args.agg == "add":
+                        passive_repr.backward(grad)
+                    elif self.args.agg == "concat":
+                        passive_repr.backward(grad[:, -passive_repr.shape[1] :])
                     self.optimizers["cut"].step()
                     self.optimizers["bottom"].step()
 
@@ -187,14 +196,24 @@ class PassiveNeuralNetwork(BaseModelComponent):
                             self.models,
                             self.model_dir,
                             self.model_name,
-                            epoch=epoch,
+                            epoch=epoch + self.start_epoch,
                         )
                 if self.saving_model:
                     TorchModelIO.save(
                         self.models,
                         self.model_dir,
-                        f"passive_epoch_{epoch}.model",
-                        epoch=epoch,
+                        f"passive_epoch_{epoch + self.start_epoch}.model",
+                        epoch=epoch + self.start_epoch,
+                    )
+                    if not os.path.exists(f"{self.model_dir}/optim"):
+                        os.mkdir(f"{self.model_dir}/optim")
+                    torch.save(
+                        self.optimizers["bottom"].state_dict(),
+                        f"{self.model_dir}/optim/passive_optim_bottom_epoch_{epoch + self.start_epoch}.pth",
+                    )
+                    torch.save(
+                        self.optimizers["cut"].state_dict(),
+                        f"{self.model_dir}/optim/passive_optim_cut_epoch_{epoch + self.start_epoch}.pth",
                     )
 
         # close pool
@@ -223,10 +242,38 @@ class PassiveNeuralNetwork(BaseModelComponent):
             for batch, (X, _) in enumerate(dataloader):
                 X = X.to(self.device)
                 bottom_outputs = self.models["bottom"](X)
-                if self.cryptosystem.type in (Const.PAILLIER, Const.FAST_PAILLIER):
-                    passive_repr = self.enc_layer.fed_forward(bottom_outputs)
-                else:
+                if self.args.agg == "add":
                     passive_repr = self.models["cut"](bottom_outputs)
+                elif self.args.agg == "concat":
+                    passive_repr = bottom_outputs
+
+                self.messenger.send(passive_repr)
+
+    def validate_attack(
+        self,
+        testset: TorchDataset,
+        existing_loader: Optional[DataLoader] = None,
+        trigger_embedding=None,
+    ) -> None:
+        if existing_loader is None:
+            dataloader = self._init_dataloader(testset, num_workers=2)
+        else:
+            dataloader = existing_loader
+
+        for model in self.models.values():
+            model.eval()
+
+        with torch.no_grad():
+            for batch, (X, _) in enumerate(dataloader):
+                if trigger_embedding is None:
+                    X = X.to(self.device)
+                    bottom_outputs = self.models["bottom"](X)
+                else:
+                    bottom_outputs = trigger_embedding.repeat(X.size(0), 1)
+                if self.args.agg == "add":
+                    passive_repr = self.models["cut"](bottom_outputs)
+                elif self.args.agg == "concat":
+                    passive_repr = bottom_outputs
                 self.messenger.send(passive_repr)
 
     def fit(
@@ -260,146 +307,33 @@ class PassiveNeuralNetwork(BaseModelComponent):
                 passive_repr = models["cut"](bottom_outputs)
                 messenger.send(passive_repr)
 
+    def validate_alone(
+        self,
+        testset: TorchDataset,
+        existing_loader: Optional[DataLoader] = None,
+    ) -> None:
+        if existing_loader is None:
+            dataloader = self._init_dataloader(testset, num_workers=2)
+        else:
+            dataloader = existing_loader
 
-if __name__ == "__main__":
-    from linkefl.common.factory import crypto_factory, messenger_factory
-    from linkefl.modelzoo.mlp import MLP, CutLayer
-    from linkefl.util import num_input_nodes
+        for model in self.models.values():
+            model.eval()
 
-    # 0. Set parameters
-    _dataset_name = "tab_mnist"
-    _passive_feat_frac = 0.5
-    _feat_perm_option = Const.SEQUENCE
-    _active_ip = "localhost"
-    _active_port = 20000
-    _passive_ip = "localhost"
-    _passive_port = 30000
-    _epochs = 10
-    _batch_size = 100
-    _learning_rate = 0.001
-    _crypto_type = Const.PLAIN
-    _key_size = 1024
-    _num_workers = 1
-    _random_state = None
-    _device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    _saving_model = True
-    _logger = logger_factory(role=Const.PASSIVE_NAME)
-    _messenger = messenger_factory(
-        messenger_type=Const.FAST_SOCKET,
-        role=Const.PASSIVE_NAME,
-        active_ip=_active_ip,
-        active_port=_active_port,
-        passive_ip=_passive_ip,
-        passive_port=_passive_port,
-    )
-    _crypto = crypto_factory(
-        crypto_type=_crypto_type,
-        key_size=_key_size,
-        num_enc_zeros=100,
-        gen_from_set=False,
-    )
+        total_embeddings = None
+        start_idx = 0
+        with torch.no_grad():
+            for batch_idx, (X, _) in enumerate(dataloader):
+                X = X.to(self.device)
+                # no matter what agg() is, return the bottom model output as embedding
+                embedding = self.models["bottom"](X)
+                # embedding = self.models["cut"](embedding)
+                if total_embeddings is None:
+                    total_embeddings = torch.zeros(len(testset), embedding.size(1)).to(
+                        self.device
+                    )
+                index = torch.arange(start_idx, start_idx + X.size(0)).to(self.device)
+                total_embeddings.index_copy_(0, index, embedding)
+                start_idx = start_idx + X.size(0)
 
-    # 1. Load datasets
-    print("Loading dataset...")
-    passive_trainset = TorchDataset.buildin_dataset(
-        dataset_name=_dataset_name,
-        role=Const.PASSIVE_NAME,
-        root="../data",
-        train=True,
-        download=True,
-        passive_feat_frac=_passive_feat_frac,
-        feat_perm_option=_feat_perm_option,
-        seed=_random_state,
-    )
-    passive_testset = TorchDataset.buildin_dataset(
-        dataset_name=_dataset_name,
-        role=Const.PASSIVE_NAME,
-        root="../data",
-        train=False,
-        download=True,
-        passive_feat_frac=_passive_feat_frac,
-        feat_perm_option=_feat_perm_option,
-        seed=_random_state,
-    )
-    # passive_trainset = MediaDataset(
-    #     role=Const.PASSIVE_NAME,
-    #     dataset_name=_dataset_name,
-    #     root="../data",
-    #     train=False,
-    #     download=True,
-    # )
-    # passive_testset = MediaDataset(
-    #     role=Const.PASSIVE_NAME,
-    #     dataset_name=_dataset_name,
-    #     root="../data",
-    #     train=False,
-    #     download=True,
-    # )
-    # passive_trainset = TorchDataset.feature_split(passive_trainset, n_splits=2)[0]
-    # passive_testset = TorchDataset.feature_split(passive_testset, n_splits=2)[0]
-    print("Done.")
-
-    # 2. Create PyTorch models and optimizers
-    input_nodes = num_input_nodes(
-        dataset_name=_dataset_name,
-        role=Const.PASSIVE_NAME,
-        passive_feat_frac=_passive_feat_frac,
-    )
-    # # mnist & fashion_mnist
-    bottom_nodes = [input_nodes, 256, 128]
-    cut_nodes = [128, 64]
-
-    # criteo
-    # bottom_nodes = [input_nodes, 15, 10]
-    # cut_nodes = [10, 10]
-
-    # census
-    # bottom_nodes = [input_nodes, 20, 10]
-    # cut_nodes = [10, 10]
-
-    # epsilon
-    # bottom_nodes = [input_nodes, 25, 10]
-    # cut_nodes = [10, 10]
-
-    # credit
-    # bottom_nodes = [input_nodes, 3, 3]
-    # cut_nodes = [3, 3]
-
-    # default_credit
-    # bottom_nodes = [input_nodes, 8, 5]
-    # cut_nodes = [5, 5]
-    _bottom_model = MLP(
-        bottom_nodes,
-        activate_input=False,
-        activate_output=True,
-        random_state=_random_state,
-    ).to(_device)
-    # bottom_model = ResNet18(in_channel=1).to(_device)
-    _cut_layer = CutLayer(*cut_nodes, random_state=_random_state).to(_device)
-    _models = {"bottom": _bottom_model, "cut": _cut_layer}
-    _optimizers = {
-        name: torch.optim.SGD(
-            model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
-        )
-        for name, model in _models.items()
-    }
-
-    # 3. Initialize vertical NN protocol and start fed training
-    passive_party = PassiveNeuralNetwork(
-        epochs=_epochs,
-        batch_size=_batch_size,
-        learning_rate=_learning_rate,
-        models=_models,
-        optimizers=_optimizers,
-        messenger=_messenger,
-        cryptosystem=_crypto,
-        logger=_logger,
-        num_workers=_num_workers,
-        device=_device,
-        random_state=_random_state,
-        saving_model=_saving_model,
-    )
-    passive_party.train(passive_trainset, passive_testset)
-
-    # 4. Close messenger, finish training
-    _messenger.close()
+        return total_embeddings
