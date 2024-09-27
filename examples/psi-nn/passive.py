@@ -1,7 +1,8 @@
-import math
-
+import numpy as np
 import torch.optim.optimizer
-from args_parser import get_args, get_model_dir
+from args_parser import get_args, get_model_dir, get_poison_epochs
+from generate_poison import optimize_input
+from surrogate_fn import finetune_surrogate
 from termcolor import colored
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
@@ -10,6 +11,7 @@ from linkefl.common.factory import logger_factory
 from linkefl.crypto import Plain
 from linkefl.dataio import MediaDataset, TorchDataset
 from linkefl.messenger import EasySocket
+from linkefl.modelio import TorchModelIO
 from linkefl.modelzoo import *  # noqa
 from linkefl.util import num_input_nodes
 from linkefl.vfl.nn import PassiveNeuralNetwork
@@ -22,26 +24,6 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-
-
-import time
-from functools import partial
-
-time_dict = {}
-
-
-def _take_time_pre(layer_name, module, inputs):
-    time_dict[layer_name] = time.time()
-
-
-def _take_time(layer_name, module, inputs, ouputs):
-    time_dict[layer_name] = time.time() - time_dict[layer_name]
-
-
-def register_hook(model):
-    for layer in model.children():
-        layer.register_forward_pre_hook(partial(_take_time_pre, layer))
-        layer.register_forward_hook(partial(_take_time, layer))
 
 
 if __name__ == "__main__":
@@ -89,156 +71,213 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"{args.dataset} is not valid dataset.")
 
-    # Load dataset
-    if args.model in ("resnet18", "vgg13", "lenet"):
-        passive_trainset = MediaDataset(
-            role=Const.PASSIVE_NAME,
-            dataset_name=args.dataset,
-            root=_dataset_dir,
-            train=True,
-            download=True,
-        )
-        passive_testset = MediaDataset(
-            role=Const.PASSIVE_NAME,
-            dataset_name=args.dataset,
-            root=_dataset_dir,
-            train=False,
-            download=True,
-        )
-    elif args.model == "mlp":
-        _passive_feat_frac = 0.5
-        _feat_perm_option = Const.SEQUENCE
-        passive_trainset = TorchDataset.buildin_dataset(
-            dataset_name=args.dataset,
-            role=Const.PASSIVE_NAME,
-            root=_dataset_dir,
-            train=True,
-            download=True,
-            passive_feat_frac=_passive_feat_frac,
-            feat_perm_option=_feat_perm_option,
-            seed=_random_state,
-        )
-        passive_testset = TorchDataset.buildin_dataset(
-            dataset_name=args.dataset,
-            role=Const.PASSIVE_NAME,
-            root=_dataset_dir,
-            train=False,
-            download=True,
-            passive_feat_frac=_passive_feat_frac,
-            feat_perm_option=_feat_perm_option,
-            seed=_random_state,
-        )
-    else:
-        raise ValueError(f"{args.model} is not an valid model type.")
-
-    print(colored("1. Finish loading dataset.", "red"))
-
-    # Init models
-    print(colored("2. Passive party started training...", "red"))
-    if args.model == "resnet18":
-        bottom_model = ResNet18(in_channel=3, num_classes=num_classes).to(_device)
-    elif args.model == "vgg13":
-        bottom_model = VGG13(in_channel=3, num_classes=num_classes).to(_device)
-    elif args.model == "lenet":
-        in_channel = 1
-        if args.dataset == "svhn":
-            in_channel = 3
-        bottom_model = LeNet(in_channel=in_channel, num_classes=num_classes).to(_device)
-    elif args.model == "mlp":
-        input_nodes = num_input_nodes(
-            dataset_name=args.dataset,
-            role=Const.PASSIVE_NAME,
-            passive_feat_frac=_passive_feat_frac,
-        )
-        if args.dataset in ("tab_mnist", "tab_fashion_mnist"):
-            bottom_nodes = [input_nodes, 256, 128, 128]
+    poison_epochs = get_poison_epochs()
+    poison_epochs.insert(0, 1)  # insert epoch 1 at the beginning (index 0)
+    poison_epochs.append(_epochs + 1)  # append total epochs at the end
+    poison_samples = None
+    for idx, curr_poison_epoch in enumerate(poison_epochs):
+        # Load dataset
+        if args.model in ("resnet18", "vgg13", "lenet"):
+            passive_trainset = MediaDataset(
+                role=Const.PASSIVE_NAME,
+                dataset_name=args.dataset,
+                root=_dataset_dir,
+                train=True,
+                download=True,
+                poison_samples=poison_samples,
+            )
+            passive_testset = MediaDataset(
+                role=Const.PASSIVE_NAME,
+                dataset_name=args.dataset,
+                root=_dataset_dir,
+                train=False,
+                download=True,
+            )
+            passive_validset = MediaDataset(
+                role=Const.PASSIVE_NAME,
+                dataset_name=args.dataset,
+                root=_dataset_dir,
+                train=True,
+                download=True,
+                valid=True,
+            )
+            active_validset = MediaDataset(
+                role=Const.ACTIVE_NAME,
+                dataset_name=args.dataset,
+                root=_dataset_dir,
+                train=True,
+                download=True,
+                valid=True,
+            )
+        elif args.model == "mlp":  # TODO: update poison dataset
+            _passive_feat_frac = 0.5
+            _feat_perm_option = Const.SEQUENCE
+            passive_trainset = TorchDataset.buildin_dataset(
+                dataset_name=args.dataset,
+                role=Const.PASSIVE_NAME,
+                root=_dataset_dir,
+                train=True,
+                download=True,
+                passive_feat_frac=_passive_feat_frac,
+                feat_perm_option=_feat_perm_option,
+                seed=_random_state,
+            )
+            passive_testset = TorchDataset.buildin_dataset(
+                dataset_name=args.dataset,
+                role=Const.PASSIVE_NAME,
+                root=_dataset_dir,
+                train=False,
+                download=True,
+                passive_feat_frac=_passive_feat_frac,
+                feat_perm_option=_feat_perm_option,
+                seed=_random_state,
+            )
         else:
-            bottom_nodes = [18, 15, 10, 10]
-        bottom_model = MLP(
-            bottom_nodes,
-            activate_input=False,
-            activate_output=True,
-            random_state=_random_state,
-        ).to(_device)
-    else:
-        raise ValueError(f"{args.model} is not an valid model type.")
-    cut_layer = CutLayer(*_cut_nodes, random_state=_random_state).to(_device)
+            raise ValueError(f"{args.model} is not an valid model type.")
+        print(colored("1. Finish loading dataset.", "red"))
 
-    # Prepare FedPass Models
-    if args.defense == "fedpass":
-        if args.model == "mlp":
-            pass
-        if args.model == "lenet":
-            if args.dataset == "svhn":
-                in_channel = 3
-            else:
+        # Init models
+        if curr_poison_epoch == 1:
+            if args.model == "resnet18":
+                bottom_model = ResNet18(in_channel=3, num_classes=num_classes).to(
+                    _device
+                )
+            elif args.model == "vgg13":
+                bottom_model = VGG13(in_channel=3, num_classes=num_classes).to(_device)
+            elif args.model == "lenet":
                 in_channel = 1
-            bottom_model = FedPassLeNet(
-                in_channel=in_channel,
-                num_classes=10,
-                loc=-100,
-                scale=math.sqrt(args.sigma2),
-            ).to(_device)
-        if args.model == "vgg13":
-            bottom_model = FedPassVGG13(
-                in_channel=3,
-                num_classes=100,
-                loc=-100,
-                scale=math.sqrt(args.sigma2),
-            ).to(_device)
-        if args.model == "resnet18":
-            bottom_model = FedPassResNet18(
-                in_channel=3,
-                num_classes=10,
-                loc=-100,
-                passport_mode="multi",
-                scale=math.sqrt(args.sigma2),
-            ).to(_device)
+                if args.dataset == "svhn":
+                    in_channel = 3
+                bottom_model = LeNet(in_channel=in_channel, num_classes=num_classes).to(
+                    _device
+                )
+            elif args.model == "mlp":
+                input_nodes = num_input_nodes(
+                    dataset_name=args.dataset,
+                    role=Const.PASSIVE_NAME,
+                    passive_feat_frac=_passive_feat_frac,
+                )
+                if args.dataset in ("tab_mnist", "tab_fashion_mnist"):
+                    bottom_nodes = [input_nodes, 256, 128, 128]
+                else:
+                    bottom_nodes = [18, 15, 10, 10]
+                bottom_model = MLP(
+                    bottom_nodes,
+                    activate_input=False,
+                    activate_output=True,
+                    random_state=_random_state,
+                ).to(_device)
+            else:
+                raise ValueError(f"{args.model} is not an valid model type.")
+            cut_layer = CutLayer(*_cut_nodes, random_state=_random_state).to(_device)
+        else:
+            pass_model = TorchModelIO.load(
+                get_model_dir(), f"passive_epoch_{curr_poison_epoch-2}.model"
+            )["model"]
+            bottom_model = pass_model["bottom"].to(_device)
+            cut_layer = pass_model["cut"].to(_device)
+        print(bottom_model, cut_layer)
+        _models = {"bottom": bottom_model, "cut": cut_layer}
 
-    # print(bottom_model, cut_layer)
-    # register_hook(bottom_model)
-    _models = {"bottom": bottom_model, "cut": cut_layer}
-    _optimizers = {
-        name: torch.optim.SGD(
-            model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
+        # Init optimizers
+        _optimizers = {
+            name: torch.optim.SGD(
+                model.parameters(), lr=_learning_rate, momentum=0.9, weight_decay=5e-4
+            )
+            for name, model in _models.items()
+        }
+        if curr_poison_epoch == 1:
+            pass
+        else:
+            _optimizers["bottom"].load_state_dict(
+                torch.load(
+                    f"{get_model_dir()}/optim/passive_optim_bottom_epoch_{curr_poison_epoch-2}.pth"
+                )
+            )
+            _optimizers["cut"].load_state_dict(
+                torch.load(
+                    f"{get_model_dir()}/optim/passive_optim_cut_epoch_{curr_poison_epoch-2}.pth"
+                )
+            )
+
+        # Init schedulers
+        last_epoch = -1 if curr_poison_epoch == 1 else curr_poison_epoch - 2
+        schedulers = {
+            name: CosineAnnealingLR(
+                optimizer=optimizer, T_max=_epochs, eta_min=0, last_epoch=last_epoch
+            )
+            for name, optimizer in _optimizers.items()
+        }
+
+        # Model training
+        passive_party = PassiveNeuralNetwork(
+            epochs=poison_epochs[idx + 1] - curr_poison_epoch,
+            start_epoch=curr_poison_epoch - 1,
+            batch_size=_batch_size,
+            learning_rate=_learning_rate,
+            models=_models,
+            optimizers=_optimizers,
+            messenger=_messenger,
+            cryptosystem=_crypto,
+            logger=_logger,
+            device=_device,
+            num_workers=1,
+            val_freq=1,
+            saving_model=True,
+            random_state=_random_state,
+            schedulers=schedulers,
+            model_dir=get_model_dir(),
+            model_name="VFL_passive.model",
+            args=args,
         )
-        for name, model in _models.items()
-    }
-    schedulers = {
-        name: CosineAnnealingLR(optimizer=optimizer, T_max=_epochs, eta_min=0)
-        for name, optimizer in _optimizers.items()
-    }
+        passive_party.train(passive_trainset, passive_testset)
+        print(colored("3. Passive party finish vfl_nn training.", "red"))
 
-    # Model training
-    passive_party = PassiveNeuralNetwork(
-        epochs=_epochs,
-        batch_size=_batch_size,
-        learning_rate=_learning_rate,
-        models=_models,
-        optimizers=_optimizers,
-        messenger=_messenger,
-        cryptosystem=_crypto,
-        logger=_logger,
-        device=_device,
-        num_workers=1,
-        val_freq=1,
-        saving_model=True,
-        random_state=_random_state,
-        schedulers=schedulers,
-        model_dir=get_model_dir(),
-        model_name="VFL_passive.model",
-    )
-    passive_party.train(passive_trainset, passive_testset)
-    print(colored("3. Passive party finish vfl_nn training.", "red"))
-    _messenger.close()
-    print(time_dict)
+        # Terminate when there are no more poison epochs
+        if poison_epochs[idx + 1] == _epochs + 1:
+            break
 
+        # Fine-tune surrogate model to obtain topk most confident target sample indices
+        topk_indices = finetune_surrogate(poison_epochs[idx + 1] - 2, args)
 
-# fedpass
-# bottom_model = FedPassResNet18(
-#     in_channel=3,
-#     num_classes=10,
-#     loc=-100,
-#     passport_mode="multi",
-#     scale=math.sqrt(args.sigma2),
-# ).to(_device)
+        # Generate poison samples
+        poison_samples = {}
+        active_model = TorchModelIO.load(
+            get_model_dir(), f"active_epoch_{poison_epochs[idx+1] - 2}.model"
+        )["model"]
+        passive_model = TorchModelIO.load(
+            get_model_dir(), f"passive_epoch_{poison_epochs[idx+1] - 2}.model"
+        )["model"]
+        models = {  # TODO:
+            "active_bottom": active_model["bottom"].to(_device),
+            "passive_bottom": passive_model["bottom"].to(_device),
+            "active_cut": active_model["cut"].to(_device),
+            "passive_cut": passive_model["cut"].to(_device),
+            "top": active_model["top"].to(_device),
+        }
+        np.random.shuffle(topk_indices)
+        other_classes = list(range(num_classes))
+        other_classes.remove(args.target)
+        splitted_indices = np.array_split(topk_indices, len(other_classes))
+        for idx, other in enumerate(other_classes):
+            print(f"======> poisoning to class {other} <======")
+            criterion = torch.nn.CrossEntropyLoss()
+            chunk_indices = splitted_indices[idx].tolist()
+            for sample_idx in chunk_indices:
+                # print(active_validset[sample_idx][1])
+                print(
+                    active_validset[sample_idx][1], end=" "
+                )  # print ground-truth label
+                full_sample = {
+                    "active": active_validset[sample_idx][0].to(
+                        _device
+                    ),  # obtain image
+                    "passive": passive_validset[sample_idx][0].to(_device),
+                }
+                passive_poison_sample = optimize_input(
+                    full_sample, models, criterion, args.target, other, agg=args.agg
+                ).to("cpu")
+                full_poison_sample = torch.cat(
+                    (active_validset[sample_idx][0], passive_poison_sample), dim=1
+                )
+                poison_samples[sample_idx] = full_poison_sample
