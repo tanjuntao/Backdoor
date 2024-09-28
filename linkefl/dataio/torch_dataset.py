@@ -355,14 +355,23 @@ class MediaDataset(TorchDataset, Dataset):
 
         elif name in ("mnist", "fashion_mnist"):
             if train:
-                transform = transforms.Compose(
-                    [
-                        transforms.Resize(32),
-                        transforms.RandomHorizontalFlip(),
-                        transforms.ToTensor(),
-                        transforms.Normalize((0.1307,), (0.3081,)),
-                    ]
-                )
+                if self.valid:
+                    transform = transforms.Compose(
+                        [
+                            transforms.Resize(32),
+                            transforms.ToTensor(),
+                            transforms.Normalize((0.1307,), (0.3081,)),
+                        ]
+                    )
+                else:
+                    transform = transforms.Compose(
+                        [
+                            transforms.Resize(32),
+                            transforms.RandomHorizontalFlip(),
+                            transforms.ToTensor(),
+                            transforms.Normalize((0.1307,), (0.3081,)),
+                        ]
+                    )
             else:
                 transform = transforms.Compose(
                     [
